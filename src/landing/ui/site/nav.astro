@@ -1,0 +1,68 @@
+---
+import { Button } from '@newt/ui/components/button'
+import { Icon } from '@newt/ui/components/icon'
+import { Logo } from '@newt/ui/domain/logo'
+import { homeOf, type Lang } from '../../i18n'
+import { GithubMark } from './icons'
+import { ThemeToggle } from './theme-toggle'
+
+interface Props {
+  lang: Lang
+  repoUrl: string
+  copy: {
+    home: string
+    main: string
+    links: { href: string; label: string }[]
+    star: string
+    toLight: string
+    toDark: string
+  }
+}
+
+const { lang, repoUrl, copy } = Astro.props
+const languages = [
+  { lang: 'en', label: 'EN', name: 'English' },
+  { lang: 'es', label: 'ES', name: 'Español' },
+] as const
+---
+
+<header class="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+  <div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <a href="#top" aria-label={copy.home}><Logo /></a>
+    <nav aria-label={copy.main} class="hidden items-center gap-1 md:flex">
+      {
+        copy.links.map(link => (
+          <a href={link.href} class="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+    <div class="flex items-center gap-1">
+      <div role="group" aria-label="Language / Idioma" class="flex items-center rounded-md border p-0.5 text-xs font-medium">
+        {
+          languages.map(option => (
+            <a
+              href={homeOf(option.lang)}
+              hreflang={option.lang}
+              lang={option.lang}
+              aria-label={option.name}
+              aria-current={lang === option.lang ? 'page' : undefined}
+              class:list={[
+                'rounded px-2 py-1 transition-colors',
+                lang === option.lang ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+              ]}
+            >
+              {option.label}
+            </a>
+          ))
+        }
+      </div>
+      <ThemeToggle client:load toLight={copy.toLight} toDark={copy.toDark} />
+      <Button href={repoUrl} size="sm" variant="outline" label={copy.star}>
+        <Icon icon={GithubMark} />
+        <span class="hidden sm:inline">{copy.star}</span>
+      </Button>
+    </div>
+  </div>
+</header>

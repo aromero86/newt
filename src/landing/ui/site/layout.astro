@@ -1,0 +1,37 @@
+---
+import './landing.css'
+import type { Lang } from '../../i18n'
+
+interface Props {
+  lang: Lang
+  title: string
+  description: string
+}
+
+const { lang, title, description } = Astro.props
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/')
+---
+
+<!doctype html>
+<html lang={lang} class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href={`${base}newt.svg`} />
+    <link rel="alternate" hreflang="en" href={base} />
+    <link rel="alternate" hreflang="es" href={`${base}es/`} />
+    <script is:inline>
+      // Before the first paint, so a light theme never flashes dark.
+      try {
+        if (localStorage.getItem('newt-theme') === 'light') document.documentElement.classList.remove('dark')
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="top" class="relative min-h-screen overflow-x-clip">
+      <slot />
+    </div>
+  </body>
+</html>

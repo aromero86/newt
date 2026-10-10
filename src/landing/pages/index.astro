@@ -1,24 +1,5 @@
 ---
-import '@newt/ui/styles/theme.css'
-import { Button } from '@newt/ui/components/button'
-import { Container } from '@newt/ui/components/container'
-import { Heading } from '@newt/ui/components/heading'
-import { Stack } from '@newt/ui/components/stack'
+import Page from '../sections/page.astro'
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>newt</title>
-  </head>
-  <body>
-    <Container>
-      <Stack gap={4} align="start">
-        <Heading level={1}>Hello world</Heading>
-        <Button client:load>Get started</Button>
-      </Stack>
-    </Container>
-  </body>
-</html>
+<Page lang="en" />

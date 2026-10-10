@@ -12,27 +12,44 @@ const shadcnVariant = {
   link: 'link',
 } as const satisfies Record<Variant, string>
 
-type Size = 'sm' | 'md' | 'lg'
+/** `icon` and `icon-sm` are square buttons that only hold an icon: give them a `label`. */
+type Size = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
 
 const shadcnSize = {
   sm: 'sm',
   md: 'default',
   lg: 'lg',
+  icon: 'icon',
+  'icon-sm': 'icon-sm',
 } as const satisfies Record<Size, string>
 
 type ButtonProps = {
   variant?: Variant
   size?: Size
+  /** With `href` the button is a link. */
+  href?: string
   type?: 'button' | 'submit' | 'reset'
   disabled?: boolean
-  onClick?: MouseEventHandler<HTMLButtonElement>
+  onClick?: MouseEventHandler<HTMLElement>
+  /** Accessible name, for buttons whose content does not say what they do. */
+  label?: string
   children: ReactNode
 }
 
 /** The only button apps use. It takes no class names or styles on purpose. */
-export function Button({ variant = 'primary', size = 'md', type = 'button', disabled, onClick, children }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', href, type = 'button', disabled, onClick, label, children }: ButtonProps) {
+  const look = { variant: shadcnVariant[variant], size: shadcnSize[size] }
+  if (href !== undefined) {
+    return (
+      <ShadcnButton {...look} asChild>
+        <a href={href} aria-label={label} onClick={onClick}>
+          {children}
+        </a>
+      </ShadcnButton>
+    )
+  }
   return (
-    <ShadcnButton variant={shadcnVariant[variant]} size={shadcnSize[size]} type={type} disabled={disabled} onClick={onClick}>
+    <ShadcnButton {...look} type={type} disabled={disabled} onClick={onClick} aria-label={label}>
       {children}
     </ShadcnButton>
   )

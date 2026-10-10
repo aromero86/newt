@@ -1,0 +1,25 @@
+---
+import { Logo } from '@newt/ui/domain/logo'
+
+interface Props {
+  repoUrl: string
+  copy: { tagline: string; quickstart: string; backToTop: string; disclaimer: string }
+}
+
+const { repoUrl, copy } = Astro.props
+---
+
+<footer class="border-t px-4 py-10 sm:px-6">
+  <div class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 text-sm text-muted-foreground sm:flex-row sm:items-center">
+    <div class="flex items-center gap-3">
+      <span class="text-foreground"><Logo /></span>
+      <span>{copy.tagline}</span>
+    </div>
+    <div class="flex gap-5">
+      <a href={repoUrl} class="hover:text-foreground">GitHub</a>
+      <a href="#quickstart" class="hover:text-foreground">{copy.quickstart}</a>
+      <a href="#top" class="hover:text-foreground">{copy.backToTop}</a>
+    </div>
+  </div>
+  <p class="mx-auto mt-6 max-w-6xl text-xs text-muted-foreground/70">{copy.disclaimer}</p>
+</footer>

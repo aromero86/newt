@@ -1,54 +1,74 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 /* The library's own components, wherever the app that imports this theme lives. */
 @source "../";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* newt's palette: a green brand, a cyan second brand colour for gradients, and
+   one colour per state (ok, warn, bad, info). Dark is the default theme. */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.75rem;
+  --background: oklch(0.99 0.002 160);
+  --foreground: oklch(0.2 0.01 170);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.01 170);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.2 0.01 170);
+  --primary: oklch(0.55 0.14 165);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.005 170);
+  --secondary-foreground: oklch(0.25 0.01 170);
+  --muted: oklch(0.96 0.005 170);
+  --muted-foreground: oklch(0.48 0.015 170);
+  --accent: oklch(0.95 0.01 170);
+  --accent-foreground: oklch(0.25 0.01 170);
+  --destructive: oklch(0.58 0.2 25);
+  --border: oklch(0.9 0.008 170);
+  --input: oklch(0.9 0.008 170);
+  --ring: oklch(0.6 0.14 165);
+  --brand: oklch(0.6 0.15 163);
+  --brand-2: oklch(0.62 0.12 215);
+  --ok: oklch(0.58 0.15 150);
+  --warn: oklch(0.68 0.15 75);
+  --bad: oklch(0.58 0.2 25);
+  --info: oklch(0.58 0.14 245);
+  --subtle: oklch(0.975 0.004 170);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: oklch(0.145 0.008 175);
+  --foreground: oklch(0.96 0.005 170);
+  --card: oklch(0.18 0.009 175);
+  --card-foreground: oklch(0.96 0.005 170);
+  --popover: oklch(0.19 0.01 175);
+  --popover-foreground: oklch(0.96 0.005 170);
+  --primary: oklch(0.8 0.15 163);
+  --primary-foreground: oklch(0.17 0.02 170);
+  --secondary: oklch(0.23 0.01 175);
+  --secondary-foreground: oklch(0.95 0.005 170);
+  --muted: oklch(0.23 0.01 175);
+  --muted-foreground: oklch(0.7 0.015 170);
+  --accent: oklch(0.25 0.012 175);
+  --accent-foreground: oklch(0.96 0.005 170);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(0.28 0.012 175);
+  --input: oklch(0.3 0.012 175);
+  --ring: oklch(0.7 0.14 165);
+  --brand: oklch(0.8 0.15 163);
+  --brand-2: oklch(0.78 0.12 210);
+  --ok: oklch(0.76 0.16 150);
+  --warn: oklch(0.8 0.14 80);
+  --bad: oklch(0.7 0.18 25);
+  --info: oklch(0.74 0.12 245);
+  --subtle: oklch(0.165 0.008 175);
 }
 
 @theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -71,13 +91,49 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-subtle: var(--subtle);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground antialiased;
+  html {
+    color-scheme: dark;
   }
+  html:not(.dark) {
+    color-scheme: light;
+  }
+  /* Ligatures turn != and === into glyphs that read badly in a diff. */
+  code,
+  pre,
+  .font-mono {
+    font-variant-ligatures: none;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+/* Text painted with the brand gradient. */
+@utility text-gradient {
+  background-image: linear-gradient(90deg, var(--brand), var(--brand-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A faint square grid, for backgrounds. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--border) 55%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
 }

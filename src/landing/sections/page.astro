@@ -1,0 +1,45 @@
+---
+/**
+ * The page, top to bottom, in one language. This is the only file that
+ * composes sections: each one lives in sections/<name>/ and knows nothing of
+ * the others. Every section is an island that wakes up when it scrolls into
+ * view; its HTML is rendered at build time, so the page reads without
+ * JavaScript and search engines see all of it.
+ */
+import type { Lang } from '../i18n'
+import { REPO_URL } from '../links'
+import Layout from '../ui/site/layout.astro'
+import Nav from '../ui/site/nav.astro'
+import Footer from '../ui/site/footer.astro'
+import { site } from './site'
+import { HeroSection } from './hero'
+import { ProblemSection } from './problem'
+import { HowSection } from './how'
+import { InfographicsSection } from './infographics'
+import { ScreensSection } from './screens'
+import { GithubSection } from './github'
+import { RolesSection } from './roles'
+import { OpenSourceSection } from './open-source'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const copy = site[lang]
+---
+
+<Layout lang={lang} title={copy.title} description={copy.description}>
+  <Nav lang={lang} repoUrl={REPO_URL} copy={copy.nav} />
+  <main>
+    <HeroSection lang={lang} client:load />
+    <ProblemSection lang={lang} client:visible />
+    <HowSection lang={lang} client:visible />
+    <InfographicsSection lang={lang} client:visible />
+    <ScreensSection lang={lang} client:visible />
+    <GithubSection lang={lang} client:visible />
+    <RolesSection lang={lang} client:visible />
+    <OpenSourceSection lang={lang} client:visible />
+  </main>
+  <Footer repoUrl={REPO_URL} copy={copy.footer} />
+</Layout>
