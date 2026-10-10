@@ -2,6 +2,7 @@ import { Base } from './base/base'
 import { serveFrontend } from './base/http/serve-frontend'
 import { config } from './config'
 import { AuthCredential_Module } from './modules/auth-credential/auth-credential.module'
+import { Dimension_Module } from './modules/dimension/dimension.module'
 import { Health_Module } from './modules/health/health.module'
 import { Mail_Module } from './modules/mail/mail.module'
 import { AuthPasswordReset_Module } from './modules/auth-password-reset/auth-password-reset.module'
@@ -22,6 +23,7 @@ await AuthSession_Module.initialize(base, { user, authCredential }, { days: conf
 const mail = await Mail_Module.initialize(base, config.mail)
 const workspaceMember = await WorkspaceMember_Module.initialize(base, { user })
 const workspace = await Workspace_Module.initialize(base, { workspaceMember })
+await Dimension_Module.initialize(base, { workspace, workspaceMember })
 await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
 await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
 

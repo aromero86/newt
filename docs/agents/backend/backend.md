@@ -237,6 +237,8 @@ export const Email = {
   (`?size=&cursor=`, 20 by default, at most 100). Paginate on the table that owns
   the order: a person's workspaces are paged over their memberships, and only
   that page of workspaces is read.
+  Exception: a list bounded by design, with a small fixed limit (a workspace's
+  dimensions: at most 20, with at most 50 values each), is returned whole.
 - To turn a `find` into one item or an error, use `this.resolve(find, onMissing)`
   from `Module`: the caller picks the error.
 - **What only its owner may change takes the actor, not an id**: `updateMine(input)`

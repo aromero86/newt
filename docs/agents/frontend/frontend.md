@@ -166,6 +166,9 @@ Every list from the backend comes in pages, and a service reads it with a
 and `prepend`, `replace`, `remove` to keep it in step with changes. Components
 show `items` and a "Load more" button while `hasMore`. Something opened by its
 address (a workspace in the URL) is read on its own, never looked up in a page.
+Exception: a list bounded by design, with a small fixed limit (a workspace's
+dimensions: at most 20, with at most 50 values each), comes whole and lives in the
+service's `Store`.
 
 ### Forms
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   Card as ShadcnCard,
+  CardAction as ShadcnCardAction,
   CardContent as ShadcnCardContent,
   CardDescription as ShadcnCardDescription,
   CardFooter as ShadcnCardFooter,
@@ -13,13 +14,15 @@ type CardProps = {
   description?: ReactNode
   /** Heading level of the title, to fit the page's outline. */
   titleLevel?: 2 | 3 | 4
+  /** A control at the top right, beside the title: usually a menu. */
+  action?: ReactNode
   /** Actions or notes at the bottom, laid out in a row. */
   footer?: ReactNode
   children?: ReactNode
 }
 
-export function Card({ title, description, titleLevel = 3, footer, children }: CardProps) {
-  const hasHeader = title !== undefined || description !== undefined
+export function Card({ title, description, titleLevel = 3, action, footer, children }: CardProps) {
+  const hasHeader = title !== undefined || description !== undefined || action !== undefined
   return (
     <ShadcnCard>
       {hasHeader && (
@@ -30,6 +33,7 @@ export function Card({ title, description, titleLevel = 3, footer, children }: C
             </ShadcnCardTitle>
           )}
           {description !== undefined && <ShadcnCardDescription>{description}</ShadcnCardDescription>}
+          {action !== undefined && <ShadcnCardAction>{action}</ShadcnCardAction>}
         </ShadcnCardHeader>
       )}
       {/* Cards side by side share a height: the content grows, so footers line up. */}
