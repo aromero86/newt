@@ -6,10 +6,12 @@ import type { BaseConfig } from './base-config'
 import { Database } from './database/database'
 import { MigrationRunner } from './database/migration-runner'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
+import { HttpRouter } from './http/http-router'
 
 /**
- * The infrastructure every module receives: the database, the transactions and
- * the event bus. Opening it brings the database up to date first.
+ * The infrastructure every module receives: the database, the transactions, the
+ * event bus and the HTTP router its routes go on. Opening it brings the database
+ * up to date first.
  */
 export class Base {
 
@@ -17,6 +19,7 @@ export class Base {
   readonly bus: EventBus
   /** Publishes after the commit of the use case in progress, or at once outside one. */
   readonly publisher: EventPublisher
+  readonly http = new HttpRouter()
 
   private constructor(readonly db: Database) {
     this.transactions = new TransactionManager(db)

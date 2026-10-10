@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>newt</title>
+    <link rel="icon" type="image/svg+xml" href="/newt.svg" />
+    <script>
+      // Before the first paint, so the stored theme never flashes the other one.
+      try {
+        var theme = localStorage.getItem('newt-theme')
+        if (theme !== 'light' && theme !== 'dark') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        if (theme === 'dark') document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

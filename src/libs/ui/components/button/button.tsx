@@ -1,5 +1,7 @@
-import type { MouseEventHandler, ReactNode } from 'react'
+import { useContext, type MouseEventHandler, type ReactElement, type ReactNode } from 'react'
 import { Button as ShadcnButton } from '../../shadcn/button'
+import { Spinner as ShadcnSpinner } from '../../shadcn/spinner'
+import { LinkComponentContext } from '../link/link-component'
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'
 
@@ -30,27 +32,56 @@ type ButtonProps = {
   href?: string
   type?: 'button' | 'submit' | 'reset'
   disabled?: boolean
+  /** Shows a spinner before the content and disables the button until it is done. */
+  loading?: boolean
   onClick?: MouseEventHandler<HTMLElement>
   /** Accessible name, for buttons whose content does not say what they do. */
   label?: string
   children: ReactNode
 }
 
-/** The only button apps use. It takes no class names or styles on purpose. */
-export function Button({ variant = 'primary', size = 'md', href, type = 'button', disabled, onClick, label, children }: ButtonProps) {
+// Props and the ref that a Radix trigger (such as `Menu`'s) puts on its child.
+// They are passed through so a Button can open a menu, but apps cannot set them.
+type TriggerProps = Record<string, unknown>
+
+function ButtonImpl({
+  variant = 'primary',
+  size = 'md',
+  href,
+  type = 'button',
+  disabled,
+  loading = false,
+  onClick,
+  label,
+  children,
+  ...trigger
+}: ButtonProps & TriggerProps) {
+  const Link = useContext(LinkComponentContext)
   const look = { variant: shadcnVariant[variant], size: shadcnSize[size] }
   if (href !== undefined) {
     return (
       <ShadcnButton {...look} asChild>
-        <a href={href} aria-label={label} onClick={onClick}>
+        <Link {...trigger} href={href} aria-label={label} onClick={onClick}>
           {children}
-        </a>
+        </Link>
       </ShadcnButton>
     )
   }
   return (
-    <ShadcnButton {...look} type={type} disabled={disabled} onClick={onClick} aria-label={label}>
+    <ShadcnButton
+      {...trigger}
+      {...look}
+      type={type}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      onClick={onClick}
+      aria-label={label}
+    >
+      {loading && <ShadcnSpinner role={undefined} aria-label={undefined} aria-hidden />}
       {children}
     </ShadcnButton>
   )
 }
+
+/** The only button apps use. It takes no class names or styles on purpose. */
+export const Button: (props: ButtonProps) => ReactElement = ButtonImpl

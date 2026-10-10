@@ -6,4 +6,6 @@ const root = join(import.meta.dir, '../..')
 export const config = {
   dbPath: process.env.NEWT_DB_PATH ?? join(root, 'data/newt.db'),
   migrationsFolder: join(import.meta.dir, 'migrations'),
+  /** The built frontend the server hands out. */
+  frontendFolder: join(root, 'dist/frontend'),
 }

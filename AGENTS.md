@@ -7,3 +7,4 @@
 - Dependencies are added with exact, pinned versions: no `^`, no `~`, no ranges.
 - Agents live in `docs/agents/<name>/`:
   - [`backend`](docs/agents/backend/backend.md): builds `src/backend`.
+  - [`frontend`](docs/agents/frontend/frontend.md): builds `src/frontend`.

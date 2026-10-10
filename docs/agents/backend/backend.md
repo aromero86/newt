@@ -31,23 +31,25 @@ not enough: the patterns are the same, the names and paths are newt's.
 ```
 src/backend/
 ├── core/          shared building blocks: entity, module, use case, events, errors, repository
-├── base/          infrastructure: `Base`, the database, the migration runner, the event bus
+├── base/          infrastructure: `Base`, the database, migrations, the event bus, HTTP
 ├── modules/       the business, one folder per module
 ├── migrations/    the database migrations, for every module
 ├── config.ts      where the data lives
 └── index.ts       opens `Base`, then every module in dependency order
 ```
 
-Each module's `initialize` receives `Base`: the database, `transactions` and the
-event `bus`. Opening `Base` applies the pending migrations first, so the server
+Each module's `initialize` receives `Base`: the database, `transactions`, the
+event `bus` and the `http` router its routes go on. Opening `Base` applies the pending migrations first, so the server
 never runs on an old database.
 
 - `core` knows nothing about `base` or `modules`. `base` knows `core`. Modules
   know `core`, `base` and the modules they depend on. Nothing knows the entry
   points.
-- Entry points (the HTTP `api` for the web, later `mcp` and `github`) translate a
-  request into a use case call and its result into a response. **No business
-  logic in an entry point.**
+- Entry points translate a request into a use case call and its result into a
+  response. **No business logic in an entry point.** HTTP routes live in each
+  module (`<m>.routes.ts`, on `base.http`, all under `/api`); `base/http` turns
+  domain errors into status codes and serves the built frontend for every other
+  address. Later entries (`mcp`, `github`) follow the same rule.
 
 ## Modules
 
@@ -68,6 +70,7 @@ module is not a table and not a screen: it is a responsibility.
 | `infrastructure/<m>.table.ts` | The module's drizzle tables. |
 | `<m>.repository.ts` | `find` / `count` / `persist` and a `<M>_Criteria` interface. **The only file that touches the database.** |
 | `<m>.module.ts` | `<M>_Module extends Module`: the use cases and the event emitters. `static initialize(base, deps?)`. |
+| `<m>.routes.ts` | `register<M>Routes(base, module)`: the module's HTTP routes on `base.http`. They read the request, call a use case and answer. Only when it has routes. |
 | `<m>.deps.ts` | `<M>_Deps`: the modules this one depends on, imported with `import type`. Only when it has any. |
 | `<m>.workers.ts` | What this module does **in reaction** to events: its own or its dependencies'. |
 | `errors/<error>.ts` | One class per domain error. |
@@ -231,7 +234,8 @@ lists them.
    cases, its events and its table. Wait for approval.
 2. Create `src/backend/modules/<m>/` with the fixed file set: schema, entity,
    table, repository, module, the `errors/` and `events/` it needs, and
-   `<m>.deps.ts` and `<m>.workers.ts` only if it has dependencies or reactions.
+   `<m>.routes.ts`, `<m>.deps.ts` and `<m>.workers.ts` only if it has routes,
+   dependencies or reactions.
 3. Write its migration (see above).
 4. Initialize it in `index.ts`, after every module it depends on, passing them as
    its deps.

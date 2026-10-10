@@ -10,6 +10,18 @@ const APP_UI = ['src/frontend/ui/**', 'src/landing/ui/**']
 
 const STYLING_MESSAGE = 'Apps do not style: use a component from @newt/ui or from this app\'s ui/ folder.'
 
+const UI_IMPORTS = [
+  { group: ['radix-ui', '@radix-ui/*'], message: 'Use a component from @newt/ui instead.' },
+  { group: ['@newt/ui/shadcn', '@newt/ui/shadcn/*', '**/libs/ui/shadcn/**'], message: 'shadcn is private to @newt/ui: use @newt/ui/components/*.' },
+]
+
+// The frontend shares the backend's contract, never its code: a module's schema
+// file is the only thing it may import from the backend.
+const BACKEND_IMPORTS = {
+  regex: '/backend/(?!modules/[^/]+/[^/]+\\.schema$)',
+  message: 'The frontend may only import a backend module\'s *.schema.ts (its contract).',
+}
+
 export default tseslint.config(
   { ignores: ['dist/**', '**/.astro/**', '**/node_modules/**'] },
   {
@@ -18,14 +30,15 @@ export default tseslint.config(
   },
   ...astro.configs['flat/base'],
   {
-    files: APPS,
+    files: ['src/landing/**/*.{ts,tsx,astro}'],
     rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [
-          { group: ['radix-ui', '@radix-ui/*'], message: 'Use a component from @newt/ui instead.' },
-          { group: ['@newt/ui/shadcn', '@newt/ui/shadcn/*', '**/libs/ui/shadcn/**'], message: 'shadcn is private to @newt/ui: use @newt/ui/components/*.' },
-        ],
-      }],
+      'no-restricted-imports': ['error', { patterns: UI_IMPORTS }],
+    },
+  },
+  {
+    files: ['src/frontend/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [...UI_IMPORTS, BACKEND_IMPORTS] }],
     },
   },
   {
