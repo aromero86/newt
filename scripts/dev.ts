@@ -11,6 +11,30 @@ const SERVICES = [
   { name: 'api', url: 'http://localhost:3000', cmd: ['bun', '--watch', 'src/backend/index.ts'] },
 ]
 
+// Nothing starts unless every port is free: `bun --watch`, for one, stays alive
+// after failing to listen, so a taken port would go unnoticed otherwise.
+async function isTaken(port: number) {
+  for (const hostname of ['127.0.0.1', '::1']) {
+    try {
+      const socket = await Bun.connect({ hostname, port, socket: { data() {} } })
+      socket.end()
+      return true
+    } catch {
+      // Nothing listening on this address.
+    }
+  }
+  return false
+}
+
+const taken = (await Promise.all(SERVICES.map(async service => ((await isTaken(Number(new URL(service.url).port))) ? service : null)))).filter(
+  service => service !== null,
+)
+if (taken.length > 0) {
+  for (const { name, url } of taken) console.error(`${name}: ${url} is already in use`)
+  console.error('Nothing was started.')
+  process.exit(1)
+}
+
 const children = SERVICES.map(({ cmd, cwd }) => Bun.spawn(cmd, { cwd, detached: true, stdio: ['inherit', 'inherit', 'inherit'] }))
 
 function signalGroups(signal: NodeJS.Signals) {
@@ -25,7 +49,7 @@ function signalGroups(signal: NodeJS.Signals) {
 
 let stopping = false
 
-async function shutdown() {
+async function shutdown(code = 0) {
   if (stopping) return
   stopping = true
   signalGroups('SIGINT')
@@ -33,10 +57,19 @@ async function shutdown() {
   const timeout = setTimeout(() => signalGroups('SIGTERM'), 3000)
   await Promise.all(children.map(child => child.exited))
   clearTimeout(timeout)
-  process.exit(0)
+  process.exit(code)
 }
 
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, shutdown)
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => shutdown())
+
+// If any service dies on its own, everything stops with it.
+children.forEach((child, index) => {
+  child.exited.then(code => {
+    if (stopping) return
+    console.error(`${SERVICES[index].name} exited (code ${code}): stopping everything.`)
+    shutdown(1)
+  })
+})
 
 async function waitUntilUp(url: string) {
   while (!stopping) {

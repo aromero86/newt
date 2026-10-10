@@ -6,7 +6,7 @@ import astro from 'eslint-plugin-astro'
 // forbidden, and so is reaching past @newt/ui into shadcn or Radix.
 
 const APPS = ['src/frontend/**/*.{ts,tsx}', 'src/landing/**/*.{ts,tsx,astro}']
-const APP_UI = ['src/frontend/ui/**', 'src/landing/src/ui/**']
+const APP_UI = ['src/frontend/ui/**', 'src/landing/ui/**']
 
 const STYLING_MESSAGE = 'Apps do not style: use a component from @newt/ui or from this app\'s ui/ folder.'
 
