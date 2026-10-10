@@ -9,6 +9,8 @@ export default defineConfig({
   // Caches go to the monorepo's node_modules, like every other project.
   cacheDir: '../../node_modules/.astro/landing',
   outDir: '../../dist/landing',
+  // GitHub Pages serves the landing under /<repo>/; locally it lives at the root.
+  base: process.env.PAGES_BASE_PATH ?? '/',
   integrations: [react()],
   server: { port: 4321 },
   vite: {
