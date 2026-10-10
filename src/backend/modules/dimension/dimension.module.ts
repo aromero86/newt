@@ -1,7 +1,6 @@
 import type { Base } from '../../base/base'
 import { Module } from '../../core/module/module'
 import { UseCase } from '../../core/unit-of-work/use-case.decorator'
-import { WorkspaceArchived } from '../workspace/errors/workspace-archived'
 import {
   Dimension,
   DimensionLimits,
@@ -44,7 +43,7 @@ export class Dimension_Module extends Module {
 
   @UseCase('dimension.create')
   async create(workspaceId: string, input: DimensionNameInputDTO): Promise<DimensionDTO> {
-    await this.assertWritable(workspaceId)
+    await this.deps.workspace.assertWritable(workspaceId)
     const { name } = DimensionNameInputSchema.parse(input)
 
     const count = await this.repo.count(workspaceId)
@@ -68,7 +67,7 @@ export class Dimension_Module extends Module {
   /** `order` lists every dimension of the workspace once, in the new order. */
   @UseCase('dimension.reorder')
   async reorder(workspaceId: string, input: DimensionOrderDTO): Promise<DimensionDTO[]> {
-    await this.assertWritable(workspaceId)
+    await this.deps.workspace.assertWritable(workspaceId)
     const { order } = DimensionOrderSchema.parse(input)
 
     const dimensions = await this.repo.find({ workspaceId })
@@ -117,20 +116,13 @@ export class Dimension_Module extends Module {
 
   /** Loads one dimension of a writable workspace, applies `change` and saves it. */
   private async edit(workspaceId: string, dimensionId: string, change: (dimension: Dimension) => Promise<void>): Promise<DimensionDTO> {
-    await this.assertWritable(workspaceId)
+    await this.deps.workspace.assertWritable(workspaceId)
     const [dimension] = await this.repo.find({ workspaceId, id: [dimensionId] })
     if (!dimension) throw new DimensionNotFound(dimensionId)
 
     await change(dimension)
     await this.repo.persist(dimension)
     return dimension.toContract()
-  }
-
-  /** A member of a workspace that is not archived. */
-  private async assertWritable(workspaceId: string): Promise<void> {
-    await this.deps.workspaceMember.assertActive(workspaceId)
-    const [workspace] = await this.deps.workspace.find([workspaceId])
-    if (workspace?.archivedAt) throw new WorkspaceArchived()
   }
 
   private async assertNameFree(workspaceId: string, name: string, exceptId?: string): Promise<void> {

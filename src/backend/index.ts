@@ -3,6 +3,8 @@ import { serveFrontend } from './base/http/serve-frontend'
 import { config } from './config'
 import { AuthCredential_Module } from './modules/auth-credential/auth-credential.module'
 import { Dimension_Module } from './modules/dimension/dimension.module'
+import { FeatureArea_Module } from './modules/feature-area/feature-area.module'
+import { Feature_Module } from './modules/feature/feature.module'
 import { Health_Module } from './modules/health/health.module'
 import { Mail_Module } from './modules/mail/mail.module'
 import { AuthPasswordReset_Module } from './modules/auth-password-reset/auth-password-reset.module'
@@ -24,6 +26,8 @@ const mail = await Mail_Module.initialize(base, config.mail)
 const workspaceMember = await WorkspaceMember_Module.initialize(base, { user })
 const workspace = await Workspace_Module.initialize(base, { workspaceMember })
 await Dimension_Module.initialize(base, { workspace, workspaceMember })
+const featureArea = await FeatureArea_Module.initialize(base, { workspace, workspaceMember })
+await Feature_Module.initialize(base, { featureArea, workspace, workspaceMember })
 await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
 await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
 

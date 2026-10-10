@@ -5,6 +5,7 @@ import type { Page } from '../../core/pagination/page'
 import type { PageRequest } from '../../core/pagination/page-request'
 import { UseCase } from '../../core/unit-of-work/use-case.decorator'
 import { WorkspaceNotFound } from '../workspace-member/errors/workspace-not-found'
+import { WorkspaceArchived } from './errors/workspace-archived'
 import { WorkspaceNameTaken } from './errors/workspace-name-taken'
 import { Workspace, WorkspaceCreateSchema, WorkspaceUpdateSchema, type WorkspaceCreateDTO, type WorkspaceDTO, type WorkspaceMineDTO, type WorkspaceUpdateDTO } from './workspace'
 import type { Workspace_Deps } from './workspace.deps'
@@ -90,6 +91,13 @@ export class Workspace_Module extends Module {
     workspace.unarchive()
     await this.repo.persist(workspace)
     return workspace.toDTO()
+  }
+
+  /** For other modules: the signed-in person is a member and the workspace is not archived. */
+  @UseCase('workspace.assertWritable')
+  async assertWritable(workspaceId: string): Promise<void> {
+    await this.deps.workspaceMember.assertActive(workspaceId)
+    if ((await this.load(workspaceId)).isArchived) throw new WorkspaceArchived()
   }
 
   /** For other modules that already checked who may see it. */
