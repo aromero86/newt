@@ -33,16 +33,16 @@ src/frontend/
 ├── core/              what is shared and is not UI, one folder per piece:
 │   ├── store/         Store and useValue
 │   ├── injector/      Injector, inject, Provide, useService
-│   └── requester/     Requester, ApiError
-├── ui/                the app's own UI pieces (the only place with classes)
+│   └── form/          FormStore
+├── components/        the app's own UI pieces, shared by its pages (the only place with classes)
 ├── services/<name>/   app-wide services that belong to no zone, one folder each: theme, health
+├── guards/            route guards: session
 ├── pages/             shell, home, not-found, route error
 └── modules/<zone>/    one folder per zone: definition, proposals, releases…
     ├── <zone>.tsx             the zone's root component
     ├── <zone>.routes.tsx
     ├── <zone>.service.ts      the rules that change the state (if it has one)
     ├── <zone>.state.ts        the state's shape and initial value (with the service)
-    ├── <zone>.api.ts          extends Requester (if it calls the backend)
     └── <zone>-<part>/         a piece split out of the zone, same shape inside
         ├── <zone>-<part>.tsx
         └── <zone>-<part>-<detail>.tsx
@@ -50,22 +50,23 @@ src/frontend/
 
 ### Folders and names
 
-- **No `components/` folder.** A folder holds one component, named after the
-  folder, and what belongs to it.
+- **No `components/` folder inside a zone.** A folder holds one component, named
+  after the folder, and what belongs to it. (The app's shared pieces are the one
+  `src/frontend/components/`.)
 - **A component is split when it grows**, and the piece gets its own folder only
   if it has pieces of its own: `proposals/proposals-header/` holds
   `proposals-header.tsx` and `proposals-header-badge.tsx`.
 - **Where there is a service there is a folder, with exactly one component at
   that level**: the one the service belongs to. The service is provided there.
-- **Components outside `ui/` are prefixed with where they live**: in
+- **Components outside `components/` are prefixed with where they live**: in
   `pages/shell/` the theme toggle is `shell-theme-toggle.tsx` and
   `ShellThemeToggle`; in `pages/home/` the API status is `HomeApiStatus`. The
   root of a folder is the plain name: `Shell`, `Home`, `Proposals`.
 
 - **UI comes from `@newt/ui`.** No `className`, `class` or `style` outside
-  `src/frontend/ui/` (ESLint enforces it), and no shadcn or Radix imports. If
+  `src/frontend/components/` (ESLint enforces it), and no shadcn or Radix imports. If
   `@newt/ui` lacks something newt needs everywhere, it goes there; if only this
-  app needs it, it goes in `ui/`.
+  app needs it, it goes in `components/`.
 - **Links come from `@newt/ui` too**: `TextLink`, `NavItem` and `Button` with
   `href`. `main.tsx` wraps the app in `RouterLinkProvider`, so they navigate with
   React Router instead of reloading the page. Never style a router `Link` in the app.
@@ -88,7 +89,7 @@ logic, no fetching, no state that another component needs.
 
 A service is a plain class: its state is a `Store` (signals), it exposes read-only
 parts of it, and **every change to that state is one of its methods**. It knows
-nothing about React, so it is tested with `bun test` without rendering.
+nothing about React.
 
 ```ts
 export class ProposalsService {
@@ -140,13 +141,53 @@ export function ProposalList() {
 - A component may read several services: the zone's and a lower, more specific
   one.
 
-## API clients
+### Pages and sessions
 
-One class per zone, extending `Requester`, which owns the base URL, query
-params, JSON and errors (`ApiError` with the backend's `status` and `code`).
+- **A component with its own service provides it itself.** Its file exports the
+  public name (`SettingsPassword`), which renders
+  `<Provide services={[SettingsPasswordService]}>` around an inner component
+  that is not exported and is named with the suffix `Wrapped`
+  (`SettingsPasswordWrapped`). Whoever renders it needs nothing
+  else, and the service comes and goes with it.
+- Everything but signing in and up sits behind `SessionGuard` (`guards/`), which
+  sends anyone without a session to `/sign-in`. Below it, the tree is keyed by the user, so
+  another person signing in starts every service from scratch.
+- App-wide services whose data belongs to the user are listed in the guard's
+  `SESSION_SERVICES`, never left at the root. `SessionService` is the one owner of
+  the signed-in user.
+- Any request answered with 401 signs the browser out (`Requester.onUnauthorized`).
+
+### Forms
+
+A form is a `FormStore` owned by the page's service, built with the backend's zod
+schema, so validation is the same on both sides. `FormField` (in `components/`) binds one
+field: it shows the value and its error. Backend error codes that belong to a
+field are mapped with `errorFields` (`{ 'user.nick_taken': 'nick' }`); any other
+failure is the form's, shown in an `Alert`.
 
 ```ts
-export class ProposalsApi extends Requester {
+readonly form = new FormStore(LoginSchema, { login: '', password: '' })
+
+submit() {
+  return this.form.submit(async credentials => this.session.signedIn(await this.api.login(credentials)))
+}
+```
+
+## API clients
+
+The frontend reaches the backend only through **`@newt/api`** (`src/libs/api`),
+the API client. ESLint keeps the frontend from importing anything of the backend.
+
+- One folder per backend module (`@newt/api/session`, `@newt/api/user`…) with its
+  client, a class extending `Requester`, and the module's contract re-exported:
+  the DTO types and the zod schemas the forms validate with.
+- `Requester` (`@newt/api/core/requester`) owns the base URL, query params, JSON and
+  errors (`ApiError` with the backend's `status` and `code`).
+- `@newt/api` imports only the backend modules' `*.schema.ts` (ESLint enforces it).
+  Never redefine a type the backend already has.
+
+```ts
+export class ProposalApi extends Requester {
   protected readonly path = '/proposals'
 
   list(params?: PageParams) {
@@ -155,10 +196,7 @@ export class ProposalsApi extends Requester {
 }
 ```
 
-The request and response types are the backend's: `import type` from the
-module's `*.schema.ts`. Never redefine them. That file is the only thing the
-frontend may import from the backend (ESLint enforces it): never a module,
-repository or anything of `base`.
+A service injects the client like any other service: `inject(ProposalApi)`.
 
 ## Routes
 
@@ -181,10 +219,9 @@ repository or anything of `base`.
 
 ## Tests
 
-- `bun test`, next to the code: services, stores and the requester, without a
-  browser.
-- **No component tests.** Components are dumb; what they show is checked by
-  looking at it in the browser.
+- `bun test`, next to the code, only for `core`: store, injector, requester, form.
+- **No tests for services** (in `services/`, pages or zones) **nor components.**
+  They are checked by running them and looking at the result in the browser.
 - A test that cannot fail is not a test: break the code once and see it fail.
 
 ## Conventions

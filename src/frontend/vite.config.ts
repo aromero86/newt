@@ -8,7 +8,11 @@ const apiPort = Number(process.env.API_PORT ?? 3000)
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { '@newt/ui': fileURLToPath(new URL('../libs/ui', import.meta.url)) },
+    alias: {
+      '@newt/ui': fileURLToPath(new URL('../libs/ui', import.meta.url)),
+      // The API client: the only way the frontend reaches the backend.
+      '@newt/api': fileURLToPath(new URL('../libs/api', import.meta.url)),
+    },
   },
   server: {
     port: 5173,

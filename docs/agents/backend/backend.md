@@ -49,7 +49,11 @@ never runs on an old database.
   response. **No business logic in an entry point.** HTTP routes live in each
   module (`<m>.routes.ts`, on `base.http`, all under `/api`); `base/http` turns
   domain errors into status codes and serves the built frontend for every other
-  address. Later entries (`mcp`, `github`) follow the same rule.
+  address.
+- **Every route needs a session** unless it is registered with `{ public: true }`.
+  A signed-in request runs as its actor: any use case it reaches knows who is
+  doing it through `currentActor()` (`core/context`). That is how everything gets
+  its author; never pass the user id around by hand. Later entries (`mcp`, `github`) follow the same rule.
 
 ## Modules
 
@@ -58,6 +62,10 @@ never runs on an old database.
 A module owns one thing: its data, the rules about that data, and what happens
 when it changes. If describing a module needs an "and", it is two modules. A
 module is not a table and not a screen: it is a responsibility.
+
+**The module's entity has the module's name** (`user` → `User`). An entity named
+otherwise is a second responsibility, and goes to a module of its own: passwords
+and sessions are `credential` and `session`, not one `auth`.
 
 ### Anatomy
 
@@ -71,6 +79,8 @@ module is not a table and not a screen: it is a responsibility.
 | `<m>.repository.ts` | `find` / `count` / `persist` and a `<M>_Criteria` interface. **The only file that touches the database.** |
 | `<m>.module.ts` | `<M>_Module extends Module`: the use cases and the event emitters. `static initialize(base, deps?)`. |
 | `<m>.routes.ts` | `register<M>Routes(base, module)`: the module's HTTP routes on `base.http`. They read the request, call a use case and answer. Only when it has routes. |
+| `<m>-options.ts` | `<M>_Options`: settings the module takes at `initialize` (from `config.ts`). Only when it has any. |
+| `value-objects/<name>.ts` | Values with rules of their own that only this module uses (see Value objects). |
 | `<m>.deps.ts` | `<M>_Deps`: the modules this one depends on, imported with `import type`. Only when it has any. |
 | `<m>.workers.ts` | What this module does **in reaction** to events: its own or its dependencies'. |
 | `errors/<error>.ts` | One class per domain error. |
@@ -84,6 +94,11 @@ Naming is not negotiable: folder `delta-review`, class `DeltaReview_Module`, tab
 `delta_review`, child table `delta_review__comment`, use case
 `'deltaReview.approve'`, event `'deltaReview.approved'`, error file
 `delta-review-not-found.ts`.
+
+**Everything `<m>.schema.ts` exports starts with the entity's name**, so it reads
+the same wherever it is imported (`@newt/api` re-exports it to the frontend): `UserSchema`,
+`UserNickSchema`, `UserCreateSchema` / `UserCreateDTO`,
+`UserUpdateSchema` / `UserUpdateDTO`, `SessionSignInSchema`.
 
 ### How modules talk
 
@@ -154,6 +169,26 @@ export class Rule extends Entity<typeof RuleSchema> {
   `persist`. Nobody else publishes an entity's events.
 - Outside the module an entity does not exist: use cases return `toDTO()`.
 
+## Value objects
+
+A value with rules of its own (how it is written, how it is compared, how it is
+made) is a value object, defined once: a type and a const with the same name.
+
+```ts
+export type Email = string
+
+export const Email = {
+  schema: z.email().refine(email => email === email.toLowerCase()),   // how it is stored
+  from(value: string): Email { ... },                                 // what was typed → the value, or a ValidationError
+} satisfies ValueObject<Email, string>
+```
+
+- Shared ones live in `core/value-objects/<name>/` (`Email`); one only a module
+  uses lives in its `value-objects/` (`SessionToken`).
+- The entity's schema uses `X.schema`; the entity runs input through `X.from`
+  before storing it. Input schemas stay lenient (any case, spaces) because
+  `from` normalizes.
+
 ## Events
 
 - Name: `'<module>.<verb in past tense>'` (`'rule.created'`), class
@@ -178,6 +213,9 @@ export class Rule extends Entity<typeof RuleSchema> {
 - Shape: load → decide → change the entity → `persist` → return DTOs.
 - To turn a `find` into one item or an error, use `this.resolve(find, onMissing)`
   from `Module`: the caller picks the error.
+- **What only its owner may change takes the actor, not an id**: `updateMine(input)`
+  reads `currentActor().userId`. A use case that took a user id would let anyone
+  change anyone.
 
 ## Errors
 
@@ -228,7 +266,9 @@ lists them.
 
 ## Adding a module
 
-`modules/note` is the reference until the first real module replaces it.
+`modules/user` is the reference for a module on its own; `modules/session` for one
+with dependencies, options, a value object, routes and a reaction to another
+module's event (`session.workers.ts` listens to `credential.changed`).
 
 1. Propose the module: its one responsibility, the modules it depends on, its use
    cases, its events and its table. Wait for approval.
@@ -239,16 +279,16 @@ lists them.
 3. Write its migration (see above).
 4. Initialize it in `index.ts`, after every module it depends on, passing them as
    its deps.
-5. Test it through its use cases and events against `Base.open({ ...config,
-   dbPath: ':memory:' })`, which runs the real migrations.
-6. `bun run typecheck`, `bun run lint`, `bun run test`; break it on purpose once
-   and see a test fail.
+5. No tests: nothing inside `modules/` gets them (see Tests).
+6. `bun run typecheck`, `bun run lint`, `bun run test`.
 
 ## Tests
 
 - `bun test`, files next to the code (`<name>.test.ts`).
-- Test modules through their use cases and events: that is their contract.
-  Test `core` pieces directly.
+- Test `core` and `base` pieces directly.
+- **For now, nothing inside `modules/` gets tests**: not `<m>.module.ts`,
+  `<m>.repository.ts`, `<m>.routes.ts` nor value objects. Their behaviour is
+  checked by running it.
 - Tests read as behaviour: given, when, then. A timeline is often the clearest
   assertion (`['BEGIN', 'COMMIT', 'event:rule.created']`).
 - A test that cannot fail is not a test: break the code on purpose once and see
@@ -265,3 +305,8 @@ lists them.
   types, because together they are its contract.
 - Comments say why, not what. Match the comment density of the code around.
 - Code style matches the rest of the repo: no semicolons, single quotes.
+- Settings that change per installation come from environment variables, with a
+  default, in `config.ts` (`API_PORT`, `NEWT_DB_PATH`, `NEWT_SESSION_DAYS`), and
+  reach a module through its options. Never read `process.env` inside a module.
+  A new setting also goes in `scripts/seed-env.ts`, so `bun run seed:env` writes it
+  to `.env` (with a generated value, if it is a secret).

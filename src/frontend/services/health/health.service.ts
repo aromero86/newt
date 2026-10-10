@@ -1,6 +1,6 @@
+import { HealthApi } from '@newt/api/health'
 import { inject } from '../../core/injector/inject'
 import { Store } from '../../core/store/store'
-import { HealthApi } from './health.api'
 
 type Health = 'checking' | 'up' | 'down'
 

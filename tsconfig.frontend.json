@@ -20,6 +20,9 @@
     "paths": {
       "@newt/ui/*": [
         "./src/libs/ui/*"
+      ],
+      "@newt/api/*": [
+        "./src/libs/api/*"
       ]
     }
   },
@@ -27,7 +30,9 @@
     "src/frontend/**/*.ts",
     "src/frontend/**/*.tsx",
     "src/libs/ui/**/*.ts",
-    "src/libs/ui/**/*.tsx"
+    "src/libs/ui/**/*.tsx",
+    "src/backend/modules/**/*.schema.ts",
+    "src/libs/api/**/*.ts"
   ],
   "exclude": [
     "src/frontend/vite.config.ts"

@@ -5,6 +5,7 @@ import { NavItem } from '@newt/ui/components/nav-item'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Logo } from '@newt/ui/domain/logo'
 import { ShellThemeToggle } from './shell-theme-toggle'
+import { ShellUserMenu } from './shell-user-menu'
 
 /** The frame around every page: brand, the zones, and the page itself. */
 export function Shell() {
@@ -27,6 +28,7 @@ export function Shell() {
         <Inline gap={1}>
           {loading && <Spinner size="sm" label="Loading page" />}
           <ShellThemeToggle />
+          <ShellUserMenu />
         </Inline>
       }
     >

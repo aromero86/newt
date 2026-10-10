@@ -1,4 +1,14 @@
 {
+  "compilerOptions": {
+    "paths": {
+      "@newt/ui/*": [
+        "./src/libs/ui/*"
+      ],
+      "@newt/api/*": [
+        "./src/libs/api/*"
+      ]
+    }
+  },
   "files": [],
   "references": [
     {

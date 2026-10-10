@@ -8,7 +8,7 @@ const SERVICES = [
   // otherwise moves the dev server to the background and returns.
   { name: 'landing', url: 'http://localhost:4321', cmd: ['bun', 'x', 'astro', 'dev', '--ignore-lock'], cwd: 'src/landing' },
   { name: 'frontend', url: 'http://localhost:5173', cmd: ['bun', 'x', 'vite', 'src/frontend'] },
-  { name: 'api', url: 'http://localhost:3000', cmd: ['bun', '--watch', 'src/backend/index.ts'] },
+  { name: 'api', url: `http://localhost:${process.env.API_PORT ?? 3000}`, cmd: ['bun', '--watch', 'src/backend/index.ts'] },
 ]
 
 // Nothing starts unless every port is free: `bun --watch`, for one, stays alive
