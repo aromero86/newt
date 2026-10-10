@@ -25,7 +25,7 @@ export function ShellUserMenu() {
         </Button>
       }
       items={[
-        { label: 'Settings', icon: SettingsIcon, onSelect: () => navigate('/settings') },
+        { label: 'Account settings', icon: SettingsIcon, onSelect: () => navigate('/settings') },
         { separator: true },
         // Signing out sends the session guard back to the sign-in page.
         { label: 'Sign out', icon: LogOutIcon, onSelect: () => void session.signOut() },

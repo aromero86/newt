@@ -72,7 +72,12 @@ and sessions are `auth-credential` and `auth-session`, not one `auth`.
 part of the name everywhere (`AuthSession_Module`, entity `AuthSession`, table
 `auth_session`, use case `'authSession.signIn'`, routes under `/api/auth/`), and
 each one is still a module of its own, with its own responsibility. `user` is not
-one of them: a profile is far more than access.
+one of them: a profile is far more than access. `workspace`, `workspace-member` and
+`workspace-invitation` are another such family.
+
+**Who may see or change a workspace's data is asked to `workspace-member`**
+(`assertActive`, `assertAdmin`). Someone outside a workspace gets a 404, as if it
+did not exist: a private workspace is never revealed.
 
 ### Anatomy
 
@@ -224,6 +229,14 @@ export const Email = {
   It runs in a transaction and is traced by name.
 - Validate the input at the door: `Create<M>Schema.parse(input)`.
 - Shape: load → decide → change the entity → `persist` → return DTOs.
+- **No list is returned whole.** A use case that lists takes a `PageRequest`
+  (`size`, `cursor`) and returns a `Page` (`items`, `hasMore`, `total`), from
+  `core/pagination`. The cursor is the id of the last item already shown (ids are
+  v7, so they sort by time); the repository reads `size + 1` rows ordered by id and
+  `toPage` drops the extra one. Routes read the page with `pageRequestFrom(request)`
+  (`?size=&cursor=`, 20 by default, at most 100). Paginate on the table that owns
+  the order: a person's workspaces are paged over their memberships, and only
+  that page of workspaces is read.
 - To turn a `find` into one item or an error, use `this.resolve(find, onMissing)`
   from `Module`: the caller picks the error.
 - **What only its owner may change takes the actor, not an id**: `updateMine(input)`

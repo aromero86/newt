@@ -6,7 +6,7 @@ import { SettingsProfile } from './settings-profile/settings-profile'
 export function Settings() {
   return (
     <Stack gap={8}>
-      <PageHeader title="Settings" description="Your account in newt." />
+      <PageHeader title="Account settings" description="Your account in newt." />
       <SettingsProfile />
       <SettingsPassword />
     </Stack>

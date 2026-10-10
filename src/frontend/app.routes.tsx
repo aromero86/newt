@@ -43,11 +43,22 @@ export const router = createBrowserRouter([
             ErrorBoundary: RouteError,
             children: [
               { index: true, lazy: () => import('./pages/home/home').then(page => ({ Component: page.Home })) },
+          { path: 'workspaces', lazy: () => import('./pages/workspaces/workspaces').then(page => ({ Component: page.Workspaces })) },
+          { path: 'workspaces/new', lazy: () => import('./pages/workspace-new/workspace-new').then(page => ({ Component: page.WorkspaceNew })) },
+          { path: 'settings/*', lazy: () => import('./modules/settings/settings.routes').then(zone => ({ Component: zone.SettingsRoutes })) },
+          {
+            // Everything inside one workspace: only for its members.
+            path: 'w/:workspaceId',
+            lazy: () => import('./modules/workspace/workspace').then(zone => ({ Component: zone.Workspace })),
+            children: [
+              { index: true, lazy: () => import('./modules/workspace/workspace-overview/workspace-overview').then(page => ({ Component: page.WorkspaceOverview })) },
               { path: 'definition/*', lazy: () => import('./modules/definition/definition.routes').then(zone => ({ Component: zone.DefinitionRoutes })) },
               { path: 'proposals/*', lazy: () => import('./modules/proposals/proposals.routes').then(zone => ({ Component: zone.ProposalsRoutes })) },
               { path: 'releases/*', lazy: () => import('./modules/releases/releases.routes').then(zone => ({ Component: zone.ReleasesRoutes })) },
-              { path: 'settings/*', lazy: () => import('./modules/settings/settings.routes').then(zone => ({ Component: zone.SettingsRoutes })) },
-              // Not lazy: the zones and the error page use it too, so it ships with the shell.
+              { path: 'settings', lazy: () => import('./modules/workspace-settings/workspace-settings').then(zone => ({ Component: zone.WorkspaceSettings })) },
+            ],
+          },
+          // Not lazy: the zones and the error page use it too, so it ships with the shell.
               { path: '*', Component: NotFound },
             ],
           },

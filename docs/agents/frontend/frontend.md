@@ -152,10 +152,20 @@ export function ProposalList() {
 - Everything but signing in and up sits behind `SessionGuard` (`guards/`), which
   sends anyone without a session to `/sign-in`. Below it, the tree is keyed by the user, so
   another person signing in starts every service from scratch.
+- Everything of one workspace lives under `/w/:workspaceId` (`modules/workspace/`),
+  whose layout shows it only to its members. The zones are nested there.
 - App-wide services whose data belongs to the user are listed in the guard's
-  `SESSION_SERVICES`, never left at the root. `SessionService` is the one owner of
+  `SESSION_SERVICES`, never left at the root. `WorkspacesService` (the person's workspaces) is one of them. `SessionService` is the one owner of
   the signed-in user.
 - Any request answered with 401 signs the browser out (`Requester.onUnauthorized`).
+
+### Lists
+
+Every list from the backend comes in pages, and a service reads it with a
+`ListStore` (`core/list`): `loadFirstPage`, `loadMore` (after the last item shown),
+and `prepend`, `replace`, `remove` to keep it in step with changes. Components
+show `items` and a "Load more" button while `hasMore`. Something opened by its
+address (a workspace in the URL) is read on its own, never looked up in a page.
 
 ### Forms
 

@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router'
+import { useEffect, type FormEvent } from 'react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router'
 import { Alert } from '@newt/ui/components/alert'
 import { Button } from '@newt/ui/components/button'
 import { Card } from '@newt/ui/components/card'
@@ -31,6 +31,12 @@ function SignUpWrapped() {
   const submitting = useValue(service.form.submitting)
   const failure = useValue(service.form.failure)
   const navigate = useNavigate()
+  // An invitation email links here with the invited address: signing up with it accepts the invitation.
+  const invited = useSearchParams()[0].get('email')
+
+  useEffect(() => {
+    if (invited) service.form.set('email', invited)
+  }, [service, invited])
 
   if (status === 'signed-in') return <Navigate to="/" replace />
 

@@ -18,6 +18,8 @@ export const config = {
   publicUrl: process.env.NEWT_PUBLIC_URL ?? 'http://localhost:5173',
   /** `NEWT_PASSWORD_RESET_MINUTES`: how long a password reset link works. */
   passwordResetMinutes: Number(process.env.NEWT_PASSWORD_RESET_MINUTES ?? 60),
+  /** `NEWT_INVITATION_DAYS`: how long a workspace invitation waits for the person to sign up. */
+  invitationDays: Number(process.env.NEWT_INVITATION_DAYS ?? 7),
   /** `NEWT_SMTP_*` and `NEWT_MAIL_FROM`: the SMTP server emails leave from. */
   mail: {
     host: process.env.NEWT_SMTP_HOST ?? 'localhost',
