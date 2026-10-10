@@ -1,0 +1,27 @@
+{
+  "name": "newt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run scripts/dev.ts",
+    "dev:backend": "bun --watch src/backend/index.ts",
+    "dev:frontend": "vite src/frontend",
+    "dev:landing": "astro dev --root src/landing",
+    "build:frontend": "vite build src/frontend",
+    "build:landing": "astro build --root src/landing",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "astro": "7.3.8",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}
