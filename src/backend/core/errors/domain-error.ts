@@ -1,6 +1,4 @@
-export interface DomainErrorOptions {
-  commitOnThrow?: boolean
-}
+import type { DomainErrorOptions } from './domain-error-options'
 
 export abstract class DomainError extends Error {
   abstract readonly status: number

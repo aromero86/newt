@@ -3,7 +3,10 @@ import { NoopTracer } from '../observability/noop-tracer'
 import { type Tracer } from '../observability/tracer'
 import type { RunOptions } from './run-options'
 import type { TransactionRunner } from './transaction-runner'
-import { currentUnitOfWork, runInUnitOfWork, runOutsideUnitOfWork, UnitOfWork } from './unit-of-work'
+import { currentUnitOfWork } from './current-unit-of-work'
+import { runInUnitOfWork } from './run-in-unit-of-work'
+import { runOutsideUnitOfWork } from './run-outside-unit-of-work'
+import type { UnitOfWork } from './unit-of-work'
 
 
 export class TransactionManager {

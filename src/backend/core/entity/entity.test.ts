@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { Entity, type EntityInput } from './entity'
+import { Entity } from './entity'
+import type { EntityInput } from './entity-input'
 
 const ThingSchema = z.object({
   id: z.string(),

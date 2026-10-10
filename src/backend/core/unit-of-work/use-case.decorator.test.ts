@@ -4,7 +4,9 @@ import type { Tracer } from '../observability/tracer'
 import { TransactionManager } from './transaction-manager'
 import type { TransactionRunner } from './transaction-runner'
 import { UseCase } from './use-case.decorator'
-import { currentUnitOfWork, deferEmit, ensureTransaction } from './unit-of-work'
+import { currentUnitOfWork } from './current-unit-of-work'
+import { deferEmit } from './defer-emit'
+import { ensureTransaction } from './ensure-transaction'
 
 /**
  * One shared log for statements and events, so the assertions read as a timeline:

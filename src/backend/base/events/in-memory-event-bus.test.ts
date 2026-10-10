@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { currentUnitOfWork, runInUnitOfWork } from '../../core/unit-of-work/unit-of-work'
+import { currentUnitOfWork } from '../../core/unit-of-work/current-unit-of-work'
+import { runInUnitOfWork } from '../../core/unit-of-work/run-in-unit-of-work'
 import { InMemoryEventBus } from './in-memory-event-bus'
 
 const event = { name: 'test.happened', payload: {}, occurredAt: '' }

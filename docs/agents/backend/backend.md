@@ -30,11 +30,17 @@ not enough: the patterns are the same, the names and paths are newt's.
 
 ```
 src/backend/
-├── core/       shared building blocks: entity, module, use case, events, errors
-├── base/       infrastructure: database, migrations, event bus, logger
-├── modules/    the business, one folder per module
-└── index.ts    boots base, then every module in dependency order
+├── core/          shared building blocks: entity, module, use case, events, errors, repository
+├── base/          infrastructure: `Base`, the database, the migration runner, the event bus
+├── modules/       the business, one folder per module
+├── migrations/    the database migrations, for every module
+├── config.ts      where the data lives
+└── index.ts       opens `Base`, then every module in dependency order
 ```
+
+Each module's `initialize` receives `Base`: the database, `transactions` and the
+event `bus`. Opening `Base` applies the pending migrations first, so the server
+never runs on an old database.
 
 - `core` knows nothing about `base` or `modules`. `base` knows `core`. Modules
   know `core`, `base` and the modules they depend on. Nothing knows the entry
@@ -59,7 +65,7 @@ module is not a table and not a screen: it is a responsibility.
 |---|---|
 | `<m>.schema.ts` | Zod schemas, DTO types and the `<M>ModuleName` const. The module's **public contract**: what goes in and out of its use cases and events. |
 | `<m>.ts` | The entity: a class extending `Entity<typeof <M>Schema>`. Re-exports the schema file. |
-| `<m>.table.ts` | The tables (when persistence exists). |
+| `infrastructure/<m>.table.ts` | The module's drizzle tables. |
 | `<m>.repository.ts` | `find` / `count` / `persist` and a `<M>_Criteria` interface. **The only file that touches the database.** |
 | `<m>.module.ts` | `<M>_Module extends Module`: the use cases and the event emitters. `static initialize(base, deps?)`. |
 | `<m>.deps.ts` | `<M>_Deps`: the modules this one depends on, imported with `import type`. Only when it has any. |
@@ -198,9 +204,41 @@ An unknown id inside a payload is a 400, not a 404: the request is what is wrong
   Stored data must survive every migration; never require starting from scratch.
 - Table names: the module in snake_case; a child table is
   `<module>__<child>`.
-- Storage is SQLite (`bun:sqlite` with drizzle) when persistence arrives. Until
-  then, do not design around the database: the entity and the use cases come
-  first.
+- Storage is SQLite (`bun:sqlite` with drizzle's query builder) in WAL mode. Do
+  not design around the database: the entity and the use cases come first, the
+  tables follow them.
+
+## Changing the database
+
+1. Add the pair in `src/backend/migrations/` with the next free number, zero
+   padded to five digits: `00002_<name>_up.sql` and `00002_<name>_down.sql`.
+2. `up` changes the structure and keeps every stored row: new columns get a
+   default, a renamed or reshaped table copies its rows over. `down` undoes
+   exactly what `up` did.
+3. Update the module's `infrastructure/<m>.table.ts` and repository to match.
+4. Check it: `bun run migrate:up`, `bun run migrate:down`, `bun run migrate:up`
+   again, and a test with rows stored before the migration that are still there
+   after it.
+
+The server applies pending migrations when it starts; `bun run migrate:status`
+lists them.
+
+## Adding a module
+
+`modules/note` is the reference until the first real module replaces it.
+
+1. Propose the module: its one responsibility, the modules it depends on, its use
+   cases, its events and its table. Wait for approval.
+2. Create `src/backend/modules/<m>/` with the fixed file set: schema, entity,
+   table, repository, module, the `errors/` and `events/` it needs, and
+   `<m>.deps.ts` and `<m>.workers.ts` only if it has dependencies or reactions.
+3. Write its migration (see above).
+4. Initialize it in `index.ts`, after every module it depends on, passing them as
+   its deps.
+5. Test it through its use cases and events against `Base.open({ ...config,
+   dbPath: ':memory:' })`, which runs the real migrations.
+6. `bun run typecheck`, `bun run lint`, `bun run test`; break it on purpose once
+   and see a test fail.
 
 ## Tests
 
@@ -217,5 +255,9 @@ An unknown id inside a payload is a 400, not a 404: the request is what is wrong
 - Everything is in English: code, comments, docs. Domain names follow newt's
   vocabulary: workspace, dimension, feature, artifact, rule, entity, lifecycle,
   actor, parameter, proposal, delta, revision, release, bug, board.
+- **One exported element per file** in `core` and `base`: a type, an interface,
+  a class or a function, each in its own file named after it. Inside a module the
+  fixed file set rules: `<m>.schema.ts` holds all the module's schemas and DTO
+  types, because together they are its contract.
 - Comments say why, not what. Match the comment density of the code around.
 - Code style matches the rest of the repo: no semicolons, single quotes.

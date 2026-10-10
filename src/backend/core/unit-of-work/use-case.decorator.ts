@@ -1,9 +1,7 @@
 import type { RunOptions } from './run-options'
 import type { TransactionManager } from './transaction-manager'
 
-export type UseCaseOptions = RunOptions
-
-export function UseCase(name: string, options?: UseCaseOptions) {
+export function UseCase(name: string, options?: RunOptions) {
   return function <This extends { readonly transactions: TransactionManager }, Args extends unknown[], Return>(
     method: (this: This, ...args: Args) => Promise<Return>,
   ) {

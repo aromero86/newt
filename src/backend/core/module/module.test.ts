@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { ReferenceNotFound } from '../errors/reference-not-found'
 import { TransactionManager } from '../unit-of-work/transaction-manager'
-import { Module, type RefFinder } from './module'
+import { Module } from './module'
+import type { RefFinder } from './ref-finder'
 
 const catalogue = (...names: string[]): RefFinder => ({
   async find({ id }) {

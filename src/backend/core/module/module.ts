@@ -1,13 +1,9 @@
 import { DomainError } from '../errors/domain-error'
 import { ReferenceNotFound } from '../errors/reference-not-found'
 import { TransactionManager } from '../unit-of-work/transaction-manager'
+import type { Ref } from './ref'
+import type { RefFinder } from './ref-finder'
 
-type Ref = { id: string, name: string }
-
-/** A neighbour module whose rows can stand in as a named reference: city, brand… */
-export interface RefFinder {
-  find(criteria: { id: string[] }): Promise<Ref[]>
-}
 
 export abstract class Module {
 

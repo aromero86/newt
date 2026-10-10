@@ -1,14 +1,12 @@
-import { z } from 'zod'
+import type { z } from 'zod'
 import type { DomainEvent } from '../events/domain-event'
 import type { EventPublisher } from '../events/event-publisher'
 import { DeletedEntityNotChangeable } from './errors/deleted-entity-not-changeable'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { UnknownEntityField } from './errors/unknown-entity-field'
-
-export type EntitySchema = z.ZodObject<z.ZodRawShape & { id: z.ZodType<string>, createdAt: z.ZodType<string>, updatedAt: z.ZodType<string> }>
-
-export type EntityInput<T> = Omit<T, 'id' | 'createdAt' | 'updatedAt'> & { id?: string, createdAt?: string, updatedAt?: string }
+import type { EntityInput } from './entity-input'
+import type { EntitySchema } from './entity-schema'
 
 export class Entity<TSchema extends EntitySchema> {
   private readonly initial: z.infer<TSchema> | null
