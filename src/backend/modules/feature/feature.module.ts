@@ -141,6 +141,20 @@ export class Feature_Module extends Module {
     return feature.toDTO()
   }
 
+  /** For the rule module: an active feature of this workspace, where rules can go. */
+  @UseCase('feature.assertActive')
+  async assertActive(workspaceId: string, featureId: string): Promise<FeatureDTO> {
+    const feature = await this.load(workspaceId, featureId)
+    feature.assertActive()
+    return feature.toDTO()
+  }
+
+  /** For other modules that already checked who may see them. */
+  @UseCase('feature.find')
+  async find(workspaceId: string, ids: string[]): Promise<FeatureDTO[]> {
+    return ids.length ? (await this.repo.find({ workspaceId, id: ids })).map(feature => feature.toDTO()) : []
+  }
+
   /** An area's active features between two positions, both included, move `by` places. */
   private async shift(areaId: string, from: number, to: number, by: 1 | -1): Promise<void> {
     if (from > to) return

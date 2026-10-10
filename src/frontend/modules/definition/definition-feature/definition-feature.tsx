@@ -19,6 +19,7 @@ import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionEditDialog } from '../definition-edit-dialog/definition-edit-dialog'
+import { DefinitionRules } from '../definition-rules/definition-rules'
 import { DefinitionFeatureMove } from './definition-feature-move'
 import { DefinitionFeatureService } from './definition-feature.service'
 
@@ -87,6 +88,7 @@ function DefinitionFeatureWrapped() {
           ? <Stack gap={2}>{feature.description.split(/\n+/).map((paragraph, index) => <Text key={index}>{paragraph}</Text>)}</Stack>
           : <Text tone="muted">No description yet.</Text>}
       </Card>
+      <DefinitionRules featureId={feature.id} />
       <DefinitionEditDialog
         form={service.editForm}
         open={editing}

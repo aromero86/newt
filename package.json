@@ -15,7 +15,8 @@
     "migrate:up": "bun run scripts/migrate.ts up",
     "migrate:down": "bun run scripts/migrate.ts down",
     "migrate:status": "bun run scripts/migrate.ts status",
-    "seed:env": "bun run scripts/seed-env.ts"
+    "seed:env": "bun run scripts/seed-env.ts",
+    "seed:demo": "bun run scripts/seed-demo.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

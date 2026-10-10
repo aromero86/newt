@@ -1,35 +1,12 @@
 import { Base } from './base/base'
 import { serveFrontend } from './base/http/serve-frontend'
 import { config } from './config'
-import { AuthCredential_Module } from './modules/auth-credential/auth-credential.module'
-import { Dimension_Module } from './modules/dimension/dimension.module'
-import { FeatureArea_Module } from './modules/feature-area/feature-area.module'
-import { Feature_Module } from './modules/feature/feature.module'
-import { Health_Module } from './modules/health/health.module'
-import { Mail_Module } from './modules/mail/mail.module'
-import { AuthPasswordReset_Module } from './modules/auth-password-reset/auth-password-reset.module'
-import { AuthSession_Module } from './modules/auth-session/auth-session.module'
-import { User_Module } from './modules/user/user.module'
-import { WorkspaceInvitation_Module } from './modules/workspace-invitation/workspace-invitation.module'
-import { WorkspaceMember_Module } from './modules/workspace-member/workspace-member.module'
-import { Workspace_Module } from './modules/workspace/workspace.module'
+import { initializeModules } from './initialize-modules'
 
 // Opening the base brings the database up to date before anything reads it.
 const base = await Base.open(config)
 
-// Modules in dependency order: each one after every module it depends on.
-await Health_Module.initialize(base)
-const user = await User_Module.initialize(base)
-const authCredential = await AuthCredential_Module.initialize(base)
-await AuthSession_Module.initialize(base, { user, authCredential }, { days: config.sessionDays })
-const mail = await Mail_Module.initialize(base, config.mail)
-const workspaceMember = await WorkspaceMember_Module.initialize(base, { user })
-const workspace = await Workspace_Module.initialize(base, { workspaceMember })
-await Dimension_Module.initialize(base, { workspace, workspaceMember })
-const featureArea = await FeatureArea_Module.initialize(base, { workspace, workspaceMember })
-await Feature_Module.initialize(base, { featureArea, workspace, workspaceMember })
-await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
-await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
+await initializeModules(base)
 
 const server = Bun.serve({ port: config.port, routes: base.http.routes(), fetch: serveFrontend(config.frontendFolder) })
 console.log(`Server listening on port ${config.port}`)

@@ -12,9 +12,11 @@ development each approve what they own, and product releases match code releases
 ## Status
 
 Early development. Today newt has accounts (sign up, sign in, profile, password
-and password reset by email) and private workspaces with members, admins and email
-invitations. The product definition itself (dimensions, features, rules,
-proposals…) comes next.
+and password reset by email), private workspaces with members, admins and email
+invitations, and the first part of a product's definition: its dimensions, its
+areas and features, and its rules with their history, filtered by where they
+apply. Rules are read-only for now: they will change through proposals, which
+come next.
 
 ## Getting started
 
@@ -25,6 +27,7 @@ works; on your own machine a mail catcher such as Mailpit is the easiest.
 bun install
 bun run seed:env   # writes .env with every setting, keeping the ones already there
 bun run dev        # backend, frontend and landing, all together
+bun run seed:demo  # optional: Acme Shop, an example product, with a demo account
 ```
 
 - Frontend: <http://localhost:5173>
@@ -62,6 +65,7 @@ them to `.env`, each with a line saying what it is for.
 | `bun run build:landing` | Builds the landing page |
 | `bun run migrate:up`, `migrate:down`, `migrate:status` | Applies, reverts or lists database migrations by hand |
 | `bun run seed:env` | Writes or completes `.env` |
+| `bun run seed:demo` | Loads Acme Shop, an example product, with the account `demo` / `acme-shop-demo` |
 
 ## Repository
 

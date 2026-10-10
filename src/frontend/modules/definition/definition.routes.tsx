@@ -6,6 +6,8 @@ import { DefinitionAreas } from './definition-areas/definition-areas'
 import { DefinitionDimensions } from './definition-dimensions/definition-dimensions'
 import { DefinitionFeature } from './definition-feature/definition-feature'
 import { DefinitionNav } from './definition-nav/definition-nav'
+import { DefinitionRule } from './definition-rule/definition-rule'
+import { DefinitionRulesPage } from './definition-rules/definition-rules-page'
 
 /** The definition zone's own routes, below /definition. */
 export function DefinitionRoutes() {
@@ -16,6 +18,8 @@ export function DefinitionRoutes() {
         <Route index element={<DefinitionAreas />} />
         <Route path="areas/:areaId" element={<DefinitionArea />} />
         <Route path="features/:featureId" element={<DefinitionFeature />} />
+        <Route path="rules" element={<DefinitionRulesPage />} />
+        <Route path="rules/:key" element={<DefinitionRule />} />
         <Route path="dimensions" element={<DefinitionDimensions />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
