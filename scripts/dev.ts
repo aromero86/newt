@@ -1,12 +1,14 @@
 // Starts every project in development mode and stops them all together.
 // Each service runs in its own process group, so stopping it also stops the
 // processes it spawns (astro dev, for one, runs its server in a child process).
+// The ports are fixed (each service fails instead of moving to another one), so
+// the links below always hold.
 const SERVICES = [
-  { cmd: ['bun', '--watch', 'src/backend/index.ts'] },
-  { cmd: ['bun', 'x', 'vite', 'src/frontend'] },
   // --ignore-lock keeps astro in the foreground: when it detects an AI agent it
   // otherwise moves the dev server to the background and returns.
-  { cmd: ['bun', 'x', 'astro', 'dev', '--ignore-lock'], cwd: 'src/landing' },
+  { name: 'landing', url: 'http://localhost:4321', cmd: ['bun', 'x', 'astro', 'dev', '--ignore-lock'], cwd: 'src/landing' },
+  { name: 'frontend', url: 'http://localhost:5173', cmd: ['bun', 'x', 'vite', 'src/frontend'] },
+  { name: 'api', url: 'http://localhost:3000', cmd: ['bun', '--watch', 'src/backend/index.ts'] },
 ]
 
 const children = SERVICES.map(({ cmd, cwd }) => Bun.spawn(cmd, { cwd, detached: true, stdio: ['inherit', 'inherit', 'inherit'] }))
@@ -35,5 +37,23 @@ async function shutdown() {
 }
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, shutdown)
+
+async function waitUntilUp(url: string) {
+  while (!stopping) {
+    try {
+      await fetch(url)
+      return
+    } catch {
+      await Bun.sleep(200)
+    }
+  }
+}
+
+// Once everything answers, print where each service lives.
+Promise.all(SERVICES.map(({ url }) => waitUntilUp(url))).then(() => {
+  if (stopping) return
+  const width = Math.max(...SERVICES.map(({ name }) => name.length))
+  console.log(['', ...SERVICES.map(({ name, url }) => `  ${name.padEnd(width)}  ${url}`), ''].join('\n'))
+})
 
 await Promise.all(children.map(child => child.exited))
