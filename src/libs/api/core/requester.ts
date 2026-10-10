@@ -17,26 +17,26 @@ export abstract class Requester {
   protected abstract readonly path: string
 
   protected get<T>(path: string, params?: QueryParams): Promise<T> {
-    return this.request<T>('GET', path, undefined, params)
+    return this.call<T>('GET', path, undefined, params)
   }
 
   protected post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('POST', path, body)
+    return this.call<T>('POST', path, body)
   }
 
   protected put<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('PUT', path, body)
+    return this.call<T>('PUT', path, body)
   }
 
   protected patch<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('PATCH', path, body)
+    return this.call<T>('PATCH', path, body)
   }
 
   protected delete<T>(path: string): Promise<T> {
-    return this.request<T>('DELETE', path)
+    return this.call<T>('DELETE', path)
   }
 
-  private async request<T>(method: string, path: string, body?: unknown, params?: QueryParams): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, params?: QueryParams): Promise<T> {
     let response: Response
     try {
       response = await fetch(this.url(path, params), {

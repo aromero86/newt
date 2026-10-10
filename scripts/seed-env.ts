@@ -15,6 +15,14 @@ const SETTINGS: Setting[] = [
   { key: 'API_PORT', note: 'Port of the backend, and of the API the frontend dev server proxies to.', initial: () => '3000' },
   { key: 'NEWT_DB_PATH', note: 'The SQLite database file, relative to the repository root.', initial: () => 'data/newt.db' },
   { key: 'NEWT_SESSION_DAYS', note: 'How long a session lasts without signing in again, in days.', initial: () => '30' },
+  { key: 'NEWT_PUBLIC_URL', note: 'Where people open newt: links in emails point there.', initial: () => 'http://localhost:5173' },
+  { key: 'NEWT_PASSWORD_RESET_MINUTES', note: 'How long a password reset link works, in minutes.', initial: () => '60' },
+  { key: 'NEWT_SMTP_HOST', note: 'SMTP server emails leave from: a local one in development, e.g. smtp.sendgrid.net in production.', initial: () => 'localhost' },
+  { key: 'NEWT_SMTP_PORT', note: 'SMTP port: usually 587 (STARTTLS) or 465 (TLS); local servers often use 1025.', initial: () => '1025' },
+  { key: 'NEWT_SMTP_SECURE', note: 'true for TLS from the first byte (port 465); false uses STARTTLS when offered.', initial: () => 'false' },
+  { key: 'NEWT_SMTP_USER', note: 'SMTP user; empty when the server needs no login (with SendGrid it is the literal "apikey").', initial: () => '' },
+  { key: 'NEWT_SMTP_PASSWORD', note: 'SMTP password; empty when the server needs no login (with SendGrid, the API key).', initial: () => '' },
+  { key: 'NEWT_MAIL_FROM', note: 'The sender of every email.', initial: () => '"newt <no-reply@newt.local>"' },
 ]
 
 const file = Bun.file(join(import.meta.dir, '../.env'))

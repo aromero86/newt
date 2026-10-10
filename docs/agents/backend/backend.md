@@ -65,7 +65,14 @@ module is not a table and not a screen: it is a responsibility.
 
 **The module's entity has the module's name** (`user` → `User`). An entity named
 otherwise is a second responsibility, and goes to a module of its own: passwords
-and sessions are `credential` and `session`, not one `auth`.
+and sessions are `auth-credential` and `auth-session`, not one `auth`.
+
+**Modules on the same subject share a prefix**, so they sit together in
+`modules/`: `auth-credential`, `auth-session`, `auth-password-reset`. The prefix is
+part of the name everywhere (`AuthSession_Module`, entity `AuthSession`, table
+`auth_session`, use case `'authSession.signIn'`, routes under `/api/auth/`), and
+each one is still a module of its own, with its own responsibility. `user` is not
+one of them: a profile is far more than access.
 
 ### Anatomy
 
@@ -98,7 +105,7 @@ Naming is not negotiable: folder `delta-review`, class `DeltaReview_Module`, tab
 **Everything `<m>.schema.ts` exports starts with the entity's name**, so it reads
 the same wherever it is imported (`@newt/api` re-exports it to the frontend): `UserSchema`,
 `UserNickSchema`, `UserCreateSchema` / `UserCreateDTO`,
-`UserUpdateSchema` / `UserUpdateDTO`, `SessionSignInSchema`.
+`UserUpdateSchema` / `UserUpdateDTO`, `AuthSessionSignInSchema`.
 
 ### How modules talk
 
@@ -184,7 +191,8 @@ export const Email = {
 ```
 
 - Shared ones live in `core/value-objects/<name>/` (`Email`); one only a module
-  uses lives in its `value-objects/` (`SessionToken`).
+  uses lives in its `value-objects/` (`AuthPasswordResetEmail`). `SecretToken`
+  (a session cookie, a reset link) is shared, so it is in `core`.
 - The entity's schema uses `X.schema`; the entity runs input through `X.from`
   before storing it. Input schemas stay lenient (any case, spaces) because
   `from` normalizes.
@@ -204,6 +212,11 @@ export const Email = {
   writes, it does it through a use case, which opens its own transaction.
 - Each module exposes its events as `DomainEventEmitter`s (`module.created`,
   `module.updated`…); subscriptions live in `<m>.workers.ts`.
+- **What cannot be taken back leaves from a worker, never from a use case**: an
+  email is sent by the `mail` module, called from the sender's `<m>.workers.ts`
+  after its event, outside any transaction (`mail.send` refuses to run inside
+  one). The module writes its own email, as a value object (`value-objects/auth-password-reset-email.ts`); `mail` only
+  sends it, over the SMTP server set in the environment.
 
 ## Use cases
 
@@ -266,9 +279,9 @@ lists them.
 
 ## Adding a module
 
-`modules/user` is the reference for a module on its own; `modules/session` for one
+`modules/user` is the reference for a module on its own; `modules/auth-session` for one
 with dependencies, options, a value object, routes and a reaction to another
-module's event (`session.workers.ts` listens to `credential.changed`).
+module's event (`auth-session.workers.ts` listens to `authCredential.changed`).
 
 1. Propose the module: its one responsibility, the modules it depends on, its use
    cases, its events and its table. Wait for approval.

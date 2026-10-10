@@ -1,4 +1,4 @@
-import { SessionApi } from '@newt/api/session'
+import { AuthSessionApi } from '@newt/api/auth-session'
 import type { UserDTO } from '@newt/api/user'
 import { inject } from '../../core/injector/inject'
 import { Store } from '../../core/store/store'
@@ -11,7 +11,7 @@ type SessionState =
 /** Who is signed in, if anyone. The one owner of the signed-in user's data. */
 export class SessionService {
 
-  private readonly api = inject(SessionApi)
+  private readonly api = inject(AuthSessionApi)
   private readonly store = new Store<SessionState>({ status: 'checking', user: null })
 
   readonly status = this.store.select('status')

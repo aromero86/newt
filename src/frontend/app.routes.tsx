@@ -5,7 +5,7 @@ import { RouteError } from './pages/route-error/route-error'
 import { Shell } from './pages/shell/shell'
 
 /**
- * The top routes. Signing in and up are public; everything else is behind the
+ * The top routes. Signing in and up, and recovering a password, are public; everything else is behind the
  * session guard. Every zone is lazy: its components, services and API arrive the
  * first time someone enters it, and the zone owns the routes below its path.
  */
@@ -19,6 +19,16 @@ export const router = createBrowserRouter([
     path: '/sign-up',
     ErrorBoundary: RouteError,
     lazy: () => import('./pages/sign-up/sign-up').then(page => ({ Component: page.SignUp })),
+  },
+  {
+    path: '/forgot-password',
+    ErrorBoundary: RouteError,
+    lazy: () => import('./pages/forgot-password/forgot-password').then(page => ({ Component: page.ForgotPassword })),
+  },
+  {
+    path: '/reset-password',
+    ErrorBoundary: RouteError,
+    lazy: () => import('./pages/reset-password/reset-password').then(page => ({ Component: page.ResetPassword })),
   },
   {
     path: '/',

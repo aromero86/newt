@@ -31,8 +31,9 @@ function SignInWrapped() {
   const submitting = useValue(service.form.submitting)
   const failure = useValue(service.form.failure)
   const navigate = useNavigate()
-  // Where the person was going when they were sent here.
-  const from = (useLocation().state as { from?: string } | null)?.from ?? '/'
+  // Where the person was going when they were sent here, and anything to tell them on arrival.
+  const state = useLocation().state as { from?: string, notice?: string } | null
+  const from = state?.from ?? '/'
 
   if (status === 'signed-in') return <Navigate to={from} replace />
 
@@ -45,6 +46,7 @@ function SignInWrapped() {
     <NarrowPage>
       <Logo />
       <PageHeader title="Sign in" description="The living definition of your product." />
+      {state?.notice && <Alert tone="ok" title="Done">{state.notice}</Alert>}
       <form onSubmit={onSubmit} noValidate>
         <Card footer={<Button type="submit" loading={submitting}>Sign in</Button>}>
           <Stack gap={4}>
@@ -54,9 +56,14 @@ function SignInWrapped() {
           </Stack>
         </Card>
       </form>
-      <Text size="sm" tone="muted">
-        New to newt? <TextLink href="/sign-up">Create an account</TextLink>
-      </Text>
+      <Stack gap={2}>
+        <Text size="sm" tone="muted">
+          <TextLink href="/forgot-password">Forgot your password?</TextLink>
+        </Text>
+        <Text size="sm" tone="muted">
+          New to newt? <TextLink href="/sign-up">Create an account</TextLink>
+        </Text>
+      </Stack>
     </NarrowPage>
   )
 }

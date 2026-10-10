@@ -14,6 +14,19 @@ export const config = {
   migrationsFolder: join(import.meta.dir, 'migrations'),
   /** `NEWT_SESSION_DAYS`: how long a session lasts without signing in again. */
   sessionDays: Number(process.env.NEWT_SESSION_DAYS ?? 30),
+  /** `NEWT_PUBLIC_URL`: where people open newt; links in emails point there. */
+  publicUrl: process.env.NEWT_PUBLIC_URL ?? 'http://localhost:5173',
+  /** `NEWT_PASSWORD_RESET_MINUTES`: how long a password reset link works. */
+  passwordResetMinutes: Number(process.env.NEWT_PASSWORD_RESET_MINUTES ?? 60),
+  /** `NEWT_SMTP_*` and `NEWT_MAIL_FROM`: the SMTP server emails leave from. */
+  mail: {
+    host: process.env.NEWT_SMTP_HOST ?? 'localhost',
+    port: Number(process.env.NEWT_SMTP_PORT ?? 1025),
+    secure: process.env.NEWT_SMTP_SECURE === 'true',
+    user: process.env.NEWT_SMTP_USER ?? '',
+    password: process.env.NEWT_SMTP_PASSWORD ?? '',
+    from: process.env.NEWT_MAIL_FROM ?? 'newt <no-reply@newt.local>',
+  },
   /** The built frontend the server hands out. */
   frontendFolder: join(root, 'dist/frontend'),
 }

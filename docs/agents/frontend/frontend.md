@@ -169,7 +169,7 @@ failure is the form's, shown in an `Alert`.
 readonly form = new FormStore(LoginSchema, { login: '', password: '' })
 
 submit() {
-  return this.form.submit(async credentials => this.session.signedIn(await this.api.login(credentials)))
+  return this.form.submit(async credentials => this.session.signedIn(await this.api.signIn(credentials)))
 }
 ```
 
@@ -178,7 +178,7 @@ submit() {
 The frontend reaches the backend only through **`@newt/api`** (`src/libs/api`),
 the API client. ESLint keeps the frontend from importing anything of the backend.
 
-- One folder per backend module (`@newt/api/session`, `@newt/api/user`…) with its
+- One folder per backend module (`@newt/api/auth-session`, `@newt/api/user`…) with its
   client, a class extending `Requester`, and the module's contract re-exported:
   the DTO types and the zod schemas the forms validate with.
 - `Requester` (`@newt/api/core/requester`) owns the base URL, query params, JSON and
