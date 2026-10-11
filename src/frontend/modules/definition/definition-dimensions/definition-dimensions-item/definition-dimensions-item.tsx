@@ -14,6 +14,7 @@ import { FormField } from '../../../../components/form-field'
 import { Provide } from '../../../../core/injector/provide'
 import { useService } from '../../../../core/injector/use-service'
 import { useValue } from '../../../../core/store/use-value'
+import { useOpenProposal } from '../../../../services/quick-proposal/use-open-proposal'
 import { DefinitionDimensionsRenameService } from '../definition-dimensions-rename/definition-dimensions-rename.service'
 import { DefinitionDimensionsService } from '../definition-dimensions.service'
 import { DefinitionDimensionsItemService } from './definition-dimensions-item.service'
@@ -41,14 +42,15 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
   const rename = useService(DefinitionDimensionsRenameService)
   const item = useService(DefinitionDimensionsItemService)
   const submitting = useValue(item.form.submitting)
+  const open = useOpenProposal()
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void item.addValue(dimension)
+    void open(item.addValue(dimension))
   }
 
   const dimensionActions: MenuItem[] = [
-    { label: 'Rename', onSelect: () => rename.open({ dimension }) },
+    { label: 'Propose renaming', onSelect: () => rename.open({ dimension }) },
     { separator: true },
     { label: 'Move up', icon: ArrowUpIcon, disabled: first, onSelect: () => void dimensions.move(dimension, -1) },
     { label: 'Move down', icon: ArrowDownIcon, disabled: last, onSelect: () => void dimensions.move(dimension, 1) },
@@ -60,14 +62,14 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
 
   function valueActions(value: DimensionValueDTO): MenuItem[] {
     const index = active.indexOf(value)
-    if (value.retiredAt) return [{ label: 'Restore', onSelect: () => void dimensions.restoreValue(dimension, value) }]
+    if (value.retiredAt) return [{ label: 'Propose restoring', onSelect: () => void open(dimensions.proposeRestoring(dimension, value)) }]
     return [
-      { label: 'Rename', onSelect: () => rename.open({ dimension, value }) },
+      { label: 'Propose renaming', onSelect: () => rename.open({ dimension, value }) },
       { separator: true },
       { label: 'Move up', icon: ArrowUpIcon, disabled: index === 0, onSelect: () => void dimensions.moveValue(dimension, value, -1) },
       { label: 'Move down', icon: ArrowDownIcon, disabled: index === active.length - 1, onSelect: () => void dimensions.moveValue(dimension, value, 1) },
       { separator: true },
-      { label: 'Retire', tone: 'destructive', onSelect: () => void dimensions.retireValue(dimension, value) },
+      { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(dimensions.proposeRetiring(dimension, value)) },
     ]
   }
 
@@ -120,8 +122,8 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
         {!readOnly && (
           <form onSubmit={onSubmit} noValidate>
             <Stack gap={3} align="start">
-              <FormField form={item.form} name="name" label="Add a value" />
-              <Button type="submit" variant="secondary" loading={submitting}>Add</Button>
+              <FormField form={item.form} name="name" label="Propose a value" />
+              <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
             </Stack>
           </form>
         )}

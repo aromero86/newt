@@ -20,7 +20,8 @@ import { InvalidOrder } from './errors/invalid-order'
 
 /**
  * Each workspace's dimensions: the axes that say where each part of its product
- * applies, with their values. Any member edits them, until the workspace is archived.
+ * applies, with their values. They change only through merged proposals, which
+ * call these use cases; members only reorder them, until the workspace is archived.
  */
 export class Dimension_Module extends Module {
 

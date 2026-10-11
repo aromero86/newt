@@ -15,7 +15,7 @@ type DefinitionEditDialogProps = {
   onSubmit: () => void
 }
 
-/** Edits the name and description of an area or a feature. */
+/** Proposes a new name and description for an area or a feature. */
 export function DefinitionEditDialog({ form, open, title, onClose, onSubmit }: DefinitionEditDialogProps) {
   const submitting = useValue(form.submitting)
 
@@ -25,13 +25,13 @@ export function DefinitionEditDialog({ form, open, title, onClose, onSubmit }: D
   }
 
   return (
-    <Dialog open={open} onOpenChange={next => !next && onClose()} title={title} size="md">
+    <Dialog open={open} onOpenChange={next => !next && onClose()} title={title} description="It goes in a quick proposal, to approve." size="md">
       <form onSubmit={submit} noValidate>
         <Stack gap={4} align="stretch">
           <FormField form={form} name="name" label="Name" />
           <FormField form={form} name="description" label="Description" description="What it covers, and what it does not." rows={5} />
           <Inline>
-            <Button type="submit" loading={submitting}>Save</Button>
+            <Button type="submit" loading={submitting}>Propose</Button>
           </Inline>
         </Stack>
       </form>

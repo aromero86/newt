@@ -1,5 +1,4 @@
 import type { FormEvent } from 'react'
-import type { RuleKind } from '@newt/api/rule'
 import { Alert } from '@newt/ui/components/alert'
 import { Button } from '@newt/ui/components/button'
 import { Checkbox } from '@newt/ui/components/checkbox'
@@ -11,13 +10,12 @@ import { Select } from '@newt/ui/components/select'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { Textarea } from '@newt/ui/components/textarea'
+import { RuleDraftFields } from '../../../../components/rule-draft-fields'
 import { Provide } from '../../../../core/injector/provide'
 import { useService } from '../../../../core/injector/use-service'
 import { useValue } from '../../../../core/store/use-value'
 import { ProposalService } from '../proposal.service'
 import { DELTA_CHOICES, ProposalDeltaAddService, type DeltaChoice } from './proposal-delta-add.service'
-
-const RULE_KINDS: RuleKind[] = ['permission', 'validation', 'flow', 'calculation', 'legal', 'non-functional']
 
 /** With its own ProposalDeltaAddService: a button that opens the dialog to write a delta by hand. */
 export function ProposalDeltaAdd() {
@@ -134,11 +132,7 @@ function ProposalDeltaAddFields() {
   const moveToAreaId = useValue(service.moveToAreaId)
   const name = useValue(service.name)
   const description = useValue(service.description)
-  const ruleKind = useValue(service.ruleKind)
-  const statement = useValue(service.statement)
-  const why = useValue(service.why)
-  const scope = useValue(service.scope)
-  const criteria = useValue(service.criteria)
+  const ruleDraft = useValue(service.ruleDraft)
   const values = useValue(service.values)
   const newValues = useValue(service.newValues)
   const rule = useValue(service.rule)
@@ -168,48 +162,7 @@ function ProposalDeltaAddFields() {
   if (choice.startsWith('rule')) {
     if (choice === 'rule:change' && !rule) return null
     if (choice === 'rule:create' && !featureId) return null
-    return (
-      <Stack gap={4}>
-        <Field label="Kind">
-          <Select value={ruleKind} onValueChange={value => service.set('ruleKind', value as RuleKind)} options={RULE_KINDS.map(kind => ({ value: kind, label: kind }))} />
-        </Field>
-        <Field label="Statement" description="What must always hold true.">
-          <Textarea value={statement} rows={2} onChange={value => service.set('statement', value)} />
-        </Field>
-        <Field label="Why"><Textarea value={why} rows={3} onChange={value => service.set('why', value)} /></Field>
-        <Stack gap={2}>
-          <Text size="sm" weight="medium">Where it applies</Text>
-          <Text size="sm" tone="muted">A dimension with nothing picked applies in all its values.</Text>
-          {dimensions.map(dimension => (
-            <Inline key={dimension.id} gap={3} wrap>
-              <Text size="sm">{dimension.name}:</Text>
-              {dimension.values.filter(value => !value.retiredAt).map(value => (
-                <Inline key={value.id} gap={1}>
-                  <Checkbox
-                    label={`${dimension.name}: ${value.name}`}
-                    checked={(scope[dimension.id] ?? []).includes(value.id)}
-                    onCheckedChange={on => service.toggleScope(dimension.id, value.id, on)}
-                  />
-                  <Text size="sm">{value.name}</Text>
-                </Inline>
-              ))}
-            </Inline>
-          ))}
-        </Stack>
-        <Stack gap={2}>
-          <Text size="sm" weight="medium">Acceptance criteria</Text>
-          {criteria.map((criterion, index) => (
-            <Stack key={index} gap={2}>
-              <Input label={`Criterion ${index + 1}: given`} placeholder="Given…" value={criterion.given} onChange={value => service.setCriterion(index, 'given', value)} />
-              <Input label={`Criterion ${index + 1}: when`} placeholder="When…" value={criterion.when} onChange={value => service.setCriterion(index, 'when', value)} />
-              <Input label={`Criterion ${index + 1}: then`} placeholder="Then…" value={criterion.then} onChange={value => service.setCriterion(index, 'then', value)} />
-              <Inline><Button size="sm" variant="ghost" onClick={() => service.removeCriterion(index)}>Remove criterion</Button></Inline>
-            </Stack>
-          ))}
-          <Inline><Button size="sm" variant="outline" onClick={() => service.addCriterion()}>Add a criterion</Button></Inline>
-        </Stack>
-      </Stack>
-    )
+    return <RuleDraftFields value={ruleDraft} dimensions={dimensions} onChange={value => service.set('ruleDraft', value)} />
   }
 
   if (choice === 'dimension:change' && !dimensionId) return null

@@ -5,9 +5,10 @@ import { Select } from '@newt/ui/components/select'
 import { Stack } from '@newt/ui/components/stack'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { DefinitionFeatureService } from './definition-feature.service'
 
-/** Picks another active area for the feature; it lands at the end. */
+/** Proposes another active area for the feature; it lands at the end. */
 export function DefinitionFeatureMove() {
   const service = useService(DefinitionFeatureService)
   const feature = useValue(service.feature)
@@ -16,6 +17,7 @@ export function DefinitionFeatureMove() {
   const areas = useValue(service.areas.items)
   const hasMore = useValue(service.areas.hasMore)
   const loadingMore = useValue(service.areas.loadingMore)
+  const open = useOpenProposal()
 
   const options = areas.filter(area => area.id !== feature?.areaId).map(area => ({ value: area.id, label: area.name }))
 
@@ -23,8 +25,8 @@ export function DefinitionFeatureMove() {
     <Dialog
       open={moving}
       onOpenChange={open => !open && service.closeMove()}
-      title={`Move ${feature?.name ?? ''}`}
-      description="It goes to the end of the area you pick."
+      title={`Propose moving ${feature?.name ?? ''}`}
+      description="It goes to the end of the area you pick, once the quick proposal is merged."
       size="sm"
     >
       <Stack gap={4} align="start">
@@ -36,7 +38,7 @@ export function DefinitionFeatureMove() {
             Load more areas
           </Button>
         )}
-        <Button disabled={!target} onClick={() => void service.move()}>Move</Button>
+        <Button disabled={!target} onClick={() => void open(service.move())}>Propose</Button>
       </Stack>
     </Dialog>
   )

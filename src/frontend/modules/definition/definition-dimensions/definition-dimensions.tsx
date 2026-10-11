@@ -11,7 +11,9 @@ import { FormField } from '../../../components/form-field'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
+import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionDimensionsItem } from './definition-dimensions-item/definition-dimensions-item'
 import { DefinitionDimensionsRename } from './definition-dimensions-rename/definition-dimensions-rename'
 import { DefinitionDimensionsRenameService } from './definition-dimensions-rename/definition-dimensions-rename.service'
@@ -35,6 +37,7 @@ function DefinitionDimensionsWrapped() {
   const dimensions = useValue(service.dimensions)
   const loaded = useValue(service.loaded)
   const submitting = useValue(service.form.submitting)
+  const open = useOpenProposal()
 
   useEffect(() => {
     void service.load(workspaceId)
@@ -42,7 +45,7 @@ function DefinitionDimensionsWrapped() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void service.create()
+    void open(service.create())
   }
 
   if (!loaded) return <Spinner label="Loading the dimensions" />
@@ -50,6 +53,7 @@ function DefinitionDimensionsWrapped() {
   return (
     <Stack gap={6}>
       <PageHeader title="Dimensions" description="Where each part of the product applies: platform, market, plan…" />
+      <DefinitionPlannedNotice targetIds={dimensions.map(dimension => dimension.id)} />
       <Card
         title={`Dimensions (${dimensions.length})`}
         titleLevel={2}
@@ -60,8 +64,8 @@ function DefinitionDimensionsWrapped() {
           : (
               <form onSubmit={onSubmit} noValidate>
                 <Stack gap={3} align="start">
-                  <FormField form={service.form} name="name" label="New dimension" description="For example: Platform, Market or Plan." />
-                  <Button type="submit" variant="secondary" loading={submitting}>Create</Button>
+                  <FormField form={service.form} name="name" label="Propose a dimension" description="For example: Platform, Market or Plan. It goes in a quick proposal, to approve." />
+                  <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
                 </Stack>
               </form>
             )}

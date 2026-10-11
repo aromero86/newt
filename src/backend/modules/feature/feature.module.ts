@@ -22,8 +22,9 @@ import { registerFeatureRoutes } from './feature.routes'
 const END = Number.MAX_SAFE_INTEGER
 
 /**
- * The features of each workspace, each in one area. Any member edits them, until
- * the workspace is archived. Every feature that comes into an area or leaves it is
+ * The features of each workspace, each in one area. They change only through merged
+ * proposals, which call these use cases; members only reorder them within their
+ * area, until the workspace is archived. Every feature that comes into an area or leaves it is
  * told to the area, in the same transaction.
  */
 export class Feature_Module extends Module {

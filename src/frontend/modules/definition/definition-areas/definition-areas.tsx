@@ -1,5 +1,5 @@
 import { useEffect, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useParams } from 'react-router'
 import { ArrowDownIcon, ArrowUpIcon, FolderTreeIcon, MoreHorizontalIcon } from 'lucide-react'
 import type { FeatureAreaDTO } from '@newt/api/feature-area'
 import { Alert } from '@newt/ui/components/alert'
@@ -19,6 +19,7 @@ import { FormField } from '../../../components/form-field'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionAreasService } from './definition-areas.service'
 
@@ -44,17 +45,16 @@ function DefinitionAreasWrapped() {
   const loadingMore = useValue(service.active.loadingMore)
   const showRetired = useValue(service.showRetired)
   const submitting = useValue(service.form.submitting)
-  const navigate = useNavigate()
+  const open = useOpenProposal()
   const readOnly = Boolean(workspace?.archivedAt)
 
   useEffect(() => {
     void service.load(workspaceId)
   }, [service, workspaceId])
 
-  async function onSubmit(event: FormEvent) {
+  function onSubmit(event: FormEvent) {
     event.preventDefault()
-    const created = await service.create()
-    if (created) navigate(`/w/${workspaceId}/definition/areas/${created.id}`)
+    void open(service.create())
   }
 
   function actions(area: FeatureAreaDTO): MenuItem[] {
@@ -62,7 +62,7 @@ function DefinitionAreasWrapped() {
       { label: 'Move up', icon: ArrowUpIcon, disabled: area.position === 0, onSelect: () => void service.move(area, -1) },
       { label: 'Move down', icon: ArrowDownIcon, disabled: area.position === total - 1, onSelect: () => void service.move(area, 1) },
       { separator: true },
-      { label: 'Retire', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void service.retire(area) },
+      { label: 'Propose retiring', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void open(service.proposeRetiring(area)) },
     ]
   }
 
@@ -102,13 +102,13 @@ function DefinitionAreasWrapped() {
         </Button>
       )}
       {!readOnly && loaded && (
-        <Card title="New area" titleLevel={2} description="A part of the product, such as Checkout, Account or Backoffice. Where things apply is said by dimensions.">
-          <form onSubmit={event => void onSubmit(event)} noValidate>
+        <Card title="Propose an area" titleLevel={2} description="A part of the product, such as Checkout, Account or Backoffice; where things apply is said by dimensions. It goes in a quick proposal, to approve.">
+          <form onSubmit={onSubmit} noValidate>
             <Stack gap={4}>
               <FormField form={service.form} name="name" label="Name" />
               <FormField form={service.form} name="description" label="Description" description="What it covers, and what it does not." rows={3} />
               <Stack gap={0} align="start">
-                <Button type="submit" variant="secondary" loading={submitting}>Create area</Button>
+                <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
               </Stack>
             </Stack>
           </form>
@@ -130,6 +130,7 @@ function DefinitionAreasWrapped() {
 function DefinitionAreasRetired({ readOnly }: { readOnly: boolean }) {
   const workspaceId = useParams().workspaceId!
   const service = useService(DefinitionAreasService)
+  const open = useOpenProposal()
   const areas = useValue(service.retired.items)
   const loaded = useValue(service.retired.loaded)
   const hasMore = useValue(service.retired.hasMore)
@@ -149,7 +150,7 @@ function DefinitionAreasRetired({ readOnly }: { readOnly: boolean }) {
           footer={(
             <>
               <TextLink href={`/w/${workspaceId}/definition/areas/${area.id}`}>Open {area.name}</TextLink>
-              {!readOnly && <Button variant="outline" size="sm" onClick={() => void service.restore(area)}>Restore</Button>}
+              {!readOnly && <Button variant="outline" size="sm" onClick={() => void open(service.proposeRestoring(area))}>Propose restoring</Button>}
             </>
           )}
         />

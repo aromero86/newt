@@ -17,16 +17,20 @@ import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionEditDialog } from '../definition-edit-dialog/definition-edit-dialog'
+import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
+import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
+import { DefinitionRuleProposeService } from '../definition-rule-propose/definition-rule-propose.service'
 import { DefinitionRules } from '../definition-rules/definition-rules'
 import { DefinitionFeatureMove } from './definition-feature-move'
 import { DefinitionFeatureService } from './definition-feature.service'
 
-/** With its own DefinitionFeatureService: whoever renders it needs nothing else. */
+/** With its own services: whoever renders it needs nothing else. */
 export function DefinitionFeature() {
   return (
-    <Provide services={[DefinitionFeatureService]}>
+    <Provide services={[DefinitionFeatureService, DefinitionRuleProposeService]}>
       <DefinitionFeatureWrapped />
     </Provide>
   )
@@ -40,6 +44,8 @@ function DefinitionFeatureWrapped() {
   const feature = useValue(service.feature)
   const area = useValue(service.area)
   const editing = useValue(service.editing)
+  const rules = useService(DefinitionRuleProposeService)
+  const open = useOpenProposal()
 
   useEffect(() => {
     void service.load(workspaceId, featureId)
@@ -53,12 +59,13 @@ function DefinitionFeatureWrapped() {
   const areaPath = `/w/${workspaceId}/definition/areas/${feature.areaId}`
 
   const actions: MenuItem[] = retired
-    ? [{ label: 'Restore', onSelect: () => void service.restore() }]
+    ? [{ label: 'Propose restoring', onSelect: () => void open(service.proposeRestoring()) }]
     : [
-        { label: 'Edit', onSelect: () => service.openEdit() },
-        { label: 'Move to another area', onSelect: () => void service.openMove() },
+        { label: 'Propose a rule', onSelect: () => void rules.startNew(workspaceId, feature.id) },
+        { label: 'Propose changes', onSelect: () => service.openEdit() },
+        { label: 'Propose moving to another area', onSelect: () => void service.openMove() },
         { separator: true },
-        { label: 'Retire', tone: 'destructive', onSelect: () => void service.retire() },
+        { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(service.proposeRetiring()) },
       ]
 
   return (
@@ -82,6 +89,7 @@ function DefinitionFeatureWrapped() {
           )}
         />
       </Stack>
+      <DefinitionPlannedNotice targetIds={[feature.id]} />
       {retired && <Alert tone="info" title="This feature is retired">It is no longer in the product. This is what it was.</Alert>}
       <Card title="Description" titleLevel={2}>
         {feature.description
@@ -92,11 +100,12 @@ function DefinitionFeatureWrapped() {
       <DefinitionEditDialog
         form={service.editForm}
         open={editing}
-        title={`Edit ${feature.name}`}
+        title={`Propose changes to ${feature.name}`}
         onClose={() => service.closeEdit()}
-        onSubmit={() => void service.saveEdit()}
+        onSubmit={() => void open(service.saveEdit())}
       />
       <DefinitionFeatureMove />
+      <DefinitionRulePropose />
     </Stack>
   )
 }

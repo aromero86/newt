@@ -18,7 +18,7 @@ import {
   type ProposalUpdateDTO,
 } from './proposal'
 import type { Proposal_Deps } from './proposal.deps'
-import { Proposal_Repository } from './proposal.repository'
+import { Proposal_Repository, type Proposal_Criteria } from './proposal.repository'
 import { registerProposalRoutes } from './proposal.routes'
 
 /**
@@ -126,12 +126,18 @@ export class Proposal_Module extends Module {
     return this.moveTo(workspaceId, key, 'discarded')
   }
 
+  /** For other modules: the workspace's proposals that match. */
+  @UseCase('proposal.find')
+  async find(workspaceId: string, criteria: Omit<Proposal_Criteria, 'workspaceId'>): Promise<ProposalDTO[]> {
+    return this.contracts(await this.repo.find({ ...criteria, workspaceId }))
+  }
+
   /** A page of its deltas, in the order they will be applied. */
   @UseCase('proposal.deltas')
   async deltas(workspaceId: string, key: string, page: PageRequest): Promise<Page<DeltaDTO>> {
     await this.deps.workspaceMember.assertActive(workspaceId)
     const proposal = await this.load(workspaceId, key)
-    return this.deps.delta.list(workspaceId, proposal.id, page)
+    return this.deps.delta.list(workspaceId, { proposalId: [proposal.id] }, page)
   }
 
   @UseCase('proposal.addDelta')

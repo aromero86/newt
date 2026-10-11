@@ -1,7 +1,5 @@
 import { ApiError } from '@newt/api/core/api-error'
 import { DimensionApi, type DimensionDTO } from '@newt/api/dimension'
-import { FeatureApi } from '@newt/api/feature'
-import { FeatureAreaApi } from '@newt/api/feature-area'
 import { ProposalApi, type DeltaDTO, type DeltaInputDTO, type ProposalAction, type ProposalDTO } from '@newt/api/proposal'
 import { toast } from '@newt/ui/components/toast'
 import { z } from 'zod'
@@ -9,6 +7,7 @@ import { FormStore } from '../../../core/form/form-store'
 import { inject } from '../../../core/injector/inject'
 import { ListStore } from '../../../core/list/list-store'
 import { Store } from '../../../core/store/store'
+import { ArtifactNamesService } from '../../../services/artifact-names/artifact-names.service'
 
 type ProposalState = {
   workspaceId: string
@@ -17,8 +16,6 @@ type ProposalState = {
   proposal: ProposalDTO | null | undefined
   /** The workspace's dimensions, to name the values a scope points at. */
   dimensions: DimensionDTO[]
-  /** Names of the areas and features the deltas point at, by id. */
-  names: Record<string, string>
   /** The delta being rejected, whose reason is being written. */
   rejecting: DeltaDTO | null
 }
@@ -39,13 +36,12 @@ export class ProposalService {
 
   private readonly api = inject(ProposalApi)
   private readonly dimensionApi = inject(DimensionApi)
-  private readonly areaApi = inject(FeatureAreaApi)
-  private readonly featureApi = inject(FeatureApi)
-  private readonly store = new Store<ProposalState>({ workspaceId: '', key: '', proposal: undefined, dimensions: [], names: {}, rejecting: null })
+  private readonly artifactNames = inject(ArtifactNamesService)
+  private readonly store = new Store<ProposalState>({ workspaceId: '', key: '', proposal: undefined, dimensions: [], rejecting: null })
 
   readonly proposal = this.store.select('proposal')
   readonly dimensions = this.store.select('dimensions')
-  readonly names = this.store.select('names')
+  readonly names = this.artifactNames.names
   readonly rejecting = this.store.select('rejecting')
 
   readonly deltas = new ListStore<DeltaDTO>(page => this.api.deltas(this.store.value.workspaceId, this.store.value.key, page))
@@ -57,7 +53,7 @@ export class ProposalService {
   }
 
   async load(workspaceId: string, key: string): Promise<void> {
-    this.store.patch({ workspaceId, key, proposal: undefined, names: {}, rejecting: null })
+    this.store.patch({ workspaceId, key, proposal: undefined, rejecting: null })
     try {
       const [proposal, dimensions] = await Promise.all([this.api.one(workspaceId, key), this.dimensionApi.list(workspaceId)])
       this.store.patch({ proposal, dimensions })
@@ -118,7 +114,7 @@ export class ProposalService {
 
   /** The name of an area or a feature a delta points at. */
   name(id: string): string {
-    return this.store.value.names[id] ?? 'Unknown'
+    return this.artifactNames.name(id)
   }
 
   private async attempt(action: () => Promise<void>, done?: string): Promise<void> {
@@ -140,30 +136,6 @@ export class ProposalService {
 
   private async loadDeltas(): Promise<void> {
     await this.deltas.loadFirstPage()
-    await this.resolveNames(this.deltas.items.peek())
-  }
-
-  /** Names for the areas and features the deltas point at: created by a delta, or read from the definition. */
-  private async resolveNames(deltas: DeltaDTO[]): Promise<void> {
-    const names: Record<string, string> = { ...this.store.value.names }
-    for (const delta of deltas) {
-      if (delta.operation === 'create' && (delta.kind === 'feature-area' || delta.kind === 'feature')) names[delta.targetId] = delta.targetLabel
-    }
-    const wanted = new Map<string, 'area' | 'feature'>()
-    for (const delta of deltas) {
-      for (const state of [delta.before, delta.after] as ({ areaId?: string, featureId?: string } | null)[]) {
-        if (state?.areaId && !names[state.areaId]) wanted.set(state.areaId, 'area')
-        if (state?.featureId && !names[state.featureId]) wanted.set(state.featureId, 'feature')
-      }
-    }
-    const { workspaceId } = this.store.value
-    await Promise.all([...wanted].map(async ([id, kind]) => {
-      try {
-        names[id] = (kind === 'area' ? await this.areaApi.one(workspaceId, id) : await this.featureApi.one(workspaceId, id)).name
-      } catch {
-        names[id] = 'Unknown'
-      }
-    }))
-    this.store.patch({ names })
+    await this.artifactNames.resolve(this.store.value.workspaceId, this.deltas.items.peek())
   }
 }

@@ -1,12 +1,15 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router'
+import { MoreHorizontalIcon } from 'lucide-react'
 import type { RuleCriterionDTO } from '@newt/api/rule'
 import { Alert } from '@newt/ui/components/alert'
 import { Badge } from '@newt/ui/components/badge'
 import { Button } from '@newt/ui/components/button'
 import { Card } from '@newt/ui/components/card'
+import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
 import { TextLink } from '@newt/ui/components/link'
+import { Menu } from '@newt/ui/components/menu'
 import { PageHeader } from '@newt/ui/components/page-header'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
@@ -16,13 +19,19 @@ import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
+import { QuickProposalService } from '../../../services/quick-proposal/quick-proposal.service'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
+import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { RuleScope } from '../../../components/rule-scope'
+import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
+import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
+import { DefinitionRuleProposeService } from '../definition-rule-propose/definition-rule-propose.service'
 import { DefinitionRuleService } from './definition-rule.service'
 
-/** With its own DefinitionRuleService: whoever renders it needs nothing else. */
+/** With its own services: whoever renders it needs nothing else. */
 export function DefinitionRule() {
   return (
-    <Provide services={[DefinitionRuleService]}>
+    <Provide services={[DefinitionRuleService, DefinitionRuleProposeService]}>
       <DefinitionRuleWrapped />
     </Provide>
   )
@@ -37,6 +46,10 @@ function DefinitionRuleWrapped() {
   const versions = useValue(service.versions.items)
   const hasMore = useValue(service.versions.hasMore)
   const loadingMore = useValue(service.versions.loadingMore)
+  const workspace = useValue(useService(WorkspacesService).workspace(workspaceId))
+  const propose = useService(DefinitionRuleProposeService)
+  const quick = useService(QuickProposalService)
+  const open = useOpenProposal()
 
   useEffect(() => {
     void service.load(workspaceId, key)
@@ -62,10 +75,23 @@ function DefinitionRuleWrapped() {
               <Badge tone="muted">{current.kind}</Badge>
               <Badge tone="outline">version {current.version}</Badge>
               {retired && <Badge tone="warn">retired</Badge>}
+              {!retired && !workspace?.archivedAt && (
+                <Menu
+                  label={`Actions for ${rule.key}`}
+                  align="end"
+                  trigger={<Button variant="outline" size="icon" label={`Actions for ${rule.key}`}><Icon icon={MoreHorizontalIcon} /></Button>}
+                  items={[
+                    { label: 'Propose a new version', onSelect: () => void propose.startChange(workspaceId, rule) },
+                    { separator: true },
+                    { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(quick.propose(workspaceId, { kind: 'rule', operation: 'retire', targetId: rule.id })) },
+                  ]}
+                />
+              )}
             </Inline>
           )}
         />
       </Stack>
+      <DefinitionPlannedNotice targetIds={[rule.id]} />
       {retired && <Alert tone="info" title={`${rule.key} is retired`}>It no longer holds. This is what it said last.</Alert>}
       <Card title="Where it applies" titleLevel={2}>
         <RuleScope scope={current.scope} dimensions={dimensions} />
@@ -100,6 +126,7 @@ function DefinitionRuleWrapped() {
           )}
         </Stack>
       </Card>
+      <DefinitionRulePropose />
     </Stack>
   )
 }

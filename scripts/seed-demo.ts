@@ -1,14 +1,19 @@
 // Loads Acme Shop, a realistic example product, into the database NEWT_DB_PATH
-// points at: a demo account, its workspace, dimensions, areas, features and rules.
-// Everything goes through the modules' use cases. It stops if the demo account
-// already exists, so running it twice changes nothing.
+// points at: a demo account, its workspace, dimensions, areas, features, rules and
+// proposals in every state. Running it again overwrites Acme Shop: everything inside
+// the workspace is wiped and loaded anew, keeping the account, the workspace's id and
+// its members. Nothing else in the database is touched. The wipe is plain SQL, as
+// a dev tool; loading goes through the modules' use cases.
 import { Base } from '../src/backend/base/base'
 import { config } from '../src/backend/config'
 import { runAsActor } from '../src/backend/core/context/run-as-actor'
 import { initializeModules } from '../src/backend/initialize-modules'
+import type { DeltaInputDTO } from '../src/backend/modules/delta/delta.schema'
 import type { RuleDraftDTO } from '../src/backend/modules/rule/rule.schema'
 
 const DEMO = { nick: 'demo', fullName: 'Demo Person', email: 'demo@acme.shop', password: 'acme-shop-demo' }
+
+const WORKSPACE = { name: 'Acme Shop', description: 'The online shop: mobile app, web and backoffice, in Spain and Mexico.' }
 
 const DIMENSIONS = {
   Surface: ['Mobile app', 'Web', 'Backoffice'],
@@ -187,26 +192,157 @@ const AREAS: { name: string, description: string, features: { name: string, desc
   },
 ]
 
+/** What a proposal's deltas point at: the definition just loaded, by name. */
+type Refs = {
+  area: (name: string) => string
+  feature: (name: string) => string
+  /** The id of a rule by its key: R-10. */
+  rule: (key: string) => string
+  /** A dimension as a delta changes it: its name and every value. */
+  dimension: (name: string) => { id: string, state: { name: string, values: { id: string, name: string, retired: boolean }[] } }
+  value: (dimension: string, value: string) => { dimensionId: string, valueIds: string[] }
+}
+
+/** One delta, written once the deltas before it exist: `created` holds the ids of what they create, in order. */
+type DemoDelta = (refs: Refs, created: string[]) => DeltaInputDTO
+
+type DemoProposal = {
+  title: string
+  /** Where the lifecycle leaves it. */
+  status: 'draft' | 'in review' | 'accepted' | 'merged'
+  deltas: DemoDelta[]
+  /** The deltas rejected, by index, and why. Once in review, the rest are approved. */
+  rejected?: Record<number, string>
+}
+
+const PROPOSALS: DemoProposal[] = [
+  {
+    title: 'Sell in Portugal, with gift cards',
+    status: 'merged',
+    deltas: [
+      refs => {
+        const market = refs.dimension('Market')
+        return { kind: 'dimension', operation: 'change', targetId: market.id, after: { ...market.state, values: [...market.state.values, { name: 'Portugal', retired: false }] } }
+      },
+      refs => ({
+        kind: 'feature',
+        operation: 'create',
+        after: { areaId: refs.area('Purchase'), name: 'Gift cards', description: 'Buying a gift card and paying with one. Not refunds to a gift card: see Refunds.' },
+      }),
+      (_, created) => ({
+        kind: 'rule',
+        operation: 'create',
+        after: {
+          featureId: created[0]!,
+          kind: 'legal',
+          statement: 'A gift card can be used for 12 months after it is bought',
+          why: 'Consumer law sets the minimum validity of prepaid cards.',
+          criteria: [{ given: 'a gift card bought 13 months ago', when: 'the customer pays with it', then: 'it is refused as expired' }],
+        },
+      }),
+    ],
+  },
+  {
+    title: 'Free shipping from 40 €',
+    status: 'accepted',
+    deltas: [
+      refs => ({
+        kind: 'rule',
+        operation: 'change',
+        targetId: refs.rule('R-10'),
+        after: {
+          kind: 'calculation',
+          statement: 'Shipping is free for orders over 40 €',
+          why: 'Most carts sit between 40 and 50 €: free shipping there lifts conversion more than it costs.',
+          scope: [refs.value('Market', 'Spain')],
+          criteria: [{ given: 'an order of 39,99 € in Spain', when: 'the shipping cost is shown', then: 'it is 4,95 €' }],
+        },
+      }),
+      refs => ({
+        kind: 'rule',
+        operation: 'create',
+        after: {
+          featureId: refs.feature('Shipping'),
+          kind: 'flow',
+          statement: 'Orders paid before 14:00 leave the warehouse the same day',
+          why: 'Same-day dispatch is what makes free shipping worth waiting for.',
+          scope: [refs.value('Market', 'Spain')],
+        },
+      }),
+    ],
+  },
+  {
+    title: 'Pay in three installments',
+    status: 'in review',
+    deltas: [
+      refs => ({
+        kind: 'feature',
+        operation: 'create',
+        after: { areaId: refs.area('Purchase'), name: 'Pay in installments', description: 'Splitting the payment of an order in three monthly installments, through a financing provider.' },
+      }),
+      (refs, created) => ({
+        kind: 'rule',
+        operation: 'create',
+        after: {
+          featureId: created[0]!,
+          kind: 'validation',
+          statement: 'Installments are offered for orders over 90 €',
+          why: 'Below that, the provider\'s fee eats the margin.',
+          scope: [refs.value('Role', 'Customer')],
+        },
+      }),
+    ],
+    rejected: { 1: 'The provider\'s minimum is 120 €: below that it refuses the financing.' },
+  },
+  {
+    title: 'Delete my account',
+    status: 'draft',
+    deltas: [
+      refs => ({
+        kind: 'feature',
+        operation: 'create',
+        after: { areaId: refs.area('Account'), name: 'Account deletion', description: 'A customer deletes their account and their personal data. Not their orders, which the law keeps.' },
+      }),
+      (_, created) => ({
+        kind: 'rule',
+        operation: 'create',
+        after: {
+          featureId: created[0]!,
+          kind: 'legal',
+          statement: 'Deleting an account erases its personal data within 30 days',
+          why: 'GDPR: the right to erasure.',
+          criteria: [{ given: 'a customer who deletes their account', when: '30 days have passed', then: 'their name, email and addresses are gone' }],
+        },
+      }),
+    ],
+  },
+]
+
 const base = await Base.open(config)
 const modules = await initializeModules(base)
 
 try {
-  if ((await modules.user.find({ login: DEMO.nick })).length > 0) {
-    console.log(`The demo account (@${DEMO.nick}) already exists in ${config.dbPath}: nothing to do.`)
-  } else {
-    const { token } = await modules.authSession.signUp(DEMO)
-    const actor = (await modules.authSession.authenticate(token))!
-    await runAsActor(actor, seed)
-    console.log(`Acme Shop loaded into ${config.dbPath}. Sign in as ${DEMO.nick} / ${DEMO.password}`)
-  }
+  const { token } = (await modules.user.find({ login: DEMO.nick })).length > 0
+    ? await modules.authSession.signIn({ login: DEMO.nick, password: DEMO.password })
+    : await modules.authSession.signUp(DEMO)
+  const actor = (await modules.authSession.authenticate(token))!
+  const overwritten = await runAsActor(actor, seed)
+  console.log(`Acme Shop ${overwritten ? 'overwritten' : 'loaded'} in ${config.dbPath}. Sign in as ${DEMO.nick} / ${DEMO.password}`)
 } finally {
-  // Let the workers that react to the new account finish before closing.
+  // Let the workers that react to a new account finish before closing.
   await Bun.sleep(300)
   base.close()
 }
 
-async function seed() {
-  const workspace = await modules.workspace.create({ name: 'Acme Shop', description: 'The online shop: mobile app, web and backoffice, in Spain and Mexico.' })
+/** Resolves to whether Acme Shop was already there, and so overwritten. */
+async function seed(): Promise<boolean> {
+  const existing = await acmeShop()
+  const workspace = existing ?? await modules.workspace.create(WORKSPACE)
+  if (existing) {
+    wipe(existing.id)
+    if (existing.archivedAt) await modules.workspace.unarchive(existing.id)
+    await modules.workspace.update(existing.id, WORKSPACE)
+  }
 
   const values = new Map<string, { dimensionId: string, valueId: string }>()
   for (const [name, valueNames] of Object.entries(DIMENSIONS)) {
@@ -219,10 +355,14 @@ async function seed() {
     return { dimensionId: picked[0]!.dimensionId, valueIds: picked.map(value => value.valueId) }
   })
 
+  const areaIds = new Map<string, string>()
+  const featureIds = new Map<string, string>()
   for (const area of AREAS) {
     const { id: areaId } = await modules.featureArea.create(workspace.id, { name: area.name, description: area.description })
+    areaIds.set(area.name, areaId)
     for (const feature of area.features) {
       const { id: featureId } = await modules.feature.create(workspace.id, { areaId, name: feature.name, description: feature.description })
+      featureIds.set(feature.name, featureId)
       for (const { before = [], retired, scope, ...draft } of feature.rules) {
         const [first, ...rest] = [...before, { ...draft, scope }]
         const rule = await modules.rule.create(workspace.id, { ...first!, featureId, scope: scopeOf(first!.scope) })
@@ -231,4 +371,78 @@ async function seed() {
       }
     }
   }
+
+  // Each proposal sees the definition as the ones before it left it.
+  for (const proposal of PROPOSALS) {
+    const dimensions = await modules.dimension.list(workspace.id)
+    const ruleIds = new Map((await modules.rule.find(workspace.id, {})).map(rule => [rule.key, rule.id]))
+    const refs: Refs = {
+      area: name => areaIds.get(name)!,
+      feature: name => featureIds.get(name)!,
+      rule: key => ruleIds.get(key)!,
+      dimension: name => {
+        const dimension = dimensions.find(each => each.name === name)!
+        return { id: dimension.id, state: { name, values: dimension.values.map(value => ({ id: value.id, name: value.name, retired: value.retiredAt !== null })) } }
+      },
+      value: (dimension, value) => {
+        const { dimensionId, valueId } = values.get(`${dimension}:${value}`)!
+        return { dimensionId, valueIds: [valueId] }
+      },
+    }
+    await propose(workspace.id, proposal, refs)
+  }
+  return existing !== undefined
+}
+
+/** Takes a proposal through its lifecycle as far as its status says. */
+async function propose(workspaceId: string, proposal: DemoProposal, refs: Refs): Promise<void> {
+  const { key } = await modules.proposal.create(workspaceId, { title: proposal.title })
+  const created: string[] = []
+  const deltaIds: string[] = []
+  for (const write of proposal.deltas) {
+    const delta = write(refs, created)
+    const added = await modules.proposal.addDelta(workspaceId, key, delta)
+    if (delta.operation === 'create') created.push(added.targetId)
+    deltaIds.push(added.id)
+  }
+  if (proposal.status === 'draft') return
+
+  await modules.proposal.submit(workspaceId, key)
+  for (const [index, deltaId] of deltaIds.entries()) {
+    const reason = proposal.rejected?.[index]
+    await modules.proposal.reviewDelta(workspaceId, key, deltaId, reason ? { verdict: 'rejected', reason } : { verdict: 'approved' })
+  }
+  if (proposal.status === 'in review') return
+
+  await modules.proposal.accept(workspaceId, key)
+  if (proposal.status === 'merged') await modules.proposal.merge(workspaceId, key)
+}
+
+/** The demo account's Acme Shop, if it has one. */
+async function acmeShop() {
+  for (let cursor: string | undefined; ;) {
+    const page = await modules.workspace.mine({ size: 100, cursor })
+    const found = page.items.find(workspace => workspace.name === WORKSPACE.name && workspace.myRole === 'admin')
+    if (found || !page.hasMore) return found
+    cursor = page.items.at(-1)!.id
+  }
+}
+
+/** Everything inside the workspace, in one transaction and in foreign-key order. Its members stay. */
+function wipe(workspaceId: string): void {
+  const sqlite = base.db.sqlite
+  sqlite.transaction(() => {
+    for (const statement of [
+      'DELETE FROM delta__review WHERE delta_id IN (SELECT id FROM delta WHERE workspace_id = ?1)',
+      'DELETE FROM delta WHERE workspace_id = ?1',
+      'DELETE FROM proposal WHERE workspace_id = ?1',
+      'DELETE FROM rule__scope WHERE version_id IN (SELECT v.id FROM rule__version v JOIN rule r ON r.id = v.rule_id WHERE r.workspace_id = ?1)',
+      'DELETE FROM rule__version WHERE rule_id IN (SELECT id FROM rule WHERE workspace_id = ?1)',
+      'DELETE FROM rule WHERE workspace_id = ?1',
+      'DELETE FROM feature WHERE workspace_id = ?1',
+      'DELETE FROM feature_area WHERE workspace_id = ?1',
+      'DELETE FROM dimension__value WHERE dimension_id IN (SELECT id FROM dimension WHERE workspace_id = ?1)',
+      'DELETE FROM dimension WHERE workspace_id = ?1',
+    ]) sqlite.run(statement, [workspaceId])
+  })()
 }

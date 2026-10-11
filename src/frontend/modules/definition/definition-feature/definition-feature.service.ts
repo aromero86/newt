@@ -1,11 +1,12 @@
 import { ApiError } from '@newt/api/core/api-error'
-import { FeatureApi, FeatureUpdateSchema, type FeatureDTO } from '@newt/api/feature'
-import { FeatureAreaApi, type FeatureAreaDTO } from '@newt/api/feature-area'
-import { toast } from '@newt/ui/components/toast'
+import { FeatureApi, type FeatureDTO } from '@newt/api/feature'
+import { FeatureAreaApi, FeatureAreaCreateSchema, type FeatureAreaDTO } from '@newt/api/feature-area'
+import type { ProposalDTO } from '@newt/api/proposal'
 import { FormStore } from '../../../core/form/form-store'
 import { inject } from '../../../core/injector/inject'
 import { ListStore } from '../../../core/list/list-store'
 import { Store } from '../../../core/store/store'
+import { QuickProposalService } from '../../../services/quick-proposal/quick-proposal.service'
 
 type FeatureState = {
   workspaceId: string
@@ -18,11 +19,12 @@ type FeatureState = {
   target: string | undefined
 }
 
-/** One feature: reading it, editing it, moving it to another area, retiring it. */
+/** One feature: reading it, and proposing to change it, move it to another area or retire it. */
 export class DefinitionFeatureService {
 
   private readonly api = inject(FeatureApi)
   private readonly areaApi = inject(FeatureAreaApi)
+  private readonly quick = inject(QuickProposalService)
   private readonly store = new Store<FeatureState>({ workspaceId: '', feature: undefined, area: null, editing: false, moving: false, target: undefined })
 
   readonly feature = this.store.select('feature')
@@ -34,14 +36,14 @@ export class DefinitionFeatureService {
   /** Where it can move to: the active areas, a page at a time. */
   readonly areas = new ListStore<FeatureAreaDTO>(page => this.areaApi.list(this.store.value.workspaceId, page), 100)
 
-  readonly editForm = new FormStore(FeatureUpdateSchema, { name: '', description: '' }, {
-    errorFields: { 'feature.name_taken': 'name', 'feature.retired': 'name', 'workspace.archived': 'name' },
-  })
+  // A feature's name and description follow the same rules as an area's.
+  readonly editForm = new FormStore(FeatureAreaCreateSchema, { name: '', description: '' }, { errorFields: { 'workspace.archived': 'name' } })
 
   async load(workspaceId: string, featureId: string): Promise<void> {
     this.store.patch({ workspaceId, feature: undefined, area: null, editing: false, moving: false })
     try {
-      await this.show(await this.api.one(workspaceId, featureId))
+      const feature = await this.api.one(workspaceId, featureId)
+      this.store.patch({ feature, area: await this.areaApi.one(workspaceId, feature.areaId) })
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) this.store.patch({ feature: null })
       else throw error
@@ -59,16 +61,16 @@ export class DefinitionFeatureService {
     this.store.patch({ editing: false })
   }
 
-  async saveEdit(): Promise<void> {
-    const { workspaceId, feature } = this.store.value
-    if (!feature) return
-    const saved = await this.editForm.submit(async changes => {
-      this.store.patch({ feature: await this.api.update(workspaceId, feature.id, changes) })
+  /** Proposes its new name and description; it stays in its area. */
+  async saveEdit(): Promise<ProposalDTO | undefined> {
+    const feature = this.store.value.feature
+    if (!feature) return undefined
+    let proposal: ProposalDTO | undefined
+    await this.editForm.submit(async ({ name, description }) => {
+      proposal = await this.proposeChange(feature, { areaId: feature.areaId, name, description })
     })
-    if (saved) {
-      this.closeEdit()
-      toast.success('Feature saved')
-    }
+    if (proposal) this.closeEdit()
+    return proposal
   }
 
   async openMove(): Promise<void> {
@@ -84,40 +86,24 @@ export class DefinitionFeatureService {
     this.store.patch({ target: areaId })
   }
 
-  /** To the end of the picked area. */
-  async move(): Promise<void> {
-    const { workspaceId, feature, target } = this.store.value
-    if (!feature || !target) return
-    try {
-      await this.show(await this.api.move(workspaceId, feature.id, { areaId: target }))
-      this.closeMove()
-      toast.success(`Moved to ${this.store.value.area?.name ?? 'the area'}`)
-    } catch (error) {
-      toast.error((error as Error).message)
-    }
+  /** Proposes moving it to the end of the picked area. */
+  async move(): Promise<ProposalDTO | undefined> {
+    const { feature, target } = this.store.value
+    if (!feature || !target) return undefined
+    const proposal = await this.proposeChange(feature, { areaId: target, name: feature.name, description: feature.description })
+    if (proposal) this.closeMove()
+    return proposal
   }
 
-  async retire(): Promise<void> {
-    await this.change(feature => this.api.retire(this.store.value.workspaceId, feature.id), 'Feature retired')
+  proposeRetiring(): Promise<ProposalDTO | undefined> {
+    return this.quick.propose(this.store.value.workspaceId, { kind: 'feature', operation: 'retire', targetId: this.store.value.feature!.id })
   }
 
-  async restore(): Promise<void> {
-    await this.change(feature => this.api.restore(this.store.value.workspaceId, feature.id), 'Feature restored')
+  proposeRestoring(): Promise<ProposalDTO | undefined> {
+    return this.quick.propose(this.store.value.workspaceId, { kind: 'feature', operation: 'restore', targetId: this.store.value.feature!.id })
   }
 
-  private async change(action: (feature: FeatureDTO) => Promise<FeatureDTO>, done: string): Promise<void> {
-    const feature = this.store.value.feature
-    if (!feature) return
-    try {
-      await this.show(await action(feature))
-      toast.success(done)
-    } catch (error) {
-      toast.error((error as Error).message)
-    }
-  }
-
-  private async show(feature: FeatureDTO): Promise<void> {
-    const area = await this.areaApi.one(this.store.value.workspaceId, feature.areaId)
-    this.store.patch({ feature, area })
+  private proposeChange(feature: FeatureDTO, after: { areaId: string, name: string, description: string }): Promise<ProposalDTO | undefined> {
+    return this.quick.propose(this.store.value.workspaceId, { kind: 'feature', operation: 'change', targetId: feature.id, after })
   }
 }

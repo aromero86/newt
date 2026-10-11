@@ -16,15 +16,16 @@ import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
+import { ArtifactNamesService } from '../../../services/artifact-names/artifact-names.service'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { ProposalDelta } from './proposal-delta/proposal-delta'
 import { ProposalDeltaAdd } from './proposal-delta-add/proposal-delta-add'
 import { ProposalService } from './proposal.service'
 
-/** With its own ProposalService: whoever renders it needs nothing else. */
+/** With its own services: whoever renders it needs nothing else. */
 export function Proposal() {
   return (
-    <Provide services={[ProposalService]}>
+    <Provide services={[ArtifactNamesService, ProposalService]}>
       <ProposalWrapped />
     </Provide>
   )

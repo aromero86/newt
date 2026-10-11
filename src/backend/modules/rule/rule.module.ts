@@ -22,8 +22,8 @@ import { registerRuleRoutes } from './rule.routes'
 
 /**
  * The rules of each workspace and their history. Members read them; creating,
- * replacing and retiring them has no route: the demo data does it now, and
- * proposals will from phase 6.
+ * replacing and retiring them has no route: only merged proposals do it, and the
+ * demo data.
  */
 export class Rule_Module extends Module {
 

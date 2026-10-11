@@ -1,22 +1,24 @@
-import { DimensionApi, DimensionNameInputSchema, type DimensionDTO } from '@newt/api/dimension'
+import { DimensionNameInputSchema, type DimensionDTO } from '@newt/api/dimension'
+import type { ProposalDTO } from '@newt/api/proposal'
 import { FormStore } from '../../../../core/form/form-store'
 import { inject } from '../../../../core/injector/inject'
 import { DefinitionDimensionsService } from '../definition-dimensions.service'
 
-/** Adding values to one dimension. */
+/** Proposing new values for one dimension. */
 export class DefinitionDimensionsItemService {
 
-  private readonly api = inject(DimensionApi)
   private readonly dimensions = inject(DefinitionDimensionsService)
 
   readonly form = new FormStore(DimensionNameInputSchema, { name: '' }, {
-    errorFields: { 'dimension.value_name_taken': 'name', 'dimension.limit_reached': 'name', 'workspace.archived': 'name', validation: 'name' },
+    errorFields: { 'workspace.archived': 'name', validation: 'name' },
   })
 
-  async addValue(dimension: DimensionDTO): Promise<void> {
-    const added = await this.form.submit(async input => {
-      this.dimensions.replace(await this.api.addValue(this.dimensions.workspaceId, dimension.id, input))
+  async addValue(dimension: DimensionDTO): Promise<ProposalDTO | undefined> {
+    let proposal: ProposalDTO | undefined
+    await this.form.submit(async ({ name }) => {
+      proposal = await this.dimensions.proposeChange(dimension, state => ({ ...state, values: [...state.values, { name, retired: false }] }))
     })
-    if (added) this.form.reset({ name: '' })
+    if (proposal) this.form.reset({ name: '' })
+    return proposal
   }
 }

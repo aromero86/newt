@@ -26,7 +26,7 @@ import {
   type DeltaRuleCreateState,
 } from './delta'
 import type { Delta_Deps } from './delta.deps'
-import { Delta_Repository } from './delta.repository'
+import { Delta_Repository, type Delta_Criteria } from './delta.repository'
 import { DeltaBlocked } from './errors/delta-blocked'
 import { DeltaNotFound } from './errors/delta-not-found'
 import { DeltasNotApproved } from './errors/deltas-not-approved'
@@ -50,11 +50,11 @@ export class Delta_Module extends Module {
     super('delta', base.transactions)
   }
 
-  /** A page of a proposal's deltas, in the order they will be applied. */
+  /** A page of the deltas that match, in the order they were written: the order they are applied in. */
   @UseCase('delta.list')
-  async list(workspaceId: string, proposalId: string, page: PageRequest): Promise<Page<DeltaDTO>> {
-    const deltas = await this.repo.page(proposalId, page)
-    return { ...deltas, items: await this.contracts(workspaceId, proposalId, deltas.items) }
+  async list(workspaceId: string, criteria: Delta_Criteria, page: PageRequest): Promise<Page<DeltaDTO>> {
+    const deltas = await this.repo.page(criteria, page)
+    return { ...deltas, items: await this.contracts(workspaceId, deltas.items) }
   }
 
   /** How many deltas of each of these proposals are pending, approved and rejected. */
@@ -70,7 +70,7 @@ export class Delta_Module extends Module {
     const prepared = await this.prepare(workspaceId, proposalId, input)
     const delta = Delta.create({ workspaceId, proposalId, kind, operation, ...prepared })
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, proposalId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta]))[0]!
   }
 
   /** The same delta, written again: its verdicts go, since they were about the old one. */
@@ -83,7 +83,7 @@ export class Delta_Module extends Module {
     const prepared = await this.prepare(workspaceId, proposalId, { ...input, targetId: delta.targetId }, delta)
     delta.rewrite({ targetLabel: prepared.targetLabel, before: prepared.before, after: prepared.after })
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, proposalId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta]))[0]!
   }
 
   @UseCase('delta.remove')
@@ -100,7 +100,7 @@ export class Delta_Module extends Module {
     const delta = await this.load(proposalId, deltaId)
     delta.review(currentActor().userId, review.verdict, review.verdict === 'rejected' ? review.reason : '')
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, proposalId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta]))[0]!
   }
 
   /** Takes back the signed-in person's verdict. */
@@ -109,7 +109,7 @@ export class Delta_Module extends Module {
     const delta = await this.load(proposalId, deltaId)
     delta.withdraw(currentActor().userId)
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, proposalId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta]))[0]!
   }
 
   /** At least one delta, every one approved and none blocked. */
@@ -135,6 +135,11 @@ export class Delta_Module extends Module {
     const [delta] = await this.repo.find({ proposalId: [proposalId] })
     if (!delta) return 'Change the definition'
     const { targetLabel } = delta.toDTO()
+    // A new rule has no key yet: what it states names it.
+    if (delta.kind === 'rule' && delta.operation === 'create') {
+      const { statement } = delta.after as DeltaRuleCreateState
+      return `New rule: ${statement.length > 100 ? `${statement.slice(0, 100)}…` : statement}`
+    }
     const verb = { create: 'Create', change: 'Change', retire: 'Retire', restore: 'Restore' }[delta.operation]
     const noun = { 'dimension': 'dimension', 'feature-area': 'area', 'feature': 'feature', 'rule': 'rule' }[delta.kind]
     return `${verb} ${noun} ${targetLabel}`
@@ -330,12 +335,14 @@ export class Delta_Module extends Module {
   }
 
   /** The contract: status, reviews with nicks, and what blocks it. */
-  private async contracts(workspaceId: string, proposalId: string, deltas: Delta[]): Promise<DeltaDTO[]> {
+  private async contracts(workspaceId: string, deltas: Delta[]): Promise<DeltaDTO[]> {
     if (deltas.length === 0) return []
     const userIds = [...new Set(deltas.flatMap(delta => delta.reviews.map(review => review.userId)))]
     const users = userIds.length ? await this.deps.user.find({ id: userIds }) : []
     const nicks = new Map(users.map(user => [user.id, user.nick]))
-    const all = deltas.some(delta => delta.kind === 'dimension') ? await this.repo.find({ proposalId: [proposalId] }) : deltas
+    // What blocks a delta depends on the rest of its proposal.
+    const withDimensions = [...new Set(deltas.filter(delta => delta.kind === 'dimension').map(delta => delta.proposalId))]
+    const siblings = withDimensions.length ? await this.repo.find({ proposalId: withDimensions }) : []
 
     return Promise.all(deltas.map(async delta => {
       const { reviews, ...dto } = delta.toDTO()
@@ -343,7 +350,7 @@ export class Delta_Module extends Module {
         ...dto,
         status: delta.status,
         reviews: reviews.map(review => ({ ...review, nick: nicks.get(review.userId) ?? '' })),
-        blockers: await this.blockers(workspaceId, delta, all),
+        blockers: await this.blockers(workspaceId, delta, siblings.filter(sibling => sibling.proposalId === delta.proposalId)),
       }
     }))
   }

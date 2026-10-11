@@ -1,0 +1,41 @@
+import type { Base } from '../../base/base'
+import { Module } from '../../core/module/module'
+import type { Page } from '../../core/pagination/page'
+import type { PageRequest } from '../../core/pagination/page-request'
+import { UseCase } from '../../core/unit-of-work/use-case.decorator'
+import type { BaselinePlannedDTO } from './baseline.schema'
+import type { Baseline_Deps } from './baseline.deps'
+import { registerBaselineRoutes } from './baseline.routes'
+
+/**
+ * The two definitions of a workspace. The one in force is what the definition
+ * modules hold: everything merged. The planned one adds what is accepted and has no
+ * code yet: this module tells those changes apart.
+ */
+export class Baseline_Module extends Module {
+
+  static async initialize(base: Base, deps: Baseline_Deps) {
+    const module = new Baseline_Module(base, deps)
+    registerBaselineRoutes(base, module)
+    return module
+  }
+
+  private constructor(base: Base, private readonly deps: Baseline_Deps) {
+    super('baseline', base.transactions)
+  }
+
+  /**
+   * A page of the changes accepted and not merged yet, in the order they were
+   * written; only those on these artifacts, if given.
+   */
+  @UseCase('baseline.planned')
+  async planned(workspaceId: string, targetIds: string[] | undefined, page: PageRequest): Promise<Page<BaselinePlannedDTO>> {
+    await this.deps.workspaceMember.assertActive(workspaceId)
+    const accepted = await this.deps.proposal.find(workspaceId, { status: ['accepted'] })
+    if (accepted.length === 0) return { items: [], hasMore: false, total: 0 }
+
+    const proposals = new Map(accepted.map(proposal => [proposal.id, { id: proposal.id, key: proposal.key, title: proposal.title }]))
+    const deltas = await this.deps.delta.list(workspaceId, { proposalId: [...proposals.keys()], targetId: targetIds }, page)
+    return { ...deltas, items: deltas.items.map(delta => ({ proposal: proposals.get(delta.proposalId)!, delta })) }
+  }
+}

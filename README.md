@@ -15,8 +15,9 @@ Early development. Today newt has accounts (sign up, sign in, profile, password
 and password reset by email), private workspaces with members, admins and email
 invitations, and the first part of a product's definition: its dimensions, its
 areas and features, and its rules with their history, filtered by where they
-apply. Rules are read-only for now: they will change through proposals, which
-come next.
+apply. Every change to the definition is a proposal, approved delta by delta;
+accepted proposals make up the planned definition until they are marked as
+merged.
 
 ## Getting started
 
@@ -27,7 +28,7 @@ works; on your own machine a mail catcher such as Mailpit is the easiest.
 bun install
 bun run seed:env   # writes .env with every setting, keeping the ones already there
 bun run dev        # backend, frontend and landing, all together
-bun run seed:demo  # optional: Acme Shop, an example product, with a demo account
+bun run seed:demo  # optional: Acme Shop, an example product, with a demo account (run again to reset it)
 ```
 
 - Frontend: <http://localhost:5173>
@@ -65,7 +66,7 @@ them to `.env`, each with a line saying what it is for.
 | `bun run build:landing` | Builds the landing page |
 | `bun run migrate:up`, `migrate:down`, `migrate:status` | Applies, reverts or lists database migrations by hand |
 | `bun run seed:env` | Writes or completes `.env` |
-| `bun run seed:demo` | Loads Acme Shop, an example product, with the account `demo` / `acme-shop-demo` |
+| `bun run seed:demo` | Loads Acme Shop, an example product with proposals in every state, with the account `demo` / `acme-shop-demo`; run again, it overwrites Acme Shop and nothing else |
 
 ## Repository
 

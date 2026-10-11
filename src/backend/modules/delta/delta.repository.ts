@@ -10,6 +10,8 @@ import { delta, deltaReview } from './infrastructure/delta.table'
 export interface Delta_Criteria {
   proposalId?: string[]
   id?: string[]
+  /** The artifacts they change. */
+  targetId?: string[]
 }
 
 type DeltaRow = typeof delta.$inferSelect
@@ -24,15 +26,15 @@ export class Delta_Repository extends Repository<Base> {
     return this.hydrate(await this.db.select().from(delta).where(and(...this.conditions(criteria))).orderBy(asc(delta.id)))
   }
 
-  /** A page of a proposal's deltas, in the order they were written. The cursor is a delta id. */
-  async page(proposalId: string, page: PageRequest): Promise<Page<Delta>> {
+  /** A page of the deltas that match, in the order they were written. The cursor is a delta id. */
+  async page(criteria: Delta_Criteria, page: PageRequest): Promise<Page<Delta>> {
     const rows = await this.db
       .select()
       .from(delta)
-      .where(and(eq(delta.proposalId, proposalId), ...(page.cursor ? [gt(delta.id, page.cursor)] : [])))
+      .where(and(...this.conditions(criteria), ...(page.cursor ? [gt(delta.id, page.cursor)] : [])))
       .orderBy(asc(delta.id))
       .limit(page.size + 1)
-    const [total] = await this.db.select({ total: count() }).from(delta).where(eq(delta.proposalId, proposalId))
+    const [total] = await this.db.select({ total: count() }).from(delta).where(and(...this.conditions(criteria)))
     return toPage(await this.hydrate(rows), page.size, total?.total ?? 0)
   }
 
@@ -87,6 +89,7 @@ export class Delta_Repository extends Repository<Base> {
     const conditions = []
     if (criteria.proposalId) conditions.push(inArray(delta.proposalId, criteria.proposalId))
     if (criteria.id) conditions.push(inArray(delta.id, criteria.id))
+    if (criteria.targetId) conditions.push(inArray(delta.targetId, criteria.targetId))
     return conditions
   }
 

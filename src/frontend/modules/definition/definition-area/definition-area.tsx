@@ -20,8 +20,10 @@ import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
+import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionEditDialog } from '../definition-edit-dialog/definition-edit-dialog'
+import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionAreaService } from './definition-area.service'
 
 /** With its own DefinitionAreaService: whoever renders it needs nothing else. */
@@ -47,6 +49,7 @@ function DefinitionAreaWrapped() {
   const failure = useValue(service.features.failure)
   const showRetired = useValue(service.showRetired)
   const submitting = useValue(service.form.submitting)
+  const open = useOpenProposal()
 
   useEffect(() => {
     void service.load(workspaceId, areaId)
@@ -61,7 +64,7 @@ function DefinitionAreaWrapped() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void service.create()
+    void open(service.create())
   }
 
   function actions(feature: FeatureDTO): MenuItem[] {
@@ -69,16 +72,16 @@ function DefinitionAreaWrapped() {
       { label: 'Move up', icon: ArrowUpIcon, disabled: feature.position === 0, onSelect: () => void service.move(feature, -1) },
       { label: 'Move down', icon: ArrowDownIcon, disabled: feature.position === total - 1, onSelect: () => void service.move(feature, 1) },
       { separator: true },
-      { label: 'Retire', tone: 'destructive', onSelect: () => void service.retire(feature) },
+      { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(service.proposeRetiring(feature)) },
     ]
   }
 
   const areaActions: MenuItem[] = retiredArea
-    ? [{ label: 'Restore the area', onSelect: () => void service.restoreArea() }]
+    ? [{ label: 'Propose restoring the area', onSelect: () => void open(service.proposeRestoringArea()) }]
     : [
-        { label: 'Edit', onSelect: () => service.openEdit() },
+        { label: 'Propose changes', onSelect: () => service.openEdit() },
         { separator: true },
-        { label: 'Retire the area', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void service.retireArea() },
+        { label: 'Propose retiring the area', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void open(service.proposeRetiringArea()) },
       ]
 
   return (
@@ -103,6 +106,7 @@ function DefinitionAreaWrapped() {
           )}
         />
       </Stack>
+      <DefinitionPlannedNotice targetIds={[area.id]} />
       {retiredArea && <Alert tone="info" title="This area is retired">Its features stay readable. Restore it to change them.</Alert>}
       {failure && <Alert tone="bad" title="Could not load the features">{failure}</Alert>}
       <Card title={`Features (${total})`} titleLevel={2}>
@@ -149,10 +153,10 @@ function DefinitionAreaWrapped() {
           {!readOnly && !retiredArea && (
             <form onSubmit={onSubmit} noValidate>
               <Stack gap={4}>
-                <FormField form={service.form} name="name" label="New feature" description="Something that can be done in the product, such as Checkout or Pay with Bizum." />
+                <FormField form={service.form} name="name" label="Propose a feature" description="Something that can be done in the product, such as Checkout or Pay with Bizum. It goes in a quick proposal, to approve." />
                 <FormField form={service.form} name="description" label="Description" description="What it covers, and what it does not." rows={3} />
                 <Stack gap={0} align="start">
-                  <Button type="submit" variant="secondary" loading={submitting}>Create feature</Button>
+                  <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
                 </Stack>
               </Stack>
             </form>
@@ -168,9 +172,9 @@ function DefinitionAreaWrapped() {
       <DefinitionEditDialog
         form={service.editForm}
         open={editing}
-        title={`Edit ${area.name}`}
+        title={`Propose changes to ${area.name}`}
         onClose={() => service.closeEdit()}
-        onSubmit={() => void service.saveEdit()}
+        onSubmit={() => void open(service.saveEdit())}
       />
     </Stack>
   )
@@ -180,6 +184,7 @@ function DefinitionAreaWrapped() {
 function DefinitionAreaRetired({ readOnly }: { readOnly: boolean }) {
   const workspaceId = useParams().workspaceId!
   const service = useService(DefinitionAreaService)
+  const open = useOpenProposal()
   const features = useValue(service.retired.items)
   const loaded = useValue(service.retired.loaded)
   const hasMore = useValue(service.retired.hasMore)
@@ -203,7 +208,7 @@ function DefinitionAreaRetired({ readOnly }: { readOnly: boolean }) {
               <TableCell><TextLink href={`/w/${workspaceId}/definition/features/${feature.id}`}>{feature.name}</TextLink></TableCell>
               {!readOnly && (
                 <TableCell align="end">
-                  <Button variant="outline" size="sm" onClick={() => void service.restore(feature)}>Restore</Button>
+                  <Button variant="outline" size="sm" onClick={() => void open(service.proposeRestoring(feature))}>Propose restoring</Button>
                 </TableCell>
               )}
             </TableRow>

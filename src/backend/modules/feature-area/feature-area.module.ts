@@ -22,7 +22,8 @@ import { registerFeatureAreaRoutes } from './feature-area.routes'
 const END = Number.MAX_SAFE_INTEGER
 
 /**
- * The areas each workspace groups its features in. Any member edits them, until the
+ * The areas each workspace groups its features in. They change only through merged
+ * proposals, which call these use cases; members only reorder them, until the
  * workspace is archived. How many active features each has is kept by the feature
  * module, which calls in when a feature comes or goes.
  */

@@ -7,10 +7,11 @@ import type { ServiceClass } from '../core/injector/service-class'
 import { useService } from '../core/injector/use-service'
 import { useValue } from '../core/store/use-value'
 import { SessionService } from '../services/session/session.service'
+import { QuickProposalService } from '../services/quick-proposal/quick-proposal.service'
 import { WorkspacesService } from '../services/workspaces/workspaces.service'
 
 /** App-wide services whose data belongs to the signed-in user go here, never at the root. */
-const SESSION_SERVICES: ServiceClass[] = [WorkspacesService]
+const SESSION_SERVICES: ServiceClass[] = [WorkspacesService, QuickProposalService]
 
 /** Guards every route of newt: without a session, it sends the person to sign in. */
 export function SessionGuard() {

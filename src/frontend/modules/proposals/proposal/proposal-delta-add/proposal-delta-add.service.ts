@@ -2,7 +2,8 @@ import type { DimensionDTO } from '@newt/api/dimension'
 import { FeatureApi, type FeatureDTO } from '@newt/api/feature'
 import { FeatureAreaApi, type FeatureAreaDTO } from '@newt/api/feature-area'
 import type { DeltaInputDTO, DeltaKind, DeltaOperation } from '@newt/api/proposal'
-import { RuleApi, type RuleCriterionDTO, type RuleDTO, type RuleKind } from '@newt/api/rule'
+import { RuleApi, type RuleDTO } from '@newt/api/rule'
+import { emptyRuleDraft, toRuleDraft, type RuleDraftValue } from '../../../../components/rule-draft-fields'
 import { inject } from '../../../../core/injector/inject'
 import { ListStore } from '../../../../core/list/list-store'
 import { Store } from '../../../../core/store/store'
@@ -41,12 +42,7 @@ type DraftState = {
   rule: RuleDTO | null
   name: string
   description: string
-  ruleKind: RuleKind
-  statement: string
-  why: string
-  /** Picked values, by dimension id. */
-  scope: Record<string, string[]>
-  criteria: RuleCriterionDTO[]
+  ruleDraft: RuleDraftValue
   values: { id?: string, name: string, retired: boolean }[]
   /** New values, one per line. */
   newValues: string
@@ -64,11 +60,7 @@ const EMPTY: Omit<DraftState, 'open'> = {
   rule: null,
   name: '',
   description: '',
-  ruleKind: 'validation',
-  statement: '',
-  why: '',
-  scope: {},
-  criteria: [],
+  ruleDraft: emptyRuleDraft,
   values: [],
   newValues: '',
   failure: null,
@@ -94,11 +86,7 @@ export class ProposalDeltaAddService {
   readonly rule = this.store.select('rule')
   readonly name = this.store.select('name')
   readonly description = this.store.select('description')
-  readonly ruleKind = this.store.select('ruleKind')
-  readonly statement = this.store.select('statement')
-  readonly why = this.store.select('why')
-  readonly scope = this.store.select('scope')
-  readonly criteria = this.store.select('criteria')
+  readonly ruleDraft = this.store.select('ruleDraft')
   readonly values = this.store.select('values')
   readonly newValues = this.store.select('newValues')
   readonly failure = this.store.select('failure')
@@ -163,38 +151,16 @@ export class ProposalDeltaAddService {
     try {
       const rule = await this.ruleApi.one(this.proposal.workspaceId, this.store.value.ruleKey.trim())
       const { kind, statement, why, scope, criteria } = rule.current
-      this.store.patch({
-        rule,
-        ruleKind: kind,
-        statement,
-        why,
-        criteria,
-        scope: Object.fromEntries(scope.map(entry => [entry.dimensionId, entry.valueIds])),
-        failure: null,
-      })
+      const ruleDraft = { kind, statement, why, criteria, scope: Object.fromEntries(scope.map(entry => [entry.dimensionId, entry.valueIds])) }
+      this.store.patch({ rule, ruleDraft, failure: null })
     } catch (error) {
       this.store.patch({ rule: null, failure: (error as Error).message })
     }
   }
 
-  toggleScope(dimensionId: string, valueId: string, on: boolean): void {
-    this.store.update(({ scope }) => {
-      const picked = (scope[dimensionId] ?? []).filter(id => id !== valueId)
-      return { scope: { ...scope, [dimensionId]: on ? [...picked, valueId] : picked } }
-    })
-  }
 
-  setCriterion(index: number, part: keyof RuleCriterionDTO, value: string): void {
-    this.store.update(({ criteria }) => ({ criteria: criteria.map((each, at) => (at === index ? { ...each, [part]: value } : each)) }))
-  }
 
-  addCriterion(): void {
-    this.store.update(({ criteria }) => ({ criteria: [...criteria, { given: '', when: '', then: '' }] }))
-  }
 
-  removeCriterion(index: number): void {
-    this.store.update(({ criteria }) => ({ criteria: criteria.filter((_, at) => at !== index) }))
-  }
 
   setValue(index: number, change: Partial<{ name: string, retired: boolean }>): void {
     this.store.update(({ values }) => ({ values: values.map((each, at) => (at === index ? { ...each, ...change } : each)) }))
@@ -219,13 +185,7 @@ export class ProposalDeltaAddService {
     const state = this.store.value
     if (!state.choice) return this.missing('Pick what the delta does')
     const [kind, operation] = state.choice.split(':') as [DeltaKind, DeltaOperation]
-    const draft = () => ({
-      kind: state.ruleKind,
-      statement: state.statement,
-      why: state.why,
-      scope: Object.entries(state.scope).filter(([, ids]) => ids.length).map(([dimensionId, valueIds]) => ({ dimensionId, valueIds })),
-      criteria: state.criteria,
-    })
+    const draft = () => toRuleDraft(state.ruleDraft)
 
     switch (state.choice) {
       case 'feature-area:create':
