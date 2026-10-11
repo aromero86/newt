@@ -39,6 +39,7 @@ const ProposalEntitySchema = z.object({
     removed: z.number(),
     documentChanged: z.boolean(),
     assistant: z.string().nullable(),
+    questions: z.array(z.object({ question: z.string(), sources: z.array(z.string()) })),
   }).nullable(),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
@@ -121,7 +122,7 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
    * Publishes the working copy as the next revision, like a commit. `published`
    * says what it did to the deltas; `previous` is the last revision's document.
    */
-  publish(input: { message: string, publishedBy: string, assistant: string | null, previous: string, published: { added: number, changed: number, removed: number } }): number {
+  publish(input: { message: string, publishedBy: string, assistant: string | null, questions: { question: string, sources: string[] }[], previous: string, published: { added: number, changed: number, removed: number } }): number {
     this.assertEditable('publish a revision')
     const number = this.data.revision + 1
     this.change({
@@ -132,6 +133,7 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
         document: this.data.document,
         publishedBy: input.publishedBy,
         assistant: input.assistant,
+        questions: input.questions,
         publishedAt: new Date().toISOString(),
         ...input.published,
         documentChanged: this.data.document !== input.previous,

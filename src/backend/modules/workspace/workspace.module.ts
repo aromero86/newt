@@ -28,11 +28,11 @@ export class Workspace_Module extends Module {
   /** Whoever creates a workspace is its admin, in the same transaction. */
   @UseCase('workspace.create')
   async create(input: WorkspaceCreateDTO): Promise<WorkspaceMineDTO> {
-    const { name, description } = WorkspaceCreateSchema.parse(input)
+    const { name, description, language } = WorkspaceCreateSchema.parse(input)
     const { userId } = currentActor()
     await this.assertNameFree(userId, name)
 
-    const workspace = Workspace.create({ name, description, createdBy: userId })
+    const workspace = Workspace.create({ name, description, language, createdBy: userId })
     await this.repo.persist(workspace)
     await this.deps.workspaceMember.join(workspace.id, userId, 'admin')
     return { ...workspace.toDTO(), myRole: 'admin' }

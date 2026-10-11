@@ -31,6 +31,8 @@ const DeltaEntitySchema = z.object({
   published: DeltaContentSchema.nullable(),
   /** Removed by a published revision: only history now. */
   gone: z.boolean(),
+  /** The sentences of the document it comes from. Not part of what it says: rewording them changes nothing. */
+  sources: z.array(z.string()),
   /** Verdicts on what is published. */
   reviews: z.array(z.object({ userId: z.uuidv7(), verdict: DeltaVerdictSchema, reason: z.string(), at: z.string() })),
   /** What the revision being published does to it; written once, with the delta. */
@@ -111,8 +113,8 @@ export class Delta extends Entity<typeof DeltaEntitySchema> {
   }
 
   /** A new working copy. Verdicts stay: they are on what is published. */
-  rewrite(content: DeltaContentDTO): void {
-    this.change(content)
+  rewrite(content: DeltaContentDTO, sources: string[]): void {
+    this.change({ ...content, sources })
   }
 
   /** Out of the working copy. One never published goes for good; the rest wait for a revision. */

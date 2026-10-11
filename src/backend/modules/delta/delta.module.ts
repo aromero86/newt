@@ -75,9 +75,9 @@ export class Delta_Module extends Module {
   /** A new delta in the working copy, checked against the definition in force and the proposal's other deltas. */
   @UseCase('delta.add')
   async add(workspaceId: string, proposalId: string, input: DeltaInputDTO): Promise<DeltaDTO> {
-    const { kind, operation } = DeltaInputSchema.parse(input)
+    const { kind, operation, sources } = DeltaInputSchema.parse(input)
     const prepared = await this.prepare(workspaceId, proposalId, input)
-    const delta = Delta.create({ workspaceId, proposalId, kind, operation, ...prepared })
+    const delta = Delta.create({ workspaceId, proposalId, kind, operation, sources, ...prepared })
     await this.repo.persist(delta)
     return (await this.contracts(workspaceId, [delta], 'working'))[0]!
   }
@@ -86,11 +86,11 @@ export class Delta_Module extends Module {
   @UseCase('delta.rewrite')
   async rewrite(workspaceId: string, proposalId: string, deltaId: string, input: DeltaInputDTO): Promise<DeltaDTO> {
     const delta = await this.load(proposalId, deltaId)
-    const { kind, operation } = DeltaInputSchema.parse(input)
+    const { kind, operation, sources } = DeltaInputSchema.parse(input)
     if (kind !== delta.kind || operation !== delta.operation) throw new InvalidDelta('A delta keeps its kind and operation: remove it and write another')
 
     const prepared = await this.prepare(workspaceId, proposalId, { ...input, targetId: delta.targetId }, delta)
-    delta.rewrite({ targetLabel: prepared.targetLabel, before: prepared.before, after: prepared.after })
+    delta.rewrite({ targetLabel: prepared.targetLabel, before: prepared.before, after: prepared.after }, sources)
     await this.repo.persist(delta)
     return (await this.contracts(workspaceId, [delta], 'working'))[0]!
   }

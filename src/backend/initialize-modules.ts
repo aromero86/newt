@@ -8,6 +8,7 @@ import { Baseline_Module } from './modules/baseline/baseline.module'
 import { DiscussionComment_Module } from './modules/discussion-comment/discussion-comment.module'
 import { Discussion_Module } from './modules/discussion/discussion.module'
 import { Delta_Module } from './modules/delta/delta.module'
+import { Extraction_Module } from './modules/extraction/extraction.module'
 import { Proposal_Module } from './modules/proposal/proposal.module'
 import { Release_Module } from './modules/release/release.module'
 import { Rule_Module } from './modules/rule/rule.module'
@@ -37,7 +38,8 @@ export async function initializeModules(base: Base) {
   const feature = await Feature_Module.initialize(base, { featureArea, workspace, workspaceMember })
   const rule = await Rule_Module.initialize(base, { dimension, feature, workspace, workspaceMember })
   const delta = await Delta_Module.initialize(base, { dimension, feature, featureArea, rule, user })
-  const proposal = await Proposal_Module.initialize(base, { delta, user, workspace, workspaceMember })
+  const extraction = await Extraction_Module.initialize(base, { dimension, feature, featureArea, rule, workspace }, config.extraction)
+  const proposal = await Proposal_Module.initialize(base, { delta, extraction, user, workspace, workspaceMember })
   const baseline = await Baseline_Module.initialize(base, { delta, proposal, workspaceMember })
   const release = await Release_Module.initialize(base, { baseline, dimension, feature, featureArea, rule, user, workspace, workspaceMember })
   const search = await Search_Module.initialize(base, { delta, dimension, feature, featureArea, proposal, rule, workspaceMember }, config.search)

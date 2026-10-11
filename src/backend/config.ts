@@ -34,6 +34,15 @@ export const config = {
     model: process.env.NEWT_EMBEDDINGS_MODEL ?? 'Snowflake/snowflake-arctic-embed-l-v2.0',
     modelsPath: fromRoot(process.env.NEWT_MODELS_PATH ?? 'data/models'),
   },
+  /**
+   * `NEWT_LLM_PROVIDER`, `NEWT_LLM_MODEL` and `NEWT_ANTHROPIC_API_KEY`: the language model that reads
+   * proposals' documents. `claude-cli` runs `claude -p` with this machine's session; `anthropic-api` needs the key.
+   */
+  extraction: {
+    provider: process.env.NEWT_LLM_PROVIDER === 'anthropic-api' ? 'anthropic-api' as const : 'claude-cli' as const,
+    model: process.env.NEWT_LLM_MODEL ?? '',
+    apiKey: process.env.NEWT_ANTHROPIC_API_KEY ?? '',
+  },
   /** The built frontend the server hands out. */
   frontendFolder: join(root, 'dist/frontend'),
 }

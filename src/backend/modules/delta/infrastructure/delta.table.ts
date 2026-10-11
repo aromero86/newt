@@ -13,6 +13,7 @@ export const delta = sqliteTable('delta', {
   published: text('published'),
   removed: integer('removed', { mode: 'boolean' }).notNull(),
   gone: integer('gone', { mode: 'boolean' }).notNull(),
+  sources: text('sources', { mode: 'json' }).$type<string[]>().notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

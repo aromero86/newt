@@ -1,16 +1,18 @@
-import { useEffect, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
-import { CheckCircle2Icon, CircleDashedIcon, GitMergeIcon, GitPullRequestIcon, XCircleIcon, ZapIcon } from 'lucide-react'
+import { CheckCircle2Icon, CircleDashedIcon, CircleHelpIcon, GitMergeIcon, GitPullRequestIcon, HighlighterIcon, XCircleIcon, ZapIcon } from 'lucide-react'
 import type { ProposalAction, ProposalDTO } from '@newt/api/proposal'
+import { Alert } from '@newt/ui/components/alert'
 import { Avatar } from '@newt/ui/components/avatar'
 import { Badge } from '@newt/ui/components/badge'
-import { Box, BoxBody, BoxHeader } from '@newt/ui/components/box'
+import { Box, BoxBody, BoxFooter, BoxHeader, BoxRow } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
 import { Dialog } from '@newt/ui/components/dialog'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
 import { Markdown } from '@newt/ui/components/markdown'
 import { PageTitle } from '@newt/ui/components/page-title'
+import { Quote } from '@newt/ui/components/quote'
 import { RelativeTime } from '@newt/ui/components/relative-time'
 import { SidebarLayout, SidebarSection } from '@newt/ui/components/sidebar-layout'
 import { Spinner } from '@newt/ui/components/spinner'
@@ -98,12 +100,21 @@ function ProposalWrapped() {
 function ProposalConversation({ proposal, readOnly }: { proposal: ProposalDTO, readOnly: boolean }) {
   const service = useService(ProposalService)
   const document = useValue(service.publishedDocument)
+  const deltas = useValue(service.deltas.items)
+  const [showSources, setShowSources] = useState(false)
+  const sources = deltas.flatMap(delta => delta.sources)
 
   return (
     <SidebarLayout side="end" aside={<ProposalSidebar proposal={proposal} />}>
       <Stack gap={6}>
         <Box label="Document">
-          <BoxHeader>
+          <BoxHeader actions={proposal.revision > 0 && sources.length > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => setShowSources(!showSources)}>
+              <Icon icon={HighlighterIcon} size="sm" />
+              {showSources ? 'Hide where the deltas come from' : 'Show where the deltas come from'}
+            </Button>
+          )}
+          >
             <Inline gap={2}>
               <Avatar name={proposal.createdBy.nick} size={5} />
               <Text size="sm" weight="semibold" as="span">{`@${proposal.createdBy.nick}`}</Text>
@@ -112,15 +123,43 @@ function ProposalConversation({ proposal, readOnly }: { proposal: ProposalDTO, r
           </BoxHeader>
           <BoxBody>
             {proposal.revision === 0
-              ? <Text size="sm" tone="muted">Nothing published yet: write the document and the deltas in the working copy, then send it to review.</Text>
-              : document ? <Markdown>{document}</Markdown> : <Text size="sm" tone="muted">No document.</Text>}
+              ? <Text size="sm" tone="muted">Nothing published yet: write the document in the working copy, then send it to review. newt reads its deltas from it.</Text>
+              : document ? <Markdown highlights={showSources ? sources : undefined}>{document}</Markdown> : <Text size="sm" tone="muted">No document.</Text>}
           </BoxBody>
         </Box>
+        <ProposalQuestions proposal={proposal} />
         <ProposalRevisionsTimeline proposal={proposal} />
         <ProposalDiscussions readOnly={readOnly} />
         {!readOnly && <ProposalMergeBox proposal={proposal} />}
       </Stack>
     </SidebarLayout>
+  )
+}
+
+/** What reading the last revision could not settle: its author answers it in the document. */
+function ProposalQuestions({ proposal }: { proposal: ProposalDTO }) {
+  const revisions = useValue(useService(ProposalRevisionsService).revisions.items)
+  const last = revisions.find(revision => revision.number === proposal.revision)
+  if (!last || last.questions.length === 0) return null
+
+  return (
+    <Box label="Questions from the document">
+      <BoxHeader>
+        <Inline gap={2}>
+          <Icon icon={CircleHelpIcon} size="sm" tone="muted" />
+          {`The document leaves ${last.questions.length === 1 ? 'a question' : `${last.questions.length} questions`} open`}
+        </Inline>
+      </BoxHeader>
+      {last.questions.map(question => (
+        <BoxRow key={question.question}>
+          <Stack gap={2}>
+            <Text size="sm">{question.question}</Text>
+            {question.sources.map(source => <Quote key={source}>{source}</Quote>)}
+          </Stack>
+        </BoxRow>
+      ))}
+      <BoxFooter><Text size="xs" tone="muted">{`Read from revision ${last.number}. Answer them in the document: the next revision reads it again.`}</Text></BoxFooter>
+    </Box>
   )
 }
 
@@ -214,6 +253,7 @@ function ProposalSubmit() {
   const service = useService(ProposalService)
   const open = useValue(service.submitting)
   const sending = useValue(service.submitForm.submitting)
+  const failure = useValue(service.submitForm.failure)
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -221,11 +261,15 @@ function ProposalSubmit() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={next => !next && service.closeSubmit()} title="Publish and send to review" description="The working copy becomes a revision that reviewers see." size="md">
+    <Dialog open={open} onOpenChange={next => !next && service.closeSubmit()} title="Publish and send to review" description="The working copy becomes a revision that reviewers see, with the deltas newt reads from its document." size="md">
       <form onSubmit={onSubmit} noValidate>
         <Stack gap={4}>
+          {failure && <Alert tone="bad" title="Not sent">{failure}</Alert>}
           <FormField form={service.submitForm} name="message" label="Message" description="Like a commit: what this revision is." />
-          <Inline justify="end"><Button type="submit" loading={sending}>Publish and send</Button></Inline>
+          <Inline justify="end" gap={3}>
+            {sending && <Text size="sm" tone="muted">Reading the document for its deltas…</Text>}
+            <Button type="submit" loading={sending}>Publish and send</Button>
+          </Inline>
         </Stack>
       </form>
     </Dialog>

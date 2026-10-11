@@ -8,24 +8,6 @@ const workspaceId = z.string().describe('The workspace id, from list_workspaces'
 const key = z.string().describe('PROP-42')
 const message = z.string().describe('Like a commit message: what this revision changes, under 200 characters')
 
-/** A delta as it is written; the delta module checks it whole. */
-const delta = {
-  kind: z.enum(['dimension', 'feature-area', 'feature', 'rule']),
-  operation: z.enum(['create', 'change', 'retire', 'restore']).describe('Rules are created, changed or retired'),
-  targetId: z.string().optional().describe('The artifact it changes, retires or restores; left out to create'),
-  after: z.record(z.string(), z.unknown()).optional().describe([
-    'The state it leaves the artifact in, to create or change it; left out to retire or restore:',
-    '- feature-area: { name, description? }',
-    '- feature: { areaId, name, description? } (another areaId moves it)',
-    '- rule, to create: { featureId, kind, statement, why, scope?, criteria? }; to change, the same but featureId: its whole new version',
-    '  kind: permission | validation | flow | calculation | legal | non-functional',
-    '  scope: [{ dimensionId, valueIds: [...] }], only the dimensions it does not hold in all values of; [] means everywhere',
-    '  criteria: [{ given, when, then }]',
-    '- dimension: { name, values: [{ id?, name, retired? }] }, every value, new ones without id',
-  ].join('\n')),
-}
-const added = z.object({ ...delta, ref: z.string().optional().describe('A name for what it creates; later deltas of this call write "ref:<name>" where its id goes') })
-
 /** Proposals: reading them, and writing and iterating them. Never approving, accepting nor merging. */
 export function registerProposalTools(server: McpServer, { modules, links }: McpContext) {
   const summaryOf = (proposal: ProposalDTO) => ({
@@ -47,6 +29,7 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
     before: each.before,
     after: each.after,
     reviews: each.reviews.map(review => ({ by: review.nick, verdict: review.verdict, reason: review.reason || undefined })),
+    from: each.sources,
     blockers: each.blockers,
   })
 
@@ -59,7 +42,7 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
 
   server.registerTool('get_proposal', {
     title: 'Get a proposal',
-    description: 'One proposal: its state, its last revision (to iterate on it, pass it as basedOn), its document, its deltas with their reviews, and its last revisions.',
+    description: 'One proposal: its state, its last revision (to iterate on it, pass it as basedOn), its document, the deltas read from it (each with the sentences it comes from and its reviews), the questions its last revision left open, and its last revisions.',
     inputSchema: { workspaceId, key, deltasCursor: z.string().optional().describe('The deltas.nextCursor of the answer before, for more deltas') },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
@@ -73,47 +56,48 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
         : false,
       document: proposal.document,
       deltas: paged(deltas, deltaOf),
+      questions: revisions.items[0]?.questions ?? [],
       revisions: revisions.items.map(revision => ({ number: revision.number, message: revision.message, by: revision.publishedBy.nick, at: revision.publishedAt, assistant: revision.assistant })),
     })
   })
 
+  /** What a revision left: the proposal, the deltas read from its document and what the reading could not settle. */
+  const revised = async (proposal: ProposalDTO) => {
+    const deltas = await modules.proposal.deltas(proposal.workspaceId, proposal.key, 'published', { size: 50 })
+    const [revision] = (await modules.proposal.revisions(proposal.workspaceId, proposal.key, { size: 1 })).items
+    return answer({ ...summaryOf(proposal), deltas: paged(deltas, deltaOf), questions: revision?.questions ?? [] })
+  }
+
   server.registerTool('write_proposal', {
     title: 'Write a proposal',
-    description: 'A new proposal, written whole: its title, its Markdown document and its deltas, published as its first revision. It starts as a draft.',
+    description: 'A new proposal: its title and its Markdown document. newt reads the document and extracts its deltas (it takes a few seconds), and publishes both as its first revision. It starts as a draft. The answer has the deltas extracted and the questions the document left open: show them to the person.',
     inputSchema: {
       workspaceId,
       title: z.string().describe('Under 120 characters'),
-      document: z.string().describe('Markdown: context, problem, decisions and open questions'),
+      document: z.string().describe('Markdown: context, problem, decisions and open questions. Every change must be stated in the decisions, with where it applies and why'),
       message,
-      deltas: z.array(added).describe('In the order they apply'),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async args => {
-    const proposal = await modules.proposal.write(args.workspaceId, { title: args.title, document: args.document, message: args.message, add: args.deltas })
-    return answer(summaryOf(proposal))
-  })
+  }, async args => revised(await modules.proposal.write(args.workspaceId, { title: args.title, document: args.document, message: args.message })))
 
   server.registerTool('iterate_proposal', {
     title: 'Iterate on a proposal',
-    description: 'Changes a draft or a proposal in review and publishes the change as its next revision. Deltas that do not change keep their approvals; changed ones go back to pending.',
+    description: 'Rewrites the document of a draft or a proposal in review and publishes it as its next revision, with its deltas extracted again: deltas whose meaning did not change keep their approvals; changed ones go back to pending. To change a delta, change what the document says.',
     inputSchema: {
       workspaceId,
       key,
       basedOn: z.number().int().describe('The revision you read with get_proposal: if another came after it, nothing is written'),
       message,
       title: z.string().optional(),
-      document: z.string().optional().describe('The whole new document; left out, it stays as it is'),
-      add: z.array(added).optional(),
-      rewrite: z.array(z.object({ id: z.string().describe('The delta id'), ...delta })).optional().describe('Deltas written again, whole'),
-      remove: z.array(z.string()).optional().describe('Ids of deltas to take out'),
+      document: z.string().describe('The whole new document'),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async ({ workspaceId: id, key: proposalKey, ...input }) => answer(summaryOf(await modules.proposal.iterate(id, proposalKey, input))))
+  }, async ({ workspaceId: id, key: proposalKey, ...input }) => revised(await modules.proposal.iterate(id, proposalKey, input)))
 
   server.registerTool('submit_proposal', {
     title: 'Send a proposal to review',
     description: 'A draft goes to review, for people to approve it delta by delta in the web. Only when the person asks for it.',
     inputSchema: { workspaceId, key },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async args => answer(summaryOf(await modules.proposal.submit(args.workspaceId, args.key, {}))))
+  }, async args => answer(summaryOf(await modules.proposal.sendToReview(args.workspaceId, args.key, {}))))
 }

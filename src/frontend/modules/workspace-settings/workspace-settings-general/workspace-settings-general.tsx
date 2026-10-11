@@ -7,6 +7,7 @@ import { Stack } from '@newt/ui/components/stack'
 import { Subhead } from '@newt/ui/components/subhead'
 import { Text } from '@newt/ui/components/text'
 import { FormField } from '../../../components/form-field'
+import { WORKSPACE_LANGUAGES } from '../../../services/workspaces/workspace-languages'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
@@ -50,6 +51,7 @@ function WorkspaceSettingsGeneralWrapped() {
             {failure && <Alert tone="bad" title="Could not save">{failure}</Alert>}
             <FormField form={service.form} name="name" label="Name" />
             <FormField form={service.form} name="description" label="Description" rows={3} />
+            <FormField form={service.form} name="language" label="Language" description="What its definition is written in: newt writes the deltas it reads from documents in it." options={WORKSPACE_LANGUAGES} />
             <Button type="submit" loading={submitting} disabled={archived}>Save</Button>
           </Stack>
         </form>

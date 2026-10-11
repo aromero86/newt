@@ -15,16 +15,17 @@ Early development. Today newt has accounts (sign up, sign in, profile, password
 and password reset by email), private workspaces with members, admins and email
 invitations, and the first part of a product's definition: its dimensions, its
 areas and features, and its rules with their history, filtered by where they
-apply. Every change to the definition is a proposal with a Markdown document,
-approved delta by delta and iterated in published revisions, like commits: what
-did not change keeps its approval. Proposals have conversations, and accepted
-ones make up the planned definition until they are marked as merged. Releases
-picture the definition in force, show what changed since the last one, and export
-the specification and the changelog as Markdown. Search finds areas, features, rules and
-proposals by their words and by their meaning, in Spanish or English, with a model
-that runs inside newt (downloaded the first time). AI assistants (Claude Code, Codex
-or any other that speaks MCP) connect with a personal access token: they read the
-definition and write and iterate proposals for you, never approve nor merge them.
+apply. Every change to the definition is a proposal with a Markdown document, from
+which a language model reads its deltas at each revision, approved delta by delta
+and iterated in published revisions, like commits: what did not change keeps its
+approval. Proposals have conversations, and accepted ones make up the planned
+definition until they are marked as merged. Releases picture the definition in
+force, show what changed since the last one, and export the specification and the
+changelog as Markdown. Search finds areas, features, rules and proposals by their
+words and by their meaning, in Spanish or English, with a model that runs inside
+newt (downloaded the first time). AI assistants (Claude Code, Codex or any other
+that speaks MCP) connect with a personal access token: they read the definition
+and write and iterate proposals for you, never approve nor merge them.
 
 ## Getting started
 
@@ -60,6 +61,7 @@ them to `.env`, each with a line saying what it is for.
 | `NEWT_INVITATION_DAYS` | How long a workspace invitation waits |
 | `NEWT_EMBEDDINGS_MODEL` | The model that finds things by their meaning (Hugging Face), downloaded the first time |
 | `NEWT_MODELS_PATH` | Where downloaded models are kept |
+| `NEWT_LLM_PROVIDER`, `NEWT_LLM_MODEL`, `NEWT_ANTHROPIC_API_KEY` | The language model that reads proposals' documents: `claude-cli` (Claude Code's `claude -p`, with this machine's session) or `anthropic-api` (with a key) |
 | `NEWT_SMTP_HOST`, `NEWT_SMTP_PORT`, `NEWT_SMTP_SECURE`, `NEWT_SMTP_USER`, `NEWT_SMTP_PASSWORD` | The SMTP server emails leave from |
 | `NEWT_MAIL_FROM` | The sender of every email |
 

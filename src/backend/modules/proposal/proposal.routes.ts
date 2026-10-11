@@ -1,6 +1,6 @@
 import type { Base } from '../../base/base'
 import { pageRequestFrom } from '../../base/http/page-request-from'
-import { DeltaViewSchema, type DeltaInputDTO, type DeltaReviewInputDTO } from '../delta/delta.schema'
+import { DeltaViewSchema, type DeltaReviewInputDTO } from '../delta/delta.schema'
 import {
   ProposalStatusSchema,
   type ProposalCreateDTO,
@@ -48,7 +48,7 @@ export function registerProposalRoutes(base: Base, proposals: Proposal_Module) {
   base.http.post(`${one}/discard-changes`, async request => Response.json(await proposals.discardChanges(ids(request).workspaceId, ids(request).key)))
 
   base.http.post(`${one}/submit`, async request =>
-    Response.json(await proposals.submit(ids(request).workspaceId, ids(request).key, (await request.json().catch(() => ({}))) as ProposalSubmitDTO)))
+    Response.json(await proposals.sendToReview(ids(request).workspaceId, ids(request).key, (await request.json().catch(() => ({}))) as ProposalSubmitDTO)))
 
   base.http.post(`${one}/draft`, async request => Response.json(await proposals.backToDraft(ids(request).workspaceId, ids(request).key)))
   base.http.post(`${one}/accept`, async request => Response.json(await proposals.accept(ids(request).workspaceId, ids(request).key)))
@@ -75,26 +75,7 @@ export function registerProposalRoutes(base: Base, proposals: Proposal_Module) {
     return Response.json(await proposals.deltas(ids(request).workspaceId, ids(request).key, view, pageRequestFrom(request)))
   })
 
-  base.http.post(`${one}/deltas`, async request =>
-    Response.json(await proposals.addDelta(ids(request).workspaceId, ids(request).key, (await request.json()) as DeltaInputDTO), { status: 201 }))
-
-  base.http.put(delta, async request => {
-    const { workspaceId, key, deltaId } = ids(request)
-    return Response.json(await proposals.rewriteDelta(workspaceId, key, deltaId, (await request.json()) as DeltaInputDTO))
-  })
-
-  base.http.delete(delta, async request => {
-    const { workspaceId, key, deltaId } = ids(request)
-    await proposals.removeDelta(workspaceId, key, deltaId)
-    return new Response(null, { status: 204 })
-  })
-
-  base.http.post(`${delta}/undo-remove`, async request => {
-    const { workspaceId, key, deltaId } = ids(request)
-    await proposals.undoRemoveDelta(workspaceId, key, deltaId)
-    return new Response(null, { status: 204 })
-  })
-
+  // Deltas are not written by hand: they come from the document, at each revision.
   base.http.post(`${delta}/review`, async request => {
     const { workspaceId, key, deltaId } = ids(request)
     return Response.json(await proposals.reviewDelta(workspaceId, key, deltaId, (await request.json()) as DeltaReviewInputDTO))

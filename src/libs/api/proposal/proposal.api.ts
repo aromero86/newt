@@ -81,23 +81,6 @@ export class ProposalApi extends Requester {
     return this.get<Page<DeltaDTO>>(`/${workspaceId}/proposals/${key}/deltas`, { ...page, view })
   }
 
-  addDelta(workspaceId: string, key: string, delta: DeltaInputDTO) {
-    return this.post<DeltaDTO>(`/${workspaceId}/proposals/${key}/deltas`, delta)
-  }
-
-  rewriteDelta(workspaceId: string, key: string, deltaId: string, delta: DeltaInputDTO) {
-    return this.put<DeltaDTO>(`/${workspaceId}/proposals/${key}/deltas/${deltaId}`, delta)
-  }
-
-  removeDelta(workspaceId: string, key: string, deltaId: string) {
-    return this.delete<void>(`/${workspaceId}/proposals/${key}/deltas/${deltaId}`)
-  }
-
-  /** Back into the working copy, before a revision publishes its removal. */
-  undoRemoveDelta(workspaceId: string, key: string, deltaId: string) {
-    return this.post<void>(`/${workspaceId}/proposals/${key}/deltas/${deltaId}/undo-remove`)
-  }
-
   review(workspaceId: string, key: string, deltaId: string, review: DeltaReviewInputDTO) {
     return this.post<DeltaDTO>(`/${workspaceId}/proposals/${key}/deltas/${deltaId}/review`, review)
   }

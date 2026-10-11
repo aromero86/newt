@@ -30,11 +30,11 @@ export function registerDefinitionTools(server: McpServer, { modules, links }: M
 
   server.registerTool('list_workspaces', {
     title: 'List workspaces',
-    description: 'The workspaces the person is a member of: one per product.',
+    description: 'The workspaces the person is a member of: one per product, each with the language its content is written in.',
     inputSchema: { ...pageArgs },
     annotations: READ_ONLY,
   }, async args => answer(paged(await modules.workspace.mine(pageRequest(args)), workspace => ({
-    id: workspace.id, name: workspace.name, description: workspace.description, archived: workspace.archivedAt !== null, role: workspace.myRole, url: links.workspace(workspace.id),
+    id: workspace.id, name: workspace.name, description: workspace.description, language: workspace.language, archived: workspace.archivedAt !== null, role: workspace.myRole, url: links.workspace(workspace.id),
   }))))
 
   server.registerTool('list_dimensions', {

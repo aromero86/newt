@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DeltaInputSchema } from '../delta/delta.schema'
+import { ExtractionQuestionSchema } from '../extraction/extraction.schema'
 
 /** Markdown: context, problem, decisions and open questions. */
 const ProposalDocumentSchema = z.string().max(50_000, 'Keep it under 50,000 characters')
@@ -69,38 +70,28 @@ export const ProposalRevisionSchema = z.object({
   documentChanged: z.boolean(),
   /** The AI assistant it was written with, by the name it gives itself (`claude-code`); null when written by hand. */
   assistant: z.string().nullable(),
+  /** What the extraction could not settle from its document, for its author to answer in the next revision. */
+  questions: z.array(ExtractionQuestionSchema),
 })
 
 /**
- * A delta an iteration adds. `ref` names it, so that the deltas after it in the same
- * iteration can use the artifact it creates: they write `ref:<name>` where its id goes.
- */
-const ProposalIterationAddSchema = DeltaInputSchema.extend({ ref: z.string().trim().min(1).max(40).optional() })
-
-/** A delta an iteration rewrites, by its id. */
-const ProposalIterationRewriteSchema = DeltaInputSchema.extend({ id: z.uuidv7() })
-
-/**
- * One iteration, published at once as the next revision: what changes in the
- * title, the document and the deltas. `basedOn` is the revision it was written
- * from: if another one came after it, nothing is written.
+ * One iteration, as an assistant writes it: the whole new document (and title),
+ * published at once as the next revision with the deltas extracted from it.
+ * `basedOn` is the revision it was written from: if another came after it, nothing
+ * is written.
  */
 export const ProposalIterateSchema = z.object({
   basedOn: z.number().int().min(0),
   message: ProposalPublishSchema.shape.message,
   title: ProposalTitleSchema.optional(),
   document: ProposalDocumentSchema.optional(),
-  add: z.array(ProposalIterationAddSchema).max(50, 'At most 50 deltas at a time').default([]),
-  rewrite: z.array(ProposalIterationRewriteSchema).max(50, 'At most 50 deltas at a time').default([]),
-  remove: z.array(z.uuidv7()).max(50, 'At most 50 deltas at a time').default([]),
 })
 
-/** A draft written whole: its title, document and deltas, published as its first revision. */
+/** A draft written whole, as an assistant writes it: its first revision, with the deltas extracted from its document. */
 export const ProposalWriteSchema = z.object({
   title: ProposalTitleSchema,
   message: ProposalPublishSchema.shape.message,
-  document: ProposalDocumentSchema.default(''),
-  add: z.array(ProposalIterationAddSchema).max(50, 'At most 50 deltas at a time').default([]),
+  document: ProposalDocumentSchema,
 })
 
 /** A proposal with one delta, made in place; its title is written for it. */

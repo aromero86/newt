@@ -1,7 +1,7 @@
 import { ApiError } from '@newt/api/core/api-error'
 import { DimensionApi, type DimensionDTO } from '@newt/api/dimension'
 import { DiscussionApi, type DiscussionCounts } from '@newt/api/discussion'
-import { ProposalApi, type DeltaDTO, type DeltaInputDTO, type ProposalAction, type ProposalDTO } from '@newt/api/proposal'
+import { ProposalApi, type DeltaDTO, type ProposalAction, type ProposalDTO } from '@newt/api/proposal'
 import { toast } from '@newt/ui/components/toast'
 import { z } from 'zod'
 import { FormStore } from '../../../core/form/form-store'
@@ -117,16 +117,6 @@ export class ProposalService {
       await this.refresh()
       toast.success('Published and sent to review')
     }
-  }
-
-  async addDelta(delta: DeltaInputDTO): Promise<void> {
-    await this.api.addDelta(this.workspaceId, this.key, delta)
-    await this.refresh()
-  }
-
-  async rewriteDelta(deltaId: string, delta: DeltaInputDTO): Promise<void> {
-    await this.api.rewriteDelta(this.workspaceId, this.key, deltaId, delta)
-    await this.refresh()
   }
 
   async approve(delta: DeltaDTO): Promise<void> {

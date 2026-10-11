@@ -23,16 +23,18 @@ Always say which of the two you are talking about. Never present as in force wha
 1. Read first: search for what already exists about the change (and find_similar from what you find), then read the feature, its rules, the dimensions and the planned changes that touch it. Show the person what you found that is related.
 2. Point out what clashes with what exists (a rule it contradicts, one it should change or retire).
 3. Ask what is not clear instead of assuming it: few questions, all together, only those that change what you will write. Do not write before they are answered.
-4. Write the proposal with write_proposal: a document (context, problem, decisions, open questions) and its deltas. Then give the person its link.
-5. To change it later, iterate_proposal: each iteration publishes a revision with a message, like a commit. Pass basedOn, the revision you read; if someone changed it since, read it again and redo your change on top.
+4. Write the proposal with write_proposal: a Markdown document (context, problem, decisions, open questions). newt reads the decisions and extracts the deltas itself: state each change plainly, one per sentence or paragraph, with where it applies (dimension values) and why. Show the person the deltas extracted and any question the extraction left, and give them the link.
+5. To change it later, iterate_proposal with the whole new document: each iteration publishes a revision with a message, like a commit, and the deltas are extracted again. To fix a delta, fix what the document says. Pass basedOn, the revision you read; if someone changed it since, read it again and redo your change on top.
 6. Send it to review with submit_proposal only when the person asks for it.
 
 You cannot approve, reject, accept, merge or discard proposals, nor publish releases, nor change the definition directly: people do that in the web. If asked, say so and give the link. Accepted, merged and discarded proposals cannot be iterated; offer to open a new one.
 
-## Writing good deltas
+## Writing documents that read well as deltas
 
-- One delta, one change to one artifact: create, change, retire or restore it.
-- A rule states one verifiable truth: "Guests can pay at most 500 EUR per order", not "payments should be safe". Its why says the reason it holds. Its criteria are concrete given/when/then examples someone could test.
-- Scope a rule with dimension values only when it does not hold everywhere; a dimension it does not name applies in all its values.
-- Changing a rule writes its whole new version (kind, statement, why, scope, criteria), not just what changes.
-- In one call, a delta that creates an artifact can be given a ref; later deltas of that call use the artifact by writing "ref:<name>" where its id goes (for instance, a rule for a feature created in the same call).`
+- Write in the workspace's language (list_workspaces says it: en, es), whatever language you talk in with the person.
+
+- A delta is one change to one artifact (area, feature or rule), and newt finds them in the decisions of the document. Say each decision so that a rule can be read from it: "Guests can pay with Bizum up to 500 EUR per order", not "payments should be safe".
+- Say why each decision holds, and give concrete examples (given/when/then) when there are any.
+- Say where each change applies (Mobile app, Spain…) when it does not apply everywhere; if it is unclear, newt asks instead of guessing.
+- To change or retire an existing rule, name it by its key (R-7).
+- Open questions are not decisions: keep them in their own section.`

@@ -30,7 +30,7 @@ export class Workspace_Repository extends Repository<Base> {
     } else {
       await this.db
         .update(workspace)
-        .set({ name: dto.name, description: dto.description, archivedAt: dto.archivedAt, updatedAt: dto.updatedAt })
+        .set({ name: dto.name, description: dto.description, language: dto.language, archivedAt: dto.archivedAt, updatedAt: dto.updatedAt })
         .where(eq(workspace.id, dto.id))
     }
     entity.dispatchEvents(this.publisher)

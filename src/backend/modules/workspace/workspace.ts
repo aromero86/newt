@@ -15,7 +15,7 @@ export class Workspace extends Entity<typeof WorkspaceSchema> {
     return new Workspace(dto, false)
   }
 
-  static create(input: { name: string, description: string, createdBy: string }): Workspace {
+  static create(input: { name: string, description: string, language: WorkspaceDTO['language'], createdBy: string }): Workspace {
     return new Workspace({ ...input, archivedAt: null }, true)
   }
 
@@ -24,7 +24,7 @@ export class Workspace extends Entity<typeof WorkspaceSchema> {
   }
 
   /** An archived workspace is read only. */
-  update(changes: Partial<Pick<WorkspaceDTO, 'name' | 'description'>>): void {
+  update(changes: Partial<Pick<WorkspaceDTO, 'name' | 'description' | 'language'>>): void {
     if (this.isArchived) throw new WorkspaceArchived()
     this.change(changes)
   }

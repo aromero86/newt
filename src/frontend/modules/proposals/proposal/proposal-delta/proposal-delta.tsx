@@ -7,6 +7,7 @@ import { Box, BoxBody, BoxFooter, BoxHeader } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
+import { Quote } from '@newt/ui/components/quote'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { DeltaBadge } from '@newt/ui/domain/delta-badge'
@@ -57,6 +58,14 @@ export function ProposalDelta({ delta, proposal, readOnly }: { delta: DeltaDTO, 
       <BoxBody flush>
         <DeltaChanges delta={delta} dimensions={dimensions} name={id => service.name(id)} caption={caption} flush />
       </BoxBody>
+      {delta.sources.length > 0 && (
+        <BoxBody>
+          <Stack gap={2}>
+            <Text size="xs" tone="muted" weight="medium">From the document</Text>
+            {delta.sources.map(source => <Quote key={source}>{source}</Quote>)}
+          </Stack>
+        </BoxBody>
+      )}
       {changedLater && lastChange.change === 'changed' && showChange && lastChange.previous && (
         <BoxBody>
           <Stack gap={2}>

@@ -5,24 +5,24 @@ import { FormStore } from '../../../core/form/form-store'
 import { inject } from '../../../core/injector/inject'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 
-// Both fields are sent: the form always shows them.
+// Every field is sent: the form always shows them.
 const GeneralSchema = WorkspaceUpdateSchema.required().extend({ description: z.string().max(500, 'Keep it under 500 characters') })
 
-/** A workspace's name and description, and archiving it. Admins only. */
+/** A workspace's name, description and language, and archiving it. Admins only. */
 export class WorkspaceSettingsGeneralService {
 
   private readonly api = inject(WorkspaceApi)
   private readonly workspaces = inject(WorkspacesService)
   private workspaceId = ''
 
-  readonly form = new FormStore(GeneralSchema, { name: '', description: '' }, {
+  readonly form = new FormStore(GeneralSchema, { name: '', description: '', language: 'en' }, {
     errorFields: { 'workspace.name_taken': 'name', 'workspace.archived': 'name' },
   })
 
   /** Starts editing this workspace. */
   edit(workspace: WorkspaceMineDTO): void {
     this.workspaceId = workspace.id
-    this.form.reset({ name: workspace.name, description: workspace.description })
+    this.form.reset({ name: workspace.name, description: workspace.description, language: workspace.language })
   }
 
   async save(): Promise<void> {

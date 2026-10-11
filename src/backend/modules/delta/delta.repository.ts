@@ -129,6 +129,7 @@ export class Delta_Repository extends Repository<Base> {
       published: dto.published === null ? null : JSON.stringify(dto.published),
       removed: dto.removed,
       gone: dto.gone,
+      sources: dto.sources,
       updatedAt: dto.updatedAt,
     }
     if (entity.isNew) {

@@ -6,6 +6,7 @@ import { PageBody } from '@newt/ui/components/page-body'
 import { Stack } from '@newt/ui/components/stack'
 import { Subhead } from '@newt/ui/components/subhead'
 import { FormField } from '../../components/form-field'
+import { WORKSPACE_LANGUAGES } from '../../services/workspaces/workspace-languages'
 import { Provide } from '../../core/injector/provide'
 import { useService } from '../../core/injector/use-service'
 import { useValue } from '../../core/store/use-value'
@@ -41,6 +42,7 @@ function WorkspaceNewWrapped() {
             {failure && <Alert tone="bad" title="Could not create it">{failure}</Alert>}
             <FormField form={service.form} name="name" label="Name" description="The product it defines, for example Acme Shop." />
             <FormField form={service.form} name="description" label="Description" description="Optional: what the product is, in one or two lines." rows={3} />
+            <FormField form={service.form} name="language" label="Language" description="What its definition is written in: newt writes the deltas it reads from documents in it." options={WORKSPACE_LANGUAGES} />
             <Button type="submit" loading={submitting}>Create workspace</Button>
           </Stack>
         </form>

@@ -517,7 +517,7 @@ async function propose(workspaceId: string, proposal: DemoProposal, refs: Refs):
     for (const [index, write] of Object.entries(iteration.rewrite ?? {})) {
       await modules.proposal.rewriteDelta(workspaceId, key, deltaIds[Number(index)]!, write(refs, created))
     }
-    await modules.proposal.publish(workspaceId, key, { message: iteration.message })
+    await modules.proposal.publishAsWritten(workspaceId, key, { message: iteration.message })
   }
   if (proposal.status === 'in review') return
 

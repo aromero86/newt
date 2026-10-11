@@ -7,7 +7,7 @@ export class WorkspaceNewService {
 
   private readonly workspaces = inject(WorkspacesService)
 
-  readonly form = new FormStore(WorkspaceCreateSchema, { name: '', description: '' }, {
+  readonly form = new FormStore(WorkspaceCreateSchema, { name: '', description: '', language: 'en' }, {
     errorFields: { 'workspace.name_taken': 'name' },
   })
 

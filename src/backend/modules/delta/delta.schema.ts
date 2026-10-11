@@ -37,6 +37,8 @@ export const DeltaInputSchema = z.object({
   operation: DeltaOperationSchema,
   targetId: z.uuidv7().optional(),
   after: z.unknown().optional(),
+  /** The sentences of the proposal's document it comes from, verbatim. */
+  sources: z.array(z.string()).default([]),
 })
 
 export const DeltaReviewSchema = z.object({
@@ -110,6 +112,8 @@ export const DeltaSchema = z.object({
   unpublished: z.boolean(),
   /** Removed in the working copy, until a revision publishes it. */
   removed: z.boolean(),
+  /** The sentences of the document it comes from, verbatim; empty when written by hand. */
+  sources: z.array(z.string()),
   /** The last revision that added or changed it, and what it said before: what changed since it was approved. */
   lastChange: z.object({ revision: z.number(), change: DeltaChangeSchema, previous: DeltaContentSchema.nullable() }).nullable(),
   createdAt: z.string(),

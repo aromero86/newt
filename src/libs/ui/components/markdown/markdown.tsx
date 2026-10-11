@@ -16,6 +16,7 @@ const components: Components = {
   a: props => <a className="font-medium text-primary underline-offset-4 hover:underline" target="_blank" rel="noreferrer" {...strip(props)} />,
   hr: () => <hr className="my-4 border-border" />,
   strong: props => <strong className="font-semibold" {...strip(props)} />,
+  mark: props => <mark className="rounded-sm bg-warn/20 px-0.5 text-foreground" {...strip(props)} />,
 }
 
 /** react-markdown hands each element its source position too: the DOM does not want it. */
@@ -23,11 +24,45 @@ function strip<T extends { node?: unknown }>({ node: _, ...props }: T): Omit<T, 
   return props
 }
 
+type Node = { type: string, value?: string, tagName?: string, properties?: object, children?: Node[] }
+
+/** Wraps every appearance of these sentences in a `mark`, whatever the spaces or line breaks inside them. */
+function highlight(sentences: string[]) {
+  const patterns = sentences
+    .map(sentence => sentence.trim())
+    .filter(Boolean)
+    .map(sentence => new RegExp(sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'g'))
+  const split = (text: string): Node[] => {
+    for (const pattern of patterns) {
+      pattern.lastIndex = 0
+      const found = pattern.exec(text)
+      if (!found) continue
+      return [
+        ...split(text.slice(0, found.index)),
+        { type: 'element', tagName: 'mark', properties: {}, children: [{ type: 'text', value: found[0] }] },
+        ...split(text.slice(found.index + found[0].length)),
+      ]
+    }
+    return text ? [{ type: 'text', value: text }] : []
+  }
+  const walk = (node: Node) => {
+    if (!node.children) return
+    node.children = node.children.flatMap(child => (child.type === 'text' ? split(child.value ?? '') : (walk(child), [child])))
+  }
+  return () => (tree: Node) => walk(tree)
+}
+
+type MarkdownProps = {
+  children: string
+  /** Sentences to point out in the text, such as where something comes from. */
+  highlights?: string[]
+}
+
 /** Markdown, shown as text: titles, lists, quotes, code and links. */
-export function Markdown({ children }: { children: string }) {
+export function Markdown({ children, highlights }: MarkdownProps) {
   return (
     <div className="min-w-0 text-sm text-foreground">
-      <ReactMarkdown components={components} skipHtml>{children}</ReactMarkdown>
+      <ReactMarkdown components={components} rehypePlugins={highlights?.length ? [highlight(highlights)] : []} skipHtml>{children}</ReactMarkdown>
     </div>
   )
 }

@@ -1,17 +1,16 @@
-import { ProposalApi, type DeltaDTO } from '@newt/api/proposal'
+import { ProposalApi } from '@newt/api/proposal'
 import { toast } from '@newt/ui/components/toast'
 import { z } from 'zod'
 import { FormStore } from '../../../../core/form/form-store'
 import { inject } from '../../../../core/injector/inject'
-import { ListStore } from '../../../../core/list/list-store'
 import { Store } from '../../../../core/store/store'
 import { ProposalService } from '../proposal.service'
 
 const PublishSchema = z.object({ message: z.string().trim().min(1, 'Say what this revision changes').max(200, 'Keep it under 200 characters') })
 
 /**
- * The working copy of a proposal: its document and deltas as they are being
- * written, until a revision publishes them. Reviewers do not see any of it.
+ * The working copy of a proposal: its document as it is being written, until a
+ * revision publishes it with the deltas read from it. Reviewers do not see it.
  */
 export class ProposalWorkingService {
 
@@ -26,19 +25,11 @@ export class ProposalWorkingService {
   readonly editingDocument = this.store.select('editingDocument')
   readonly publishing = this.store.select('publishing')
 
-  readonly deltas = new ListStore<DeltaDTO>(page => this.api.deltas(this.proposal.workspaceId, this.proposal.key, 'working', page))
   readonly publishForm = new FormStore(PublishSchema, { message: '' }, { errorFields: { 'proposal.nothing_to_publish': 'message' } })
 
-  async load(): Promise<void> {
+  load(): void {
     this.store.patch({ draft: this.proposal.proposal.peek()?.document ?? '', preview: false })
     this.publishForm.reset({ message: '' })
-    await this.reload()
-  }
-
-  /** The deltas of the working copy, read again after any change. */
-  async reload(): Promise<void> {
-    await this.deltas.loadFirstPage()
-    await this.proposal.resolveNames(this.deltas.items.peek())
   }
 
   openDocument(): void {
@@ -81,15 +72,7 @@ export class ProposalWorkingService {
     }
   }
 
-  async remove(delta: DeltaDTO): Promise<void> {
-    await this.attempt(() => this.api.removeDelta(this.proposal.workspaceId, this.proposal.key, delta.id))
-  }
-
-  async undoRemove(delta: DeltaDTO): Promise<void> {
-    await this.attempt(() => this.api.undoRemoveDelta(this.proposal.workspaceId, this.proposal.key, delta.id))
-  }
-
-  /** The working copy as the next revision: now reviewers see it. */
+  /** The working copy as the next revision, with the deltas newt reads from its document: now reviewers see it. */
   async publish(): Promise<void> {
     const published = await this.publishForm.submit(async ({ message }) => {
       await this.api.publish(this.proposal.workspaceId, this.proposal.key, message)
@@ -97,8 +80,7 @@ export class ProposalWorkingService {
     if (!published) return
     this.closePublish()
     await this.proposal.refresh()
-    await this.reload()
-    toast.success('Revision published')
+    toast.success('Revision published, with the deltas read from the document')
   }
 
   /** Back to the last revision: what was not published is lost. */
@@ -113,7 +95,6 @@ export class ProposalWorkingService {
     try {
       await action()
       await this.proposal.refresh()
-      await this.reload()
       if (done) toast.success(done)
     } catch (error) {
       toast.error((error as Error).message)
