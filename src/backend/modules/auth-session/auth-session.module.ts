@@ -58,7 +58,8 @@ export class AuthSession_Module extends Module {
   /** Ends the session the request came with. */
   @UseCase('authSession.signOut')
   async signOut(): Promise<void> {
-    await this.repo.delete({ id: [currentActor().sessionId] })
+    const { sessionId } = currentActor()
+    if (sessionId) await this.repo.delete({ id: [sessionId] })
   }
 
   /** The signed-in person. */

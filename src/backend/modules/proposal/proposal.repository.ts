@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, lt, max } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lt, max, sql } from 'drizzle-orm'
 import type { Base } from '../../base/base'
 import type { Page } from '../../core/pagination/page'
 import type { PageRequest } from '../../core/pagination/page-request'
@@ -15,6 +15,8 @@ export interface Proposal_Criteria {
   id?: string[]
   number?: number
   status?: ProposalStatus[]
+  /** Words its title has, in that order; any case. */
+  title?: string
 }
 
 export class Proposal_Repository extends Repository<Base> {
@@ -25,8 +27,7 @@ export class Proposal_Repository extends Repository<Base> {
   }
 
   /** A page of a workspace's proposals, newest first. The cursor is a proposal id. */
-  async page(workspaceId: string, status: ProposalStatus[] | undefined, page: PageRequest): Promise<Page<Proposal>> {
-    const criteria = { workspaceId, status }
+  async page(criteria: Proposal_Criteria & { workspaceId: string }, page: PageRequest): Promise<Page<Proposal>> {
     const rows = await this.db
       .select()
       .from(proposal)
@@ -81,6 +82,10 @@ export class Proposal_Repository extends Repository<Base> {
     if (criteria.id) conditions.push(inArray(proposal.id, criteria.id))
     if (criteria.number !== undefined) conditions.push(eq(proposal.number, criteria.number))
     if (criteria.status?.length) conditions.push(inArray(proposal.status, criteria.status))
+    if (criteria.title?.trim()) {
+      const words = criteria.title.trim().replace(/[%_\\]/g, '\\$&').split(/\s+/).join('%')
+      conditions.push(sql`${proposal.title} LIKE ${`%${words}%`} ESCAPE '\\'`)
+    }
     return conditions
   }
 }

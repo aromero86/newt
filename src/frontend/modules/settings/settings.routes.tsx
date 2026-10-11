@@ -1,5 +1,5 @@
 import { Route, Routes, useLocation } from 'react-router'
-import { KeyRoundIcon, UserIcon } from 'lucide-react'
+import { BotIcon, KeyRoundIcon, UserIcon } from 'lucide-react'
 import { Avatar } from '@newt/ui/components/avatar'
 import { Inline } from '@newt/ui/components/inline'
 import { PageBody } from '@newt/ui/components/page-body'
@@ -11,6 +11,7 @@ import { useService } from '../../core/injector/use-service'
 import { useValue } from '../../core/store/use-value'
 import { NotFound } from '../../pages/not-found/not-found'
 import { SessionService } from '../../services/session/session.service'
+import { SettingsAssistants } from './settings-assistants/settings-assistants'
 import { SettingsPassword } from './settings-password/settings-password'
 import { SettingsProfile } from './settings-profile/settings-profile'
 
@@ -23,6 +24,7 @@ export function SettingsRoutes() {
     <SideNav label="Account settings">
       <SideNavItem href="/settings" active={pathname === '/settings'} icon={UserIcon}>Profile</SideNavItem>
       <SideNavItem href="/settings/password" active={pathname === '/settings/password'} icon={KeyRoundIcon}>Password</SideNavItem>
+      <SideNavItem href="/settings/assistants" active={pathname === '/settings/assistants'} icon={BotIcon}>AI assistants</SideNavItem>
     </SideNav>
   )
 
@@ -42,6 +44,7 @@ export function SettingsRoutes() {
           <Routes>
             <Route index element={<SettingsProfile />} />
             <Route path="password" element={<SettingsPassword />} />
+            <Route path="assistants" element={<SettingsAssistants />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SidebarLayout>

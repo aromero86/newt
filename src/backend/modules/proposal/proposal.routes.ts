@@ -21,10 +21,11 @@ export function registerProposalRoutes(base: Base, proposals: Proposal_Module) {
     request.params as { workspaceId: string, key: string, deltaId: string, number: string }
   const query = (request: Request) => new URL(request.url).searchParams
 
-  // ?status=draft,in review
+  // ?status=draft,in review&title=checkout
   base.http.get(path, async request => {
     const status = (query(request).get('status') ?? '').split(',').filter(Boolean).map(each => ProposalStatusSchema.parse(each))
-    return Response.json(await proposals.list(ids(request).workspaceId, status.length ? status : undefined, pageRequestFrom(request)))
+    const title = query(request).get('title') || undefined
+    return Response.json(await proposals.list(ids(request).workspaceId, { status: status.length ? status : undefined, title }, pageRequestFrom(request)))
   })
 
   base.http.post(path, async request =>

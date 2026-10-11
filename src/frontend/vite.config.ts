@@ -17,8 +17,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    // The frontend reaches the backend through its own origin.
-    proxy: { '/api': `http://localhost:${apiPort}` },
+    // The frontend reaches the backend through its own origin, and so do AI assistants.
+    proxy: { '/api': `http://localhost:${apiPort}`, '/mcp': `http://localhost:${apiPort}` },
   },
   build: { outDir: '../../dist/frontend', emptyOutDir: true },
 })

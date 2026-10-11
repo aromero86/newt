@@ -52,7 +52,9 @@ function ProposalRevisionWrapped() {
       <Stack gap={2}>
         <Breadcrumbs items={[{ label: 'Proposals', href: `/w/${workspaceId}/proposals` }, { label: key, href: `/w/${workspaceId}/proposals/${key}` }, { label: `Revision ${revision.number}` }]} />
         <PageTitle reference={`r${revision.number}`}>{revision.message}</PageTitle>
-        <Text size="sm" tone="muted">{`@${revision.publishedBy.nick} published it `}<RelativeTime date={revision.publishedAt} /></Text>
+        <Text size="sm" tone="muted">
+          {`@${revision.publishedBy.nick} published it `}<RelativeTime date={revision.publishedAt} />{revision.assistant ? `, written with ${revision.assistant}` : ''}
+        </Text>
       </Stack>
       <Box label="Document">
         <BoxHeader>{revision.number === 1 ? 'Document, as first published' : `Document, against revision ${revision.number - 1}`}</BoxHeader>

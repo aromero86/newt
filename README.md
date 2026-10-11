@@ -20,7 +20,9 @@ approved delta by delta and iterated in published revisions, like commits: what
 did not change keeps its approval. Proposals have conversations, and accepted
 ones make up the planned definition until they are marked as merged. Releases
 picture the definition in force, show what changed since the last one, and export
-the specification and the changelog as Markdown.
+the specification and the changelog as Markdown. AI assistants (Claude Code, Codex
+or any other that speaks MCP) connect with a personal access token: they read the
+definition and write and iterate proposals for you, never approve nor merge them.
 
 ## Getting started
 

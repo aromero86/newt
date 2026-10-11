@@ -63,6 +63,7 @@ export function ProposalRevisions({ proposal }: { proposal: ProposalDTO }) {
           <Inline gap={2} wrap>
             <BoxRowTitle href={`${base}/revisions/${revision.number}`}>{revision.message}</BoxRowTitle>
             {revision.number === proposal.revision && <Badge tone="ok">latest</Badge>}
+            {revision.assistant && <Badge tone="info">{`via ${revision.assistant}`}</Badge>}
           </Inline>
           <BoxRowMeta>
             <span>{`@${revision.publishedBy.nick} published `}<RelativeTime date={revision.publishedAt} /></span>
@@ -99,6 +100,7 @@ export function ProposalRevisionsTimeline({ proposal }: { proposal: ProposalDTO 
             <Text size="sm" tone="muted" as="span">published</Text>
             <TextLink href={`${base}/revisions/${revision.number}`}>{`revision ${revision.number}`}</TextLink>
             <Text size="sm" tone="muted" as="span"><RelativeTime date={revision.publishedAt} /></Text>
+            {revision.assistant && <Badge tone="info">{`via ${revision.assistant}`}</Badge>}
           </Inline>
           <Text size="sm">{revision.message}</Text>
           <Text size="sm" tone="muted">{revisionSummary(revision)}</Text>

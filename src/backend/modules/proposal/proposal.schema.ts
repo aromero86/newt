@@ -67,6 +67,40 @@ export const ProposalRevisionSchema = z.object({
   changed: z.number(),
   removed: z.number(),
   documentChanged: z.boolean(),
+  /** The AI assistant it was written with, by the name it gives itself (`claude-code`); null when written by hand. */
+  assistant: z.string().nullable(),
+})
+
+/**
+ * A delta an iteration adds. `ref` names it, so that the deltas after it in the same
+ * iteration can use the artifact it creates: they write `ref:<name>` where its id goes.
+ */
+const ProposalIterationAddSchema = DeltaInputSchema.extend({ ref: z.string().trim().min(1).max(40).optional() })
+
+/** A delta an iteration rewrites, by its id. */
+const ProposalIterationRewriteSchema = DeltaInputSchema.extend({ id: z.uuidv7() })
+
+/**
+ * One iteration, published at once as the next revision: what changes in the
+ * title, the document and the deltas. `basedOn` is the revision it was written
+ * from: if another one came after it, nothing is written.
+ */
+export const ProposalIterateSchema = z.object({
+  basedOn: z.number().int().min(0),
+  message: ProposalPublishSchema.shape.message,
+  title: ProposalTitleSchema.optional(),
+  document: ProposalDocumentSchema.optional(),
+  add: z.array(ProposalIterationAddSchema).max(50, 'At most 50 deltas at a time').default([]),
+  rewrite: z.array(ProposalIterationRewriteSchema).max(50, 'At most 50 deltas at a time').default([]),
+  remove: z.array(z.uuidv7()).max(50, 'At most 50 deltas at a time').default([]),
+})
+
+/** A draft written whole: its title, document and deltas, published as its first revision. */
+export const ProposalWriteSchema = z.object({
+  title: ProposalTitleSchema,
+  message: ProposalPublishSchema.shape.message,
+  document: ProposalDocumentSchema.default(''),
+  add: z.array(ProposalIterationAddSchema).max(50, 'At most 50 deltas at a time').default([]),
 })
 
 /** A proposal with one delta, made in place; its title is written for it. */
@@ -81,3 +115,5 @@ export type ProposalDocumentInputDTO = z.infer<typeof ProposalDocumentInputSchem
 export type ProposalPublishDTO = z.infer<typeof ProposalPublishSchema>
 export type ProposalSubmitDTO = z.infer<typeof ProposalSubmitSchema>
 export type ProposalRevisionDTO = z.infer<typeof ProposalRevisionSchema>
+export type ProposalIterateDTO = z.input<typeof ProposalIterateSchema>
+export type ProposalWriteDTO = z.input<typeof ProposalWriteSchema>

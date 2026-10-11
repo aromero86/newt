@@ -15,6 +15,7 @@ import { Health_Module } from './modules/health/health.module'
 import { Mail_Module } from './modules/mail/mail.module'
 import { AuthPasswordReset_Module } from './modules/auth-password-reset/auth-password-reset.module'
 import { AuthSession_Module } from './modules/auth-session/auth-session.module'
+import { AuthToken_Module } from './modules/auth-token/auth-token.module'
 import { User_Module } from './modules/user/user.module'
 import { WorkspaceInvitation_Module } from './modules/workspace-invitation/workspace-invitation.module'
 import { WorkspaceMember_Module } from './modules/workspace-member/workspace-member.module'
@@ -26,6 +27,7 @@ export async function initializeModules(base: Base) {
   const user = await User_Module.initialize(base)
   const authCredential = await AuthCredential_Module.initialize(base)
   const authSession = await AuthSession_Module.initialize(base, { user, authCredential }, { days: config.sessionDays })
+  const authToken = await AuthToken_Module.initialize(base)
   const mail = await Mail_Module.initialize(base, config.mail)
   const workspaceMember = await WorkspaceMember_Module.initialize(base, { user })
   const workspace = await Workspace_Module.initialize(base, { workspaceMember })
@@ -41,5 +43,5 @@ export async function initializeModules(base: Base) {
   await Discussion_Module.initialize(base, { discussionComment, proposal, user, workspace, workspaceMember })
   await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
   await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
-  return { user, authCredential, authSession, mail, workspaceMember, workspace, dimension, featureArea, feature, rule, delta, proposal, release }
+  return { user, authCredential, authSession, authToken, mail, workspaceMember, workspace, dimension, featureArea, feature, rule, delta, proposal, baseline, release }
 }

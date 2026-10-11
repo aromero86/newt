@@ -7,6 +7,7 @@ import { UseCase } from '../../core/unit-of-work/use-case.decorator'
 import { DeltaNotFound } from '../delta/errors/delta-not-found'
 import type { DeltaComparisonDTO, DeltaDTO, DeltaInputDTO, DeltaReviewInputDTO, DeltaSnapshotDTO, DeltaView } from '../delta/delta.schema'
 import { NothingToPublish } from './errors/nothing-to-publish'
+import { ProposalChangedSince } from './errors/proposal-changed-since'
 import { ProposalUnpublished } from './errors/proposal-unpublished'
 import { RevisionNotFound } from './errors/revision-not-found'
 import { ProposalNotFound } from './errors/proposal-not-found'
@@ -14,6 +15,8 @@ import {
   Proposal,
   ProposalCreateSchema,
   ProposalDocumentInputSchema,
+  ProposalIterateSchema,
+  ProposalWriteSchema,
   ProposalPublishSchema,
   ProposalQuickSchema,
   ProposalSubmitSchema,
@@ -21,6 +24,8 @@ import {
   type ProposalCreateDTO,
   type ProposalDocumentInputDTO,
   type ProposalDTO,
+  type ProposalIterateDTO,
+  type ProposalWriteDTO,
   type ProposalPublishDTO,
   type ProposalQuickDTO,
   type ProposalRevisionDTO,
@@ -49,11 +54,11 @@ export class Proposal_Module extends Module {
     super('proposal', base.transactions)
   }
 
-  /** A page of the workspace's proposals, newest first, in any of these states. */
+  /** A page of the workspace's proposals, newest first, in any of these states and with these words in their title. */
   @UseCase('proposal.list')
-  async list(workspaceId: string, status: ProposalStatus[] | undefined, page: PageRequest): Promise<Page<ProposalDTO>> {
+  async list(workspaceId: string, filter: { status?: ProposalStatus[], title?: string }, page: PageRequest): Promise<Page<ProposalDTO>> {
     await this.deps.workspaceMember.assertActive(workspaceId)
-    const proposals = await this.repo.page(workspaceId, status, page)
+    const proposals = await this.repo.page({ ...filter, workspaceId }, page)
     return { ...proposals, items: await this.contracts(proposals.items) }
   }
 
@@ -69,6 +74,57 @@ export class Proposal_Module extends Module {
     await this.deps.workspace.assertWritable(workspaceId)
     const { title } = ProposalCreateSchema.parse(input)
     const proposal = Proposal.create({ workspaceId, number: await this.repo.nextNumber(workspaceId), title, quick: false, createdBy: currentActor().userId })
+    await this.repo.persist(proposal)
+    return (await this.contracts([proposal]))[0]!
+  }
+
+  /**
+   * A draft written whole, as an assistant writes it: title, document and deltas,
+   * published at once as its first revision.
+   */
+  @UseCase('proposal.write')
+  async write(workspaceId: string, input: ProposalWriteDTO): Promise<ProposalDTO> {
+    await this.deps.workspace.assertWritable(workspaceId)
+    const { title, message, document, add } = ProposalWriteSchema.parse(input)
+    const proposal = Proposal.create({ workspaceId, number: await this.repo.nextNumber(workspaceId), title, quick: false, createdBy: currentActor().userId })
+    await this.repo.persist(proposal)
+    return this.iterate(workspaceId, proposal.key, { basedOn: 0, message, document, add })
+  }
+
+  /**
+   * One iteration, published at once as the next revision. It is refused if another
+   * revision came after the one it is based on, or if the working copy has changes
+   * nobody published: nobody's work is overwritten without them noticing.
+   */
+  @UseCase('proposal.iterate')
+  async iterate(workspaceId: string, key: string, input: ProposalIterateDTO): Promise<ProposalDTO> {
+    const { basedOn, message, title, document, add, rewrite, remove } = ProposalIterateSchema.parse(input)
+    const proposal = await this.writable(workspaceId, key)
+    proposal.assertEditable('take new revisions')
+    if (proposal.revision !== basedOn) throw new ProposalChangedSince(basedOn, proposal.revision)
+    if (await this.hasUnpublished(proposal)) throw new ProposalUnpublished()
+
+    // The artifacts the added deltas create, by the ref each was given.
+    const refs = new Map<string, string>()
+    const resolveRefs = (value: unknown): unknown => {
+      if (typeof value === 'string' && value.startsWith('ref:')) return refs.get(value.slice(4)) ?? value
+      if (Array.isArray(value)) return value.map(resolveRefs)
+      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([field, each]) => [field, resolveRefs(each)]))
+      return value
+    }
+    for (const { ref, ...delta } of add) {
+      const added = await this.deps.delta.add(workspaceId, proposal.id, resolveRefs(delta) as DeltaInputDTO)
+      if (ref) refs.set(ref, added.targetId)
+    }
+    for (const { id, ...delta } of rewrite) await this.deps.delta.rewrite(workspaceId, proposal.id, id, resolveRefs(delta) as DeltaInputDTO)
+    for (const id of remove) await this.deps.delta.remove(proposal.id, id)
+    if (title !== undefined) proposal.retitle(title)
+    if (document !== undefined) proposal.writeDocument(document)
+
+    // A new title alone is no revision: revisions publish the document and the deltas.
+    const changed = proposal.revision === 0 || (await this.hasUnpublished(proposal))
+    if (!changed && title === undefined) throw new NothingToPublish()
+    if (changed) await this.publishWorkingCopy(proposal, message)
     await this.repo.persist(proposal)
     return (await this.contracts([proposal]))[0]!
   }
@@ -290,7 +346,8 @@ export class Proposal_Module extends Module {
   private async publishWorkingCopy(proposal: Proposal, message: string): Promise<void> {
     const previous = await this.publishedDocument(proposal)
     const published = await this.deps.delta.publish(proposal.id, proposal.revision + 1)
-    proposal.publish({ message, publishedBy: currentActor().userId, previous, published })
+    const { userId, assistant } = currentActor()
+    proposal.publish({ message, publishedBy: userId, assistant: assistant ?? null, previous, published })
   }
 
   /** The document or the deltas of the working copy differ from the last revision. */

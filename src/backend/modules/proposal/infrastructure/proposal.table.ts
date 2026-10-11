@@ -31,4 +31,5 @@ export const proposalRevision = sqliteTable('proposal__revision', {
   changed: integer('changed').notNull(),
   removed: integer('removed').notNull(),
   documentChanged: integer('document_changed', { mode: 'boolean' }).notNull(),
+  assistant: text('assistant'),
 }, table => [primaryKey({ columns: [table.proposalId, table.number] })])
