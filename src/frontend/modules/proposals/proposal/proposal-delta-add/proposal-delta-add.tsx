@@ -11,23 +11,15 @@ import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { Textarea } from '@newt/ui/components/textarea'
 import { RuleDraftFields } from '../../../../components/rule-draft-fields'
-import { Provide } from '../../../../core/injector/provide'
 import { useService } from '../../../../core/injector/use-service'
 import { useValue } from '../../../../core/store/use-value'
 import { ProposalService } from '../proposal.service'
 import { DELTA_CHOICES, ProposalDeltaAddService, type DeltaChoice } from './proposal-delta-add.service'
 
-/** With its own ProposalDeltaAddService: a button that opens the dialog to write a delta by hand. */
+/** The dialog to write a delta by hand, or to write one again; its service opens it. */
 export function ProposalDeltaAdd() {
-  return (
-    <Provide services={[ProposalDeltaAddService]}>
-      <ProposalDeltaAddWrapped />
-    </Provide>
-  )
-}
-
-function ProposalDeltaAddWrapped() {
   const service = useService(ProposalDeltaAddService)
+  const editing = useValue(service.editing)
   const open = useValue(service.open)
   const choice = useValue(service.choice)
   const failure = useValue(service.failure)
@@ -40,26 +32,29 @@ function ProposalDeltaAddWrapped() {
 
   return (
     <>
-      <Inline>
-        <Button variant="secondary" onClick={() => service.start()}>Add a delta</Button>
-      </Inline>
-      <Dialog open={open} onOpenChange={next => !next && service.close()} title="Add a delta" description="One change to one artifact of the definition." size="lg">
+      <Dialog
+        open={open}
+        onOpenChange={next => !next && service.close()}
+        title={editing ? 'Edit the delta' : 'Add a delta'}
+        description={editing ? 'It keeps its identity: once published, only it goes back to pending.' : 'One change to one artifact of the definition.'}
+        size="lg"
+      >
         <form onSubmit={onSubmit} noValidate>
           <Stack gap={4}>
-            <Field label="What it does">
+            {!editing && <Field label="What it does">
               <Select
                 value={choice}
                 placeholder="Pick a change"
                 onValueChange={value => void service.choose(value as DeltaChoice)}
                 options={Object.entries(DELTA_CHOICES).map(([value, label]) => ({ value, label }))}
               />
-            </Field>
-            {choice && <ProposalDeltaAddTarget />}
+            </Field>}
+            {choice && !editing && <ProposalDeltaAddTarget />}
             {choice && <ProposalDeltaAddFields />}
             {failure && <Alert tone="bad" title="The delta cannot be added">{failure}</Alert>}
             {choice && (
               <Inline>
-                <Button type="submit" loading={submitting}>Add delta</Button>
+                <Button type="submit" loading={submitting}>{editing ? 'Save in the working copy' : 'Add delta'}</Button>
               </Inline>
             )}
           </Stack>

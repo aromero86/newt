@@ -1,6 +1,9 @@
 import { FeatureApi } from '@newt/api/feature'
 import { FeatureAreaApi } from '@newt/api/feature-area'
 import type { DeltaDTO } from '@newt/api/proposal'
+
+/** What says which areas and features it points at: a delta, a snapshot of one, or what it says in a revision. */
+type Pointing = Partial<Pick<DeltaDTO, 'kind' | 'operation' | 'targetId' | 'targetLabel'>> & Pick<DeltaDTO, 'before' | 'after'>
 import { inject } from '../../core/injector/inject'
 import { Store } from '../../core/store/store'
 
@@ -18,10 +21,10 @@ export class ArtifactNamesService {
   }
 
   /** Learns the names these deltas need: from the deltas that create them, or from the definition. */
-  async resolve(workspaceId: string, deltas: DeltaDTO[]): Promise<void> {
+  async resolve(workspaceId: string, deltas: Pointing[]): Promise<void> {
     const names: Record<string, string> = { ...this.store.value.names }
     for (const delta of deltas) {
-      if (delta.operation === 'create' && (delta.kind === 'feature-area' || delta.kind === 'feature')) names[delta.targetId] = delta.targetLabel
+      if (delta.operation === 'create' && (delta.kind === 'feature-area' || delta.kind === 'feature') && delta.targetId && delta.targetLabel) names[delta.targetId] = delta.targetLabel
     }
     const wanted = new Map<string, 'area' | 'feature'>()
     for (const delta of deltas) {

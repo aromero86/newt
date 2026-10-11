@@ -15,6 +15,7 @@ import { Provide } from '../../../../core/injector/provide'
 import { useService } from '../../../../core/injector/use-service'
 import { useValue } from '../../../../core/store/use-value'
 import { useOpenProposal } from '../../../../services/quick-proposal/use-open-proposal'
+import { DefinitionHistory } from '../../definition-history/definition-history'
 import { DefinitionDimensionsRenameService } from '../definition-dimensions-rename/definition-dimensions-rename.service'
 import { DefinitionDimensionsService } from '../definition-dimensions.service'
 import { DefinitionDimensionsItemService } from './definition-dimensions-item.service'
@@ -127,6 +128,7 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
             </Stack>
           </form>
         )}
+        <DefinitionHistory targetId={dimension.id} />
       </Stack>
     </Card>
   )

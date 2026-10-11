@@ -15,9 +15,10 @@ Early development. Today newt has accounts (sign up, sign in, profile, password
 and password reset by email), private workspaces with members, admins and email
 invitations, and the first part of a product's definition: its dimensions, its
 areas and features, and its rules with their history, filtered by where they
-apply. Every change to the definition is a proposal, approved delta by delta;
-accepted proposals make up the planned definition until they are marked as
-merged.
+apply. Every change to the definition is a proposal with a Markdown document,
+approved delta by delta and iterated in published revisions, like commits: what
+did not change keeps its approval. Proposals have conversations, and accepted
+ones make up the planned definition until they are marked as merged.
 
 ## Getting started
 

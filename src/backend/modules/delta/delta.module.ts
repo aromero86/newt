@@ -24,12 +24,17 @@ import {
   type DeltaReviewInputDTO,
   type DeltaRuleChangeState,
   type DeltaRuleCreateState,
+  type DeltaComparisonDTO,
+  type DeltaPublished,
+  type DeltaSnapshotDTO,
+  type DeltaView,
 } from './delta'
 import type { Delta_Deps } from './delta.deps'
 import { Delta_Repository, type Delta_Criteria } from './delta.repository'
 import { DeltaBlocked } from './errors/delta-blocked'
 import { DeltaNotFound } from './errors/delta-not-found'
 import { DeltasNotApproved } from './errors/deltas-not-approved'
+import { DeltasUnpublished } from './errors/deltas-unpublished'
 import { InvalidDelta } from './errors/invalid-delta'
 
 /** What a delta is, once checked: what it targets and the state before and after. */
@@ -50,30 +55,34 @@ export class Delta_Module extends Module {
     super('delta', base.transactions)
   }
 
-  /** A page of the deltas that match, in the order they were written: the order they are applied in. */
+  /**
+   * A page of the deltas that match, in the order they were written: the order
+   * they are applied in. In the `working` view, as they are being written; in the
+   * `published` view, as the last revision left them.
+   */
   @UseCase('delta.list')
-  async list(workspaceId: string, criteria: Delta_Criteria, page: PageRequest): Promise<Page<DeltaDTO>> {
-    const deltas = await this.repo.page(criteria, page)
-    return { ...deltas, items: await this.contracts(workspaceId, deltas.items) }
+  async list(workspaceId: string, criteria: Delta_Criteria, view: DeltaView, page: PageRequest): Promise<Page<DeltaDTO>> {
+    const deltas = await this.repo.page({ ...criteria, gone: false, published: view === 'published' || undefined }, page)
+    return { ...deltas, items: await this.contracts(workspaceId, deltas.items, view) }
   }
 
-  /** How many deltas of each of these proposals are pending, approved and rejected. */
+  /** How many published deltas of each of these proposals are pending, approved and rejected. */
   @UseCase('delta.counts')
   async counts(proposalIds: string[]): Promise<Map<string, DeltaCounts>> {
-    return this.repo.counts({ proposalId: proposalIds })
+    return this.repo.counts({ proposalId: proposalIds, gone: false, published: true })
   }
 
-  /** A new delta, checked against the definition in force and the proposal's earlier deltas. */
+  /** A new delta in the working copy, checked against the definition in force and the proposal's other deltas. */
   @UseCase('delta.add')
   async add(workspaceId: string, proposalId: string, input: DeltaInputDTO): Promise<DeltaDTO> {
     const { kind, operation } = DeltaInputSchema.parse(input)
     const prepared = await this.prepare(workspaceId, proposalId, input)
     const delta = Delta.create({ workspaceId, proposalId, kind, operation, ...prepared })
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta], 'working'))[0]!
   }
 
-  /** The same delta, written again: its verdicts go, since they were about the old one. */
+  /** The same delta, written again in the working copy. */
   @UseCase('delta.rewrite')
   async rewrite(workspaceId: string, proposalId: string, deltaId: string, input: DeltaInputDTO): Promise<DeltaDTO> {
     const delta = await this.load(proposalId, deltaId)
@@ -83,9 +92,10 @@ export class Delta_Module extends Module {
     const prepared = await this.prepare(workspaceId, proposalId, { ...input, targetId: delta.targetId }, delta)
     delta.rewrite({ targetLabel: prepared.targetLabel, before: prepared.before, after: prepared.after })
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta], 'working'))[0]!
   }
 
+  /** Out of the working copy; a published one leaves with the next revision. */
   @UseCase('delta.remove')
   async remove(proposalId: string, deltaId: string): Promise<void> {
     const delta = await this.load(proposalId, deltaId)
@@ -93,51 +103,104 @@ export class Delta_Module extends Module {
     await this.repo.persist(delta)
   }
 
-  /** The signed-in person's verdict; a rejection says why. */
+  @UseCase('delta.undoRemove')
+  async undoRemove(proposalId: string, deltaId: string): Promise<void> {
+    const delta = await this.load(proposalId, deltaId)
+    delta.undoRemove()
+    await this.repo.persist(delta)
+  }
+
+  /** The working copy goes back to what is published. */
+  @UseCase('delta.discard')
+  async discard(proposalId: string): Promise<void> {
+    for (const delta of await this.repo.find({ proposalId: [proposalId], gone: false })) {
+      delta.discard()
+      await this.repo.persist(delta)
+    }
+  }
+
+  /** Whether the working copy says something the last revision did not. */
+  @UseCase('delta.hasUnpublished')
+  async hasUnpublished(proposalId: string): Promise<boolean> {
+    return (await this.repo.find({ proposalId: [proposalId], gone: false })).some(delta => delta.isUnpublished)
+  }
+
+  /** Publishes the working copy as this revision: what it did to the deltas. */
+  @UseCase('delta.publish')
+  async publish(proposalId: string, revision: number): Promise<DeltaPublished> {
+    const published = { added: 0, changed: 0, removed: 0 }
+    for (const delta of await this.repo.find({ proposalId: [proposalId], gone: false })) {
+      const change = delta.publish(revision)
+      if (change !== 'unchanged') published[change]++
+      await this.repo.persist(delta)
+    }
+    return published
+  }
+
+  /** The signed-in person's verdict on a published delta; a rejection says why. */
   @UseCase('delta.review')
   async review(workspaceId: string, proposalId: string, deltaId: string, input: DeltaReviewInputDTO): Promise<DeltaDTO> {
     const review = DeltaReviewInputSchema.parse(input)
-    const delta = await this.load(proposalId, deltaId)
+    const delta = await this.loadPublished(proposalId, deltaId)
     delta.review(currentActor().userId, review.verdict, review.verdict === 'rejected' ? review.reason : '')
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta], 'published'))[0]!
   }
 
   /** Takes back the signed-in person's verdict. */
   @UseCase('delta.withdraw')
   async withdraw(workspaceId: string, proposalId: string, deltaId: string): Promise<DeltaDTO> {
-    const delta = await this.load(proposalId, deltaId)
+    const delta = await this.loadPublished(proposalId, deltaId)
     delta.withdraw(currentActor().userId)
     await this.repo.persist(delta)
-    return (await this.contracts(workspaceId, [delta]))[0]!
+    return (await this.contracts(workspaceId, [delta], 'published'))[0]!
   }
 
-  /** At least one delta, every one approved and none blocked. */
+  /** Nothing unpublished, at least one delta, every one approved and none blocked. */
   @UseCase('delta.assertReady')
   async assertReady(workspaceId: string, proposalId: string): Promise<void> {
-    const deltas = await this.repo.find({ proposalId: [proposalId] })
+    const deltas = await this.repo.find({ proposalId: [proposalId], gone: false })
+    if (deltas.some(delta => delta.isUnpublished)) throw new DeltasUnpublished()
     const notApproved = deltas.filter(delta => delta.status !== 'approved').length
     if (deltas.length === 0 || notApproved > 0) throw new DeltasNotApproved(notApproved)
-    const blockers = (await Promise.all(deltas.map(delta => this.blockers(workspaceId, delta, deltas)))).flat()
+    const blockers = (await Promise.all(deltas.map(delta => this.blockers(workspaceId, delta, deltas, 'published')))).flat()
     if (blockers.length) throw new DeltaBlocked(blockers)
   }
 
-  /** Every delta of the proposal into the definition in force, in order, all or none. */
+  /** Every published delta of the proposal into the definition in force, in order, all or none. */
   @UseCase('delta.apply')
   async apply(workspaceId: string, proposalId: string): Promise<void> {
     await this.assertReady(workspaceId, proposalId)
-    for (const delta of await this.repo.find({ proposalId: [proposalId] })) await this.applyOne(workspaceId, delta)
+    for (const delta of await this.repo.find({ proposalId: [proposalId], gone: false })) await this.applyOne(workspaceId, delta)
+  }
+
+  /** A page of what one revision did to the proposal's deltas. */
+  @UseCase('delta.snapshots')
+  async snapshots(proposalId: string, revision: number, page: PageRequest): Promise<Page<DeltaSnapshotDTO>> {
+    return this.repo.snapshots(proposalId, revision, page)
+  }
+
+  /** A page of the deltas of either revision, with what each said in one and in the other. */
+  @UseCase('delta.compare')
+  async compare(proposalId: string, from: number, to: number, page: PageRequest): Promise<Page<DeltaComparisonDTO>> {
+    const deltas = await this.repo.inRevisions(proposalId, [from, to], page)
+    const snapshots = await this.repo.snapshotsOf(deltas.items.map(delta => delta.id), [from, to])
+    const at = (deltaId: string, revision: number) => snapshots.find(each => each.deltaId === deltaId && each.revision === revision)?.content ?? null
+    return {
+      ...deltas,
+      items: deltas.items.map(delta => ({ deltaId: delta.id, kind: delta.kind, operation: delta.operation, targetId: delta.targetId, from: at(delta.id, from), to: at(delta.id, to) })),
+    }
   }
 
   /** A title for a proposal made of this one delta: "Change rule R-7". */
   @UseCase('delta.describe')
   async describe(proposalId: string): Promise<string> {
-    const [delta] = await this.repo.find({ proposalId: [proposalId] })
+    const [delta] = await this.repo.find({ proposalId: [proposalId], gone: false })
     if (!delta) return 'Change the definition'
-    const { targetLabel } = delta.toDTO()
+    const { targetLabel, after } = delta.content
     // A new rule has no key yet: what it states names it.
     if (delta.kind === 'rule' && delta.operation === 'create') {
-      const { statement } = delta.after as DeltaRuleCreateState
+      const { statement } = after as DeltaRuleCreateState
       return `New rule: ${statement.length > 100 ? `${statement.slice(0, 100)}…` : statement}`
     }
     const verb = { create: 'Create', change: 'Change', retire: 'Retire', restore: 'Restore' }[delta.operation]
@@ -145,14 +208,20 @@ export class Delta_Module extends Module {
     return `${verb} ${noun} ${targetLabel}`
   }
 
+  private async loadPublished(proposalId: string, deltaId: string): Promise<Delta> {
+    const delta = await this.load(proposalId, deltaId)
+    if (delta.published === null) throw new InvalidDelta('This delta is not published yet: only what a revision publishes is reviewed')
+    return delta
+  }
+
   private load(proposalId: string, deltaId: string): Promise<Delta> {
-    return this.resolve(() => this.repo.find({ proposalId: [proposalId], id: [deltaId] }), () => new DeltaNotFound(deltaId))
+    return this.resolve(() => this.repo.find({ proposalId: [proposalId], id: [deltaId], gone: false }), () => new DeltaNotFound(deltaId))
   }
 
   /** Checks a delta and takes the picture of its target as it is now. */
   private async prepare(workspaceId: string, proposalId: string, input: DeltaInputDTO, self?: Delta): Promise<Prepared> {
     const { kind, operation, targetId, after } = DeltaInputSchema.parse(input)
-    const others = (await this.repo.find({ proposalId: [proposalId] })).filter(delta => delta.id !== self?.id)
+    const others = (await this.repo.find({ proposalId: [proposalId], gone: false })).filter(delta => delta.id !== self?.id && !delta.removed)
     const target = () => {
       if (!targetId) throw new InvalidDelta(`Say which ${kind} it ${operation}s`)
       if (others.some(delta => delta.targetId === targetId)) throw new InvalidDelta(`This proposal already has a delta on that ${kind}`)
@@ -247,10 +316,13 @@ export class Delta_Module extends Module {
    * change first, in this proposal or another. A rule this proposal retires, or
    * changes to stop naming the value, no longer counts.
    */
-  private async blockers(workspaceId: string, delta: Delta, all: Delta[]): Promise<string[]> {
+  private async blockers(workspaceId: string, delta: Delta, all: Delta[], view: DeltaView): Promise<string[]> {
     if (delta.kind !== 'dimension' || delta.operation !== 'change') return []
-    const before = delta.before as DimensionDTO
-    const after = delta.after as DeltaDimensionState
+    const said = (each: Delta) => (view === 'published' ? each.published : each.removed ? null : each.content)
+    const content = said(delta)
+    if (!content) return []
+    const before = content.before as DimensionDTO
+    const after = content.after as DeltaDimensionState
     const retiring = after.values.filter(value => value.retired && !before.values.find(old => old.id === value.id)?.retiredAt)
     if (retiring.length === 0) return []
 
@@ -258,21 +330,23 @@ export class Delta_Module extends Module {
     for (const value of retiring) {
       const users = await this.deps.rule.find(workspaceId, { retired: false, usingValues: [value.id!] })
       const stillUsing = users.filter(rule => {
-        const own = all.find(other => other.kind === 'rule' && other.targetId === rule.id)
+        const own = all.find(other => other.kind === 'rule' && other.targetId === rule.id && said(other))
         if (!own) return true
         if (own.operation === 'retire') return false
-        return (own.after as DeltaRuleChangeState).scope.some(entry => entry.valueIds.includes(value.id!))
+        return (said(own)!.after as DeltaRuleChangeState).scope.some(entry => entry.valueIds.includes(value.id!))
       })
       if (stillUsing.length) blockers.push(`${stillUsing.map(rule => rule.key).join(', ')} still ${stillUsing.length === 1 ? 'uses' : 'use'} ${value.name}`)
     }
     return blockers
   }
 
+  /** Applies what is published of the delta: by now, the same as its working copy. */
   private async applyOne(workspaceId: string, delta: Delta): Promise<void> {
     const id = delta.targetId
+    const after = delta.published!.after
     switch (`${delta.kind}:${delta.operation}`) {
       case 'dimension:create': {
-        const state = delta.after as DeltaDimensionState
+        const state = after as DeltaDimensionState
         await this.deps.dimension.create(workspaceId, { name: state.name }, id)
         for (const value of state.values) {
           await this.deps.dimension.addValue(workspaceId, id, { name: value.name }, value.id)
@@ -281,7 +355,7 @@ export class Delta_Module extends Module {
         return
       }
       case 'dimension:change': {
-        const state = delta.after as DeltaDimensionState
+        const state = after as DeltaDimensionState
         const now = await this.deps.dimension.get(workspaceId, id)
         if (now.name !== state.name) await this.deps.dimension.rename(workspaceId, id, { name: state.name })
         for (const value of state.values) {
@@ -295,10 +369,10 @@ export class Delta_Module extends Module {
         return
       }
       case 'feature-area:create':
-        await this.deps.featureArea.create(workspaceId, delta.after as DeltaFeatureAreaState, id)
+        await this.deps.featureArea.create(workspaceId, after as DeltaFeatureAreaState, id)
         return
       case 'feature-area:change':
-        await this.deps.featureArea.update(workspaceId, id, delta.after as DeltaFeatureAreaState)
+        await this.deps.featureArea.update(workspaceId, id, after as DeltaFeatureAreaState)
         return
       case 'feature-area:retire':
         await this.deps.featureArea.retire(workspaceId, id)
@@ -307,10 +381,10 @@ export class Delta_Module extends Module {
         await this.deps.featureArea.restore(workspaceId, id)
         return
       case 'feature:create':
-        await this.deps.feature.create(workspaceId, delta.after as DeltaFeatureState, id)
+        await this.deps.feature.create(workspaceId, after as DeltaFeatureState, id)
         return
       case 'feature:change': {
-        const { areaId, name, description } = delta.after as DeltaFeatureState
+        const { areaId, name, description } = after as DeltaFeatureState
         const now = await this.deps.feature.get(workspaceId, id)
         if (now.areaId !== areaId) await this.deps.feature.move(workspaceId, id, { areaId })
         await this.deps.feature.update(workspaceId, id, { name, description })
@@ -323,10 +397,10 @@ export class Delta_Module extends Module {
         await this.deps.feature.restore(workspaceId, id)
         return
       case 'rule:create':
-        await this.deps.rule.create(workspaceId, delta.after as DeltaRuleCreateState, id)
+        await this.deps.rule.create(workspaceId, after as DeltaRuleCreateState, id)
         return
       case 'rule:change':
-        await this.deps.rule.supersede(workspaceId, (await this.rule(workspaceId, id)).key, delta.after as DeltaRuleChangeState)
+        await this.deps.rule.supersede(workspaceId, (await this.rule(workspaceId, id)).key, after as DeltaRuleChangeState)
         return
       case 'rule:retire':
         await this.deps.rule.retire(workspaceId, (await this.rule(workspaceId, id)).key)
@@ -334,23 +408,31 @@ export class Delta_Module extends Module {
     }
   }
 
-  /** The contract: status, reviews with nicks, and what blocks it. */
-  private async contracts(workspaceId: string, deltas: Delta[]): Promise<DeltaDTO[]> {
+  /**
+   * The contract, in the view asked for: its content there, status, reviews with
+   * nicks, what blocks it and, when published, when it last changed and from what.
+   */
+  private async contracts(workspaceId: string, deltas: Delta[], view: DeltaView): Promise<DeltaDTO[]> {
     if (deltas.length === 0) return []
     const userIds = [...new Set(deltas.flatMap(delta => delta.reviews.map(review => review.userId)))]
     const users = userIds.length ? await this.deps.user.find({ id: userIds }) : []
     const nicks = new Map(users.map(user => [user.id, user.nick]))
     // What blocks a delta depends on the rest of its proposal.
     const withDimensions = [...new Set(deltas.filter(delta => delta.kind === 'dimension').map(delta => delta.proposalId))]
-    const siblings = withDimensions.length ? await this.repo.find({ proposalId: withDimensions }) : []
+    const siblings = withDimensions.length ? await this.repo.find({ proposalId: withDimensions, gone: false }) : []
+    const lastChanges = view === 'published' ? await this.repo.lastChanges(deltas.map(delta => delta.id)) : new Map()
 
     return Promise.all(deltas.map(async delta => {
-      const { reviews, ...dto } = delta.toDTO()
+      const { reviews, snapshot: _, published: __, gone: ___, targetLabel: ____, before: _____, after: ______, ...dto } = delta.toDTO()
+      const last = lastChanges.get(delta.id)
       return {
         ...dto,
+        ...(view === 'published' && delta.published ? delta.published : delta.content),
         status: delta.status,
         reviews: reviews.map(review => ({ ...review, nick: nicks.get(review.userId) ?? '' })),
-        blockers: await this.blockers(workspaceId, delta, siblings.filter(sibling => sibling.proposalId === delta.proposalId)),
+        blockers: await this.blockers(workspaceId, delta, siblings.filter(sibling => sibling.proposalId === delta.proposalId), view),
+        unpublished: delta.isUnpublished,
+        lastChange: last ? { revision: last.revision, change: last.change, previous: last.previous } : null,
       }
     }))
   }

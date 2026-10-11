@@ -23,6 +23,7 @@ import { QuickProposalService } from '../../../services/quick-proposal/quick-pro
 import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { RuleScope } from '../../../components/rule-scope'
+import { DefinitionHistory } from '../definition-history/definition-history'
 import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
 import { DefinitionRuleProposeService } from '../definition-rule-propose/definition-rule-propose.service'
@@ -103,6 +104,9 @@ function DefinitionRuleWrapped() {
         {current.criteria.length === 0
           ? <Text size="sm" tone="muted">No criteria yet.</Text>
           : <Stack gap={4}>{current.criteria.map((criterion, index) => <DefinitionRuleCriterion key={index} criterion={criterion} />)}</Stack>}
+      </Card>
+      <Card title="Proposals" titleLevel={2} description="The merged proposals that made it what it is.">
+        <DefinitionHistory targetId={rule.id} />
       </Card>
       <Card title="History" titleLevel={2} description="A rule is never edited: each version replaces the one before.">
         <Stack gap={6}>

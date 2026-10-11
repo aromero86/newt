@@ -8,7 +8,7 @@ import type { Baseline_Deps } from './baseline.deps'
 import { registerBaselineRoutes } from './baseline.routes'
 
 /**
- * The two definitions of a workspace. The one in force is what the definition
+ * The two definitions of a workspace, and how each artifact got there. The one in force is what the definition
  * modules hold: everything merged. The planned one adds what is accepted and has no
  * code yet: this module tells those changes apart.
  */
@@ -35,7 +35,22 @@ export class Baseline_Module extends Module {
     if (accepted.length === 0) return { items: [], hasMore: false, total: 0 }
 
     const proposals = new Map(accepted.map(proposal => [proposal.id, { id: proposal.id, key: proposal.key, title: proposal.title }]))
-    const deltas = await this.deps.delta.list(workspaceId, { proposalId: [...proposals.keys()], targetId: targetIds }, page)
+    const deltas = await this.deps.delta.list(workspaceId, { proposalId: [...proposals.keys()], targetId: targetIds }, 'published', page)
+    return { ...deltas, items: deltas.items.map(delta => ({ proposal: proposals.get(delta.proposalId)!, delta })) }
+  }
+
+  /**
+   * A page of the merged changes to an artifact, oldest first: the proposals that
+   * made it what it is, each with its document.
+   */
+  @UseCase('baseline.history')
+  async history(workspaceId: string, targetId: string, page: PageRequest): Promise<Page<BaselinePlannedDTO>> {
+    await this.deps.workspaceMember.assertActive(workspaceId)
+    const merged = await this.deps.proposal.find(workspaceId, { status: ['merged'] })
+    if (merged.length === 0) return { items: [], hasMore: false, total: 0 }
+
+    const proposals = new Map(merged.map(proposal => [proposal.id, { id: proposal.id, key: proposal.key, title: proposal.title }]))
+    const deltas = await this.deps.delta.list(workspaceId, { proposalId: [...proposals.keys()], targetId: [targetId] }, 'published', page)
     return { ...deltas, items: deltas.items.map(delta => ({ proposal: proposals.get(delta.proposalId)!, delta })) }
   }
 }

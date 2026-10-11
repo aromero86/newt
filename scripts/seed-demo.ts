@@ -208,16 +208,29 @@ type DemoDelta = (refs: Refs, created: string[]) => DeltaInputDTO
 
 type DemoProposal = {
   title: string
+  /** Its document, in Markdown. */
+  document: string
   /** Where the lifecycle leaves it. */
   status: 'draft' | 'in review' | 'accepted' | 'merged'
   deltas: DemoDelta[]
   /** The deltas rejected, by index, and why. Once in review, the rest are approved. */
   rejected?: Record<number, string>
+  /** Revisions published after the reviews: a new document, deltas written again by index, or both. */
+  iterations?: { message: string, document?: string, rewrite?: Record<number, DemoDelta> }[]
 }
 
 const PROPOSALS: DemoProposal[] = [
   {
     title: 'Sell in Portugal, with gift cards',
+    document: `## Context
+
+Portugal is our third market by visits, and we do not sell there yet.
+
+## Decisions
+
+- **Portugal** becomes a value of *Market*.
+- **Gift cards** come with it: they are what Portuguese customers ask for most.
+`,
     status: 'merged',
     deltas: [
       refs => {
@@ -244,6 +257,14 @@ const PROPOSALS: DemoProposal[] = [
   },
   {
     title: 'Free shipping from 40 €',
+    document: `## Problem
+
+Half the carts in Spain stop between 40 € and 50 €: the shipping cost is what is left.
+
+## Decision
+
+Free shipping from **40 €**, and the threshold shown in the cart.
+`,
     status: 'accepted',
     deltas: [
       refs => ({
@@ -273,6 +294,14 @@ const PROPOSALS: DemoProposal[] = [
   },
   {
     title: 'Pay in three installments',
+    document: `## Context
+
+Customers ask to split big orders. A financing provider pays us at once and charges them in three months.
+
+## Open questions
+
+- Which minimum does the provider accept?
+`,
     status: 'in review',
     deltas: [
       refs => ({
@@ -293,9 +322,42 @@ const PROPOSALS: DemoProposal[] = [
       }),
     ],
     rejected: { 1: 'The provider\'s minimum is 120 €: below that it refuses the financing.' },
+    iterations: [
+      {
+        message: 'Raise the minimum to 120 €, the provider\'s floor',
+        rewrite: {
+          1: (refs, created) => ({
+            kind: 'rule',
+            operation: 'create',
+            after: {
+              featureId: created[0]!,
+              kind: 'validation',
+              statement: 'Installments are offered for orders over 120 €',
+              why: 'It is the provider\'s minimum: below that it refuses the financing.',
+              scope: [refs.value('Role', 'Customer')],
+            },
+          }),
+        },
+      },
+      {
+        message: 'Answer the open question',
+        document: `## Context
+
+Customers ask to split big orders. A financing provider pays us at once and charges them in three months.
+
+## Decisions
+
+- The provider's minimum is **120 €**: installments start there.
+`,
+      },
+    ],
   },
   {
     title: 'Delete my account',
+    document: `## Problem
+
+Customers write to support to have their account deleted: it takes days and it is manual.
+`,
     status: 'draft',
     deltas: [
       refs => ({
@@ -397,6 +459,7 @@ async function seed(): Promise<boolean> {
 /** Takes a proposal through its lifecycle as far as its status says. */
 async function propose(workspaceId: string, proposal: DemoProposal, refs: Refs): Promise<void> {
   const { key } = await modules.proposal.create(workspaceId, { title: proposal.title })
+  await modules.proposal.writeDocument(workspaceId, key, { document: proposal.document })
   const created: string[] = []
   const deltaIds: string[] = []
   for (const write of proposal.deltas) {
@@ -407,10 +470,18 @@ async function propose(workspaceId: string, proposal: DemoProposal, refs: Refs):
   }
   if (proposal.status === 'draft') return
 
-  await modules.proposal.submit(workspaceId, key)
+  await modules.proposal.submit(workspaceId, key, { message: 'First revision' })
   for (const [index, deltaId] of deltaIds.entries()) {
     const reason = proposal.rejected?.[index]
     await modules.proposal.reviewDelta(workspaceId, key, deltaId, reason ? { verdict: 'rejected', reason } : { verdict: 'approved' })
+  }
+  // Each iteration is a revision: the deltas it does not touch keep their verdicts.
+  for (const iteration of proposal.iterations ?? []) {
+    if (iteration.document) await modules.proposal.writeDocument(workspaceId, key, { document: iteration.document })
+    for (const [index, write] of Object.entries(iteration.rewrite ?? {})) {
+      await modules.proposal.rewriteDelta(workspaceId, key, deltaIds[Number(index)]!, write(refs, created))
+    }
+    await modules.proposal.publish(workspaceId, key, { message: iteration.message })
   }
   if (proposal.status === 'in review') return
 
@@ -433,8 +504,12 @@ function wipe(workspaceId: string): void {
   const sqlite = base.db.sqlite
   sqlite.transaction(() => {
     for (const statement of [
+      'DELETE FROM discussion_comment WHERE workspace_id = ?1',
+      'DELETE FROM discussion WHERE workspace_id = ?1',
       'DELETE FROM delta__review WHERE delta_id IN (SELECT id FROM delta WHERE workspace_id = ?1)',
+      'DELETE FROM delta__snapshot WHERE delta_id IN (SELECT id FROM delta WHERE workspace_id = ?1)',
       'DELETE FROM delta WHERE workspace_id = ?1',
+      'DELETE FROM proposal__revision WHERE proposal_id IN (SELECT id FROM proposal WHERE workspace_id = ?1)',
       'DELETE FROM proposal WHERE workspace_id = ?1',
       'DELETE FROM rule__scope WHERE version_id IN (SELECT v.id FROM rule__version v JOIN rule r ON r.id = v.rule_id WHERE r.workspace_id = ?1)',
       'DELETE FROM rule__version WHERE rule_id IN (SELECT id FROM rule WHERE workspace_id = ?1)',

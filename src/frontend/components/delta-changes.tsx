@@ -13,8 +13,11 @@ import { RuleScope } from './rule-scope'
 
 type Row = { label: string, before: ReactNode, after: ReactNode }
 
+/** What `DeltaChanges` needs of a delta: its kind, its operation, and what it says. */
+type DeltaLike = Pick<DeltaDTO, 'kind' | 'operation' | 'before' | 'after'>
+
 type DeltaChangesProps = {
-  delta: DeltaDTO
+  delta: DeltaLike
   /** The workspace's dimensions, to name the values a scope points at. */
   dimensions: DimensionDTO[]
   /** The name of an area or a feature, by id. */
@@ -24,7 +27,25 @@ type DeltaChangesProps = {
 
 /** What a delta changes, field by field: before and after. For a change, only what differs. */
 export function DeltaChanges({ delta, dimensions, name, caption }: DeltaChangesProps) {
-  const rows = rowsOf(delta, dimensions, name)
+  return <ChangesTable rows={rowsOf(delta, dimensions, name)} caption={caption} />
+}
+
+type DeltaStateChangesProps = {
+  kind: DeltaDTO['kind']
+  /** Two states a delta left its target in: before and after an edit, or in two revisions. */
+  from: unknown
+  to: unknown
+  dimensions: DimensionDTO[]
+  name: (id: string) => string
+  caption: string
+}
+
+/** How what a delta says changed, field by field: only what differs. */
+export function DeltaStateChanges({ kind, from, to, dimensions, name, caption }: DeltaStateChangesProps) {
+  return <ChangesTable rows={stateRowsOf(kind, from, to, dimensions, name)} caption={caption} />
+}
+
+function ChangesTable({ rows, caption }: { rows: Row[], caption: string }) {
   if (rows.length === 0) return null
   return (
     <Table caption={caption}>
@@ -53,7 +74,7 @@ const text = (value: string | undefined) => (value ? <Text size="sm">{value}</Te
 const status = (retired: boolean) => <Badge tone={retired ? 'muted' : 'ok'}>{retired ? 'retired' : 'active'}</Badge>
 
 /** The fields a delta touches; for a change, only those that differ. */
-function rowsOf(delta: DeltaDTO, dimensions: DimensionDTO[], name: (id: string) => string): Row[] {
+function rowsOf(delta: DeltaLike, dimensions: DimensionDTO[], name: (id: string) => string): Row[] {
   const changed = (rows: Row[], pairs: [unknown, unknown][]) => rows.filter((_, index) => delta.operation !== 'change' || !sameValue(pairs[index]![0], pairs[index]![1]))
 
   switch (delta.kind) {
@@ -114,6 +135,48 @@ function rowsOf(delta: DeltaDTO, dimensions: DimensionDTO[], name: (id: string) 
       return [...(before?.name === after.name ? [] : [nameRow]), ...valueRows]
     }
   }
+}
+
+/** Two states of the same kind, field by field; a missing state shows as —. */
+function stateRowsOf(kind: DeltaDTO['kind'], from: unknown, to: unknown, dimensions: DimensionDTO[], name: (id: string) => string): Row[] {
+  type Field = { label: string, value: (state: Record<string, unknown>) => unknown, show: (value: unknown) => ReactNode }
+  const plain = (value: unknown) => text(typeof value === 'string' ? value : undefined)
+  const criteria = (value: unknown) => {
+    const list = value as { given: string, when: string, then: string }[] | undefined
+    return list?.length ? <Stack gap={1}>{list.map((each, index) => <Text key={index} size="sm">{`Given ${each.given}, when ${each.when}, then ${each.then}`}</Text>)}</Stack> : none
+  }
+  const fields: Record<DeltaDTO['kind'], Field[]> = {
+    'feature-area': [
+      { label: 'Name', value: state => state.name, show: plain },
+      { label: 'Description', value: state => state.description, show: plain },
+    ],
+    'feature': [
+      { label: 'Area', value: state => state.areaId, show: value => text(typeof value === 'string' ? name(value) : undefined) },
+      { label: 'Name', value: state => state.name, show: plain },
+      { label: 'Description', value: state => state.description, show: plain },
+    ],
+    'rule': [
+      { label: 'Feature', value: state => state.featureId, show: value => text(typeof value === 'string' ? name(value) : undefined) },
+      { label: 'Kind', value: state => state.kind, show: plain },
+      { label: 'Statement', value: state => state.statement, show: plain },
+      { label: 'Why', value: state => state.why, show: plain },
+      { label: 'Where it applies', value: state => state.scope, show: value => <RuleScope scope={(value as DeltaRuleChangeState['scope']) ?? []} dimensions={dimensions} /> },
+      { label: 'Criteria', value: state => state.criteria, show: criteria },
+    ],
+    'dimension': [
+      { label: 'Name', value: state => state.name, show: plain },
+      {
+        label: 'Values',
+        value: state => state.values,
+        show: value => <Inline gap={2} wrap>{((value as DeltaDimensionState['values']) ?? []).map((each, index) => <Inline key={index} gap={1}>{text(each.name)}{each.retired && status(true)}</Inline>)}</Inline>,
+      },
+    ],
+  }
+  const a = (from ?? {}) as Record<string, unknown>
+  const b = (to ?? {}) as Record<string, unknown>
+  return fields[kind]
+    .filter(field => !sameValue(field.value(a), field.value(b)))
+    .map(field => ({ label: field.label, before: from ? field.show(field.value(a)) : none, after: to ? field.show(field.value(b)) : none }))
 }
 
 function sameValue(a: unknown, b: unknown): boolean {

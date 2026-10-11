@@ -23,6 +23,7 @@ import { NotFound } from '../../../pages/not-found/not-found'
 import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionEditDialog } from '../definition-edit-dialog/definition-edit-dialog'
+import { DefinitionHistory } from '../definition-history/definition-history'
 import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionAreaService } from './definition-area.service'
 
@@ -162,6 +163,9 @@ function DefinitionAreaWrapped() {
             </form>
           )}
         </Stack>
+      </Card>
+      <Card title="Proposals" titleLevel={2} description="The merged proposals that made it what it is.">
+        <DefinitionHistory targetId={area.id} />
       </Card>
       <Stack gap={4} align="start">
         <Button variant="ghost" size="sm" onClick={() => void service.toggleRetired()}>

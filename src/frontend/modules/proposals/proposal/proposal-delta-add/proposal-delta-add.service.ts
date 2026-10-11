@@ -1,13 +1,14 @@
 import type { DimensionDTO } from '@newt/api/dimension'
 import { FeatureApi, type FeatureDTO } from '@newt/api/feature'
 import { FeatureAreaApi, type FeatureAreaDTO } from '@newt/api/feature-area'
-import type { DeltaInputDTO, DeltaKind, DeltaOperation } from '@newt/api/proposal'
+import type { DeltaDimensionState, DeltaDTO, DeltaFeatureAreaState, DeltaFeatureState, DeltaInputDTO, DeltaKind, DeltaOperation, DeltaRuleCreateState } from '@newt/api/proposal'
 import { RuleApi, type RuleDTO } from '@newt/api/rule'
 import { emptyRuleDraft, toRuleDraft, type RuleDraftValue } from '../../../../components/rule-draft-fields'
 import { inject } from '../../../../core/injector/inject'
 import { ListStore } from '../../../../core/list/list-store'
 import { Store } from '../../../../core/store/store'
 import { ProposalService } from '../proposal.service'
+import { ProposalWorkingService } from '../proposal-working/proposal-working.service'
 
 /** Every delta that can be written by hand, as `kind:operation`. */
 export const DELTA_CHOICES = {
@@ -30,6 +31,8 @@ export type DeltaChoice = keyof typeof DELTA_CHOICES
 
 type DraftState = {
   open: boolean
+  /** The delta being written again, which keeps its identity; none when writing a new one. */
+  editing: string | undefined
   choice: DeltaChoice | undefined
   /** The area picked: the target, or where the feature to pick lives. */
   areaId: string | undefined
@@ -51,6 +54,7 @@ type DraftState = {
 }
 
 const EMPTY: Omit<DraftState, 'open'> = {
+  editing: undefined,
   choice: undefined,
   areaId: undefined,
   featureId: undefined,
@@ -67,16 +71,18 @@ const EMPTY: Omit<DraftState, 'open'> = {
   submitting: false,
 }
 
-/** Writes one delta by hand: what it changes, on what, and the state it leaves it in. */
+/** Writes one delta by hand, or writes one again: what it changes, on what, and the state it leaves it in. */
 export class ProposalDeltaAddService {
 
   private readonly proposal = inject(ProposalService)
+  private readonly working = inject(ProposalWorkingService)
   private readonly areaApi = inject(FeatureAreaApi)
   private readonly featureApi = inject(FeatureApi)
   private readonly ruleApi = inject(RuleApi)
   private readonly store = new Store<DraftState>({ open: false, ...EMPTY })
 
   readonly open = this.store.select('open')
+  readonly editing = this.store.select('editing')
   readonly choice = this.store.select('choice')
   readonly areaId = this.store.select('areaId')
   readonly featureId = this.store.select('featureId')
@@ -103,6 +109,41 @@ export class ProposalDeltaAddService {
 
   start(): void {
     this.store.patch({ open: true, ...EMPTY })
+  }
+
+  /** Writes this delta again, from what it says now. Its kind, operation and target stay. */
+  async startEdit(delta: DeltaDTO): Promise<void> {
+    const choice = `${delta.kind}:${delta.operation}` as DeltaChoice
+    this.store.patch({ open: true, ...EMPTY, choice, editing: delta.id })
+    switch (choice) {
+      case 'feature-area:create':
+      case 'feature-area:change': {
+        const { name, description } = delta.after as DeltaFeatureAreaState
+        this.store.patch({ areaId: delta.targetId, name, description: description ?? '' })
+        return
+      }
+      case 'feature:create':
+      case 'feature:change': {
+        const { areaId, name, description } = delta.after as DeltaFeatureState
+        this.store.patch({ areaId, featureId: choice === 'feature:change' ? delta.targetId : undefined, moveToAreaId: areaId, name, description: description ?? '' })
+        await this.areas.loadFirstPage()
+        return
+      }
+      case 'rule:create':
+      case 'rule:change': {
+        const { kind, statement, why, scope = [], criteria = [], featureId } = delta.after as Partial<DeltaRuleCreateState> & Pick<DeltaRuleCreateState, 'kind' | 'statement' | 'why'>
+        const ruleDraft = { kind, statement, why, criteria, scope: Object.fromEntries(scope.map(entry => [entry.dimensionId, entry.valueIds])) }
+        this.store.patch({ ruleDraft, featureId, rule: choice === 'rule:change' ? (delta.before as RuleDTO) : null })
+        return
+      }
+      case 'dimension:create':
+      case 'dimension:change': {
+        const { name, values } = delta.after as DeltaDimensionState
+        if (choice === 'dimension:create') this.store.patch({ name, newValues: values.map(value => value.name).join('\n') })
+        else this.store.patch({ dimensionId: delta.targetId, name, values: values.map(value => ({ id: value.id, name: value.name, retired: value.retired })) })
+        return
+      }
+    }
   }
 
   close(): void {
@@ -171,7 +212,10 @@ export class ProposalDeltaAddService {
     if (!delta) return
     this.store.patch({ submitting: true, failure: null })
     try {
-      await this.proposal.addDelta(delta)
+      const { editing } = this.store.value
+      if (editing) await this.proposal.rewriteDelta(editing, delta)
+      else await this.proposal.addDelta(delta)
+      await this.working.reload()
       this.close()
     } catch (error) {
       this.store.patch({ failure: (error as Error).message })

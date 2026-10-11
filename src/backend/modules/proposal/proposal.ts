@@ -22,6 +22,22 @@ const ProposalEntitySchema = z.object({
   mergedAt: z.string().nullable(),
   discardedBy: z.uuidv7().nullable(),
   discardedAt: z.string().nullable(),
+  /** The working copy of its document. */
+  document: z.string(),
+  /** The last revision published; 0 while none is. */
+  revision: z.number().int().min(0),
+  /** The revision being published; written once, with the proposal. */
+  newRevision: z.object({
+    number: z.number().int().min(1),
+    message: z.string(),
+    document: z.string(),
+    publishedBy: z.uuidv7(),
+    publishedAt: z.string(),
+    added: z.number(),
+    changed: z.number(),
+    removed: z.number(),
+    documentChanged: z.boolean(),
+  }).nullable(),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
 })
@@ -58,6 +74,9 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
       mergedAt: null,
       discardedBy: null,
       discardedAt: null,
+      document: '',
+      revision: 0,
+      newRevision: null,
     }, true)
   }
 
@@ -73,6 +92,14 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
     return this.data.status
   }
 
+  get document(): string {
+    return this.data.document
+  }
+
+  get revision(): number {
+    return this.data.revision
+  }
+
   /** Deltas and title change while it is a draft or in review. */
   assertEditable(what: string): void {
     if (this.data.status !== 'draft' && this.data.status !== 'in review') throw new ProposalFrozen(this.data.status, what)
@@ -80,6 +107,40 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
 
   assertInReview(): void {
     if (this.data.status !== 'in review') throw new ProposalNotInReview()
+  }
+
+  /** A save of the working copy: no revision, and reviewers do not see it. */
+  writeDocument(document: string): void {
+    this.assertEditable('change its document')
+    this.change({ document })
+  }
+
+  /**
+   * Publishes the working copy as the next revision, like a commit. `published`
+   * says what it did to the deltas; `previous` is the last revision's document.
+   */
+  publish(input: { message: string, publishedBy: string, previous: string, published: { added: number, changed: number, removed: number } }): number {
+    this.assertEditable('publish a revision')
+    const number = this.data.revision + 1
+    this.change({
+      revision: number,
+      newRevision: {
+        number,
+        message: input.message,
+        document: this.data.document,
+        publishedBy: input.publishedBy,
+        publishedAt: new Date().toISOString(),
+        ...input.published,
+        documentChanged: this.data.document !== input.previous,
+      },
+    })
+    return number
+  }
+
+  /** The working copy of the document goes back to the last revision's. */
+  discardDocument(previous: string): void {
+    this.assertEditable('discard its changes')
+    this.change({ document: previous })
   }
 
   retitle(title: string): void {

@@ -20,6 +20,7 @@ import { NotFound } from '../../../pages/not-found/not-found'
 import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionEditDialog } from '../definition-edit-dialog/definition-edit-dialog'
+import { DefinitionHistory } from '../definition-history/definition-history'
 import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
 import { DefinitionRuleProposeService } from '../definition-rule-propose/definition-rule-propose.service'
@@ -97,6 +98,9 @@ function DefinitionFeatureWrapped() {
           : <Text tone="muted">No description yet.</Text>}
       </Card>
       <DefinitionRules featureId={feature.id} />
+      <Card title="Proposals" titleLevel={2} description="The merged proposals that made it what it is.">
+        <DefinitionHistory targetId={feature.id} />
+      </Card>
       <DefinitionEditDialog
         form={service.editForm}
         open={editing}

@@ -51,6 +51,44 @@ export const DeltaReviewSchema = z.object({
 /** `approved`: at least one approval and no rejection. One rejection is enough for `rejected`. */
 export const DeltaStatusSchema = z.enum(['pending', 'approved', 'rejected'])
 
+/** What a delta says: the picture of its target, and the state it leaves it in. */
+export const DeltaContentSchema = z.object({
+  targetLabel: z.string(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
+})
+
+/** What a revision did to a delta. */
+export const DeltaChangeSchema = z.enum(['added', 'changed', 'unchanged', 'removed'])
+
+/**
+ * Which copy of the deltas: `working`, as they are being written, or `published`,
+ * as the last revision left them: what reviewers see and approve.
+ */
+export const DeltaViewSchema = z.enum(['working', 'published'])
+
+/** A delta in one revision: what the revision did to it, what it said then and just before. */
+export const DeltaSnapshotSchema = z.object({
+  deltaId: z.uuidv7(),
+  kind: DeltaKindSchema,
+  operation: DeltaOperationSchema,
+  targetId: z.uuidv7(),
+  revision: z.number().int().min(1),
+  change: DeltaChangeSchema,
+  content: DeltaContentSchema.nullable(),
+  previous: DeltaContentSchema.nullable(),
+})
+
+/** A delta in two revisions: null where it was not part of one of them. */
+export const DeltaComparisonSchema = z.object({
+  deltaId: z.uuidv7(),
+  kind: DeltaKindSchema,
+  operation: DeltaOperationSchema,
+  targetId: z.uuidv7(),
+  from: DeltaContentSchema.nullable(),
+  to: DeltaContentSchema.nullable(),
+})
+
 export const DeltaSchema = z.object({
   id: z.uuidv7(),
   workspaceId: z.uuidv7(),
@@ -58,7 +96,7 @@ export const DeltaSchema = z.object({
   kind: DeltaKindSchema,
   operation: DeltaOperationSchema,
   targetId: z.uuidv7(),
-  /** How the target is called: its name, or its key for a rule (R-7, or "new rule"). */
+  /** How the target is called: its name, or its key for a rule (R-7, or "new rule"). In the view asked for, as below. */
   targetLabel: z.string(),
   /** The artifact as it was when the delta was written; null when it creates. */
   before: z.unknown().nullable(),
@@ -68,6 +106,12 @@ export const DeltaSchema = z.object({
   reviews: z.array(DeltaReviewSchema),
   /** What keeps it from going ahead, such as rules still using a value it retires. */
   blockers: z.array(z.string()),
+  /** The working copy differs from what was last published. */
+  unpublished: z.boolean(),
+  /** Removed in the working copy, until a revision publishes it. */
+  removed: z.boolean(),
+  /** The last revision that added or changed it, and what it said before: what changed since it was approved. */
+  lastChange: z.object({ revision: z.number(), change: DeltaChangeSchema, previous: DeltaContentSchema.nullable() }).nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -85,6 +129,11 @@ export type DeltaInputDTO = z.input<typeof DeltaInputSchema>
 export type DeltaReviewDTO = z.infer<typeof DeltaReviewSchema>
 export type DeltaReviewInputDTO = z.input<typeof DeltaReviewInputSchema>
 export type DeltaDTO = z.infer<typeof DeltaSchema>
+export type DeltaContentDTO = z.infer<typeof DeltaContentSchema>
+export type DeltaChange = z.infer<typeof DeltaChangeSchema>
+export type DeltaView = z.infer<typeof DeltaViewSchema>
+export type DeltaSnapshotDTO = z.infer<typeof DeltaSnapshotSchema>
+export type DeltaComparisonDTO = z.infer<typeof DeltaComparisonSchema>
 export type DeltaDimensionState = z.infer<typeof DeltaDimensionStateSchema>
 export type DeltaFeatureAreaState = z.infer<typeof DeltaFeatureAreaStateSchema>
 export type DeltaFeatureState = z.infer<typeof DeltaFeatureStateSchema>
@@ -94,5 +143,8 @@ export type DeltaRuleChangeState = z.infer<typeof DeltaRuleChangeStateSchema>
 /** What each kind of artifact looks like before a delta: as its module returns it. */
 export type DeltaBefore = DimensionDTO | FeatureAreaDTO | FeatureDTO | RuleDTO
 
-/** How many of a proposal's deltas are in each state. */
+/** How many of a proposal's published deltas are in each state. */
 export type DeltaCounts = { total: number, approved: number, rejected: number, pending: number }
+
+/** What publishing a revision did to the deltas. */
+export type DeltaPublished = { added: number, changed: number, removed: number }
