@@ -16,7 +16,7 @@ import {
   type FeatureUpdateDTO,
 } from './feature'
 import type { Feature_Deps } from './feature.deps'
-import { Feature_Repository } from './feature.repository'
+import { Feature_Repository, type Feature_Criteria } from './feature.repository'
 import { registerFeatureRoutes } from './feature.routes'
 
 const END = Number.MAX_SAFE_INTEGER
@@ -150,10 +150,10 @@ export class Feature_Module extends Module {
     return feature.toDTO()
   }
 
-  /** For other modules that already checked who may see them. */
+  /** For other modules that already checked who may see them: the workspace's features that match. */
   @UseCase('feature.find')
-  async find(workspaceId: string, ids: string[]): Promise<FeatureDTO[]> {
-    return ids.length ? (await this.repo.find({ workspaceId, id: ids })).map(feature => feature.toDTO()) : []
+  async find(workspaceId: string, criteria: Omit<Feature_Criteria, 'workspaceId'>): Promise<FeatureDTO[]> {
+    return (await this.repo.find({ ...criteria, workspaceId })).map(feature => feature.toDTO())
   }
 
   /** An area's active features between two positions, both included, move `by` places. */

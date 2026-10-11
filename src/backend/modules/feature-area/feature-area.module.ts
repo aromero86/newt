@@ -16,7 +16,7 @@ import {
   type FeatureAreaUpdateDTO,
 } from './feature-area'
 import type { FeatureArea_Deps } from './feature-area.deps'
-import { FeatureArea_Repository } from './feature-area.repository'
+import { FeatureArea_Repository, type FeatureArea_Criteria } from './feature-area.repository'
 import { registerFeatureAreaRoutes } from './feature-area.routes'
 
 const END = Number.MAX_SAFE_INTEGER
@@ -45,6 +45,12 @@ export class FeatureArea_Module extends Module {
     await this.deps.workspaceMember.assertActive(workspaceId)
     const areas = await this.repo.page(workspaceId, retired, page)
     return { ...areas, items: areas.items.map(area => area.toDTO()) }
+  }
+
+  /** For other modules: the workspace's areas that match, retired ones too unless asked otherwise. */
+  @UseCase('featureArea.find')
+  async find(workspaceId: string, criteria: Omit<FeatureArea_Criteria, 'workspaceId'>): Promise<FeatureAreaDTO[]> {
+    return (await this.repo.find({ ...criteria, workspaceId })).map(area => area.toDTO())
   }
 
   @UseCase('featureArea.get')

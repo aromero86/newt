@@ -40,6 +40,27 @@ export class Baseline_Module extends Module {
   }
 
   /**
+   * For other modules: which artifacts the proposals merged after `after` and up to
+   * `until` (ISO dates; open ends when absent) changed, and which proposal each.
+   */
+  @UseCase('baseline.mergedChanges')
+  async mergedChanges(workspaceId: string, after: string | null, until: string | null): Promise<{ targetId: string, proposal: { key: string, title: string } }[]> {
+    const merged = (await this.deps.proposal.find(workspaceId, { status: ['merged'] }))
+      .filter(proposal => (!after || proposal.mergedAt! > after) && (!until || proposal.mergedAt! <= until))
+    if (merged.length === 0) return []
+
+    const proposals = new Map(merged.map(proposal => [proposal.id, { key: proposal.key, title: proposal.title }]))
+    const changes: { targetId: string, proposal: { key: string, title: string } }[] = []
+    for (let cursor: string | undefined, more = true; more;) {
+      const page = await this.deps.delta.list(workspaceId, { proposalId: [...proposals.keys()] }, 'published', { size: 100, cursor })
+      changes.push(...page.items.map(delta => ({ targetId: delta.targetId, proposal: proposals.get(delta.proposalId)! })))
+      cursor = page.items.at(-1)?.id
+      more = page.hasMore
+    }
+    return changes
+  }
+
+  /**
    * A page of the merged changes to an artifact, oldest first: the proposals that
    * made it what it is, each with its document.
    */

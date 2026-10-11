@@ -434,6 +434,9 @@ async function seed(): Promise<boolean> {
     }
   }
 
+  // The definition as it starts is the first release; the merged proposal makes the second.
+  await modules.release.publish(workspace.id, { name: 'v2.3.0', description: 'The shop as it is: checkout, Bizum, shipping, accounts and the backoffice.' })
+
   // Each proposal sees the definition as the ones before it left it.
   for (const proposal of PROPOSALS) {
     const dimensions = await modules.dimension.list(workspace.id)
@@ -452,7 +455,23 @@ async function seed(): Promise<boolean> {
       },
     }
     await propose(workspace.id, proposal, refs)
+    if (proposal.status === 'merged') await modules.release.publish(workspace.id, { name: 'v2.4.0', description: 'Portugal and gift cards.' })
   }
+
+  // A small change merged after the last release: what the next one would publish.
+  const r8 = (await modules.rule.find(workspace.id, {})).find(rule => rule.key === 'R-8')!
+  const quick = await modules.proposal.quick(workspace.id, {
+    delta: {
+      kind: 'rule',
+      operation: 'change',
+      targetId: r8.id,
+      after: { ...r8.current, statement: 'A Bizum payment is confirmed or rejected within 20 seconds', why: 'Since the bank moved to instant payments, 30 seconds is too long to wait.' },
+    },
+  })
+  const [delta] = (await modules.proposal.deltas(workspace.id, quick.key, 'published', { size: 1 })).items
+  await modules.proposal.reviewDelta(workspace.id, quick.key, delta!.id, { verdict: 'approved' })
+  await modules.proposal.accept(workspace.id, quick.key)
+  await modules.proposal.merge(workspace.id, quick.key)
   return existing !== undefined
 }
 
@@ -504,6 +523,8 @@ function wipe(workspaceId: string): void {
   const sqlite = base.db.sqlite
   sqlite.transaction(() => {
     for (const statement of [
+      'DELETE FROM release__artifact WHERE release_id IN (SELECT id FROM release WHERE workspace_id = ?1)',
+      'DELETE FROM release WHERE workspace_id = ?1',
       'DELETE FROM discussion_comment WHERE workspace_id = ?1',
       'DELETE FROM discussion WHERE workspace_id = ?1',
       'DELETE FROM delta__review WHERE delta_id IN (SELECT id FROM delta WHERE workspace_id = ?1)',

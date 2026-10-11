@@ -18,7 +18,9 @@ areas and features, and its rules with their history, filtered by where they
 apply. Every change to the definition is a proposal with a Markdown document,
 approved delta by delta and iterated in published revisions, like commits: what
 did not change keeps its approval. Proposals have conversations, and accepted
-ones make up the planned definition until they are marked as merged.
+ones make up the planned definition until they are marked as merged. Releases
+picture the definition in force, show what changed since the last one, and export
+the specification and the changelog as Markdown.
 
 ## Getting started
 

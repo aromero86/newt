@@ -113,7 +113,7 @@ export class Rule_Module extends Module {
   }
 
   private async contracts(workspaceId: string, rules: Rule[]): Promise<RuleDTO[]> {
-    const features = await this.deps.feature.find(workspaceId, [...new Set(rules.map(rule => rule.featureId))])
+    const features = await this.deps.feature.find(workspaceId, { id: [...new Set(rules.map(rule => rule.featureId))] })
     const names = new Map(features.map(feature => [feature.id, feature.name]))
     return rules.map(rule => rule.toContract(names.get(rule.featureId) ?? ''))
   }
