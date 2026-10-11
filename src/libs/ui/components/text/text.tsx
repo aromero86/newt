@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 
-type Size = 'sm' | 'md' | 'lg'
+type Size = 'xs' | 'sm' | 'md' | 'lg'
 
 const sizeClass: Record<Size, string> = {
+  xs: 'text-xs',
   sm: 'text-sm',
   md: 'text-base',
   lg: 'text-lg',

@@ -1,36 +1,36 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router'
+import { CheckCircle2Icon } from 'lucide-react'
 import type { ReleaseArtifactDTO, ReleaseChangeDTO } from '@newt/api/release'
 import { Alert } from '@newt/ui/components/alert'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxEmpty, BoxFooter, BoxHeader, BoxRow } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
+import { Counter } from '@newt/ui/components/counter'
 import { Inline } from '@newt/ui/components/inline'
 import { TextLink } from '@newt/ui/components/link'
-import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { ArtifactTag } from '@newt/ui/domain/artifact-tag'
 import { DeltaStateChanges } from '../../../components/delta-changes'
+import { KIND_LABEL } from '../../../components/delta-title'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { ReleaseChangesService } from './release-changes.service'
-
-const KIND = { 'dimension': 'dimension', 'feature-area': 'area', 'feature': 'feature', 'rule': 'rule' } as const
 const TONE = { added: 'ok', changed: 'warn', retired: 'bad', restored: 'info' } as const
 
 /** With its own ReleaseChangesService: whoever renders it needs nothing else. */
-export function ReleaseChanges({ release }: { release: string | null }) {
+export function ReleaseChanges({ release, title }: { release: string | null, title: string }) {
   return (
     <Provide services={[ReleaseChangesService]}>
-      <ReleaseChangesWrapped release={release} />
+      <ReleaseChangesWrapped release={release} title={title} />
     </Provide>
   )
 }
 
-/** Each artifact that changed, how, and the proposals behind it. */
-function ReleaseChangesWrapped({ release }: { release: string | null }) {
+/** Each artifact that changed, how, and the proposals behind it: one row each, in a box. */
+function ReleaseChangesWrapped({ release, title }: { release: string | null, title: string }) {
   const workspaceId = useParams().workspaceId!
   const service = useService(ReleaseChangesService)
   const changes = useValue(service.changes.items)
@@ -44,39 +44,39 @@ function ReleaseChangesWrapped({ release }: { release: string | null }) {
     void service.load(workspaceId, release)
   }, [service, workspaceId, release])
 
-  if (failure) return <Alert tone="bad" title="Could not load the changes">{failure}</Alert>
-  if (!loaded) return <Spinner label="Loading the changes" />
-  if (changes.length === 0) return <Text size="sm" tone="muted">{release ? 'Nothing changed.' : 'Nothing changed since the last release.'}</Text>
-
   return (
-    <Stack gap={4}>
-      <Text size="sm" tone="muted">{`${total} ${total === 1 ? 'artifact' : 'artifacts'} changed`}</Text>
-      {changes.map(change => <ReleaseChangeCard key={change.id} change={change} />)}
-      {hasMore && <Inline><Button size="sm" variant="outline" loading={loadingMore} onClick={() => void service.changes.loadMore()}>Load more changes</Button></Inline>}
-    </Stack>
+    <Box label={title}>
+      <BoxHeader>{title}{loaded && <Counter>{total}</Counter>}</BoxHeader>
+      {failure && <BoxBody><Alert tone="bad" title="Could not load the changes">{failure}</Alert></BoxBody>}
+      {!loaded && !failure && <BoxEmpty title="Loading the changes" />}
+      {loaded && changes.length === 0 && <BoxEmpty icon={CheckCircle2Icon} title={release ? 'Nothing changed' : 'Nothing changed since the last release'} />}
+      {changes.map(change => <ReleaseChangeRow key={change.id} change={change} />)}
+      {hasMore && <BoxFooter><Button size="sm" variant="ghost" loading={loadingMore} onClick={() => void service.changes.loadMore()}>Load more changes</Button></BoxFooter>}
+    </Box>
   )
 }
 
-/** One change: before and after, field by field, and its proposals. */
-function ReleaseChangeCard({ change }: { change: ReleaseChangeDTO }) {
+/** One change: what it is, before and after field by field, and its proposals. */
+function ReleaseChangeRow({ change }: { change: ReleaseChangeDTO }) {
   const workspaceId = useParams().workspaceId!
   const service = useService(ReleaseChangesService)
   const dimensions = useValue(service.dimensions)
   const names = namesOf(change)
-  const caption = `${change.change} ${KIND[change.kind]} ${change.label}`
+  const caption = `${change.change} ${KIND_LABEL[change.kind]} ${change.label}`
 
   return (
-    <Card
-      title={(
-        <Inline gap={2} wrap>
-          <Text weight="semibold">{KIND[change.kind]}</Text>
-          {change.kind === 'rule' ? <ArtifactTag kind="rule" id={change.label} /> : <Text tone="muted">{change.label}</Text>}
-        </Inline>
+    <BoxRow
+      trailing={(
+        <>
+          {change.proposals.map(proposal => <TextLink key={proposal.key} href={`/w/${workspaceId}/proposals/${proposal.key}`}>{proposal.key}</TextLink>)}
+          <Badge tone={TONE[change.change]}>{change.change}</Badge>
+        </>
       )}
-      titleLevel={3}
-      action={<Badge tone={TONE[change.change]}>{change.change}</Badge>}
     >
       <Stack gap={3}>
+        <Inline gap={2}>
+          {change.kind === 'rule' ? <ArtifactTag kind="rule" id={change.label} /> : <><Badge tone="outline">{KIND_LABEL[change.kind]}</Badge><Text size="sm" weight="semibold" as="span">{change.label}</Text></>}
+        </Inline>
         {(change.change === 'added' || change.change === 'changed') && (
           <DeltaStateChanges
             kind={change.kind}
@@ -89,19 +89,8 @@ function ReleaseChangeCard({ change }: { change: ReleaseChangeDTO }) {
         )}
         {change.change === 'retired' && <Text size="sm" tone="muted">It is no longer in the product.</Text>}
         {change.change === 'restored' && <Text size="sm" tone="muted">It is back in the product.</Text>}
-        {change.proposals.length > 0 && (
-          <Inline gap={2} wrap>
-            <Text size="sm" tone="muted">By</Text>
-            {change.proposals.map(proposal => (
-              <Inline key={proposal.key} gap={1}>
-                <TextLink href={`/w/${workspaceId}/proposals/${proposal.key}`}>{proposal.key}</TextLink>
-                <Text size="sm" tone="muted">{proposal.title}</Text>
-              </Inline>
-            ))}
-          </Inline>
-        )}
       </Stack>
-    </Card>
+    </BoxRow>
   )
 }
 

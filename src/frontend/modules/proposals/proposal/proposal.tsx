@@ -1,19 +1,24 @@
 import { useEffect, type FormEvent } from 'react'
 import { useParams } from 'react-router'
+import { CheckCircle2Icon, CircleDashedIcon, GitMergeIcon, GitPullRequestIcon, XCircleIcon, ZapIcon } from 'lucide-react'
 import type { ProposalAction, ProposalDTO } from '@newt/api/proposal'
-import { Alert } from '@newt/ui/components/alert'
+import { Avatar } from '@newt/ui/components/avatar'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxHeader } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
 import { Dialog } from '@newt/ui/components/dialog'
+import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
-import { TextLink } from '@newt/ui/components/link'
 import { Markdown } from '@newt/ui/components/markdown'
-import { PageHeader } from '@newt/ui/components/page-header'
+import { PageTitle } from '@newt/ui/components/page-title'
+import { RelativeTime } from '@newt/ui/components/relative-time'
+import { SidebarLayout, SidebarSection } from '@newt/ui/components/sidebar-layout'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
+import { StatusBox } from '@newt/ui/components/status-box'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@newt/ui/components/tabs'
 import { Text } from '@newt/ui/components/text'
+import { Strong } from '@newt/ui/components/text'
 import { ProposalBadge } from '@newt/ui/domain/proposal-badge'
 import { FormField } from '../../../components/form-field'
 import { Provide } from '../../../core/injector/provide'
@@ -24,29 +29,22 @@ import { ArtifactNamesService } from '../../../services/artifact-names/artifact-
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { ProposalDelta } from './proposal-delta/proposal-delta'
 import { ProposalDiscussions } from './proposal-discussions/proposal-discussions'
-import { ProposalRevisions } from './proposal-revisions/proposal-revisions'
+import { ProposalRevisions, ProposalRevisionsTimeline } from './proposal-revisions/proposal-revisions'
+import { ProposalRevisionsService } from './proposal-revisions/proposal-revisions.service'
+import { ProposalMergeBox } from './proposal-merge-box/proposal-merge-box'
 import { ProposalWorking } from './proposal-working/proposal-working'
 import { ProposalService } from './proposal.service'
 
 /** With its own services: whoever renders it needs nothing else. */
 export function Proposal() {
   return (
-    <Provide services={[ArtifactNamesService, ProposalService]}>
+    <Provide services={[ArtifactNamesService, ProposalService, ProposalRevisionsService]}>
       <ProposalWrapped />
     </Provide>
   )
 }
 
-/** The lifecycle actions each state offers, the main one first. `submit` sends to review. */
-const ACTIONS: Record<ProposalDTO['status'], { action: ProposalAction | 'submit', label: string }[]> = {
-  'draft': [{ action: 'submit', label: 'Send to review' }, { action: 'discard', label: 'Discard' }],
-  'in review': [{ action: 'accept', label: 'Accept' }, { action: 'draft', label: 'Back to draft' }, { action: 'discard', label: 'Discard' }],
-  'accepted': [{ action: 'merge', label: 'Mark as merged' }, { action: 'reopen', label: 'Back to review' }, { action: 'discard', label: 'Discard' }],
-  'merged': [],
-  'discarded': [],
-}
-
-/** One proposal: what reviewers see, its working copy and its revisions. */
+/** One proposal, like a pull request: its conversation, its deltas, its working copy and its revisions. */
 function ProposalWrapped() {
   const { workspaceId, key } = useParams() as { workspaceId: string, key: string }
   const service = useService(ProposalService)
@@ -61,58 +59,32 @@ function ProposalWrapped() {
   if (proposal === null) return <NotFound />
 
   const readOnly = Boolean(workspace?.archivedAt)
-  const { deltas: counts } = proposal
-  const ready = counts.total > 0 && counts.approved === counts.total && !proposal.unpublished
 
   return (
-    <Stack gap={8}>
-      <Stack gap={2}>
-        <TextLink href={`/w/${workspaceId}/proposals`}>All proposals</TextLink>
-        <PageHeader
-          title={proposal.title}
-          description={`${proposal.key} · opened by @${proposal.createdBy.nick}${proposal.quick ? ' · quick proposal' : ''}${proposal.revision ? ` · revision ${proposal.revision}` : ' · not published yet'}`}
-          actions={(
-            <Inline gap={2}>
-              {proposal.unpublished && proposal.revision > 0 && <Badge tone="warn">unpublished changes</Badge>}
-              <ProposalBadge state={proposal.status} />
-            </Inline>
-          )}
-        />
+    <Stack gap={6}>
+      <Stack gap={3}>
+        <PageTitle reference={proposal.key}>{proposal.title}</PageTitle>
+        <Inline gap={2} wrap>
+          <ProposalBadge state={proposal.status} />
+          <Text size="sm" tone="muted" as="span">
+            <Strong>{`@${proposal.createdBy.nick}`}</Strong>
+            {' opened this '}
+            <RelativeTime date={proposal.createdAt} />
+            {proposal.revision ? ` · revision ${proposal.revision}` : ' · not published yet'}
+          </Text>
+          {proposal.quick && <Badge tone="outline"><Icon icon={ZapIcon} size="sm" />quick proposal</Badge>}
+          {proposal.unpublished && proposal.revision > 0 && <Badge tone="warn">unpublished changes</Badge>}
+        </Inline>
       </Stack>
-      <ProposalHistory proposal={proposal} />
-      {!readOnly && ACTIONS[proposal.status].length > 0 && (
-        <Stack gap={2}>
-          <Inline gap={2} wrap>
-            {ACTIONS[proposal.status].map(({ action, label }, index) => (
-              <Button
-                key={action}
-                variant={index === 0 ? 'primary' : action === 'discard' ? 'ghost' : 'outline'}
-                disabled={action === 'accept' && !ready}
-                onClick={() => void (action === 'submit' ? service.submit() : service.act(action))}
-              >
-                {label}
-              </Button>
-            ))}
-          </Inline>
-          {proposal.status === 'in review' && !ready && (
-            <Text size="sm" tone="muted">
-              {proposal.unpublished
-                ? 'The working copy has unpublished changes: publish them or discard them before accepting.'
-                : `It can be accepted once every delta is approved: ${counts.approved} of ${counts.total} so far.`}
-            </Text>
-          )}
-          {proposal.status === 'accepted' && (
-            <Text size="sm" tone="muted">It is the brief for development. Mark it as merged once its code is in: its deltas then enter the definition.</Text>
-          )}
-        </Stack>
-      )}
-      <Tabs defaultValue={proposal.revision > 0 ? 'review' : 'working'}>
+      <Tabs defaultValue={proposal.revision > 0 ? 'conversation' : 'working'} variant="underline">
         <TabsList label="Proposal">
-          <TabsTrigger value="review">{proposal.revision > 0 ? `Review · revision ${proposal.revision}` : 'Review'}</TabsTrigger>
+          <TabsTrigger value="conversation">Conversation</TabsTrigger>
+          <TabsTrigger value="deltas" count={proposal.deltas.total}>Deltas</TabsTrigger>
           <TabsTrigger value="working">{proposal.unpublished ? 'Working copy •' : 'Working copy'}</TabsTrigger>
-          <TabsTrigger value="revisions">{`Revisions (${proposal.revision})`}</TabsTrigger>
+          <TabsTrigger value="revisions" count={proposal.revision}>Revisions</TabsTrigger>
         </TabsList>
-        <TabsContent value="review"><ProposalReview proposal={proposal} readOnly={readOnly} /></TabsContent>
+        <TabsContent value="conversation"><ProposalConversation proposal={proposal} readOnly={readOnly} /></TabsContent>
+        <TabsContent value="deltas"><ProposalDeltas proposal={proposal} readOnly={readOnly} /></TabsContent>
         <TabsContent value="working"><ProposalWorking proposal={proposal} /></TabsContent>
         <TabsContent value="revisions"><ProposalRevisions proposal={proposal} /></TabsContent>
       </Tabs>
@@ -122,50 +94,95 @@ function ProposalWrapped() {
   )
 }
 
-/** What reviewers see: the document and the deltas as the last revision published them. */
-function ProposalReview({ proposal, readOnly }: { proposal: ProposalDTO, readOnly: boolean }) {
+/** The document, what happened since, the conversations and what to do next; with the proposal's facts beside. */
+function ProposalConversation({ proposal, readOnly }: { proposal: ProposalDTO, readOnly: boolean }) {
   const service = useService(ProposalService)
   const document = useValue(service.publishedDocument)
+
+  return (
+    <SidebarLayout side="end" aside={<ProposalSidebar proposal={proposal} />}>
+      <Stack gap={6}>
+        <Box label="Document">
+          <BoxHeader>
+            <Inline gap={2}>
+              <Avatar name={proposal.createdBy.nick} size={5} />
+              <Text size="sm" weight="semibold" as="span">{`@${proposal.createdBy.nick}`}</Text>
+              <Text size="sm" tone="muted" as="span">wrote the document</Text>
+            </Inline>
+          </BoxHeader>
+          <BoxBody>
+            {proposal.revision === 0
+              ? <Text size="sm" tone="muted">Nothing published yet: write the document and the deltas in the working copy, then send it to review.</Text>
+              : document ? <Markdown>{document}</Markdown> : <Text size="sm" tone="muted">No document.</Text>}
+          </BoxBody>
+        </Box>
+        <ProposalRevisionsTimeline proposal={proposal} />
+        <ProposalDiscussions readOnly={readOnly} />
+        {!readOnly && <ProposalMergeBox proposal={proposal} />}
+      </Stack>
+    </SidebarLayout>
+  )
+}
+
+/** Every delta as the last revision published it, like the files a pull request changes. */
+function ProposalDeltas({ proposal, readOnly }: { proposal: ProposalDTO, readOnly: boolean }) {
+  const service = useService(ProposalService)
   const deltas = useValue(service.deltas.items)
   const hasMore = useValue(service.deltas.hasMore)
   const loadingMore = useValue(service.deltas.loadingMore)
-  const general = useValue(service.discussionCounts)['']
   const { deltas: counts } = proposal
 
-  if (proposal.revision === 0) {
-    return <Alert tone="info" title="Nothing published yet">Write the document and the deltas in the working copy; sending it to review publishes the first revision.</Alert>
-  }
+  if (proposal.revision === 0) return <Text size="sm" tone="muted">Nothing published yet: its deltas are in the working copy.</Text>
 
   return (
-    <Stack gap={6}>
-      <Card title="Document" titleLevel={2}>
-        {document ? <Markdown>{document}</Markdown> : <Text size="sm" tone="muted">No document.</Text>}
-      </Card>
-      <Stack gap={4}>
-        <Text weight="semibold">{`Deltas (${counts.total}) · ${counts.approved} approved · ${counts.rejected} rejected · ${counts.pending} pending`}</Text>
-        {deltas.map(delta => <ProposalDelta key={delta.id} delta={delta} proposal={proposal} readOnly={readOnly} />)}
-        {hasMore && <Inline><Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></Inline>}
-      </Stack>
-      <Card title={`Conversation (${general?.discussions ?? 0})`} titleLevel={2} description="About the proposal as a whole.">
-        <ProposalDiscussions readOnly={readOnly} />
-      </Card>
+    <Stack gap={4}>
+      <Inline gap={4} wrap>
+        <Text size="sm" tone="muted" as="span">{`${counts.total} ${counts.total === 1 ? 'delta' : 'deltas'} in revision ${proposal.revision}`}</Text>
+        <Inline gap={1}><Icon icon={CheckCircle2Icon} size="sm" tone="ok" /><Text size="sm" as="span">{`${counts.approved} approved`}</Text></Inline>
+        <Inline gap={1}><Icon icon={XCircleIcon} size="sm" tone="bad" /><Text size="sm" as="span">{`${counts.rejected} rejected`}</Text></Inline>
+        <Inline gap={1}><Icon icon={CircleDashedIcon} size="sm" tone="warn" /><Text size="sm" as="span">{`${counts.pending} pending`}</Text></Inline>
+      </Inline>
+      {deltas.map(delta => <ProposalDelta key={delta.id} delta={delta} proposal={proposal} readOnly={readOnly} />)}
+      {hasMore && <Inline><Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></Inline>}
     </Stack>
   )
 }
 
-/** Who accepted, merged or discarded it, and when. */
-function ProposalHistory({ proposal }: { proposal: ProposalDTO }) {
-  const when = (at: string | null) => (at ? new Date(at).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' }) : '')
-  const lines = [
-    proposal.acceptedBy && `Accepted by @${proposal.acceptedBy.nick} on ${when(proposal.acceptedAt)}`,
-    proposal.mergedBy && `Merged by @${proposal.mergedBy.nick} on ${when(proposal.mergedAt)}`,
-    proposal.discardedBy && `Discarded by @${proposal.discardedBy.nick} on ${when(proposal.discardedAt)}`,
-  ].filter(Boolean) as string[]
-  if (lines.length === 0) return null
+/** The facts beside the conversation: where it stands, its deltas, its revisions, its people. */
+function ProposalSidebar({ proposal }: { proposal: ProposalDTO }) {
+  const { deltas: counts } = proposal
+  const people = [
+    { role: 'Opened by', person: proposal.createdBy, at: proposal.createdAt },
+    proposal.acceptedBy && { role: 'Accepted by', person: proposal.acceptedBy, at: proposal.acceptedAt! },
+    proposal.mergedBy && { role: 'Merged by', person: proposal.mergedBy, at: proposal.mergedAt! },
+    proposal.discardedBy && { role: 'Discarded by', person: proposal.discardedBy, at: proposal.discardedAt! },
+  ].filter(Boolean) as { role: string, person: { nick: string }, at: string }[]
+
   return (
-    <Alert tone={proposal.status === 'discarded' ? 'warn' : 'ok'} title={lines[lines.length - 1]!}>
-      {lines.length > 1 ? lines.slice(0, -1).join(' · ') : undefined}
-    </Alert>
+    <div>
+      <SidebarSection title="State"><ProposalBadge state={proposal.status} /></SidebarSection>
+      <SidebarSection title="Deltas">
+        <Stack gap={1}>
+          <Inline gap={2}><Icon icon={CheckCircle2Icon} size="sm" tone="ok" /><Text size="sm" as="span">{`${counts.approved} of ${counts.total} approved`}</Text></Inline>
+          {counts.rejected > 0 && <Inline gap={2}><Icon icon={XCircleIcon} size="sm" tone="bad" /><Text size="sm" as="span">{`${counts.rejected} rejected`}</Text></Inline>}
+          {counts.pending > 0 && <Inline gap={2}><Icon icon={CircleDashedIcon} size="sm" tone="warn" /><Text size="sm" as="span">{`${counts.pending} pending`}</Text></Inline>}
+        </Stack>
+      </SidebarSection>
+      <SidebarSection title="Revisions">
+        <Text size="sm" tone={proposal.revision ? 'default' : 'muted'}>{proposal.revision ? `${proposal.revision} published${proposal.unpublished ? ', and unpublished changes' : ''}` : 'None published yet'}</Text>
+      </SidebarSection>
+      <SidebarSection title="People">
+        <Stack gap={2}>
+          {people.map(({ role, person, at }) => (
+            <Inline key={role} gap={2}>
+              <Avatar name={person.nick} size={5} />
+              <Text size="sm" as="span">{`@${person.nick}`}</Text>
+              <Text size="sm" tone="muted" as="span">{role.split(' ')[0]!.toLowerCase()} <RelativeTime date={at} /></Text>
+            </Inline>
+          ))}
+        </Stack>
+      </SidebarSection>
+    </div>
   )
 }
 
@@ -181,11 +198,11 @@ function ProposalReject() {
   }
 
   return (
-    <Dialog open={rejecting !== null} onOpenChange={open => !open && service.closeReject()} title={`Reject ${rejecting?.targetLabel ?? ''}`} size="md">
+    <Dialog open={rejecting !== null} onOpenChange={open => !open && service.closeReject()} title={`Reject ${rejecting?.targetLabel ?? ''}`} description="Say why: whoever wrote it will read it." size="md">
       <form onSubmit={onSubmit} noValidate>
-        <Stack gap={4} align="start">
+        <Stack gap={4}>
           <FormField form={service.rejectForm} name="reason" label="Why" rows={3} />
-          <Button type="submit" variant="destructive" loading={submitting}>Reject</Button>
+          <Inline justify="end"><Button type="submit" variant="destructive" loading={submitting}>Reject</Button></Inline>
         </Stack>
       </form>
     </Dialog>
@@ -206,9 +223,9 @@ function ProposalSubmit() {
   return (
     <Dialog open={open} onOpenChange={next => !next && service.closeSubmit()} title="Publish and send to review" description="The working copy becomes a revision that reviewers see." size="md">
       <form onSubmit={onSubmit} noValidate>
-        <Stack gap={4} align="start">
+        <Stack gap={4}>
           <FormField form={service.submitForm} name="message" label="Message" description="Like a commit: what this revision is." />
-          <Button type="submit" loading={sending}>Publish and send</Button>
+          <Inline justify="end"><Button type="submit" loading={sending}>Publish and send</Button></Inline>
         </Stack>
       </form>
     </Dialog>

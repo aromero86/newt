@@ -1,20 +1,24 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router'
-import { MoreHorizontalIcon } from 'lucide-react'
+import { GitCommitHorizontalIcon, MoreHorizontalIcon } from 'lucide-react'
 import type { RuleCriterionDTO } from '@newt/api/rule'
 import { Alert } from '@newt/ui/components/alert'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxEmpty, BoxHeader, BoxRow } from '@newt/ui/components/box'
+import { Breadcrumbs } from '@newt/ui/components/breadcrumbs'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
 import { TextLink } from '@newt/ui/components/link'
 import { Menu } from '@newt/ui/components/menu'
-import { PageHeader } from '@newt/ui/components/page-header'
+import { PageTitle } from '@newt/ui/components/page-title'
+import { RelativeTime } from '@newt/ui/components/relative-time'
+import { SidebarLayout, SidebarSection } from '@newt/ui/components/sidebar-layout'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
-import { ArtifactTag } from '@newt/ui/domain/artifact-tag'
+import { Timeline, TimelineItem } from '@newt/ui/components/timeline'
+import { RuleScope } from '../../../components/rule-scope'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
@@ -22,7 +26,6 @@ import { NotFound } from '../../../pages/not-found/not-found'
 import { QuickProposalService } from '../../../services/quick-proposal/quick-proposal.service'
 import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
-import { RuleScope } from '../../../components/rule-scope'
 import { DefinitionHistory } from '../definition-history/definition-history'
 import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
@@ -38,7 +41,7 @@ export function DefinitionRule() {
   )
 }
 
-/** One rule: what it says, where it applies, why, its criteria and its history. */
+/** One rule: what it says and why, its criteria and its versions; where it applies and where it came from beside. */
 function DefinitionRuleWrapped() {
   const { workspaceId, key } = useParams() as { workspaceId: string, key: string }
   const service = useService(DefinitionRuleService)
@@ -61,75 +64,72 @@ function DefinitionRuleWrapped() {
 
   const { current } = rule
   const retired = rule.retiredAt !== null
+  const definition = `/w/${workspaceId}/definition`
+
+  const aside = (
+    <div>
+      <SidebarSection title="Where it applies"><RuleScope scope={current.scope} dimensions={dimensions} /></SidebarSection>
+      <SidebarSection title="Feature"><TextLink href={`${definition}/features/${rule.featureId}`}>{rule.featureName}</TextLink></SidebarSection>
+      <SidebarSection title="Kind"><Badge tone="muted">{current.kind}</Badge></SidebarSection>
+      <SidebarSection title="Version"><Text size="sm">{`${current.version}${retired ? ', the last one' : ', in force'}`}</Text></SidebarSection>
+      <SidebarSection title="Proposals"><DefinitionHistory targetId={rule.id} /></SidebarSection>
+    </div>
+  )
 
   return (
-    <Stack gap={8}>
+    <Stack gap={6}>
       <Stack gap={2}>
-        <Inline gap={2} wrap>
-          <ArtifactTag kind="rule" id={rule.key} />
-          <TextLink href={`/w/${workspaceId}/definition/features/${rule.featureId}`}>{rule.featureName}</TextLink>
-        </Inline>
-        <PageHeader
-          title={current.statement}
-          actions={(
-            <Inline gap={2}>
-              <Badge tone="muted">{current.kind}</Badge>
-              <Badge tone="outline">version {current.version}</Badge>
-              {retired && <Badge tone="warn">retired</Badge>}
-              {!retired && !workspace?.archivedAt && (
-                <Menu
-                  label={`Actions for ${rule.key}`}
-                  align="end"
-                  trigger={<Button variant="outline" size="icon" label={`Actions for ${rule.key}`}><Icon icon={MoreHorizontalIcon} /></Button>}
-                  items={[
-                    { label: 'Propose a new version', onSelect: () => void propose.startChange(workspaceId, rule) },
-                    { separator: true },
-                    { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(quick.propose(workspaceId, { kind: 'rule', operation: 'retire', targetId: rule.id })) },
-                  ]}
-                />
-              )}
-            </Inline>
+        <Breadcrumbs items={[{ label: 'Rules', href: `${definition}/rules` }, { label: rule.key }]} />
+        <Inline justify="between" gap={3} wrap>
+          <PageTitle reference={rule.key}>{current.statement}</PageTitle>
+          {!retired && !workspace?.archivedAt && (
+            <Menu
+              label={`Actions for ${rule.key}`}
+              align="end"
+              trigger={<Button variant="outline" size="sm" label={`Actions for ${rule.key}`}><Icon icon={MoreHorizontalIcon} />Actions</Button>}
+              items={[
+                { label: 'Propose a new version', onSelect: () => void propose.startChange(workspaceId, rule) },
+                { separator: true },
+                { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(quick.propose(workspaceId, { kind: 'rule', operation: 'retire', targetId: rule.id })) },
+              ]}
+            />
           )}
-        />
+        </Inline>
+        {retired && <Inline><Badge tone="warn">retired</Badge></Inline>}
       </Stack>
       <DefinitionPlannedNotice targetIds={[rule.id]} />
       {retired && <Alert tone="info" title={`${rule.key} is retired`}>It no longer holds. This is what it said last.</Alert>}
-      <Card title="Where it applies" titleLevel={2}>
-        <RuleScope scope={current.scope} dimensions={dimensions} />
-      </Card>
-      <Card title="Why" titleLevel={2}>
-        <Text>{current.why}</Text>
-      </Card>
-      <Card title="Acceptance criteria" titleLevel={2}>
-        {current.criteria.length === 0
-          ? <Text size="sm" tone="muted">No criteria yet.</Text>
-          : <Stack gap={4}>{current.criteria.map((criterion, index) => <DefinitionRuleCriterion key={index} criterion={criterion} />)}</Stack>}
-      </Card>
-      <Card title="Proposals" titleLevel={2} description="The merged proposals that made it what it is.">
-        <DefinitionHistory targetId={rule.id} />
-      </Card>
-      <Card title="History" titleLevel={2} description="A rule is never edited: each version replaces the one before.">
+      <SidebarLayout side="end" aside={aside}>
         <Stack gap={6}>
-          {versions.map(version => (
-            <Stack key={version.id} gap={2}>
-              <Inline gap={2} wrap>
-                <Text size="sm" weight="semibold">Version {version.version}</Text>
-                <Text size="sm" tone="muted">{new Date(version.createdAt).toLocaleDateString('en', { dateStyle: 'medium' })}</Text>
-                {version.id === current.id && <Badge tone={retired ? 'muted' : 'ok'}>{retired ? 'last' : 'in force'}</Badge>}
-              </Inline>
-              <Text>{version.statement}</Text>
-              <RuleScope scope={version.scope} dimensions={dimensions} />
-            </Stack>
-          ))}
-          {hasMore && (
-            <Inline>
-              <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.versions.loadMore()}>
-                Load older versions
-              </Button>
-            </Inline>
-          )}
+          <Box label="Why">
+            <BoxHeader>Why it holds</BoxHeader>
+            <BoxBody><Text size="sm">{current.why}</Text></BoxBody>
+          </Box>
+          <Box label="Acceptance criteria">
+            <BoxHeader>{`Acceptance criteria (${current.criteria.length})`}</BoxHeader>
+            {current.criteria.length === 0 && <BoxEmpty title="No criteria yet" description="Concrete examples: given… when… then…" />}
+            {current.criteria.map((criterion, index) => <BoxRow key={index}><DefinitionRuleCriterion criterion={criterion} /></BoxRow>)}
+          </Box>
+          <Stack gap={3}>
+            <Text size="sm" weight="semibold">History</Text>
+            <Text size="sm" tone="muted">A rule is never edited: each version replaces the one before.</Text>
+            <Timeline>
+              {versions.map(version => (
+                <TimelineItem key={version.id} icon={GitCommitHorizontalIcon} tone={version.id === current.id && !retired ? 'ok' : 'muted'}>
+                  <Inline gap={2} wrap>
+                    <Text size="sm" weight="semibold" as="span">{`Version ${version.version}`}</Text>
+                    <Text size="sm" tone="muted" as="span"><RelativeTime date={version.createdAt} /></Text>
+                    {version.id === current.id && <Badge tone={retired ? 'muted' : 'ok'}>{retired ? 'last' : 'in force'}</Badge>}
+                  </Inline>
+                  <Text size="sm">{version.statement}</Text>
+                  <RuleScope scope={version.scope} dimensions={dimensions} />
+                </TimelineItem>
+              ))}
+            </Timeline>
+            {hasMore && <Inline><Button variant="ghost" size="sm" loading={loadingMore} onClick={() => void service.versions.loadMore()}>Load older versions</Button></Inline>}
+          </Stack>
         </Stack>
-      </Card>
+      </SidebarLayout>
       <DefinitionRulePropose />
     </Stack>
   )

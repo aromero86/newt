@@ -17,12 +17,14 @@ export class ProposalWorkingService {
 
   private readonly api = inject(ProposalApi)
   private readonly proposal = inject(ProposalService)
-  private readonly store = new Store({ draft: '', preview: false, saving: false })
+  private readonly store = new Store({ draft: '', preview: false, saving: false, editingDocument: false, publishing: false })
 
   /** The document being typed; saved with `saveDocument`. */
   readonly draft = this.store.select('draft')
   readonly preview = this.store.select('preview')
   readonly saving = this.store.select('saving')
+  readonly editingDocument = this.store.select('editingDocument')
+  readonly publishing = this.store.select('publishing')
 
   readonly deltas = new ListStore<DeltaDTO>(page => this.api.deltas(this.proposal.workspaceId, this.proposal.key, 'working', page))
   readonly publishForm = new FormStore(PublishSchema, { message: '' }, { errorFields: { 'proposal.nothing_to_publish': 'message' } })
@@ -39,6 +41,23 @@ export class ProposalWorkingService {
     await this.proposal.resolveNames(this.deltas.items.peek())
   }
 
+  openDocument(): void {
+    this.store.patch({ editingDocument: true, preview: false, draft: this.proposal.proposal.peek()?.document ?? '' })
+  }
+
+  closeDocument(): void {
+    this.store.patch({ editingDocument: false })
+  }
+
+  openPublish(): void {
+    this.publishForm.reset({ message: '' })
+    this.store.patch({ publishing: true })
+  }
+
+  closePublish(): void {
+    this.store.patch({ publishing: false })
+  }
+
   type(draft: string): void {
     this.store.patch({ draft })
   }
@@ -53,6 +72,7 @@ export class ProposalWorkingService {
     try {
       await this.api.writeDocument(this.proposal.workspaceId, this.proposal.key, this.store.value.draft)
       await this.proposal.refresh()
+      this.closeDocument()
       toast.success('Document saved in the working copy')
     } catch (error) {
       toast.error((error as Error).message)
@@ -75,7 +95,7 @@ export class ProposalWorkingService {
       await this.api.publish(this.proposal.workspaceId, this.proposal.key, message)
     })
     if (!published) return
-    this.publishForm.reset({ message: '' })
+    this.closePublish()
     await this.proposal.refresh()
     await this.reload()
     toast.success('Revision published')

@@ -1,19 +1,19 @@
 import { useEffect, type FormEvent } from 'react'
 import { useParams } from 'react-router'
-import { ArrowDownIcon, ArrowUpIcon, MoreHorizontalIcon } from 'lucide-react'
+import { ArchiveIcon, ArrowDownIcon, ArrowUpIcon, BoxesIcon, FileIcon, MoreHorizontalIcon, PencilIcon, PlusIcon } from 'lucide-react'
 import type { FeatureDTO } from '@newt/api/feature'
 import { Alert } from '@newt/ui/components/alert'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxEmpty, BoxFilter, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@newt/ui/components/box'
+import { Breadcrumbs } from '@newt/ui/components/breadcrumbs'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
+import { Dialog } from '@newt/ui/components/dialog'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
-import { TextLink } from '@newt/ui/components/link'
 import { Menu, type MenuItem } from '@newt/ui/components/menu'
-import { PageHeader } from '@newt/ui/components/page-header'
+import { PageTitle } from '@newt/ui/components/page-title'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@newt/ui/components/table'
 import { Text } from '@newt/ui/components/text'
 import { FormField } from '../../../components/form-field'
 import { Provide } from '../../../core/injector/provide'
@@ -43,13 +43,15 @@ function DefinitionAreaWrapped() {
   const workspace = useValue(useService(WorkspacesService).workspace(workspaceId))
   const area = useValue(service.area)
   const editing = useValue(service.editing)
-  const features = useValue(service.features.items)
-  const total = useValue(service.features.total)
-  const hasMore = useValue(service.features.hasMore)
-  const loadingMore = useValue(service.features.loadingMore)
-  const failure = useValue(service.features.failure)
   const showRetired = useValue(service.showRetired)
-  const submitting = useValue(service.form.submitting)
+  const list = showRetired ? service.retired : service.features
+  const features = useValue(list.items)
+  const loaded = useValue(list.loaded)
+  const failure = useValue(list.failure)
+  const hasMore = useValue(list.hasMore)
+  const loadingMore = useValue(list.loadingMore)
+  const activeTotal = useValue(service.features.total)
+  const retiredTotal = useValue(service.retiredTotal)
   const open = useOpenProposal()
 
   useEffect(() => {
@@ -63,15 +65,11 @@ function DefinitionAreaWrapped() {
   const readOnly = Boolean(workspace?.archivedAt)
   const definition = `/w/${workspaceId}/definition`
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault()
-    void open(service.create())
-  }
-
   function actions(feature: FeatureDTO): MenuItem[] {
+    if (feature.retiredAt) return [{ label: 'Propose restoring', onSelect: () => void open(service.proposeRestoring(feature)) }]
     return [
       { label: 'Move up', icon: ArrowUpIcon, disabled: feature.position === 0, onSelect: () => void service.move(feature, -1) },
-      { label: 'Move down', icon: ArrowDownIcon, disabled: feature.position === total - 1, onSelect: () => void service.move(feature, 1) },
+      { label: 'Move down', icon: ArrowDownIcon, disabled: feature.position === activeTotal - 1, onSelect: () => void service.move(feature, 1) },
       { separator: true },
       { label: 'Propose retiring', tone: 'destructive', onSelect: () => void open(service.proposeRetiring(feature)) },
     ]
@@ -80,99 +78,61 @@ function DefinitionAreaWrapped() {
   const areaActions: MenuItem[] = retiredArea
     ? [{ label: 'Propose restoring the area', onSelect: () => void open(service.proposeRestoringArea()) }]
     : [
-        { label: 'Propose changes', onSelect: () => service.openEdit() },
+        { label: 'Propose changes', icon: PencilIcon, onSelect: () => service.openEdit() },
         { separator: true },
-        { label: 'Propose retiring the area', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void open(service.proposeRetiringArea()) },
+        { label: area.activeFeatures > 0 ? 'Propose retiring (retire its features first)' : 'Propose retiring the area', tone: 'destructive', disabled: area.activeFeatures > 0, onSelect: () => void open(service.proposeRetiringArea()) },
       ]
 
   return (
-    <Stack gap={8}>
+    <Stack gap={6}>
       <Stack gap={2}>
-        <TextLink href={definition}>All areas</TextLink>
-        <PageHeader
-          title={area.name}
-          description={area.description || undefined}
-          actions={(
-            <Inline gap={2}>
-              {retiredArea && <Badge tone="muted">retired</Badge>}
-              {!readOnly && (
-                <Menu
-                  label={`Actions for ${area.name}`}
-                  align="end"
-                  trigger={<Button variant="outline" size="icon" label={`Actions for ${area.name}`}><Icon icon={MoreHorizontalIcon} /></Button>}
-                  items={areaActions}
-                />
-              )}
-            </Inline>
+        <Breadcrumbs items={[{ label: 'Areas', href: definition }, { label: area.name }]} />
+        <Inline justify="between" gap={3} wrap>
+          <PageTitle>{area.name}</PageTitle>
+          {!readOnly && (
+            <Menu
+              label={`Actions for ${area.name}`}
+              align="end"
+              trigger={<Button variant="outline" size="sm" label={`Actions for ${area.name}`}><Icon icon={MoreHorizontalIcon} />Actions</Button>}
+              items={areaActions}
+            />
           )}
-        />
+        </Inline>
+        {area.description && <Text tone="muted">{area.description}</Text>}
+        {retiredArea && <Inline><Badge tone="muted">retired</Badge></Inline>}
       </Stack>
       <DefinitionPlannedNotice targetIds={[area.id]} />
       {retiredArea && <Alert tone="info" title="This area is retired">Its features stay readable. Restore it to change them.</Alert>}
       {failure && <Alert tone="bad" title="Could not load the features">{failure}</Alert>}
-      <Card title={`Features (${total})`} titleLevel={2}>
-        <Stack gap={6}>
-          {features.length === 0
-            ? <Text size="sm" tone="muted">No features in this area.</Text>
-            : (
-                <Table caption={`Features of ${area.name}`}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Feature</TableHead>
-                      {!readOnly && !retiredArea && <TableHead align="end">Actions</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {features.map(feature => (
-                      <TableRow key={feature.id}>
-                        <TableCell>
-                          <Stack gap={0}>
-                            <TextLink href={`${definition}/features/${feature.id}`}>{feature.name}</TextLink>
-                            {feature.description && <Text size="sm" tone="muted">{firstLine(feature.description)}</Text>}
-                          </Stack>
-                        </TableCell>
-                        {!readOnly && !retiredArea && (
-                          <TableCell align="end">
-                            <Menu
-                              label={`Actions for ${feature.name}`}
-                              align="end"
-                              trigger={<Button variant="ghost" size="icon-sm" label={`Actions for ${feature.name}`}><Icon icon={MoreHorizontalIcon} /></Button>}
-                              items={actions(feature)}
-                            />
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-          {hasMore && (
-            <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.features.loadMore()}>
-              Load more features
-            </Button>
-          )}
-          {!readOnly && !retiredArea && (
-            <form onSubmit={onSubmit} noValidate>
-              <Stack gap={4}>
-                <FormField form={service.form} name="name" label="Propose a feature" description="Something that can be done in the product, such as Checkout or Pay with Bizum. It goes in a quick proposal, to approve." />
-                <FormField form={service.form} name="description" label="Description" description="What it covers, and what it does not." rows={3} />
-                <Stack gap={0} align="start">
-                  <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
-                </Stack>
-              </Stack>
-            </form>
-          )}
-        </Stack>
-      </Card>
-      <Card title="Proposals" titleLevel={2} description="The merged proposals that made it what it is.">
-        <DefinitionHistory targetId={area.id} />
-      </Card>
-      <Stack gap={4} align="start">
-        <Button variant="ghost" size="sm" onClick={() => void service.toggleRetired()}>
-          {showRetired ? 'Hide retired features' : 'Show retired features'}
-        </Button>
-        {showRetired && <DefinitionAreaRetired readOnly={readOnly || retiredArea} />}
-      </Stack>
+      <Box label={`Features of ${area.name}`}>
+        <BoxHeader actions={!readOnly && !retiredArea && <Button size="sm" onClick={() => service.openCreate()}><Icon icon={PlusIcon} size="sm" />New feature</Button>}>
+          <BoxFilter active={!showRetired} icon={BoxesIcon} count={activeTotal} onClick={() => void service.show(false)}>Features</BoxFilter>
+          <BoxFilter active={showRetired} icon={ArchiveIcon} count={retiredTotal} onClick={() => void service.show(true)}>Retired</BoxFilter>
+        </BoxHeader>
+        {loaded && features.length === 0 && <BoxEmpty icon={BoxesIcon} title={showRetired ? 'No retired features' : 'No features in this area'} />}
+        {features.map(feature => (
+          <BoxRow
+            key={feature.id}
+            leading={<Icon icon={FileIcon} tone="muted" />}
+            trailing={!readOnly && !retiredArea && (
+              <Menu
+                label={`Actions for ${feature.name}`}
+                align="end"
+                trigger={<Button variant="ghost" size="icon-sm" label={`Actions for ${feature.name}`}><Icon icon={MoreHorizontalIcon} /></Button>}
+                items={actions(feature)}
+              />
+            )}
+          >
+            <BoxRowTitle href={`${definition}/features/${feature.id}`}>{feature.name}</BoxRowTitle>
+            {feature.description && <BoxRowMeta>{feature.description.split('\n')[0]}</BoxRowMeta>}
+          </BoxRow>
+        ))}
+        {hasMore && <BoxFooter><Button variant="ghost" size="sm" loading={loadingMore} onClick={() => void list.loadMore()}>Load more features</Button></BoxFooter>}
+      </Box>
+      <Box label="Proposals">
+        <BoxHeader>Proposals that made it what it is</BoxHeader>
+        <BoxBody><DefinitionHistory targetId={area.id} /></BoxBody>
+      </Box>
       <DefinitionEditDialog
         form={service.editForm}
         open={editing}
@@ -180,55 +140,32 @@ function DefinitionAreaWrapped() {
         onClose={() => service.closeEdit()}
         onSubmit={() => void open(service.saveEdit())}
       />
+      <DefinitionAreaCreate />
     </Stack>
   )
 }
 
-/** The area's retired features: still readable, and back with a restore. */
-function DefinitionAreaRetired({ readOnly }: { readOnly: boolean }) {
-  const workspaceId = useParams().workspaceId!
+/** Proposing a new feature in this area, in a quick proposal. */
+function DefinitionAreaCreate() {
   const service = useService(DefinitionAreaService)
+  const creating = useValue(service.creating)
+  const submitting = useValue(service.form.submitting)
   const open = useOpenProposal()
-  const features = useValue(service.retired.items)
-  const loaded = useValue(service.retired.loaded)
-  const hasMore = useValue(service.retired.hasMore)
-  const loadingMore = useValue(service.retired.loadingMore)
 
-  if (!loaded) return <Spinner label="Loading the retired features" />
-  if (features.length === 0) return <Text size="sm" tone="muted">No retired features.</Text>
+  function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    void open(service.create())
+  }
 
   return (
-    <Stack gap={3}>
-      <Table caption="Retired features">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Retired feature</TableHead>
-            {!readOnly && <TableHead align="end">Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {features.map(feature => (
-            <TableRow key={feature.id}>
-              <TableCell><TextLink href={`/w/${workspaceId}/definition/features/${feature.id}`}>{feature.name}</TextLink></TableCell>
-              {!readOnly && (
-                <TableCell align="end">
-                  <Button variant="outline" size="sm" onClick={() => void open(service.proposeRestoring(feature))}>Propose restoring</Button>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {hasMore && (
-        <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.retired.loadMore()}>
-          Load more retired features
-        </Button>
-      )}
-    </Stack>
+    <Dialog open={creating} onOpenChange={next => !next && service.closeCreate()} title="New feature" description="Something that can be done in the product. It goes in a quick proposal, to approve." size="md">
+      <form onSubmit={onSubmit} noValidate>
+        <Stack gap={4}>
+          <FormField form={service.form} name="name" label="Name" description="For instance: Checkout, or Pay with Bizum." />
+          <FormField form={service.form} name="description" label="Description" description="What it covers, and what it does not." rows={3} />
+          <Inline justify="end"><Button type="submit" loading={submitting}>Propose</Button></Inline>
+        </Stack>
+      </form>
+    </Dialog>
   )
-}
-
-function firstLine(text: string): string {
-  const line = text.split('\n')[0]!
-  return line.length > 140 ? `${line.slice(0, 140)}…` : line
 }

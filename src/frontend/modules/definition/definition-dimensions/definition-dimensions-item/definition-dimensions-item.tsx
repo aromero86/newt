@@ -1,14 +1,14 @@
 import type { FormEvent } from 'react'
-import { ArrowDownIcon, ArrowUpIcon, MoreHorizontalIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, MoreHorizontalIcon, PlusIcon } from 'lucide-react'
 import type { DimensionDTO, DimensionValueDTO } from '@newt/api/dimension'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxEmpty, BoxHeader, BoxRow } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
+import { Dialog } from '@newt/ui/components/dialog'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
 import { Menu, type MenuItem } from '@newt/ui/components/menu'
 import { Stack } from '@newt/ui/components/stack'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@newt/ui/components/table'
 import { Text } from '@newt/ui/components/text'
 import { FormField } from '../../../../components/form-field'
 import { Provide } from '../../../../core/injector/provide'
@@ -42,28 +42,23 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
   const dimensions = useService(DefinitionDimensionsService)
   const rename = useService(DefinitionDimensionsRenameService)
   const item = useService(DefinitionDimensionsItemService)
-  const submitting = useValue(item.form.submitting)
   const open = useOpenProposal()
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault()
-    void open(item.addValue(dimension))
-  }
+  // Active values in their order; retired ones stay listed after them.
+  const active = dimension.values.filter(value => !value.retiredAt)
+  const values = [...active, ...dimension.values.filter(value => value.retiredAt)]
 
   const dimensionActions: MenuItem[] = [
+    { label: 'Propose a value', icon: PlusIcon, onSelect: () => item.openAdd() },
     { label: 'Propose renaming', onSelect: () => rename.open({ dimension }) },
     { separator: true },
     { label: 'Move up', icon: ArrowUpIcon, disabled: first, onSelect: () => void dimensions.move(dimension, -1) },
     { label: 'Move down', icon: ArrowDownIcon, disabled: last, onSelect: () => void dimensions.move(dimension, 1) },
   ]
 
-  // Active values in their order; retired ones stay listed after them.
-  const active = dimension.values.filter(value => !value.retiredAt)
-  const values = [...active, ...dimension.values.filter(value => value.retiredAt)]
-
   function valueActions(value: DimensionValueDTO): MenuItem[] {
-    const index = active.indexOf(value)
     if (value.retiredAt) return [{ label: 'Propose restoring', onSelect: () => void open(dimensions.proposeRestoring(dimension, value)) }]
+    const index = active.indexOf(value)
     return [
       { label: 'Propose renaming', onSelect: () => rename.open({ dimension, value }) },
       { separator: true },
@@ -74,62 +69,51 @@ function DefinitionDimensionsItemWrapped({ dimension, first, last, readOnly }: D
     ]
   }
 
-  const actions = (label: string, items: MenuItem[]) => (
-    <Menu
-      label={label}
-      align="end"
-      trigger={<Button variant="ghost" size="icon-sm" label={label}><Icon icon={MoreHorizontalIcon} /></Button>}
-      items={items}
-    />
+  const menu = (label: string, items: MenuItem[]) => (
+    <Menu label={label} align="end" trigger={<Button variant="ghost" size="icon-sm" label={label}><Icon icon={MoreHorizontalIcon} /></Button>} items={items} />
   )
 
   return (
-    <Card
-      title={dimension.name}
-      titleLevel={3}
-      description={active.length === 1 ? '1 value' : `${active.length} values`}
-      action={readOnly ? undefined : actions(`Actions for ${dimension.name}`, dimensionActions)}
-    >
-      <Stack gap={4}>
-        {values.length === 0
-          ? <Text size="sm" tone="muted">No values yet.</Text>
-          : (
-              <Table caption={`Values of ${dimension.name}`}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Value</TableHead>
-                    {!readOnly && <TableHead align="end">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {values.map(value => (
-                    <TableRow key={value.id}>
-                      <TableCell>
-                        <Inline gap={2}>
-                          <Text size="sm" tone={value.retiredAt ? 'muted' : 'default'}>{value.name}</Text>
-                          {value.retiredAt && <Badge tone="muted">retired</Badge>}
-                        </Inline>
-                      </TableCell>
-                      {!readOnly && (
-                        <TableCell align="end">
-                          {actions(`Actions for ${value.name}`, valueActions(value))}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-        {!readOnly && (
-          <form onSubmit={onSubmit} noValidate>
-            <Stack gap={3} align="start">
-              <FormField form={item.form} name="name" label="Propose a value" />
-              <Button type="submit" variant="secondary" loading={submitting}>Propose</Button>
-            </Stack>
-          </form>
-        )}
-        <DefinitionHistory targetId={dimension.id} />
-      </Stack>
-    </Card>
+    <Box label={dimension.name}>
+      <BoxHeader actions={!readOnly && menu(`Actions for ${dimension.name}`, dimensionActions)}>
+        {dimension.name}
+        <Text size="sm" tone="muted" as="span">{active.length === 1 ? '1 value' : `${active.length} values`}</Text>
+      </BoxHeader>
+      {values.length === 0 && <BoxEmpty title="No values yet" action={!readOnly ? <Button size="sm" variant="outline" onClick={() => item.openAdd()}>Propose a value</Button> : undefined} />}
+      {values.map(value => (
+        <BoxRow key={value.id} trailing={!readOnly && menu(`Actions for ${value.name}`, valueActions(value))}>
+          <Inline gap={2}>
+            <Text size="sm" tone={value.retiredAt ? 'muted' : 'default'} as="span">{value.name}</Text>
+            {value.retiredAt && <Badge tone="muted">retired</Badge>}
+          </Inline>
+        </BoxRow>
+      ))}
+      <DefinitionHistory targetId={dimension.id} boxed />
+      <DefinitionDimensionsItemAdd dimension={dimension} />
+    </Box>
+  )
+}
+
+/** Proposing a new value for the dimension, in a quick proposal. */
+function DefinitionDimensionsItemAdd({ dimension }: { dimension: DimensionDTO }) {
+  const item = useService(DefinitionDimensionsItemService)
+  const adding = useValue(item.adding)
+  const submitting = useValue(item.form.submitting)
+  const open = useOpenProposal()
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    void open(item.addValue(dimension))
+  }
+
+  return (
+    <Dialog open={adding} onOpenChange={next => !next && item.closeAdd()} title={`New value for ${dimension.name}`} description="It goes in a quick proposal, to approve." size="sm">
+      <form onSubmit={onSubmit} noValidate>
+        <Stack gap={4}>
+          <FormField form={item.form} name="name" label="Name" />
+          <Inline justify="end"><Button type="submit" loading={submitting}>Propose</Button></Inline>
+        </Stack>
+      </form>
+    </Dialog>
   )
 }

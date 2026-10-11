@@ -19,12 +19,14 @@ export function ShellUserMenu() {
       label={`Signed in as @${user.nick}`}
       align="end"
       trigger={
-        <Button variant="ghost" size="sm" label={`@${user.nick}, open your menu`}>
-          <Avatar name={user.fullName} size={6} />
-          {user.nick}
+        <Button variant="ghost" size="icon" label={`@${user.nick}, open your menu`}>
+          <Avatar name={user.fullName} size={7} />
         </Button>
       }
       items={[
+        { label: `Signed in as @${user.nick}`, disabled: true, onSelect: () => {} },
+        { separator: true },
+        { label: 'Your workspaces', onSelect: () => navigate('/workspaces') },
         { label: 'Account settings', icon: SettingsIcon, onSelect: () => navigate('/settings') },
         { separator: true },
         // Signing out sends the session guard back to the sign-in page.

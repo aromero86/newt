@@ -8,6 +8,7 @@ import { QuickProposalService } from '../../../services/quick-proposal/quick-pro
 
 type DimensionsState = {
   workspaceId: string
+  creating: boolean
   dimensions: DimensionDTO[]
   loaded: boolean
 }
@@ -20,10 +21,11 @@ export class DefinitionDimensionsService {
 
   private readonly api = inject(DimensionApi)
   private readonly quick = inject(QuickProposalService)
-  private readonly store = new Store<DimensionsState>({ workspaceId: '', dimensions: [], loaded: false })
+  private readonly store = new Store<DimensionsState>({ workspaceId: '', creating: false, dimensions: [], loaded: false })
 
   readonly dimensions = this.store.select('dimensions')
   readonly loaded = this.store.select('loaded')
+  readonly creating = this.store.select('creating')
 
   readonly form = new FormStore(DimensionNameInputSchema, { name: '' }, {
     errorFields: { 'workspace.archived': 'name', validation: 'name' },
@@ -46,8 +48,17 @@ export class DefinitionDimensionsService {
     await this.form.submit(async ({ name }) => {
       proposal = await this.quick.propose(this.workspaceId, { kind: 'dimension', operation: 'create', after: { name, values: [] } })
     })
-    if (proposal) this.form.reset({ name: '' })
+    if (proposal) this.closeCreate()
     return proposal
+  }
+
+  openCreate(): void {
+    this.form.reset({ name: '' })
+    this.store.patch({ creating: true })
+  }
+
+  closeCreate(): void {
+    this.store.patch({ creating: false })
   }
 
   /** Proposes a change to a dimension: its state as it is now, changed by `change`. */

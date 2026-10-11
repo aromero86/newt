@@ -22,9 +22,12 @@ const CreateSchema = z.object({ title: z.string().trim().min(1, 'Give it a title
 export class ProposalsListService {
 
   private readonly api = inject(ProposalApi)
-  private readonly store = new Store<{ workspaceId: string, view: ProposalView }>({ workspaceId: '', view: 'open' })
+  private readonly store = new Store<{ workspaceId: string, view: ProposalView, counts: Partial<Record<ProposalView, number>>, creating: boolean }>({ workspaceId: '', view: 'open', counts: {}, creating: false })
 
   readonly view = this.store.select('view')
+  /** How many proposals each view has, for the filters. */
+  readonly counts = this.store.select('counts')
+  readonly creating = this.store.select('creating')
   readonly proposals = new ListStore<ProposalDTO>(page => {
     const { workspaceId, view } = this.store.value
     return this.api.list(workspaceId, PROPOSAL_VIEWS[view].status, page)
@@ -35,7 +38,23 @@ export class ProposalsListService {
   async load(workspaceId: string): Promise<void> {
     this.store.patch({ workspaceId, view: 'open' })
     this.form.reset({ title: '' })
-    await this.proposals.loadFirstPage()
+    await Promise.all([this.proposals.loadFirstPage(), this.loadCounts()])
+  }
+
+  openCreate(): void {
+    this.form.reset({ title: '' })
+    this.store.patch({ creating: true })
+  }
+
+  closeCreate(): void {
+    this.store.patch({ creating: false })
+  }
+
+  private async loadCounts(): Promise<void> {
+    const { workspaceId } = this.store.value
+    const views = Object.keys(PROPOSAL_VIEWS) as ProposalView[]
+    const totals = await Promise.all(views.map(view => this.api.list(workspaceId, PROPOSAL_VIEWS[view].status, { size: 1 }).then(page => page.total)))
+    this.store.patch({ counts: Object.fromEntries(views.map((view, index) => [view, totals[index]])) })
   }
 
   async show(view: ProposalView): Promise<void> {

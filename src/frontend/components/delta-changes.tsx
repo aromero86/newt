@@ -7,7 +7,7 @@ import type { RuleDTO } from '@newt/api/rule'
 import { Badge } from '@newt/ui/components/badge'
 import { Inline } from '@newt/ui/components/inline'
 import { Stack } from '@newt/ui/components/stack'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@newt/ui/components/table'
+import { FieldDiff, type FieldDiffRow } from '@newt/ui/components/field-diff'
 import { Text } from '@newt/ui/components/text'
 import { RuleScope } from './rule-scope'
 
@@ -23,11 +23,13 @@ type DeltaChangesProps = {
   /** The name of an area or a feature, by id. */
   name: (id: string) => string
   caption: string
+  /** Fills its box edge to edge, like a file's diff. */
+  flush?: boolean
 }
 
 /** What a delta changes, field by field: before and after. For a change, only what differs. */
-export function DeltaChanges({ delta, dimensions, name, caption }: DeltaChangesProps) {
-  return <ChangesTable rows={rowsOf(delta, dimensions, name)} caption={caption} />
+export function DeltaChanges({ delta, dimensions, name, caption, flush }: DeltaChangesProps) {
+  return <ChangesTable rows={rowsOf(delta, dimensions, name)} caption={caption} flush={flush} />
 }
 
 type DeltaStateChangesProps = {
@@ -45,28 +47,14 @@ export function DeltaStateChanges({ kind, from, to, dimensions, name, caption }:
   return <ChangesTable rows={stateRowsOf(kind, from, to, dimensions, name)} caption={caption} />
 }
 
-function ChangesTable({ rows, caption }: { rows: Row[], caption: string }) {
-  if (rows.length === 0) return null
-  return (
-    <Table caption={caption}>
-      <TableHeader>
-        <TableRow>
-          <TableHead>What</TableHead>
-          <TableHead>Before</TableHead>
-          <TableHead>After</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row, index) => (
-          <TableRow key={index}>
-            <TableCell><Text size="sm" tone="muted">{row.label}</Text></TableCell>
-            <TableCell>{row.before}</TableCell>
-            <TableCell>{row.after}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
+/** The rows as a diff: a missing value (—) is no line at all. */
+function ChangesTable({ rows, caption, flush }: { rows: Row[], caption: string, flush?: boolean }) {
+  const lines: FieldDiffRow[] = rows.map(row => ({
+    label: row.label,
+    before: row.before === none ? undefined : row.before,
+    after: row.after === none ? undefined : row.after,
+  }))
+  return <FieldDiff rows={lines} label={caption} flush={flush} />
 }
 
 const none = <Text size="sm" tone="muted">—</Text>

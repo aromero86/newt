@@ -3,6 +3,7 @@ import { WorkspaceMemberApi } from '@newt/api/workspace-member'
 import { toast } from '@newt/ui/components/toast'
 import { z } from 'zod'
 import { FormStore } from '../../../../core/form/form-store'
+import { Store } from '../../../../core/store/store'
 import { inject } from '../../../../core/injector/inject'
 import { WorkspaceSettingsService } from '../../workspace-settings.service'
 
@@ -17,6 +18,18 @@ export class WorkspaceSettingsMembersAddService {
   private readonly memberApi = inject(WorkspaceMemberApi)
   private readonly invitationApi = inject(WorkspaceInvitationApi)
   private readonly settings = inject(WorkspaceSettingsService)
+  private readonly store = new Store({ open: false })
+
+  readonly open = this.store.select('open')
+
+  start(): void {
+    this.form.reset({ login: '' })
+    this.store.patch({ open: true })
+  }
+
+  close(): void {
+    this.store.patch({ open: false })
+  }
 
   readonly form = new FormStore(AddSchema, { login: '' }, {
     errorFields: {
@@ -40,7 +53,7 @@ export class WorkspaceSettingsMembersAddService {
       }
     })
     if (added) {
-      this.form.reset({ login: '' })
+      this.close()
       toast.success(done)
       await this.settings.reload()
     }

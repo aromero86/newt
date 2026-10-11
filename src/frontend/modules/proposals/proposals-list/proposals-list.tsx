@@ -1,25 +1,30 @@
 import { useEffect, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { GitPullRequestIcon } from 'lucide-react'
+import { BanIcon, CheckCircle2Icon, GitMergeIcon, GitPullRequestIcon, PlusIcon, ZapIcon } from 'lucide-react'
 import { Alert } from '@newt/ui/components/alert'
+import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxEmpty, BoxFilter, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
-import { EmptyState } from '@newt/ui/components/empty-state'
-import { Field } from '@newt/ui/components/field'
+import { Dialog } from '@newt/ui/components/dialog'
+import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
-import { TextLink } from '@newt/ui/components/link'
-import { PageHeader } from '@newt/ui/components/page-header'
-import { Select } from '@newt/ui/components/select'
-import { Spinner } from '@newt/ui/components/spinner'
+import { RelativeTime } from '@newt/ui/components/relative-time'
 import { Stack } from '@newt/ui/components/stack'
-import { Text } from '@newt/ui/components/text'
-import { ProposalBadge } from '@newt/ui/domain/proposal-badge'
+import { Mono } from '@newt/ui/components/text'
+import { ProposalStateIcon } from '@newt/ui/domain/proposal-state-icon'
 import { FormField } from '../../../components/form-field'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
-import { PROPOSAL_VIEWS, ProposalsListService, type ProposalView } from './proposals-list.service'
+import { ProposalsListService, type ProposalView } from './proposals-list.service'
+
+const FILTERS: { view: ProposalView, label: string, icon: typeof GitPullRequestIcon }[] = [
+  { view: 'open', label: 'Open', icon: GitPullRequestIcon },
+  { view: 'accepted', label: 'Accepted', icon: CheckCircle2Icon },
+  { view: 'merged', label: 'Merged', icon: GitMergeIcon },
+  { view: 'discarded', label: 'Discarded', icon: BanIcon },
+]
 
 /** With its own ProposalsListService: whoever renders it needs nothing else. */
 export function ProposalsList() {
@@ -30,25 +35,95 @@ export function ProposalsList() {
   )
 }
 
-/** The workspace's proposals, by state, and a new one. */
+/** The workspace's proposals, like a repository's pull requests: by state, newest first. */
 function ProposalsListWrapped() {
   const workspaceId = useParams().workspaceId!
   const service = useService(ProposalsListService)
   const workspace = useValue(useService(WorkspacesService).workspace(workspaceId))
   const view = useValue(service.view)
+  const counts = useValue(service.counts)
   const proposals = useValue(service.proposals.items)
-  const total = useValue(service.proposals.total)
   const loaded = useValue(service.proposals.loaded)
   const failure = useValue(service.proposals.failure)
   const hasMore = useValue(service.proposals.hasMore)
   const loadingMore = useValue(service.proposals.loadingMore)
-  const submitting = useValue(service.form.submitting)
-  const navigate = useNavigate()
   const readOnly = Boolean(workspace?.archivedAt)
+  const base = `/w/${workspaceId}/proposals`
 
   useEffect(() => {
     void service.load(workspaceId)
   }, [service, workspaceId])
+
+  const create = readOnly ? undefined : (
+    <Button size="sm" onClick={() => service.openCreate()}>
+      <Icon icon={PlusIcon} size="sm" />
+      New proposal
+    </Button>
+  )
+
+  return (
+    <Stack gap={4}>
+      {failure && <Alert tone="bad" title="Could not load the proposals">{failure}</Alert>}
+      <Box label="Proposals">
+        <BoxHeader actions={create}>
+          {FILTERS.map(filter => (
+            <BoxFilter key={filter.view} active={view === filter.view} icon={filter.icon} count={counts[filter.view]} onClick={() => void service.show(filter.view)}>
+              {filter.label}
+            </BoxFilter>
+          ))}
+        </BoxHeader>
+        {!loaded && !failure && <BoxEmpty title="Loading the proposals" />}
+        {loaded && proposals.length === 0 && (
+          <BoxEmpty
+            icon={GitPullRequestIcon}
+            title={view === 'open' ? 'No open proposals' : 'Nothing here'}
+            description="A proposal gathers changes to the definition, to approve delta by delta. Propose one from here, or from any point of the definition."
+          />
+        )}
+        {proposals.map(proposal => (
+          <BoxRow
+            key={proposal.id}
+            leading={<ProposalStateIcon state={proposal.status} />}
+            trailing={proposal.deltas.total > 0 && (
+              <span title={`${proposal.deltas.approved} of ${proposal.deltas.total} deltas approved`}>
+                <Inline gap={1}>
+                  <Icon icon={CheckCircle2Icon} size="sm" tone={proposal.deltas.approved === proposal.deltas.total ? 'ok' : 'muted'} />
+                  {`${proposal.deltas.approved}/${proposal.deltas.total}`}
+                </Inline>
+              </span>
+            )}
+          >
+            <Inline gap={2} wrap>
+              <BoxRowTitle href={`${base}/${proposal.key}`}>{proposal.title}</BoxRowTitle>
+              {proposal.status === 'draft' && <Badge tone="muted">draft</Badge>}
+              {proposal.quick && <Badge tone="outline"><Icon icon={ZapIcon} size="sm" />quick</Badge>}
+            </Inline>
+            <BoxRowMeta>
+              <Mono>{proposal.key}</Mono>
+              <span>{'opened '}<RelativeTime date={proposal.createdAt} />{` by @${proposal.createdBy.nick}`}</span>
+              {proposal.revision > 0 && <span>{`revision ${proposal.revision}`}</span>}
+              {proposal.mergedAt && <span>{'merged '}<RelativeTime date={proposal.mergedAt} /></span>}
+            </BoxRowMeta>
+          </BoxRow>
+        ))}
+        {hasMore && (
+          <BoxFooter>
+            <Button variant="ghost" size="sm" loading={loadingMore} onClick={() => void service.proposals.loadMore()}>Load more</Button>
+          </BoxFooter>
+        )}
+      </Box>
+      <ProposalsListCreate />
+    </Stack>
+  )
+}
+
+/** The dialog for a new draft: its title; deltas and document come after. */
+function ProposalsListCreate() {
+  const workspaceId = useParams().workspaceId!
+  const service = useService(ProposalsListService)
+  const open = useValue(service.creating)
+  const submitting = useValue(service.form.submitting)
+  const navigate = useNavigate()
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -57,55 +132,13 @@ function ProposalsListWrapped() {
   }
 
   return (
-    <Stack gap={8}>
-      <PageHeader title="Proposals" description="Every change to the definition, approved delta by delta." />
-      <Card title={`${PROPOSAL_VIEWS[view].label} (${total})`} titleLevel={2}>
-        <Stack gap={6}>
-          <Inline gap={4} wrap>
-            <Field label="Show">
-              <Select
-                value={view}
-                onValueChange={next => void service.show(next as ProposalView)}
-                options={Object.entries(PROPOSAL_VIEWS).map(([value, { label }]) => ({ value, label }))}
-              />
-            </Field>
-          </Inline>
-          {failure && <Alert tone="bad" title="Could not load the proposals">{failure}</Alert>}
-          {!loaded && !failure && <Spinner label="Loading the proposals" />}
-          {loaded && proposals.length === 0 && (
-            <EmptyState icon={GitPullRequestIcon} title="No proposals here" description="A proposal gathers the changes to the definition, to approve one by one." />
-          )}
-          {proposals.map(proposal => (
-            <Stack key={proposal.id} gap={1}>
-              <Inline gap={2} wrap>
-                <Text size="sm" tone="muted">{proposal.key}</Text>
-                <TextLink href={`/w/${workspaceId}/proposals/${proposal.key}`}>{proposal.title}</TextLink>
-                <ProposalBadge state={proposal.status} />
-              </Inline>
-              <Text size="sm" tone="muted">
-                {`${proposal.deltas.total} ${proposal.deltas.total === 1 ? 'delta' : 'deltas'} · ${proposal.deltas.approved} approved · ${proposal.deltas.rejected} rejected · by @${proposal.createdBy.nick}${proposal.quick ? ' · quick' : ''}`}
-              </Text>
-            </Stack>
-          ))}
-          {hasMore && (
-            <Inline>
-              <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.proposals.loadMore()}>
-                Load more proposals
-              </Button>
-            </Inline>
-          )}
+    <Dialog open={open} onOpenChange={next => !next && service.closeCreate()} title="New proposal" description="A draft: write its document and its deltas, then send it to review." size="md">
+      <form onSubmit={event => void onSubmit(event)} noValidate>
+        <Stack gap={4}>
+          <FormField form={service.form} name="title" label="Title" description="What it changes, for instance: Guests can pay with Bizum." />
+          <Inline justify="end"><Button type="submit" loading={submitting}>Create draft</Button></Inline>
         </Stack>
-      </Card>
-      {!readOnly && (
-        <Card title="New proposal" titleLevel={2} description="Start a draft, then add its deltas.">
-          <form onSubmit={event => void onSubmit(event)} noValidate>
-            <Stack gap={4} align="start">
-              <FormField form={service.form} name="title" label="Title" description="For example: Guests can pay with Bizum." />
-              <Button type="submit" variant="secondary" loading={submitting}>Create draft</Button>
-            </Stack>
-          </form>
-        </Card>
-      )}
-    </Stack>
+      </form>
+    </Dialog>
   )
 }

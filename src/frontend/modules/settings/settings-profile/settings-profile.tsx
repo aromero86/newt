@@ -1,8 +1,8 @@
 import type { FormEvent } from 'react'
 import { Alert } from '@newt/ui/components/alert'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
 import { Stack } from '@newt/ui/components/stack'
+import { Subhead } from '@newt/ui/components/subhead'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
@@ -29,16 +29,18 @@ function SettingsProfileWrapped() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <Card title="Profile" titleLevel={2} description="How others see you in newt." footer={<Button type="submit" loading={submitting}>Save profile</Button>}>
-        <Stack gap={4}>
+    <section>
+      <Subhead title="Profile" description="How others see you in newt." />
+      <form onSubmit={onSubmit} noValidate>
+        <Stack gap={4} align="start">
           {failure && <Alert tone="bad" title="Could not save">{failure}</Alert>}
           <FormField form={service.form} name="nick" label="Nick" description="How others mention you: @nick." autoComplete="username" />
           <FormField form={service.form} name="fullName" label="Full name" autoComplete="name" />
           <FormField form={service.form} name="email" label="Email" type="email" autoComplete="email" />
           <FormField form={service.form} name="bio" label="Bio" description="Up to 500 characters." rows={4} />
+          <Button type="submit" loading={submitting}>Save profile</Button>
         </Stack>
-      </Card>
-    </form>
+      </form>
+    </section>
   )
 }

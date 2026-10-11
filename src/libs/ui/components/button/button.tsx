@@ -37,6 +37,8 @@ type ButtonProps = {
   onClick?: MouseEventHandler<HTMLElement>
   /** Accessible name, for buttons whose content does not say what they do. */
   label?: string
+  /** As wide as its container: the one action of a narrow form. */
+  block?: boolean
   children: ReactNode
 }
 
@@ -53,11 +55,12 @@ function ButtonImpl({
   loading = false,
   onClick,
   label,
+  block = false,
   children,
   ...trigger
 }: ButtonProps & TriggerProps) {
   const Link = useContext(LinkComponentContext)
-  const look = { variant: shadcnVariant[variant], size: shadcnSize[size] }
+  const look = { variant: shadcnVariant[variant], size: shadcnSize[size], className: block ? 'w-full' : undefined }
   if (href !== undefined) {
     return (
       <ShadcnButton {...look} asChild>

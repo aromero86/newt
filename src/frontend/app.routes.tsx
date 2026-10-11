@@ -1,4 +1,5 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
+import { PageBody } from '@newt/ui/components/page-body'
 import { SessionGuard } from './guards/session.guard'
 import { NotFound } from './pages/not-found/not-found'
 import { RouteError } from './pages/route-error/route-error'
@@ -51,15 +52,16 @@ export const router = createBrowserRouter([
             path: 'w/:workspaceId',
             lazy: () => import('./modules/workspace/workspace').then(zone => ({ Component: zone.Workspace })),
             children: [
-              { index: true, lazy: () => import('./modules/workspace/workspace-overview/workspace-overview').then(page => ({ Component: page.WorkspaceOverview })) },
+              // A workspace opens on its definition, as a repository opens on its code.
+              { index: true, element: <Navigate to="definition" replace /> },
               { path: 'definition/*', lazy: () => import('./modules/definition/definition.routes').then(zone => ({ Component: zone.DefinitionRoutes })) },
               { path: 'proposals/*', lazy: () => import('./modules/proposals/proposals.routes').then(zone => ({ Component: zone.ProposalsRoutes })) },
               { path: 'releases/*', lazy: () => import('./modules/releases/releases.routes').then(zone => ({ Component: zone.ReleasesRoutes })) },
-              { path: 'settings', lazy: () => import('./modules/workspace-settings/workspace-settings').then(zone => ({ Component: zone.WorkspaceSettings })) },
+              { path: 'settings/*', lazy: () => import('./modules/workspace-settings/workspace-settings').then(zone => ({ Component: zone.WorkspaceSettings })) },
             ],
           },
           // Not lazy: the zones and the error page use it too, so it ships with the shell.
-              { path: '*', Component: NotFound },
+              { path: '*', element: <PageBody><NotFound /></PageBody> },
             ],
           },
         ],

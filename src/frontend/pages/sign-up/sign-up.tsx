@@ -50,7 +50,7 @@ function SignUpWrapped() {
       <Logo />
       <PageHeader title="Create your account" description="Everything you do in newt is signed with it." />
       <form onSubmit={onSubmit} noValidate>
-        <Card footer={<Button type="submit" loading={submitting}>Create account</Button>}>
+        <Card footer={<Button type="submit" block loading={submitting}>Create account</Button>}>
           <Stack gap={4}>
             {failure && <Alert tone="bad" title="Could not create the account">{failure}</Alert>}
             <FormField form={service.form} name="nick" label="Nick" description="How others see and mention you: @nick." autoComplete="username" />

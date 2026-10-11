@@ -8,11 +8,13 @@ type RuleScopeProps = {
   scope: RuleScopeDTO
   /** The workspace's dimensions, retired values included, to name what the scope points at. */
   dimensions: DimensionDTO[]
+  /** `xs` inside a line of small print, such as a row's details. */
+  size?: 'xs' | 'sm'
 }
 
 /** Where a rule applies, one chip per value; with no scope, everywhere. */
-export function RuleScope({ scope, dimensions }: RuleScopeProps) {
-  if (scope.length === 0) return <Text size="sm" tone="muted">Applies everywhere</Text>
+export function RuleScope({ scope, dimensions, size = 'sm' }: RuleScopeProps) {
+  if (scope.length === 0) return <Text size={size} tone="muted" as="span">Applies everywhere</Text>
 
   return (
     <Inline gap={1} wrap>

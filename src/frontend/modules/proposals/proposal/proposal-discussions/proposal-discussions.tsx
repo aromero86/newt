@@ -1,10 +1,13 @@
 import { useEffect, type FormEvent } from 'react'
 import type { DiscussionDTO } from '@newt/api/discussion'
 import type { DiscussionCommentDTO } from '@newt/api/discussion-comment'
+import { Avatar } from '@newt/ui/components/avatar'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxFooter, BoxHeader } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
 import { Inline } from '@newt/ui/components/inline'
 import { Markdown } from '@newt/ui/components/markdown'
+import { RelativeTime } from '@newt/ui/components/relative-time'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { FormField } from '../../../../components/form-field'
@@ -31,7 +34,7 @@ export function ProposalDiscussions(props: ProposalDiscussionsProps) {
   )
 }
 
-/** The conversations, page by page, and starting a new one. */
+/** The conversations, page by page, and a box to start a new one, like a pull request's comments. */
 function ProposalDiscussionsWrapped({ deltaId, readOnly }: ProposalDiscussionsProps) {
   const service = useService(ProposalDiscussionsService)
   const discussions = useValue(service.discussions.items)
@@ -39,6 +42,7 @@ function ProposalDiscussionsWrapped({ deltaId, readOnly }: ProposalDiscussionsPr
   const hasMore = useValue(service.discussions.hasMore)
   const loadingMore = useValue(service.discussions.loadingMore)
   const submitting = useValue(service.form.submitting)
+  const me = useValue(useService(SessionService).user)
 
   useEffect(() => {
     void service.load(deltaId)
@@ -51,7 +55,7 @@ function ProposalDiscussionsWrapped({ deltaId, readOnly }: ProposalDiscussionsPr
 
   return (
     <Stack gap={4}>
-      {loaded && discussions.length === 0 && <Text size="sm" tone="muted">No conversations yet.</Text>}
+      {loaded && discussions.length === 0 && deltaId && <Text size="sm" tone="muted">No conversations on this delta yet.</Text>}
       {discussions.map(discussion => <ProposalDiscussion key={discussion.id} discussion={discussion} readOnly={readOnly} />)}
       {hasMore && (
         <Inline>
@@ -59,12 +63,22 @@ function ProposalDiscussionsWrapped({ deltaId, readOnly }: ProposalDiscussionsPr
         </Inline>
       )}
       {!readOnly && (
-        <form onSubmit={onSubmit} noValidate>
-          <Stack gap={3} align="start">
-            <FormField form={service.form} name="body" label={deltaId ? 'Comment on this delta' : 'Comment on the proposal'} description="Markdown works." rows={3} />
-            <Button type="submit" size="sm" variant="secondary" loading={submitting}>Start a conversation</Button>
-          </Stack>
-        </form>
+        <Box label={deltaId ? 'Comment on this delta' : 'Comment on the proposal'}>
+          <BoxHeader>
+            <Inline gap={2}>
+              {me && <Avatar name={me.fullName} size={5} />}
+              <Text size="sm" weight="medium" as="span">{deltaId ? 'Comment on this delta' : 'Add a comment'}</Text>
+            </Inline>
+          </BoxHeader>
+          <BoxBody>
+            <form onSubmit={onSubmit} noValidate>
+              <Stack gap={3}>
+                <FormField form={service.form} name="body" label="Comment" description="Markdown works." rows={3} />
+                <Inline justify="end"><Button type="submit" size="sm" loading={submitting}>Comment</Button></Inline>
+              </Stack>
+            </form>
+          </BoxBody>
+        </Box>
       )}
     </Stack>
   )
@@ -79,7 +93,7 @@ function ProposalDiscussion(props: { discussion: DiscussionDTO, readOnly: boolea
   )
 }
 
-/** One conversation: its first comment and, opened, the rest and a reply. */
+/** One conversation: its first comment and, opened, the replies and a box to answer. */
 function ProposalDiscussionWrapped({ discussion, readOnly }: { discussion: DiscussionDTO, readOnly: boolean }) {
   const service = useService(ProposalDiscussionService)
   const discussions = useService(ProposalDiscussionsService)
@@ -98,42 +112,81 @@ function ProposalDiscussionWrapped({ discussion, readOnly }: { discussion: Discu
   }
 
   return (
-    <Stack gap={2}>
-      <Inline gap={2} wrap>
-        <Text size="sm" weight="semibold">{`@${discussion.startedBy.nick}`}</Text>
-        {proposal && discussion.revision < proposal.revision && <Badge tone="outline">{`about revision ${discussion.revision}`}</Badge>}
-        {resolved && <Badge tone="ok">{`resolved by @${discussion.resolvedBy!.nick}`}</Badge>}
-      </Inline>
+    <Box label={`Conversation started by @${discussion.startedBy.nick}`}>
+      <BoxHeader
+        actions={(
+          <>
+            {proposal && discussion.revision < proposal.revision && <Badge tone="outline">{`about revision ${discussion.revision}`}</Badge>}
+            {resolved && <Badge tone="ok">{`resolved by @${discussion.resolvedBy!.nick}`}</Badge>}
+            {!readOnly && (resolved
+              ? <Button size="sm" variant="ghost" onClick={() => void discussions.reopen(discussion)}>Reopen</Button>
+              : <Button size="sm" variant="ghost" onClick={() => void discussions.resolveDiscussion(discussion)}>Resolve</Button>)}
+          </>
+        )}
+      >
+        <CommentAuthor nick={discussion.first.author.nick} at={discussion.first.createdAt} edited={discussion.first.editedAt !== null} />
+      </BoxHeader>
       {open
         ? (
-            <Stack gap={3}>
-              {comments.map(comment => <ProposalComment key={comment.id} comment={comment} readOnly={readOnly} />)}
-              {hasMore && <Inline><Button size="sm" variant="ghost" loading={loadingMore} onClick={() => void service.comments.loadMore()}>Load more comments</Button></Inline>}
+            <>
+              {comments.map((comment, index) => (
+                index === 0
+                  ? <BoxBody key={comment.id}><ProposalCommentBody comment={comment} readOnly={readOnly} /></BoxBody>
+                  : <BoxBody key={comment.id}><ProposalComment comment={comment} readOnly={readOnly} /></BoxBody>
+              ))}
+              {hasMore && <BoxFooter><Button size="sm" variant="ghost" loading={loadingMore} onClick={() => void service.comments.loadMore()}>Load more comments</Button></BoxFooter>}
               {!readOnly && (
-                <form onSubmit={onReply} noValidate>
-                  <Stack gap={2} align="start">
-                    <FormField form={service.replyForm} name="body" label="Reply" rows={2} />
-                    <Button type="submit" size="sm" variant="secondary" loading={submitting}>Reply</Button>
-                  </Stack>
-                </form>
+                <BoxBody>
+                  <form onSubmit={onReply} noValidate>
+                    <Stack gap={2}>
+                      <FormField form={service.replyForm} name="body" label="Reply" rows={2} />
+                      <Inline justify="end" gap={2}>
+                        <Button size="sm" variant="ghost" onClick={() => service.collapse()}>Close</Button>
+                        <Button type="submit" size="sm" loading={submitting}>Reply</Button>
+                      </Inline>
+                    </Stack>
+                  </form>
+                </BoxBody>
               )}
-            </Stack>
+            </>
           )
-        : <Markdown>{discussion.first.body}</Markdown>}
-      <Inline gap={2} wrap>
-        {open
-          ? <Button size="sm" variant="ghost" onClick={() => service.collapse()}>Close</Button>
-          : <Button size="sm" variant="ghost" onClick={() => void service.expand(discussion.id)}>{replies > 0 ? `Open (${replies} ${replies === 1 ? 'reply' : 'replies'})` : 'Reply'}</Button>}
-        {!readOnly && (resolved
-          ? <Button size="sm" variant="ghost" onClick={() => void discussions.reopen(discussion)}>Reopen</Button>
-          : <Button size="sm" variant="ghost" onClick={() => void discussions.resolveDiscussion(discussion)}>Resolve</Button>)}
-      </Inline>
+        : (
+            <>
+              <BoxBody><Markdown>{discussion.first.body}</Markdown></BoxBody>
+              <BoxFooter justify="start">
+                <Button size="sm" variant="ghost" onClick={() => void service.expand(discussion.id)}>
+                  {replies > 0 ? `${replies} ${replies === 1 ? 'reply' : 'replies'}` : 'Reply'}
+                </Button>
+              </BoxFooter>
+            </>
+          )}
+    </Box>
+  )
+}
+
+/** Who wrote a comment, and when. */
+function CommentAuthor({ nick, at, edited }: { nick: string, at: string, edited: boolean }) {
+  return (
+    <Inline gap={2}>
+      <Avatar name={nick} size={5} />
+      <Text size="sm" weight="semibold" as="span">{`@${nick}`}</Text>
+      <Text size="sm" tone="muted" as="span"><RelativeTime date={at} />{edited ? ' · edited' : ''}</Text>
+    </Inline>
+  )
+}
+
+/** A reply: its author, and what they said. */
+function ProposalComment({ comment, readOnly }: { comment: DiscussionCommentDTO, readOnly: boolean }) {
+  return (
+    <Stack gap={2}>
+      <CommentAuthor nick={comment.author.nick} at={comment.createdAt} edited={comment.editedAt !== null} />
+      <ProposalCommentBody comment={comment} readOnly={readOnly} />
     </Stack>
   )
 }
 
-/** One comment: its author, when, and what they said; its author edits it. */
-function ProposalComment({ comment, readOnly }: { comment: DiscussionCommentDTO, readOnly: boolean }) {
+/** What a comment says; its author edits it in place. */
+function ProposalCommentBody({ comment, readOnly }: { comment: DiscussionCommentDTO, readOnly: boolean }) {
   const service = useService(ProposalDiscussionService)
   const editing = useValue(service.editing)
   const saving = useValue(service.editForm.submitting)
@@ -144,29 +197,25 @@ function ProposalComment({ comment, readOnly }: { comment: DiscussionCommentDTO,
     void service.saveEdit()
   }
 
+  if (editing === comment.id) {
+    return (
+      <form onSubmit={onSave} noValidate>
+        <Stack gap={2}>
+          <FormField form={service.editForm} name="body" label="Edit your comment" rows={3} />
+          <Inline justify="end" gap={2}>
+            <Button size="sm" variant="ghost" onClick={() => service.cancelEdit()}>Cancel</Button>
+            <Button type="submit" size="sm" loading={saving}>Save</Button>
+          </Inline>
+        </Stack>
+      </form>
+    )
+  }
   return (
     <Stack gap={1}>
-      <Inline gap={2} wrap>
-        <Text size="sm" weight="medium">{`@${comment.author.nick}`}</Text>
-        <Text size="sm" tone="muted">{new Date(comment.createdAt).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' })}</Text>
-        {comment.editedAt && <Text size="sm" tone="muted">edited</Text>}
-        {!readOnly && comment.author.id === me?.id && editing !== comment.id && (
-          <Button size="sm" variant="ghost" onClick={() => service.startEdit(comment)}>Edit</Button>
-        )}
-      </Inline>
-      {editing === comment.id
-        ? (
-            <form onSubmit={onSave} noValidate>
-              <Stack gap={2} align="start">
-                <FormField form={service.editForm} name="body" label="Edit your comment" rows={3} />
-                <Inline gap={2}>
-                  <Button type="submit" size="sm" loading={saving}>Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => service.cancelEdit()}>Cancel</Button>
-                </Inline>
-              </Stack>
-            </form>
-          )
-        : <Markdown>{comment.body}</Markdown>}
+      <Markdown>{comment.body}</Markdown>
+      {!readOnly && comment.author.id === me?.id && (
+        <Inline><Button size="sm" variant="ghost" onClick={() => service.startEdit(comment)}>Edit</Button></Inline>
+      )}
     </Stack>
   )
 }

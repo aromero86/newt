@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate } from 'react-router'
+import { PageBody } from '@newt/ui/components/page-body'
 import { Spinner } from '@newt/ui/components/spinner'
 import { useService } from '../../core/injector/use-service'
 import { useValue } from '../../core/store/use-value'
@@ -16,6 +17,6 @@ export function Home() {
   }, [workspaces, last])
 
   if (!last || workspace === null) return <Navigate to="/workspaces" replace />
-  if (workspace === undefined) return <Spinner label="Opening your workspace" />
+  if (workspace === undefined) return <PageBody><Spinner label="Opening your workspace" /></PageBody>
   return <Navigate to={`/w/${workspace.id}`} replace />
 }

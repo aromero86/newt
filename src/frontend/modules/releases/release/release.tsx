@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router'
 import { DownloadIcon } from 'lucide-react'
+import { Box, BoxBody, BoxHeader } from '@newt/ui/components/box'
+import { Breadcrumbs } from '@newt/ui/components/breadcrumbs'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
 import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
-import { TextLink } from '@newt/ui/components/link'
 import { Markdown } from '@newt/ui/components/markdown'
-import { PageHeader } from '@newt/ui/components/page-header'
+import { PageTitle } from '@newt/ui/components/page-title'
+import { RelativeTime } from '@newt/ui/components/relative-time'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@newt/ui/components/tabs'
@@ -44,31 +45,32 @@ function ReleaseWrapped() {
   if (release === null) return <NotFound />
 
   return (
-    <Stack gap={8}>
+    <Stack gap={6}>
       <Stack gap={2}>
-        <TextLink href={`/w/${workspaceId}/releases`}>All releases</TextLink>
-        <PageHeader
-          title={release.name}
-          description={`Published by @${release.publishedBy.nick} on ${new Date(release.publishedAt).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' })} · ${counts(release.changes)}`}
-          actions={(
-            <Inline gap={2} wrap>
-              <Button variant="outline" onClick={() => service.downloadSpecification()}><Icon icon={DownloadIcon} />Specification</Button>
-              <Button variant="outline" onClick={() => void service.downloadChangelog()}><Icon icon={DownloadIcon} />Changelog since</Button>
-            </Inline>
-          )}
-        />
+        <Breadcrumbs items={[{ label: 'Releases', href: `/w/${workspaceId}/releases` }, { label: release.name }]} />
+        <Inline justify="between" gap={3} wrap>
+          <PageTitle>{release.name}</PageTitle>
+          <Inline gap={2} wrap>
+            <Button size="sm" variant="outline" onClick={() => service.downloadSpecification()}><Icon icon={DownloadIcon} size="sm" />Specification</Button>
+            <Button size="sm" variant="outline" onClick={() => void service.downloadChangelog()}><Icon icon={DownloadIcon} size="sm" />Changelog since</Button>
+          </Inline>
+        </Inline>
+        <Text size="sm" tone="muted">
+          {`@${release.publishedBy.nick} published it `}<RelativeTime date={release.publishedAt} />{` · ${counts(release.changes)}`}
+        </Text>
         {release.description && <Text>{release.description}</Text>}
       </Stack>
-      <Tabs defaultValue="changes">
+      <Tabs defaultValue="changes" variant="underline">
         <TabsList label="Release">
           <TabsTrigger value="changes">Changes</TabsTrigger>
           <TabsTrigger value="definition">Definition</TabsTrigger>
         </TabsList>
-        <TabsContent value="changes"><ReleaseChanges release={release.name} /></TabsContent>
+        <TabsContent value="changes"><ReleaseChanges release={release.name} title="Changed in this release" /></TabsContent>
         <TabsContent value="definition">
-          <Card title="The definition as this release left it" titleLevel={2}>
-            {specification ? <Markdown>{specification.markdown}</Markdown> : <Spinner label="Loading the definition" />}
-          </Card>
+          <Box label="The definition as this release left it">
+            <BoxHeader>The definition as this release left it</BoxHeader>
+            <BoxBody>{specification ? <Markdown>{specification.markdown}</Markdown> : <Spinner label="Loading the definition" />}</BoxBody>
+          </Box>
         </TabsContent>
       </Tabs>
     </Stack>

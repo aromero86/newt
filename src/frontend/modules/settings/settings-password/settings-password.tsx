@@ -1,8 +1,8 @@
 import type { FormEvent } from 'react'
 import { Alert } from '@newt/ui/components/alert'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
 import { Stack } from '@newt/ui/components/stack'
+import { Subhead } from '@newt/ui/components/subhead'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
@@ -29,20 +29,17 @@ function SettingsPasswordWrapped() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <Card
-        title="Password"
-        titleLevel={2}
-        description="Changing it signs you out everywhere else."
-        footer={<Button type="submit" loading={submitting}>Change password</Button>}
-      >
-        <Stack gap={4}>
+    <section>
+      <Subhead title="Password" description="Changing it signs you out everywhere else." />
+      <form onSubmit={onSubmit} noValidate>
+        <Stack gap={4} align="start">
           {failure && <Alert tone="bad" title="Could not change it">{failure}</Alert>}
           <FormField form={service.form} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
           <FormField form={service.form} name="newPassword" label="New password" type="password" description="At least 8 characters." autoComplete="new-password" />
           <FormField form={service.form} name="confirmPassword" label="New password, again" type="password" autoComplete="new-password" />
+          <Button type="submit" loading={submitting}>Change password</Button>
         </Stack>
-      </Card>
-    </form>
+      </form>
+    </section>
   )
 }

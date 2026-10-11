@@ -2,24 +2,21 @@ import { useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import type { DeltaComparisonDTO } from '@newt/api/proposal'
 import { Badge } from '@newt/ui/components/badge'
+import { Box, BoxBody, BoxFooter, BoxHeader, BoxRow } from '@newt/ui/components/box'
+import { Breadcrumbs } from '@newt/ui/components/breadcrumbs'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
-import { Inline } from '@newt/ui/components/inline'
-import { TextLink } from '@newt/ui/components/link'
-import { PageHeader } from '@newt/ui/components/page-header'
+import { PageTitle } from '@newt/ui/components/page-title'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
 import { TextDiff } from '@newt/ui/components/text-diff'
-import { ArtifactTag } from '@newt/ui/domain/artifact-tag'
 import { DeltaChanges, DeltaStateChanges } from '../../../components/delta-changes'
+import { DeltaTitle, KIND_LABEL, OPERATION_LABEL } from '../../../components/delta-title'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { ArtifactNamesService } from '../../../services/artifact-names/artifact-names.service'
-import { KIND_LABEL, OPERATION_LABEL } from '../proposal/proposal-delta/proposal-delta'
 import { ProposalCompareService } from './proposal-compare.service'
-
 /** With its own services: whoever renders it needs nothing else. */
 export function ProposalCompare() {
   return (
@@ -47,25 +44,29 @@ function ProposalCompareWrapped() {
   }, [service, workspaceId, key, from, to])
 
   return (
-    <Stack gap={8}>
+    <Stack gap={6}>
       <Stack gap={2}>
-        <TextLink href={`/w/${workspaceId}/proposals/${key}`}>{key}</TextLink>
-        <PageHeader title={`Revision ${from} → revision ${to}`} description="What changed between them, in the document and in each delta." />
+        <Breadcrumbs items={[{ label: 'Proposals', href: `/w/${workspaceId}/proposals` }, { label: key, href: `/w/${workspaceId}/proposals/${key}` }, { label: 'Compare' }]} />
+        <PageTitle>{`Revision ${from} → revision ${to}`}</PageTitle>
+        <Text size="sm" tone="muted">What changed between them, in the document and in each delta.</Text>
       </Stack>
       {!loaded && <Spinner label="Comparing the revisions" />}
       {loaded && (
-        <Card title="Document" titleLevel={2}>
-          {documentDiff.some(part => part.added || part.removed)
-            ? <TextDiff parts={documentDiff} label={`Changes to the document from revision ${from} to ${to}`} />
-            : <Text size="sm" tone="muted">The document is the same.</Text>}
-        </Card>
+        <Box label="Document">
+          <BoxHeader>Document</BoxHeader>
+          <BoxBody>
+            {documentDiff.some(part => part.added || part.removed)
+              ? <TextDiff parts={documentDiff} label={`Changes to the document from revision ${from} to ${to}`} />
+              : <Text size="sm" tone="muted">The document is the same.</Text>}
+          </BoxBody>
+        </Box>
       )}
       {loaded && (
-        <Stack gap={4}>
-          <Text weight="semibold">Deltas</Text>
+        <Box label="Deltas">
+          <BoxHeader>Deltas</BoxHeader>
           {deltas.map(comparison => <ProposalCompareDelta key={comparison.id} comparison={comparison} from={from} to={to} />)}
-          {hasMore && <Inline><Button size="sm" variant="outline" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></Inline>}
-        </Stack>
+          {hasMore && <BoxFooter><Button size="sm" variant="ghost" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></BoxFooter>}
+        </Box>
       )}
     </Stack>
   )
@@ -82,24 +83,18 @@ function ProposalCompareDelta({ comparison, from, to }: { comparison: DeltaCompa
   const badge = !comparison.from ? { tone: 'ok' as const, text: `not in revision ${from}` } : !comparison.to ? { tone: 'bad' as const, text: `not in revision ${to}` } : same ? { tone: 'muted' as const, text: 'same' } : { tone: 'warn' as const, text: 'changed' }
 
   return (
-    <Card
-      title={(
-        <Inline gap={2} wrap>
-          <Text weight="semibold">{`${OPERATION_LABEL[comparison.operation]} ${KIND_LABEL[comparison.kind]}`}</Text>
-          {comparison.kind === 'rule' ? <ArtifactTag kind="rule" id={label} /> : <Text tone="muted">{label}</Text>}
-        </Inline>
-      )}
-      titleLevel={3}
-      action={<Badge tone={badge.tone}>{badge.text}</Badge>}
-    >
-      {!comparison.from && comparison.to && (
-        <DeltaChanges delta={{ kind: comparison.kind, operation: comparison.operation, ...comparison.to }} dimensions={dimensions} name={id => service.name(id)} caption={caption} />
-      )}
-      {comparison.from && comparison.to && !same && (
-        <DeltaStateChanges kind={comparison.kind} from={comparison.from.after} to={comparison.to.after} dimensions={dimensions} name={id => service.name(id)} caption={caption} />
-      )}
-      {same && <Text size="sm" tone="muted">The same in both.</Text>}
-      {comparison.from && !comparison.to && <Text size="sm" tone="muted">{`It left the proposal before revision ${to}.`}</Text>}
-    </Card>
+    <BoxRow trailing={<Badge tone={badge.tone}>{badge.text}</Badge>}>
+      <Stack gap={3}>
+        <DeltaTitle delta={{ kind: comparison.kind, operation: comparison.operation, targetLabel: label }} />
+        {!comparison.from && comparison.to && (
+          <DeltaChanges delta={{ kind: comparison.kind, operation: comparison.operation, ...comparison.to }} dimensions={dimensions} name={id => service.name(id)} caption={caption} />
+        )}
+        {comparison.from && comparison.to && !same && (
+          <DeltaStateChanges kind={comparison.kind} from={comparison.from.after} to={comparison.to.after} dimensions={dimensions} name={id => service.name(id)} caption={caption} />
+        )}
+        {same && <Text size="sm" tone="muted">The same in both.</Text>}
+        {comparison.from && !comparison.to && <Text size="sm" tone="muted">{`It left the proposal before revision ${to}.`}</Text>}
+      </Stack>
+    </BoxRow>
   )
 }

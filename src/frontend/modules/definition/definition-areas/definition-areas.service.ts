@@ -15,11 +15,14 @@ export class DefinitionAreasService {
 
   private readonly api = inject(FeatureAreaApi)
   private readonly quick = inject(QuickProposalService)
-  private readonly store = new Store({ workspaceId: '', showRetired: false })
+  private readonly store = new Store({ workspaceId: '', showRetired: false, creating: false, retiredTotal: 0 })
 
   readonly active = new ListStore<FeatureAreaDTO>(page => this.api.list(this.store.value.workspaceId, page))
   readonly retired = new ListStore<FeatureAreaDTO>(page => this.api.list(this.store.value.workspaceId, page, true))
   readonly showRetired = this.store.select('showRetired')
+  readonly creating = this.store.select('creating')
+  /** How many retired areas there are, for their filter. */
+  readonly retiredTotal = this.store.select('retiredTotal')
 
   readonly form = new FormStore(FeatureAreaCreateSchema, { name: '', description: '' }, {
     errorFields: { 'workspace.archived': 'name', validation: 'name' },
@@ -28,13 +31,23 @@ export class DefinitionAreasService {
   async load(workspaceId: string): Promise<void> {
     this.store.patch({ workspaceId, showRetired: false })
     this.form.reset({ name: '', description: '' })
-    await this.active.loadFirstPage()
+    const [, retired] = await Promise.all([this.active.loadFirstPage(), this.api.list(workspaceId, { size: 1 }, true)])
+    this.store.patch({ retiredTotal: retired.total })
   }
 
-  async toggleRetired(): Promise<void> {
-    const showRetired = !this.store.value.showRetired
-    this.store.patch({ showRetired })
-    if (showRetired) await this.retired.loadFirstPage()
+  /** The active areas, or the retired ones. */
+  async show(retired: boolean): Promise<void> {
+    this.store.patch({ showRetired: retired })
+    if (retired) await this.retired.loadFirstPage()
+  }
+
+  openCreate(): void {
+    this.form.reset({ name: '', description: '' })
+    this.store.patch({ creating: true })
+  }
+
+  closeCreate(): void {
+    this.store.patch({ creating: false })
   }
 
   /** Proposes a new area. */
@@ -43,7 +56,7 @@ export class DefinitionAreasService {
     await this.form.submit(async after => {
       proposal = await this.quick.propose(this.store.value.workspaceId, { kind: 'feature-area', operation: 'create', after })
     })
-    if (proposal) this.form.reset({ name: '', description: '' })
+    if (proposal) this.closeCreate()
     return proposal
   }
 

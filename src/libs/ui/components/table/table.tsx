@@ -28,7 +28,7 @@ type TableProps = {
 export function Table({ caption, children }: TableProps) {
   return (
     <ShadcnTable>
-      {caption !== undefined && <ShadcnTableCaption>{caption}</ShadcnTableCaption>}
+      {caption !== undefined && <ShadcnTableCaption className="sr-only">{caption}</ShadcnTableCaption>}
       {children}
     </ShadcnTable>
   )

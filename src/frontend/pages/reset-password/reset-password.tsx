@@ -43,7 +43,7 @@ function ResetPasswordWrapped() {
       <Logo />
       <PageHeader title="Choose a new password" description="Every session of your account will be signed out." />
       <form onSubmit={onSubmit} noValidate>
-        <Card footer={<Button type="submit" loading={submitting}>Change password</Button>}>
+        <Card footer={<Button type="submit" block loading={submitting}>Change password</Button>}>
           <Stack gap={4}>
             {failure && <Alert tone="bad" title="Could not change it">{failure}</Alert>}
             <FormField form={service.form} name="password" label="New password" type="password" description="At least 8 characters." autoComplete="new-password" />

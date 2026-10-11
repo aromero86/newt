@@ -2,24 +2,19 @@ import { useEffect } from 'react'
 import { useParams } from 'react-router'
 import { CalendarClockIcon } from 'lucide-react'
 import { Alert } from '@newt/ui/components/alert'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow } from '@newt/ui/components/box'
 import { Button } from '@newt/ui/components/button'
-import { Card } from '@newt/ui/components/card'
-import { EmptyState } from '@newt/ui/components/empty-state'
-import { Inline } from '@newt/ui/components/inline'
 import { TextLink } from '@newt/ui/components/link'
-import { PageHeader } from '@newt/ui/components/page-header'
-import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
+import { Subhead } from '@newt/ui/components/subhead'
 import { Text } from '@newt/ui/components/text'
 import { DeltaChanges } from '../../../components/delta-changes'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { ArtifactNamesService } from '../../../services/artifact-names/artifact-names.service'
+import { DeltaTitle, KIND_LABEL, OPERATION_LABEL } from '../../../components/delta-title'
 import { DefinitionPlannedService } from './definition-planned.service'
-
-const KIND = { 'dimension': 'dimension', 'feature-area': 'area', 'feature': 'feature', 'rule': 'rule' } as const
-const OPERATION = { create: 'Create', change: 'Change', retire: 'Retire', restore: 'Restore' } as const
 
 /** With its own services: whoever renders it needs nothing else. */
 export function DefinitionPlanned() {
@@ -48,32 +43,27 @@ function DefinitionPlannedWrapped() {
   }, [service, workspaceId])
 
   return (
-    <Stack gap={8}>
-      <PageHeader
-        title="Planned"
-        description="The definition in force is what is merged. These changes are accepted too, and enter it once their code is in."
-      />
+    <Stack gap={4}>
+      <Subhead title="Planned" description="The definition in force is what is merged. These changes are accepted too, and enter it once their code is in." />
       {failure && <Alert tone="bad" title="Could not load the planned changes">{failure}</Alert>}
-      {!loaded && !failure && <Spinner label="Loading the planned changes" />}
-      {loaded && planned.length === 0 && (
-        <EmptyState icon={CalendarClockIcon} title="Nothing planned" description="No accepted proposal is waiting for its code: the planned definition is the one in force." />
-      )}
-      {planned.length > 0 && <Text weight="semibold">{`${total} ${total === 1 ? 'change' : 'changes'} planned`}</Text>}
-      {planned.map(({ proposal, delta }) => (
-        <Card
-          key={delta.id}
-          title={`${OPERATION[delta.operation]} ${KIND[delta.kind]} ${delta.targetLabel}`}
-          titleLevel={2}
-          description={<Inline gap={1}><TextLink href={`/w/${workspaceId}/proposals/${proposal.key}`}>{proposal.key}</TextLink><Text size="sm" tone="muted">{proposal.title}</Text></Inline>}
-        >
-          <DeltaChanges delta={delta} dimensions={dimensions} name={id => service.name(id)} caption={`${OPERATION[delta.operation]} ${KIND[delta.kind]} ${delta.targetLabel}`} />
-        </Card>
-      ))}
-      {hasMore && (
-        <Inline>
-          <Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.planned.loadMore()}>Load more changes</Button>
-        </Inline>
-      )}
+      <Box label="Planned changes">
+        <BoxHeader>{`${total} ${total === 1 ? 'change' : 'changes'} planned`}</BoxHeader>
+        {loaded && planned.length === 0 && (
+          <BoxEmpty icon={CalendarClockIcon} title="Nothing planned" description="No accepted proposal is waiting for its code: the planned definition is the one in force." />
+        )}
+        {planned.map(({ proposal, delta }) => (
+          <BoxRow key={delta.id} trailing={<TextLink href={`/w/${workspaceId}/proposals/${proposal.key}`}>{proposal.key}</TextLink>}>
+            <Stack gap={3}>
+              <Stack gap={1}>
+                <DeltaTitle delta={delta} />
+                <Text size="sm" tone="muted">{proposal.title}</Text>
+              </Stack>
+              <DeltaChanges delta={delta} dimensions={dimensions} name={id => service.name(id)} caption={`${OPERATION_LABEL[delta.operation]} ${KIND_LABEL[delta.kind]} ${delta.targetLabel}`} />
+            </Stack>
+          </BoxRow>
+        ))}
+        {hasMore && <BoxFooter><Button variant="ghost" size="sm" loading={loadingMore} onClick={() => void service.planned.loadMore()}>Load more changes</Button></BoxFooter>}
+      </Box>
     </Stack>
   )
 }

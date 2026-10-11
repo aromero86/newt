@@ -26,9 +26,11 @@ type SelectProps = {
   name?: string
   /** Accessible name, for selects used outside a `Field`. */
   label?: string
+  /** `compact`: as wide as its value and short, for filters in a toolbar or a box's header. */
+  size?: 'full' | 'compact'
 }
 
-export function Select({ options, value, onValueChange, placeholder, disabled, invalid, name, label }: SelectProps) {
+export function Select({ options, value, onValueChange, placeholder, disabled, invalid, name, label, size = 'full' }: SelectProps) {
   const field = useFieldControl()
   return (
     <ShadcnSelect value={value ?? ''} onValueChange={onValueChange} disabled={disabled} name={name}>
@@ -37,7 +39,8 @@ export function Select({ options, value, onValueChange, placeholder, disabled, i
         aria-describedby={field?.describedBy}
         aria-invalid={invalid || field?.invalid || undefined}
         aria-label={label}
-        className="w-full"
+        size={size === 'compact' ? 'sm' : 'default'}
+        className={size === 'compact' ? 'w-auto gap-1.5 bg-background text-sm' : 'w-full'}
       >
         <ShadcnSelectValue placeholder={placeholder} />
       </ShadcnSelectTrigger>

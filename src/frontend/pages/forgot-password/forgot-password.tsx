@@ -44,7 +44,7 @@ function ForgotPasswordWrapped() {
         </Alert>
       ) : (
         <form onSubmit={onSubmit} noValidate>
-          <Card footer={<Button type="submit" loading={submitting}>Send the link</Button>}>
+          <Card footer={<Button type="submit" block loading={submitting}>Send the link</Button>}>
             <Stack gap={4}>
               {failure && <Alert tone="bad" title="Could not send it">{failure}</Alert>}
               <FormField form={service.form} name="email" label="Email" type="email" autoComplete="email" />

@@ -1,13 +1,51 @@
-import { Route, Routes } from 'react-router'
+import { Route, Routes, useLocation } from 'react-router'
+import { KeyRoundIcon, UserIcon } from 'lucide-react'
+import { Avatar } from '@newt/ui/components/avatar'
+import { Inline } from '@newt/ui/components/inline'
+import { PageBody } from '@newt/ui/components/page-body'
+import { SideNav, SideNavItem } from '@newt/ui/components/side-nav'
+import { SidebarLayout } from '@newt/ui/components/sidebar-layout'
+import { Stack } from '@newt/ui/components/stack'
+import { Text } from '@newt/ui/components/text'
+import { useService } from '../../core/injector/use-service'
+import { useValue } from '../../core/store/use-value'
 import { NotFound } from '../../pages/not-found/not-found'
-import { Settings } from './settings'
+import { SessionService } from '../../services/session/session.service'
+import { SettingsPassword } from './settings-password/settings-password'
+import { SettingsProfile } from './settings-profile/settings-profile'
 
-/** The settings zone's own routes, below /settings. */
+/** The account's settings, below /settings: who you are, beside a menu of sections. */
 export function SettingsRoutes() {
+  const user = useValue(useService(SessionService).user)
+  const { pathname } = useLocation()
+
+  const menu = (
+    <SideNav label="Account settings">
+      <SideNavItem href="/settings" active={pathname === '/settings'} icon={UserIcon}>Profile</SideNavItem>
+      <SideNavItem href="/settings/password" active={pathname === '/settings/password'} icon={KeyRoundIcon}>Password</SideNavItem>
+    </SideNav>
+  )
+
   return (
-    <Routes>
-      <Route index element={<Settings />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <PageBody>
+      <Stack gap={8}>
+        {user && (
+          <Inline gap={3}>
+            <Avatar name={user.fullName} size={8} />
+            <Stack gap={0}>
+              <Text weight="semibold">{user.fullName}</Text>
+              <Text size="sm" tone="muted">{`@${user.nick} · your account`}</Text>
+            </Stack>
+          </Inline>
+        )}
+        <SidebarLayout aside={menu}>
+          <Routes>
+            <Route index element={<SettingsProfile />} />
+            <Route path="password" element={<SettingsPassword />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SidebarLayout>
+      </Stack>
+    </PageBody>
   )
 }

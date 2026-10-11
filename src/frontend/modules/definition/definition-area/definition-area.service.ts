@@ -15,7 +15,9 @@ type AreaState = {
   /** Undefined while loading; null if there is no such area. */
   area: FeatureAreaDTO | null | undefined
   editing: boolean
+  creating: boolean
   showRetired: boolean
+  retiredTotal: number
 }
 
 const CreateSchema = FeatureCreateSchema.omit({ areaId: true })
@@ -29,11 +31,13 @@ export class DefinitionAreaService {
   private readonly areaApi = inject(FeatureAreaApi)
   private readonly featureApi = inject(FeatureApi)
   private readonly quick = inject(QuickProposalService)
-  private readonly store = new Store<AreaState>({ workspaceId: '', areaId: '', area: undefined, editing: false, showRetired: false })
+  private readonly store = new Store<AreaState>({ workspaceId: '', areaId: '', area: undefined, editing: false, creating: false, showRetired: false, retiredTotal: 0 })
 
   readonly area = this.store.select('area')
   readonly editing = this.store.select('editing')
   readonly showRetired = this.store.select('showRetired')
+  readonly creating = this.store.select('creating')
+  readonly retiredTotal = this.store.select('retiredTotal')
 
   readonly features = new ListStore<FeatureDTO>(page => this.featureApi.list(this.store.value.workspaceId, this.store.value.areaId, page))
   readonly retired = new ListStore<FeatureDTO>(page => this.featureApi.list(this.store.value.workspaceId, this.store.value.areaId, page, true))
@@ -46,7 +50,8 @@ export class DefinitionAreaService {
     this.form.reset({ name: '', description: '' })
     try {
       this.store.patch({ area: await this.areaApi.one(workspaceId, areaId) })
-      await this.features.loadFirstPage()
+      const [, retired] = await Promise.all([this.features.loadFirstPage(), this.featureApi.list(workspaceId, areaId, { size: 1 }, true)])
+      this.store.patch({ retiredTotal: retired.total })
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) this.store.patch({ area: null })
       else throw error
@@ -60,8 +65,17 @@ export class DefinitionAreaService {
     await this.form.submit(async input => {
       proposal = await this.quick.propose(workspaceId, { kind: 'feature', operation: 'create', after: { ...input, areaId } })
     })
-    if (proposal) this.form.reset({ name: '', description: '' })
+    if (proposal) this.closeCreate()
     return proposal
+  }
+
+  openCreate(): void {
+    this.form.reset({ name: '', description: '' })
+    this.store.patch({ creating: true })
+  }
+
+  closeCreate(): void {
+    this.store.patch({ creating: false })
   }
 
   /** One place up (-1) or down (+1) in the area. */
@@ -82,10 +96,10 @@ export class DefinitionAreaService {
     return this.quick.propose(this.store.value.workspaceId, { kind: 'feature', operation: 'restore', targetId: feature.id })
   }
 
-  async toggleRetired(): Promise<void> {
-    const showRetired = !this.store.value.showRetired
-    this.store.patch({ showRetired })
-    if (showRetired) await this.retired.loadFirstPage()
+  /** The area's active features, or its retired ones. */
+  async show(retired: boolean): Promise<void> {
+    this.store.patch({ showRetired: retired })
+    if (retired) await this.retired.loadFirstPage()
   }
 
   openEdit(): void {

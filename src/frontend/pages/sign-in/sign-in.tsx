@@ -48,7 +48,7 @@ function SignInWrapped() {
       <PageHeader title="Sign in" description="The living definition of your product." />
       {state?.notice && <Alert tone="ok" title="Done">{state.notice}</Alert>}
       <form onSubmit={onSubmit} noValidate>
-        <Card footer={<Button type="submit" loading={submitting}>Sign in</Button>}>
+        <Card footer={<Button type="submit" block loading={submitting}>Sign in</Button>}>
           <Stack gap={4}>
             {failure && <Alert tone="bad" title="Could not sign in">{failure}</Alert>}
             <FormField form={service.form} name="login" label="Nick or email" autoComplete="username" />
