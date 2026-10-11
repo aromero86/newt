@@ -20,7 +20,9 @@ approved delta by delta and iterated in published revisions, like commits: what
 did not change keeps its approval. Proposals have conversations, and accepted
 ones make up the planned definition until they are marked as merged. Releases
 picture the definition in force, show what changed since the last one, and export
-the specification and the changelog as Markdown. AI assistants (Claude Code, Codex
+the specification and the changelog as Markdown. Search finds areas, features, rules and
+proposals by their words and by their meaning, in Spanish or English, with a model
+that runs inside newt (downloaded the first time). AI assistants (Claude Code, Codex
 or any other that speaks MCP) connect with a personal access token: they read the
 definition and write and iterate proposals for you, never approve nor merge them.
 
@@ -56,6 +58,8 @@ them to `.env`, each with a line saying what it is for.
 | `NEWT_SESSION_DAYS` | How long a session lasts |
 | `NEWT_PASSWORD_RESET_MINUTES` | How long a password reset link works |
 | `NEWT_INVITATION_DAYS` | How long a workspace invitation waits |
+| `NEWT_EMBEDDINGS_MODEL` | The model that finds things by their meaning (Hugging Face), downloaded the first time |
+| `NEWT_MODELS_PATH` | Where downloaded models are kept |
 | `NEWT_SMTP_HOST`, `NEWT_SMTP_PORT`, `NEWT_SMTP_SECURE`, `NEWT_SMTP_USER`, `NEWT_SMTP_PASSWORD` | The SMTP server emails leave from |
 | `NEWT_MAIL_FROM` | The sender of every email |
 
@@ -63,7 +67,7 @@ them to `.env`, each with a line saying what it is for.
 
 | Script | What it does |
 |---|---|
-| `bun run dev` | Starts everything; stops everything if one part fails |
+| `bun run dev` | Starts everything; stops everything if one part fails. With `--watch`, the backend restarts on every change |
 | `bun run typecheck` | Type-checks every project |
 | `bun run lint` | Lints, including the rules that keep apps from styling on their own |
 | `bun run test` | Runs the tests |

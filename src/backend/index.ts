@@ -15,6 +15,7 @@ const server = Bun.serve({
   fetch: serveFrontend(config.frontendFolder),
 })
 console.log(`Server listening on port ${config.port}`)
+await modules.search.startBackground()
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {

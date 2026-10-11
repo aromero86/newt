@@ -29,6 +29,11 @@ export const config = {
     password: process.env.NEWT_SMTP_PASSWORD ?? '',
     from: process.env.NEWT_MAIL_FROM ?? 'newt <no-reply@newt.local>',
   },
+  /** `NEWT_EMBEDDINGS_MODEL` and `NEWT_MODELS_PATH`: the model that finds things by their meaning, from Hugging Face, and where it is kept once downloaded. */
+  search: {
+    model: process.env.NEWT_EMBEDDINGS_MODEL ?? 'Snowflake/snowflake-arctic-embed-l-v2.0',
+    modelsPath: fromRoot(process.env.NEWT_MODELS_PATH ?? 'data/models'),
+  },
   /** The built frontend the server hands out. */
   frontendFolder: join(root, 'dist/frontend'),
 }

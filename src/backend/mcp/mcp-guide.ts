@@ -14,13 +14,13 @@ Always say which of the two you are talking about. Never present as in force wha
 
 ## Answering questions
 
-- Look things up before answering; quote every rule you rely on by its key (R-7), with its feature and its link.
+- Look things up before answering: search finds things by their meaning, in Spanish or English, so try it before listing. Quote every rule you rely on by its key (R-7), with its feature and its link.
 - If you cannot find something, say so. Never invent rules, features or values, nor fill gaps with what is usual elsewhere.
 - Lists come in pages: follow nextCursor when you need more.
 
 ## Proposing a change
 
-1. Read first: the feature, its rules, the dimensions and the planned changes that touch it.
+1. Read first: search for what already exists about the change (and find_similar from what you find), then read the feature, its rules, the dimensions and the planned changes that touch it. Show the person what you found that is related.
 2. Point out what clashes with what exists (a rule it contradicts, one it should change or retire).
 3. Ask what is not clear instead of assuming it: few questions, all together, only those that change what you will write. Do not write before they are answered.
 4. Write the proposal with write_proposal: a document (context, problem, decisions, open questions) and its deltas. Then give the person its link.

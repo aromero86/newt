@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { BookOpenIcon, GitPullRequestIcon, LayersIcon, SettingsIcon, TagIcon } from 'lucide-react'
 import type { WorkspaceMineDTO } from '@newt/api/workspace'
 import { Badge } from '@newt/ui/components/badge'
 import { Breadcrumbs } from '@newt/ui/components/breadcrumbs'
 import { Icon } from '@newt/ui/components/icon'
 import { PageBand } from '@newt/ui/components/page-band'
+import { SearchField } from '@newt/ui/components/search-field'
 import { UnderlineNav, UnderlineNavItem } from '@newt/ui/components/underline-nav'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
@@ -27,6 +28,8 @@ function WorkspaceBandWrapped({ workspace }: { workspace: WorkspaceMineDTO }) {
   const openProposals = useValue(service.openProposals)
   const releases = useValue(service.releases)
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
   const base = `/w/${workspace.id}`
   const tab = (path: string) => ({ href: `${base}/${path}`, active: pathname.startsWith(`${base}/${path}`) })
 
@@ -47,6 +50,15 @@ function WorkspaceBandWrapped({ workspace }: { workspace: WorkspaceMineDTO }) {
           {workspace.archivedAt && <Badge tone="warn">archived</Badge>}
           {workspace.myRole === 'admin' && <Badge tone="outline">admin</Badge>}
         </>
+      )}
+      actions={pathname === `${base}/search` ? undefined : (
+        <SearchField
+          label={`Search ${workspace.name}`}
+          placeholder="Search this workspace"
+          size="sm"
+          defaultValue={params.get('query') ?? undefined}
+          onSearch={query => navigate(`${base}/search?query=${encodeURIComponent(query)}`)}
+        />
       )}
       nav={(
         <UnderlineNav label={`${workspace.name} sections`}>

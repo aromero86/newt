@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Entity } from '../../core/entity/entity'
 import type { EntityInput } from '../../core/entity/entity-input'
 import { ProposalFrozen } from './errors/proposal-frozen'
+import { Proposal_Changed } from './events/proposal-changed'
 import { ProposalNotInReview } from './errors/proposal-not-in-review'
 import { ProposalTransitionNotAllowed } from './errors/proposal-transition-not-allowed'
 import { ProposalStatusSchema, type ProposalStatus } from './proposal.schema'
@@ -136,6 +137,7 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
         documentChanged: this.data.document !== input.previous,
       },
     })
+    this.changed()
     return number
   }
 
@@ -148,6 +150,7 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
   retitle(title: string): void {
     this.assertEditable('change its title')
     this.change({ title })
+    this.changed()
   }
 
   /** To another state, if the lifecycle allows it, noting who took it there. */
@@ -160,5 +163,10 @@ export class Proposal extends Entity<typeof ProposalEntitySchema> {
       ...(status === 'merged' ? { mergedBy: userId, mergedAt: at } : {}),
       ...(status === 'discarded' ? { discardedBy: userId, discardedAt: at } : {}),
     })
+    this.changed()
+  }
+
+  private changed(): void {
+    this.trackEvent(new Proposal_Changed({ workspaceId: this.data.workspaceId, proposalId: this.id }))
   }
 }

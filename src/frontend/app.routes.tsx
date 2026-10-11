@@ -57,6 +57,7 @@ export const router = createBrowserRouter([
               { path: 'definition/*', lazy: () => import('./modules/definition/definition.routes').then(zone => ({ Component: zone.DefinitionRoutes })) },
               { path: 'proposals/*', lazy: () => import('./modules/proposals/proposals.routes').then(zone => ({ Component: zone.ProposalsRoutes })) },
               { path: 'releases/*', lazy: () => import('./modules/releases/releases.routes').then(zone => ({ Component: zone.ReleasesRoutes })) },
+              { path: 'search', lazy: () => import('./modules/search/search').then(zone => ({ Component: zone.Search })) },
               { path: 'settings/*', lazy: () => import('./modules/workspace-settings/workspace-settings').then(zone => ({ Component: zone.WorkspaceSettings })) },
             ],
           },

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { FolderInputIcon, MoreHorizontalIcon, PencilIcon, PlusIcon } from 'lucide-react'
 import { Alert } from '@newt/ui/components/alert'
 import { Badge } from '@newt/ui/components/badge'
@@ -10,6 +10,7 @@ import { Icon } from '@newt/ui/components/icon'
 import { Inline } from '@newt/ui/components/inline'
 import { Menu, type MenuItem } from '@newt/ui/components/menu'
 import { PageTitle } from '@newt/ui/components/page-title'
+import { SearchField } from '@newt/ui/components/search-field'
 import { Spinner } from '@newt/ui/components/spinner'
 import { Stack } from '@newt/ui/components/stack'
 import { Text } from '@newt/ui/components/text'
@@ -40,6 +41,7 @@ export function DefinitionFeature() {
 /** One feature: what it covers, its rules, and where it came from. */
 function DefinitionFeatureWrapped() {
   const { workspaceId, featureId } = useParams() as { workspaceId: string, featureId: string }
+  const navigate = useNavigate()
   const service = useService(DefinitionFeatureService)
   const workspace = useValue(useService(WorkspacesService).workspace(workspaceId))
   const feature = useValue(service.feature)
@@ -74,8 +76,15 @@ function DefinitionFeatureWrapped() {
         <Breadcrumbs items={[{ label: 'Areas', href: definition }, ...(area ? [{ label: area.name, href: `${definition}/areas/${area.id}` }] : []), { label: feature.name }]} />
         <Inline justify="between" gap={3} wrap>
           <PageTitle>{feature.name}</PageTitle>
-          {!readOnly && (
-            <Inline gap={2}>
+          <Inline gap={2}>
+            <SearchField
+              label={`Search in ${feature.name}`}
+              placeholder={`Search in ${feature.name}`}
+              size="sm"
+              onSearch={query => navigate(`/w/${workspaceId}/search?query=${encodeURIComponent(query)}&featureId=${feature.id}`)}
+            />
+            {!readOnly && (
+              <>
               {!retired && <Button size="sm" variant="outline" onClick={() => void rules.startNew(workspaceId, feature.id)}><Icon icon={PlusIcon} size="sm" />Propose a rule</Button>}
               <Menu
                 label={`Actions for ${feature.name}`}
@@ -83,8 +92,9 @@ function DefinitionFeatureWrapped() {
                 trigger={<Button variant="outline" size="icon-sm" label={`Actions for ${feature.name}`}><Icon icon={MoreHorizontalIcon} /></Button>}
                 items={actions}
               />
-            </Inline>
-          )}
+              </>
+            )}
+          </Inline>
         </Inline>
         {retired && <Inline><Badge tone="muted">retired</Badge></Inline>}
       </Stack>

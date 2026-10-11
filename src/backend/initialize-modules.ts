@@ -11,6 +11,7 @@ import { Delta_Module } from './modules/delta/delta.module'
 import { Proposal_Module } from './modules/proposal/proposal.module'
 import { Release_Module } from './modules/release/release.module'
 import { Rule_Module } from './modules/rule/rule.module'
+import { Search_Module } from './modules/search/search.module'
 import { Health_Module } from './modules/health/health.module'
 import { Mail_Module } from './modules/mail/mail.module'
 import { AuthPasswordReset_Module } from './modules/auth-password-reset/auth-password-reset.module'
@@ -39,9 +40,10 @@ export async function initializeModules(base: Base) {
   const proposal = await Proposal_Module.initialize(base, { delta, user, workspace, workspaceMember })
   const baseline = await Baseline_Module.initialize(base, { delta, proposal, workspaceMember })
   const release = await Release_Module.initialize(base, { baseline, dimension, feature, featureArea, rule, user, workspace, workspaceMember })
+  const search = await Search_Module.initialize(base, { delta, dimension, feature, featureArea, proposal, rule, workspaceMember }, config.search)
   const discussionComment = await DiscussionComment_Module.initialize(base, { user, workspace })
   await Discussion_Module.initialize(base, { discussionComment, proposal, user, workspace, workspaceMember })
   await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
   await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
-  return { user, authCredential, authSession, authToken, mail, workspaceMember, workspace, dimension, featureArea, feature, rule, delta, proposal, baseline, release }
+  return { user, authCredential, authSession, authToken, mail, workspaceMember, workspace, dimension, featureArea, feature, rule, delta, proposal, baseline, release, search }
 }

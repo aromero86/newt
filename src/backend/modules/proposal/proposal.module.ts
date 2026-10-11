@@ -1,5 +1,6 @@
 import type { Base } from '../../base/base'
 import { currentActor } from '../../core/context/current-actor'
+import { DomainEventEmitter } from '../../core/events/domain-event-emitter'
 import { Module } from '../../core/module/module'
 import type { Page } from '../../core/pagination/page'
 import type { PageRequest } from '../../core/pagination/page-request'
@@ -8,6 +9,7 @@ import { DeltaNotFound } from '../delta/errors/delta-not-found'
 import type { DeltaComparisonDTO, DeltaDTO, DeltaInputDTO, DeltaReviewInputDTO, DeltaSnapshotDTO, DeltaView } from '../delta/delta.schema'
 import { NothingToPublish } from './errors/nothing-to-publish'
 import { ProposalChangedSince } from './errors/proposal-changed-since'
+import { Proposal_Changed } from './events/proposal-changed'
 import { ProposalUnpublished } from './errors/proposal-unpublished'
 import { RevisionNotFound } from './errors/revision-not-found'
 import { ProposalNotFound } from './errors/proposal-not-found'
@@ -50,8 +52,12 @@ export class Proposal_Module extends Module {
     return module
   }
 
+  /** A proposal published a revision, was retitled or changed state. */
+  readonly changed
+
   private constructor(base: Base, private readonly repo: Proposal_Repository, private readonly deps: Proposal_Deps) {
     super('proposal', base.transactions)
+    this.changed = new DomainEventEmitter(base.bus, Proposal_Changed)
   }
 
   /** A page of the workspace's proposals, newest first, in any of these states and with these words in their title. */

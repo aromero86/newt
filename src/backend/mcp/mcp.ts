@@ -6,6 +6,7 @@ import { MCP_GUIDE } from './mcp-guide'
 import { registerDefinitionTools } from './tools/definition.tools'
 import { registerProposalTools } from './tools/proposal.tools'
 import { registerReleaseTools } from './tools/release.tools'
+import { registerSearchTools } from './tools/search.tools'
 
 /** A conversation with one assistant: forgotten after this long without a word. */
 const IDLE_MINUTES = 60
@@ -26,6 +27,7 @@ export function mcpEntry(modules: McpContext['modules'], publicUrl: string) {
     registerDefinitionTools(server, context)
     registerProposalTools(server, context)
     registerReleaseTools(server, context)
+    registerSearchTools(server, context)
     const session: McpSession = { userId, server, transport: null!, seenAt: Date.now() }
     session.transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),

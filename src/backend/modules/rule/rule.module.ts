@@ -106,6 +106,13 @@ export class Rule_Module extends Module {
     return this.contracts(workspaceId, await this.repo.find({ ...criteria, workspaceId }))
   }
 
+  /** For other modules: every version of these rules of the workspace, oldest first, each with its rule. */
+  @UseCase('rule.findVersions')
+  async findVersions(workspaceId: string, ruleIds: string[]): Promise<(RuleVersionDTO & { ruleId: string })[]> {
+    const rules = await this.repo.find({ workspaceId, id: ruleIds })
+    return this.repo.findVersions(rules.map(rule => rule.id))
+  }
+
   private load(workspaceId: string, key: string): Promise<Rule> {
     const number = Number.parseInt(key.replace(/^R-/i, ''), 10)
     if (!Number.isInteger(number)) throw new RuleNotFound(key)

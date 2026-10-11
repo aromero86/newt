@@ -2,13 +2,15 @@
 // Each service runs in its own process group, so stopping it also stops the
 // processes it spawns (astro dev, for one, runs its server in a child process).
 // The ports are fixed (each service fails instead of moving to another one), so
-// the links below always hold.
+// the links below always hold. With --watch, the backend restarts on every change.
+const watch = Bun.argv.includes('--watch')
+
 const SERVICES = [
   // --ignore-lock keeps astro in the foreground: when it detects an AI agent it
   // otherwise moves the dev server to the background and returns.
   { name: 'landing', url: 'http://localhost:4321', cmd: ['bun', 'x', 'astro', 'dev', '--ignore-lock'], cwd: 'src/landing' },
   { name: 'frontend', url: 'http://localhost:5173', cmd: ['bun', 'x', 'vite', 'src/frontend'] },
-  { name: 'api', url: `http://localhost:${process.env.API_PORT ?? 3000}`, cmd: ['bun', '--watch', 'src/backend/index.ts'] },
+  { name: 'api', url: `http://localhost:${process.env.API_PORT ?? 3000}`, cmd: ['bun', ...(watch ? ['--watch'] : []), 'src/backend/index.ts'] },
 ]
 
 // Nothing starts unless every port is free: `bun --watch`, for one, stays alive

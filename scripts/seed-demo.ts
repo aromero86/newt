@@ -61,6 +61,19 @@ const AREAS: { name: string, description: string, features: { name: string, desc
             }],
           },
           {
+            kind: 'flow',
+            statement: 'Guests check out with an email address, without creating an account',
+            why: 'Asking for an account before paying loses many first purchases.',
+            scope: { Role: ['Guest'] },
+            criteria: [{ given: 'a guest with items in the cart', when: 'they go to pay', then: 'they are asked for an email address and can pay without a password' }],
+          },
+          {
+            kind: 'permission',
+            statement: 'Only registered customers can pay in installments',
+            why: 'The bank checks who pays in installments, so the buyer must be known.',
+            criteria: [{ given: 'a guest with a cart of 200 €', when: 'they choose how to pay', then: 'installments are not offered, with a link to sign up' }],
+          },
+          {
             kind: 'calculation',
             statement: 'Prices are shown with VAT included',
             why: 'Spanish consumer law requires the final price to be visible.',
@@ -270,7 +283,7 @@ Free shipping from **40 €**, and the threshold shown in the cart.
       refs => ({
         kind: 'rule',
         operation: 'change',
-        targetId: refs.rule('R-10'),
+        targetId: refs.rule('R-12'),
         after: {
           kind: 'calculation',
           statement: 'Shipping is free for orders over 40 €',
@@ -389,11 +402,15 @@ try {
     : await modules.authSession.signUp(DEMO)
   const actor = (await modules.authSession.authenticate(token))!
   const overwritten = await runAsActor(actor, seed)
+  // Its words can be searched at once; the server computes their meaning on the first search.
+  await modules.search.reindex((await runAsActor(actor, acmeShop))!.id)
   console.log(`Acme Shop ${overwritten ? 'overwritten' : 'loaded'} in ${config.dbPath}. Sign in as ${DEMO.nick} / ${DEMO.password}`)
 } finally {
   // Let the workers that react to a new account finish before closing.
   await Bun.sleep(300)
   base.close()
+  // The search module keeps working in the background: nothing here waits for it.
+  process.exit(0)
 }
 
 /** Resolves to whether Acme Shop was already there, and so overwritten. */
@@ -459,13 +476,13 @@ async function seed(): Promise<boolean> {
   }
 
   // A small change merged after the last release: what the next one would publish.
-  const r8 = (await modules.rule.find(workspace.id, {})).find(rule => rule.key === 'R-8')!
+  const r10 = (await modules.rule.find(workspace.id, {})).find(rule => rule.key === 'R-10')!
   const quick = await modules.proposal.quick(workspace.id, {
     delta: {
       kind: 'rule',
       operation: 'change',
-      targetId: r8.id,
-      after: { ...r8.current, statement: 'A Bizum payment is confirmed or rejected within 20 seconds', why: 'Since the bank moved to instant payments, 30 seconds is too long to wait.' },
+      targetId: r10.id,
+      after: { ...r10.current, statement: 'A Bizum payment is confirmed or rejected within 20 seconds', why: 'Since the bank moved to instant payments, 30 seconds is too long to wait.' },
     },
   })
   const [delta] = (await modules.proposal.deltas(workspace.id, quick.key, 'published', { size: 1 })).items
@@ -523,6 +540,8 @@ function wipe(workspaceId: string): void {
   const sqlite = base.db.sqlite
   sqlite.transaction(() => {
     for (const statement of [
+      'DELETE FROM search_entry_text WHERE entry_id IN (SELECT id FROM search_entry WHERE workspace_id = ?1)',
+      'DELETE FROM search_entry WHERE workspace_id = ?1',
       'DELETE FROM release__artifact WHERE release_id IN (SELECT id FROM release WHERE workspace_id = ?1)',
       'DELETE FROM release WHERE workspace_id = ?1',
       'DELETE FROM discussion_comment WHERE workspace_id = ?1',

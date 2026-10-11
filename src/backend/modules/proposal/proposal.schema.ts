@@ -106,6 +106,9 @@ export const ProposalWriteSchema = z.object({
 /** A proposal with one delta, made in place; its title is written for it. */
 export const ProposalQuickSchema = z.object({ delta: DeltaInputSchema })
 
+/** A proposal published a revision, was retitled or changed state: what readers of proposals react to. */
+export type ProposalChangedPayload = { workspaceId: string, proposalId: string }
+
 export type ProposalStatus = z.infer<typeof ProposalStatusSchema>
 export type ProposalDTO = z.infer<typeof ProposalSchema>
 export type ProposalCreateDTO = z.infer<typeof ProposalCreateSchema>

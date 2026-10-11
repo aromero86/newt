@@ -70,6 +70,14 @@ export class Rule_Repository extends Repository<Base> {
     return toPage(rows.map(row => versions.get(row.id)!), page.size, total?.total ?? 0)
   }
 
+  /** Every version of these rules, oldest first, each with its rule. */
+  async findVersions(ruleIds: string[]): Promise<(RuleVersionDTO & { ruleId: string })[]> {
+    if (ruleIds.length === 0) return []
+    const rows = await this.db.select().from(ruleVersion).where(inArray(ruleVersion.ruleId, ruleIds)).orderBy(asc(ruleVersion.id))
+    const versions = await this.withScopes(rows)
+    return rows.map(row => ({ ...versions.get(row.id)!, ruleId: row.ruleId }))
+  }
+
   /** The next R-number of the workspace: numbers are never reused. */
   async nextNumber(workspaceId: string): Promise<number> {
     const [result] = await this.db.select({ last: max(rule.number) }).from(rule).where(eq(rule.workspaceId, workspaceId))

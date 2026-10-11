@@ -27,6 +27,7 @@ import { QuickProposalService } from '../../../services/quick-proposal/quick-pro
 import { useOpenProposal } from '../../../services/quick-proposal/use-open-proposal'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { DefinitionHistory } from '../definition-history/definition-history'
+import { DefinitionSimilar } from '../definition-similar/definition-similar'
 import { DefinitionPlannedNotice } from '../definition-planned-notice/definition-planned-notice'
 import { DefinitionRulePropose } from '../definition-rule-propose/definition-rule-propose'
 import { DefinitionRuleProposeService } from '../definition-rule-propose/definition-rule-propose.service'
@@ -73,6 +74,7 @@ function DefinitionRuleWrapped() {
       <SidebarSection title="Kind"><Badge tone="muted">{current.kind}</Badge></SidebarSection>
       <SidebarSection title="Version"><Text size="sm">{`${current.version}${retired ? ', the last one' : ', in force'}`}</Text></SidebarSection>
       <SidebarSection title="Proposals"><DefinitionHistory targetId={rule.id} /></SidebarSection>
+      <SidebarSection title="Similar"><DefinitionSimilar targetId={rule.id} /></SidebarSection>
     </div>
   )
 
