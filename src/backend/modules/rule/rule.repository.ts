@@ -11,6 +11,9 @@ export interface Rule_Criteria {
   workspaceId?: string
   id?: string[]
   number?: number
+  retired?: boolean
+  /** Whose current version names any of these values. */
+  usingValues?: string[]
 }
 
 type RuleRow = typeof rule.$inferSelect
@@ -22,6 +25,10 @@ export class Rule_Repository extends Repository<Base> {
     if (criteria.workspaceId !== undefined) conditions.push(eq(rule.workspaceId, criteria.workspaceId))
     if (criteria.id) conditions.push(inArray(rule.id, criteria.id))
     if (criteria.number !== undefined) conditions.push(eq(rule.number, criteria.number))
+    if (criteria.retired !== undefined) conditions.push(criteria.retired ? isNotNull(rule.retiredAt) : isNull(rule.retiredAt))
+    if (criteria.usingValues?.length) {
+      conditions.push(sql`exists (select 1 from rule__scope s where s.version_id = ${rule.currentVersionId} and s.value_id in ${criteria.usingValues})`)
+    }
     return this.hydrate(await this.db.select().from(rule).where(and(...conditions)).orderBy(asc(rule.number)))
   }
 

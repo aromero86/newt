@@ -41,8 +41,17 @@ export class Dimension_Module extends Module {
     return (await this.repo.find({ workspaceId })).map(dimension => dimension.toContract())
   }
 
+  @UseCase('dimension.get')
+  async get(workspaceId: string, dimensionId: string): Promise<DimensionDTO> {
+    await this.deps.workspaceMember.assertActive(workspaceId)
+    const [dimension] = await this.repo.find({ workspaceId, id: [dimensionId] })
+    if (!dimension) throw new DimensionNotFound(dimensionId)
+    return dimension.toContract()
+  }
+
+  /** `id` lets a delta create the dimension it already points at. */
   @UseCase('dimension.create')
-  async create(workspaceId: string, input: DimensionNameInputDTO): Promise<DimensionDTO> {
+  async create(workspaceId: string, input: DimensionNameInputDTO, id?: string): Promise<DimensionDTO> {
     await this.deps.workspace.assertWritable(workspaceId)
     const { name } = DimensionNameInputSchema.parse(input)
 
@@ -50,7 +59,7 @@ export class Dimension_Module extends Module {
     if (count >= DimensionLimits.dimensions) throw new DimensionLimitReached('dimensions', DimensionLimits.dimensions)
     await this.assertNameFree(workspaceId, name)
 
-    const dimension = Dimension.create(workspaceId, name, count)
+    const dimension = Dimension.create(workspaceId, name, count, id)
     await this.repo.persist(dimension)
     return dimension.toContract()
   }
@@ -83,9 +92,9 @@ export class Dimension_Module extends Module {
   }
 
   @UseCase('dimension.addValue')
-  async addValue(workspaceId: string, dimensionId: string, input: DimensionNameInputDTO): Promise<DimensionDTO> {
+  async addValue(workspaceId: string, dimensionId: string, input: DimensionNameInputDTO, valueId?: string): Promise<DimensionDTO> {
     return this.edit(workspaceId, dimensionId, async dimension => {
-      dimension.addValue(DimensionNameInputSchema.parse(input).name)
+      dimension.addValue(DimensionNameInputSchema.parse(input).name, valueId)
     })
   }
 

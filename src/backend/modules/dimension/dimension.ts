@@ -27,8 +27,8 @@ export class Dimension extends Entity<typeof DimensionEntitySchema> {
     return new Dimension(dto, false)
   }
 
-  static create(workspaceId: string, name: string, position: number): Dimension {
-    return new Dimension({ workspaceId, name: name.trim(), values: [], position }, true)
+  static create(workspaceId: string, name: string, position: number, id?: string): Dimension {
+    return new Dimension({ id, workspaceId, name: name.trim(), values: [], position }, true)
   }
 
   get workspaceId(): string {
@@ -57,11 +57,11 @@ export class Dimension extends Entity<typeof DimensionEntitySchema> {
     this.change({ position })
   }
 
-  addValue(name: string): DimensionValueDTO {
+  addValue(name: string, id: string = Bun.randomUUIDv7()): DimensionValueDTO {
     const values = this.data.values
     if (values.length >= DimensionLimits.values) throw new DimensionLimitReached('values', DimensionLimits.values)
     this.assertFree(name)
-    const value = { id: Bun.randomUUIDv7(), name: name.trim(), retiredAt: null }
+    const value = { id, name: name.trim(), retiredAt: null }
     this.change({ values: [...values, value] })
     return value
   }

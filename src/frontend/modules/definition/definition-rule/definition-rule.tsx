@@ -16,7 +16,7 @@ import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
-import { DefinitionRuleScope } from '../definition-rule-scope/definition-rule-scope'
+import { RuleScope } from '../../../components/rule-scope'
 import { DefinitionRuleService } from './definition-rule.service'
 
 /** With its own DefinitionRuleService: whoever renders it needs nothing else. */
@@ -68,7 +68,7 @@ function DefinitionRuleWrapped() {
       </Stack>
       {retired && <Alert tone="info" title={`${rule.key} is retired`}>It no longer holds. This is what it said last.</Alert>}
       <Card title="Where it applies" titleLevel={2}>
-        <DefinitionRuleScope scope={current.scope} dimensions={dimensions} />
+        <RuleScope scope={current.scope} dimensions={dimensions} />
       </Card>
       <Card title="Why" titleLevel={2}>
         <Text>{current.why}</Text>
@@ -88,7 +88,7 @@ function DefinitionRuleWrapped() {
                 {version.id === current.id && <Badge tone={retired ? 'muted' : 'ok'}>{retired ? 'last' : 'in force'}</Badge>}
               </Inline>
               <Text>{version.statement}</Text>
-              <DefinitionRuleScope scope={version.scope} dimensions={dimensions} />
+              <RuleScope scope={version.scope} dimensions={dimensions} />
             </Stack>
           ))}
           {hasMore && (

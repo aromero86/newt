@@ -16,7 +16,7 @@ import { ArtifactTag } from '@newt/ui/domain/artifact-tag'
 import { Provide } from '../../../core/injector/provide'
 import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
-import { DefinitionRuleScope } from '../definition-rule-scope/definition-rule-scope'
+import { RuleScope } from '../../../components/rule-scope'
 import { DefinitionRulesService } from './definition-rules.service'
 
 const ANYWHERE = 'anywhere'
@@ -91,7 +91,7 @@ function DefinitionRulesWrapped({ featureId }: DefinitionRulesProps) {
                 <Inline gap={2} wrap>
                   <Badge tone="muted">{rule.current.kind}</Badge>
                   {!featureId && <Text size="sm" tone="muted">{rule.featureName}</Text>}
-                  <DefinitionRuleScope scope={rule.current.scope} dimensions={dimensions} />
+                  <RuleScope scope={rule.current.scope} dimensions={dimensions} />
                 </Inline>
               </Stack>
             ))}

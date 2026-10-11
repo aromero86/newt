@@ -4,6 +4,8 @@ import { AuthCredential_Module } from './modules/auth-credential/auth-credential
 import { Dimension_Module } from './modules/dimension/dimension.module'
 import { FeatureArea_Module } from './modules/feature-area/feature-area.module'
 import { Feature_Module } from './modules/feature/feature.module'
+import { Delta_Module } from './modules/delta/delta.module'
+import { Proposal_Module } from './modules/proposal/proposal.module'
 import { Rule_Module } from './modules/rule/rule.module'
 import { Health_Module } from './modules/health/health.module'
 import { Mail_Module } from './modules/mail/mail.module'
@@ -27,7 +29,9 @@ export async function initializeModules(base: Base) {
   const featureArea = await FeatureArea_Module.initialize(base, { workspace, workspaceMember })
   const feature = await Feature_Module.initialize(base, { featureArea, workspace, workspaceMember })
   const rule = await Rule_Module.initialize(base, { dimension, feature, workspace, workspaceMember })
+  const delta = await Delta_Module.initialize(base, { dimension, feature, featureArea, rule, user })
+  const proposal = await Proposal_Module.initialize(base, { delta, user, workspace, workspaceMember })
   await WorkspaceInvitation_Module.initialize(base, { user, workspace, workspaceMember, mail }, { days: config.invitationDays, publicUrl: config.publicUrl })
   await AuthPasswordReset_Module.initialize(base, { user, authCredential, mail }, { minutes: config.passwordResetMinutes, publicUrl: config.publicUrl })
-  return { user, authCredential, authSession, mail, workspaceMember, workspace, dimension, featureArea, feature, rule }
+  return { user, authCredential, authSession, mail, workspaceMember, workspace, dimension, featureArea, feature, rule, delta, proposal }
 }

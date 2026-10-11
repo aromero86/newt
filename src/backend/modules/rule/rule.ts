@@ -32,7 +32,7 @@ export class Rule extends Entity<typeof RuleEntitySchema> {
     return new Rule(dto, false)
   }
 
-  static create(input: { workspaceId: string, number: number, featureId: string, draft: RuleDraft }): Rule {
+  static create(input: { id?: string, workspaceId: string, number: number, featureId: string, draft: RuleDraft }): Rule {
     const { draft, ...rest } = input
     return new Rule({ ...rest, retiredAt: null, current: version(draft, 1) }, true)
   }

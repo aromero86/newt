@@ -17,7 +17,7 @@ import {
   type RuleVersionDTO,
 } from './rule'
 import type { Rule_Deps } from './rule.deps'
-import { Rule_Repository } from './rule.repository'
+import { Rule_Repository, type Rule_Criteria } from './rule.repository'
 import { registerRuleRoutes } from './rule.routes'
 
 /**
@@ -60,14 +60,15 @@ export class Rule_Module extends Module {
     return this.repo.versions((await this.load(workspaceId, key)).id, page)
   }
 
-  /** A new rule in an active feature, with the next number of the workspace. */
+  /** A new rule in an active feature, with the next number of the workspace. `id` lets a delta create the rule it already points at. */
   @UseCase('rule.create')
-  async create(workspaceId: string, input: RuleCreateDTO): Promise<RuleDTO> {
+  async create(workspaceId: string, input: RuleCreateDTO, id?: string): Promise<RuleDTO> {
     await this.deps.workspace.assertWritable(workspaceId)
     const { featureId, ...draft } = RuleCreateSchema.parse(input)
     const feature = await this.deps.feature.assertActive(workspaceId, featureId)
 
     const rule = Rule.create({
+      id,
       workspaceId,
       number: await this.repo.nextNumber(workspaceId),
       featureId,
@@ -97,6 +98,12 @@ export class Rule_Module extends Module {
     rule.retire()
     await this.repo.persist(rule)
     return (await this.contracts(workspaceId, [rule]))[0]!
+  }
+
+  /** For other modules: the workspace's rules that match, as they are now. */
+  @UseCase('rule.find')
+  async find(workspaceId: string, criteria: Omit<Rule_Criteria, 'workspaceId'>): Promise<RuleDTO[]> {
+    return this.contracts(workspaceId, await this.repo.find({ ...criteria, workspaceId }))
   }
 
   private load(workspaceId: string, key: string): Promise<Rule> {

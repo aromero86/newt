@@ -16,7 +16,7 @@ export class Feature extends Entity<typeof FeatureSchema> {
     return new Feature(dto, false)
   }
 
-  static create(input: { workspaceId: string, areaId: string, name: string, description: string, position: number }): Feature {
+  static create(input: { id?: string, workspaceId: string, areaId: string, name: string, description: string, position: number }): Feature {
     return new Feature({ ...input, retiredAt: null }, true)
   }
 

@@ -20,7 +20,7 @@ export class FeatureArea extends Entity<typeof FeatureAreaSchema> {
     return new FeatureArea(dto, false)
   }
 
-  static create(input: { workspaceId: string, name: string, description: string, position: number }): FeatureArea {
+  static create(input: { id?: string, workspaceId: string, name: string, description: string, position: number }): FeatureArea {
     return new FeatureArea({ ...input, activeFeatures: 0, retiredAt: null }, true)
   }
 

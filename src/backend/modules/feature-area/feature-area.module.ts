@@ -52,15 +52,15 @@ export class FeatureArea_Module extends Module {
     return (await this.load(workspaceId, areaId)).toDTO()
   }
 
-  /** At the end of the order. */
+  /** At the end of the order. `id` lets a delta create the area it already points at. */
   @UseCase('featureArea.create')
-  async create(workspaceId: string, input: FeatureAreaCreateDTO): Promise<FeatureAreaDTO> {
+  async create(workspaceId: string, input: FeatureAreaCreateDTO, id?: string): Promise<FeatureAreaDTO> {
     await this.deps.workspace.assertWritable(workspaceId)
     const { name, description } = FeatureAreaCreateSchema.parse(input)
     await this.assertNameFree(workspaceId, name)
 
     const position = await this.repo.count({ workspaceId, retired: false })
-    const area = FeatureArea.create({ workspaceId, name, description, position })
+    const area = FeatureArea.create({ id, workspaceId, name, description, position })
     await this.repo.persist(area)
     return area.toDTO()
   }

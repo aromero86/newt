@@ -4,14 +4,14 @@ import { Inline } from '@newt/ui/components/inline'
 import { Text } from '@newt/ui/components/text'
 import { DimensionChip } from '@newt/ui/domain/dimension-chip'
 
-type DefinitionRuleScopeProps = {
+type RuleScopeProps = {
   scope: RuleScopeDTO
   /** The workspace's dimensions, retired values included, to name what the scope points at. */
   dimensions: DimensionDTO[]
 }
 
 /** Where a rule applies, one chip per value; with no scope, everywhere. */
-export function DefinitionRuleScope({ scope, dimensions }: DefinitionRuleScopeProps) {
+export function RuleScope({ scope, dimensions }: RuleScopeProps) {
   if (scope.length === 0) return <Text size="sm" tone="muted">Applies everywhere</Text>
 
   return (
