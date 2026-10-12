@@ -16,6 +16,8 @@ const server = Bun.serve({
 })
 console.log(`Server listening on port ${config.port}`)
 await modules.search.startBackground()
+// Revisions left waiting for their deltas when the server stopped.
+await modules.proposal.resumeExtractions()
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {

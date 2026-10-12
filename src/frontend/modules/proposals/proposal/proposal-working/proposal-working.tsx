@@ -47,8 +47,9 @@ function ProposalWorkingWrapped({ proposal }: { proposal: ProposalDTO }) {
         <Alert tone="warn" title="Unpublished changes">
           <Stack gap={3}>
             <Text size="sm">{`Reviewers still see revision ${proposal.revision}. Publish these changes as a new one, or go back to it.`}</Text>
+            {proposal.extraction?.state === 'extracting' && <Text size="sm">{`The deltas of revision ${proposal.revision} are still being extracted: publish once they are ready.`}</Text>}
             <Inline gap={2}>
-              <Button size="sm" onClick={() => service.openPublish()}>{`Publish revision ${proposal.revision + 1}…`}</Button>
+              <Button size="sm" disabled={proposal.extraction?.state === 'extracting'} onClick={() => service.openPublish()}>{`Publish revision ${proposal.revision + 1}…`}</Button>
               <Button size="sm" variant="ghost" onClick={() => void service.discard()}>Discard changes</Button>
             </Inline>
           </Stack>
@@ -116,13 +117,12 @@ function ProposalWorkingPublish({ proposal }: { proposal: ProposalDTO }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={next => !next && service.closePublish()} title={`Publish revision ${proposal.revision + 1}`} description="newt reads the deltas from the document and reviewers see both at once. Deltas whose meaning changed go back to pending; the rest keep their verdicts." size="md">
+    <Dialog open={open} onOpenChange={next => !next && service.closePublish()} title={`Publish revision ${proposal.revision + 1}`} description="Published at once; newt then extracts the deltas from the document in the background, which can take a few minutes, and reviewers see them when ready. Deltas whose meaning changed go back to pending; the rest keep their verdicts." size="md">
       <form onSubmit={onSubmit} noValidate>
         <Stack gap={4}>
           {failure && <Alert tone="bad" title="Not published">{failure}</Alert>}
           <FormField form={service.publishForm} name="message" label="Message" description="Like a commit: what this revision changes." />
           <Inline justify="end" gap={3}>
-            {publishing && <Text size="sm" tone="muted">Reading the document for its deltas…</Text>}
             <Button type="submit" loading={publishing}>Publish</Button>
           </Inline>
         </Stack>

@@ -33,4 +33,7 @@ export const proposalRevision = sqliteTable('proposal__revision', {
   documentChanged: integer('document_changed', { mode: 'boolean' }).notNull(),
   assistant: text('assistant'),
   questions: text('questions', { mode: 'json' }).$type<{ question: string, sources: string[] }[]>().notNull(),
+  /** extracting, ready or failed: its deltas, counts and questions are written when it ends. */
+  extraction: text('extraction').$type<'extracting' | 'ready' | 'failed'>().notNull(),
+  extractionError: text('extraction_error'),
 }, table => [primaryKey({ columns: [table.proposalId, table.number] })])

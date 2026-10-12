@@ -72,7 +72,7 @@ export class ProposalWorkingService {
     }
   }
 
-  /** The working copy as the next revision, with the deltas newt reads from its document: now reviewers see it. */
+  /** The working copy as the next revision, at once: newt extracts its deltas from the document in the background. */
   async publish(): Promise<void> {
     const published = await this.publishForm.submit(async ({ message }) => {
       await this.api.publish(this.proposal.workspaceId, this.proposal.key, message)
@@ -80,7 +80,7 @@ export class ProposalWorkingService {
     if (!published) return
     this.closePublish()
     await this.proposal.refresh()
-    toast.success('Revision published, with the deltas read from the document')
+    toast.success('Revision published: newt is extracting its deltas')
   }
 
   /** Back to the last revision: what was not published is lost. */

@@ -27,6 +27,13 @@ export function revisionSummary(revision: Pick<ProposalRevisionDTO, 'added' | 'c
   return parts.length ? parts.join(', ') : 'no changes'
 }
 
+/** What a revision did, once its deltas are extracted. */
+function revisionSummaryOrState(revision: ProposalRevisionDTO): string {
+  if (revision.extraction === 'extracting') return 'extracting its deltas…'
+  if (revision.extraction === 'failed') return 'its deltas could not be extracted'
+  return revisionSummary(revision)
+}
+
 /** Every revision, newest first, like a pull request's commits; and comparing any two. */
 export function ProposalRevisions({ proposal }: { proposal: ProposalDTO }) {
   const workspaceId = useParams().workspaceId!
@@ -41,7 +48,7 @@ export function ProposalRevisions({ proposal }: { proposal: ProposalDTO }) {
 
   useEffect(() => {
     void service.revisions.loadFirstPage()
-  }, [service, proposal.revision])
+  }, [service, proposal.revision, proposal.extraction?.state])
 
   return (
     <Box label="Revisions">
@@ -63,11 +70,13 @@ export function ProposalRevisions({ proposal }: { proposal: ProposalDTO }) {
           <Inline gap={2} wrap>
             <BoxRowTitle href={`${base}/revisions/${revision.number}`}>{revision.message}</BoxRowTitle>
             {revision.number === proposal.revision && <Badge tone="ok">latest</Badge>}
+            {revision.extraction === 'extracting' && <Badge tone="info">extracting deltas…</Badge>}
+            {revision.extraction === 'failed' && <Badge tone="bad">extraction failed</Badge>}
             {revision.assistant && <Badge tone="info">{`via ${revision.assistant}`}</Badge>}
           </Inline>
           <BoxRowMeta>
             <span>{`@${revision.publishedBy.nick} published `}<RelativeTime date={revision.publishedAt} /></span>
-            <span>{revisionSummary(revision)}</span>
+            <span>{revisionSummaryOrState(revision)}</span>
           </BoxRowMeta>
         </BoxRow>
       ))}
@@ -86,7 +95,7 @@ export function ProposalRevisionsTimeline({ proposal }: { proposal: ProposalDTO 
 
   useEffect(() => {
     void service.revisions.loadFirstPage()
-  }, [service, proposal.revision])
+  }, [service, proposal.revision, proposal.extraction?.state])
 
   if (proposal.revision === 0) return null
 
@@ -103,7 +112,7 @@ export function ProposalRevisionsTimeline({ proposal }: { proposal: ProposalDTO 
             {revision.assistant && <Badge tone="info">{`via ${revision.assistant}`}</Badge>}
           </Inline>
           <Text size="sm">{revision.message}</Text>
-          <Text size="sm" tone="muted">{revisionSummary(revision)}</Text>
+          <Text size="sm" tone="muted">{revisionSummaryOrState(revision)}</Text>
         </TimelineItem>
       ))}
       {proposal.acceptedBy && (

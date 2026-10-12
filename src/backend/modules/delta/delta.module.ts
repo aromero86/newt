@@ -147,6 +147,23 @@ export class Delta_Module extends Module {
     return (await this.contracts(workspaceId, [delta], 'published'))[0]!
   }
 
+  /**
+   * The signed-in person approves every published delta of the proposal they have
+   * given no verdict on yet; their own verdicts stay. How many they approved.
+   */
+  @UseCase('delta.approveUnreviewed')
+  async approveUnreviewed(proposalId: string): Promise<number> {
+    const { userId } = currentActor()
+    let approved = 0
+    for (const delta of await this.repo.find({ proposalId: [proposalId], gone: false })) {
+      if (delta.published === null || delta.reviews.some(review => review.userId === userId)) continue
+      delta.review(userId, 'approved', '')
+      await this.repo.persist(delta)
+      approved++
+    }
+    return approved
+  }
+
   /** Takes back the signed-in person's verdict. */
   @UseCase('delta.withdraw')
   async withdraw(workspaceId: string, proposalId: string, deltaId: string): Promise<DeltaDTO> {

@@ -32,7 +32,8 @@ export function ProposalDelta({ delta, proposal, readOnly }: { delta: DeltaDTO, 
   const [showChange, setShowChange] = useState(false)
   const [showDiscussions, setShowDiscussions] = useState(false)
   const mine = delta.reviews.find(review => review.userId === me?.id)
-  const reviewing = proposal.status === 'in review' && !readOnly
+  // Its deltas are reviewed once the last revision has them all.
+  const reviewing = proposal.status === 'in review' && (proposal.extraction?.state ?? 'ready') === 'ready' && !readOnly
   const caption = `${OPERATION_LABEL[delta.operation]} ${KIND_LABEL[delta.kind]} ${delta.targetLabel}`
   const { lastChange } = delta
   const changedLater = lastChange && lastChange.revision > 1

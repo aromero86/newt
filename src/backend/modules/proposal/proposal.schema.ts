@@ -14,6 +14,15 @@ const ProposalTitleSchema = z.string().trim().min(1, 'Give it a title').max(120,
 
 const ProposalPersonSchema = z.object({ id: z.uuidv7(), nick: z.string() })
 
+/**
+ * Reading a revision's document for its deltas, in the background: `extracting`
+ * until it ends, then `ready` with its deltas published, or `failed`, to retry.
+ */
+export const ProposalExtractionStateSchema = z.enum(['extracting', 'ready', 'failed'])
+
+/** How the extraction of a revision stands, with why it failed when it did. */
+export const ProposalExtractionSchema = z.object({ state: ProposalExtractionStateSchema, error: z.string().nullable() })
+
 export const ProposalSchema = z.object({
   id: z.uuidv7(),
   workspaceId: z.uuidv7(),
@@ -39,6 +48,8 @@ export const ProposalSchema = z.object({
   revision: z.number().int().min(0),
   /** The working copy (document or deltas) says something the last revision did not. */
   unpublished: z.boolean(),
+  /** The extraction of its last revision; null while none is published. Reviewing waits until it is `ready`. */
+  extraction: ProposalExtractionSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -72,11 +83,15 @@ export const ProposalRevisionSchema = z.object({
   assistant: z.string().nullable(),
   /** What the extraction could not settle from its document, for its author to answer in the next revision. */
   questions: z.array(ExtractionQuestionSchema),
+  /** Its deltas, counts and questions are there once it is `ready`. */
+  extraction: ProposalExtractionStateSchema,
+  /** Why its extraction failed; null unless it did. */
+  extractionError: z.string().nullable(),
 })
 
 /**
  * One iteration, as an assistant writes it: the whole new document (and title),
- * published at once as the next revision with the deltas extracted from it.
+ * published at once as the next revision, whose deltas are extracted from it in the background.
  * `basedOn` is the revision it was written from: if another came after it, nothing
  * is written.
  */
@@ -87,7 +102,7 @@ export const ProposalIterateSchema = z.object({
   document: ProposalDocumentSchema.optional(),
 })
 
-/** A draft written whole, as an assistant writes it: its first revision, with the deltas extracted from its document. */
+/** A draft written whole, as an assistant writes it: its first revision, whose deltas are extracted from its document in the background. */
 export const ProposalWriteSchema = z.object({
   title: ProposalTitleSchema,
   message: ProposalPublishSchema.shape.message,
@@ -100,7 +115,15 @@ export const ProposalQuickSchema = z.object({ delta: DeltaInputSchema })
 /** A proposal published a revision, was retitled or changed state: what readers of proposals react to. */
 export type ProposalChangedPayload = { workspaceId: string, proposalId: string }
 
+/** A revision waits for its deltas to be extracted from its document. */
+export type ProposalExtractionRequestedPayload = { workspaceId: string, proposalId: string, revision: number }
+
+/** What approving every delta still to review did: how many the person approved. */
+export type ProposalApproveAllDTO = { approved: number }
+
 export type ProposalStatus = z.infer<typeof ProposalStatusSchema>
+export type ProposalExtractionState = z.infer<typeof ProposalExtractionStateSchema>
+export type ProposalExtractionDTO = z.infer<typeof ProposalExtractionSchema>
 export type ProposalDTO = z.infer<typeof ProposalSchema>
 export type ProposalCreateDTO = z.infer<typeof ProposalCreateSchema>
 export type ProposalUpdateDTO = z.infer<typeof ProposalUpdateSchema>

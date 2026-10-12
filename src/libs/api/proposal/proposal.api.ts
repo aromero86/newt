@@ -1,5 +1,5 @@
 import type { DeltaComparisonDTO, DeltaDTO, DeltaInputDTO, DeltaReviewInputDTO, DeltaSnapshotDTO, DeltaView } from '../../../backend/modules/delta/delta.schema'
-import type { ProposalDTO, ProposalRevisionDTO, ProposalStatus } from '../../../backend/modules/proposal/proposal.schema'
+import type { ProposalApproveAllDTO, ProposalDTO, ProposalRevisionDTO, ProposalStatus } from '../../../backend/modules/proposal/proposal.schema'
 import type { Page } from '../core/page'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
@@ -52,6 +52,11 @@ export class ProposalApi extends Requester {
     return this.post<ProposalDTO>(`/${workspaceId}/proposals/${key}/publish`, { message })
   }
 
+  /** Extracts again the deltas of the last revision, when extracting them failed. */
+  retryExtraction(workspaceId: string, key: string) {
+    return this.post<ProposalDTO>(`/${workspaceId}/proposals/${key}/retry-extraction`)
+  }
+
   /** The working copy goes back to the last revision. */
   discardChanges(workspaceId: string, key: string) {
     return this.post<ProposalDTO>(`/${workspaceId}/proposals/${key}/discard-changes`)
@@ -83,6 +88,11 @@ export class ProposalApi extends Requester {
 
   review(workspaceId: string, key: string, deltaId: string, review: DeltaReviewInputDTO) {
     return this.post<DeltaDTO>(`/${workspaceId}/proposals/${key}/deltas/${deltaId}/review`, review)
+  }
+
+  /** Approves every delta the signed-in person has not reviewed yet; their verdicts stay. */
+  approveAll(workspaceId: string, key: string) {
+    return this.post<ProposalApproveAllDTO>(`/${workspaceId}/proposals/${key}/approve-all`)
   }
 
   /** Takes back the signed-in person's verdict. */

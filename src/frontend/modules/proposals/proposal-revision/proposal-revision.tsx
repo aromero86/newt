@@ -66,6 +66,8 @@ function ProposalRevisionWrapped() {
       </Box>
       <Box label="Deltas">
         <BoxHeader>What it did to the deltas</BoxHeader>
+        {revision.extraction === 'extracting' && <BoxBody><Text size="sm" tone="muted">Its deltas are still being extracted from the document.</Text></BoxBody>}
+        {revision.extraction === 'failed' && <BoxBody><Text size="sm" tone="muted">{`Its deltas could not be extracted from the document: ${revision.extractionError ?? 'something went wrong'}.`}</Text></BoxBody>}
         {deltas.map(snapshot => <ProposalRevisionDelta key={snapshot.id} snapshot={snapshot} />)}
         {hasMore && <BoxFooter><Button size="sm" variant="ghost" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></BoxFooter>}
       </Box>

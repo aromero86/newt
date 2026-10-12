@@ -30,9 +30,10 @@ type Definition = { dimensions: DimensionDTO[], areas: FeatureAreaDTO[], feature
  */
 export class Extraction_Module extends Module {
 
-  static async initialize(base: Base, deps: Extraction_Deps, options: Extraction_Options) {
-    const llm = options.provider === 'anthropic-api' ? new AnthropicApiLlm(options.apiKey, options.model) : new ClaudeCliLlm(options.model)
-    return new Extraction_Module(base, deps, llm)
+  /** `llm` replaces the provider the options name: tests answer with a stub. */
+  static async initialize(base: Base, deps: Extraction_Deps, options: Extraction_Options, llm?: Llm) {
+    const provider = llm ?? (options.provider === 'anthropic-api' ? new AnthropicApiLlm(options.apiKey, options.model) : new ClaudeCliLlm(options.model))
+    return new Extraction_Module(base, deps, provider)
   }
 
   private constructor(base: Base, private readonly deps: Extraction_Deps, private readonly llm: Llm) {

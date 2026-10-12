@@ -45,8 +45,12 @@ export class Search_Module extends Module {
     super('search', base.transactions)
   }
 
-  /** A page of what matches, best first, each saying where it belongs. */
-  @UseCase('search.search')
+  /**
+   * A page of what matches, best first, each saying where it belongs. Outside any
+   * unit of work: it waits for the embedding model, which can take long, and must
+   * not hold the turn meanwhile. The reindex it may need is a use case of its own.
+   */
+  @UseCase('search.search', { transactional: false })
   async search(workspaceId: string, input: SearchFilterDTO, page: PageRequest): Promise<SearchPageDTO> {
     await this.deps.workspaceMember.assertActive(workspaceId)
     const filter = SearchFilterSchema.parse(input)
@@ -81,8 +85,8 @@ export class Search_Module extends Module {
     return this.results(workspaceId, ranked, page, words?.stems ?? [], semantic)
   }
 
-  /** A page of what talks about the same as an artifact in force, closest first; never the artifact itself. */
-  @UseCase('search.similar')
+  /** A page of what talks about the same as an artifact in force, closest first; never the artifact itself. Outside any unit of work, like `search`. */
+  @UseCase('search.similar', { transactional: false })
   async similar(workspaceId: string, targetId: string, page: PageRequest): Promise<SearchPageDTO> {
     await this.deps.workspaceMember.assertActive(workspaceId)
     const [source] = await this.repo.find({ workspaceId, targetId, layers: ['in force'] })

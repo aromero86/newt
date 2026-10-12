@@ -4,6 +4,6 @@ export class ExtractionFailed extends DomainError {
   readonly status = 502
   readonly code = 'extraction.failed'
   constructor(reason: string) {
-    super(`The deltas could not be extracted from the document: ${reason}. Nothing was published; try again`)
+    super(`The deltas could not be extracted from the document: ${reason}`)
   }
 }

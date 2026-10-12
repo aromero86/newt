@@ -1,5 +1,7 @@
 import type { Base } from '../../base/base'
+import type { Actor } from '../../core/context/actor'
 import { currentActor } from '../../core/context/current-actor'
+import { runAsActor } from '../../core/context/run-as-actor'
 import { DomainEventEmitter } from '../../core/events/domain-event-emitter'
 import { DomainError } from '../../core/errors/domain-error'
 import { Module } from '../../core/module/module'
@@ -10,10 +12,9 @@ import { DeltaNotFound } from '../delta/errors/delta-not-found'
 import type { ExtractionDTO, ExtractionQuestionDTO } from '../extraction/extraction.schema'
 import type { DeltaComparisonDTO, DeltaDTO, DeltaInputDTO, DeltaReviewInputDTO, DeltaSnapshotDTO, DeltaView } from '../delta/delta.schema'
 import { NothingToPublish } from './errors/nothing-to-publish'
-import { ProposalDocumentChanged } from './errors/proposal-document-changed'
-import { ProposalFrozen } from './errors/proposal-frozen'
 import { ProposalChangedSince } from './errors/proposal-changed-since'
 import { Proposal_Changed } from './events/proposal-changed'
+import { Proposal_ExtractionRequested } from './events/proposal-extraction-requested'
 import { ProposalUnpublished } from './errors/proposal-unpublished'
 import { RevisionNotFound } from './errors/revision-not-found'
 import { ProposalNotFound } from './errors/proposal-not-found'
@@ -27,7 +28,9 @@ import {
   ProposalQuickSchema,
   ProposalSubmitSchema,
   ProposalUpdateSchema,
+  type ProposalApproveAllDTO,
   type ProposalCreateDTO,
+  type ProposalExtractionRequestedPayload,
   type ProposalDocumentInputDTO,
   type ProposalDTO,
   type ProposalIterateDTO,
@@ -42,6 +45,7 @@ import {
 import type { Proposal_Deps } from './proposal.deps'
 import { Proposal_Repository, type Proposal_Criteria, type ProposalRevisionRow } from './proposal.repository'
 import { registerProposalRoutes } from './proposal.routes'
+import { registerProposalWorkers } from './proposal.workers'
 
 /**
  * Proposals: every change to a workspace's definition, delta by delta, and their
@@ -53,15 +57,22 @@ export class Proposal_Module extends Module {
   static async initialize(base: Base, deps: Proposal_Deps) {
     const module = new Proposal_Module(base, new Proposal_Repository(base), deps)
     registerProposalRoutes(base, module)
+    registerProposalWorkers(module)
     return module
   }
 
   /** A proposal published a revision, was retitled or changed state. */
   readonly changed
+  /** A revision waits for its deltas to be extracted from its document. */
+  readonly extractionRequested
+
+  /** The extractions in progress, by proposal and revision: one at a time for each. */
+  private readonly extractions = new Map<string, Promise<void>>()
 
   private constructor(base: Base, private readonly repo: Proposal_Repository, private readonly deps: Proposal_Deps) {
     super('proposal', base.transactions)
     this.changed = new DomainEventEmitter(base.bus, Proposal_Changed)
+    this.extractionRequested = new DomainEventEmitter(base.bus, Proposal_ExtractionRequested)
   }
 
   /** A page of the workspace's proposals, newest first, in any of these states and with these words in their title. */
@@ -89,45 +100,54 @@ export class Proposal_Module extends Module {
   }
 
   /**
-   * A draft written whole, as an assistant writes it: its document, read for its
-   * deltas, published at once as its first revision. Not a use case: it waits for
-   * the extraction, holding no transaction meanwhile.
+   * A draft written whole, as an assistant writes it: its document published at
+   * once as its first revision, whose deltas are extracted in the background.
    */
+  @UseCase('proposal.write')
   async write(workspaceId: string, input: ProposalWriteDTO): Promise<ProposalDTO> {
     const { title, message, document } = ProposalWriteSchema.parse(input)
     await this.deps.workspace.assertWritable(workspaceId)
-    const extraction = await this.deps.extraction.extract(workspaceId, document, [])
-    return this.writeExtracted(workspaceId, { title, message, document, extraction })
-  }
-
-  @UseCase('proposal.writeExtracted')
-  async writeExtracted(workspaceId: string, input: { title: string, message: string, document: string, extraction: ExtractionDTO }): Promise<ProposalDTO> {
-    await this.deps.workspace.assertWritable(workspaceId)
-    const proposal = Proposal.create({ workspaceId, number: await this.repo.nextNumber(workspaceId), title: input.title, quick: false, createdBy: currentActor().userId })
+    const proposal = Proposal.create({ workspaceId, number: await this.repo.nextNumber(workspaceId), title, quick: false, createdBy: currentActor().userId })
+    proposal.writeDocument(document)
+    this.publishForExtraction(proposal, message, '')
     await this.repo.persist(proposal)
-    return this.commitRevision(workspaceId, proposal.key, { basedOn: 0, read: '', document: input.document, message: input.message, extraction: input.extraction })
+    return (await this.contracts([proposal]))[0]!
   }
 
   /**
-   * The next revision, with the deltas extracted from its document: the working
-   * copy's, or a whole new one with its title, as an assistant iterates. With
-   * `basedOn`, it is refused if another revision came after that one, or if the
-   * working copy has changes nobody published: nobody's work is overwritten
-   * without them noticing. Not a use case: it waits for the extraction.
+   * The next revision: the working copy's document, or a whole new one with its
+   * title, as an assistant iterates. It is published at once and its deltas are
+   * extracted in the background. With `basedOn`, it is refused if another revision
+   * came after that one, or if the working copy has changes nobody published:
+   * nobody's work is overwritten without them noticing.
+   *
+   * While the last revision's deltas are still being extracted, a new revision is
+   * refused (`ProposalExtracting`): it would be read against deltas that are not
+   * there yet. Its author waits until it is ready and iterates on it. A revision
+   * whose extraction failed does not hold the next one back.
    */
+  @UseCase('proposal.revise')
   async revise(workspaceId: string, key: string, input: ProposalIterateDTO | { message: string }): Promise<ProposalDTO> {
     const { basedOn, message, title, document } = 'basedOn' in input ? ProposalIterateSchema.parse(input) : { ...ProposalPublishSchema.parse(input), basedOn: undefined, title: undefined, document: undefined }
-    const proposal = await this.get(workspaceId, key)
-    if (proposal.status !== 'draft' && proposal.status !== 'in review') throw new ProposalFrozen(proposal.status, 'take new revisions')
+    const proposal = await this.writable(workspaceId, key)
+    proposal.assertEditable('take new revisions')
     if (basedOn !== undefined && proposal.revision !== basedOn) throw new ProposalChangedSince(basedOn, proposal.revision)
-    if (document !== undefined && proposal.unpublished) throw new ProposalUnpublished()
+    proposal.assertNotExtracting('publish another revision')
+    const unpublished = await this.hasUnpublished(proposal)
+    if (document !== undefined && unpublished) throw new ProposalUnpublished()
     const next = document ?? proposal.document
-    // Nothing new to read: spare the extraction.
-    if (proposal.revision > 0 && title === undefined && !proposal.unpublished && next === proposal.document) throw new NothingToPublish()
+    const changed = proposal.revision === 0 || unpublished || next !== proposal.document
+    if (!changed && title === undefined) throw new NothingToPublish()
 
-    const previous = (await this.allDeltas(workspaceId, key)).filter(delta => !delta.removed)
-    const extraction = await this.deps.extraction.extract(workspaceId, next, previous)
-    return this.commitRevision(workspaceId, key, { basedOn: proposal.revision, read: proposal.document, title, document: next, message, extraction })
+    if (title !== undefined) proposal.retitle(title)
+    // A new title alone is no revision: revisions publish the document and its deltas.
+    if (changed) {
+      const previous = await this.publishedDocument(proposal)
+      if (next !== proposal.document) proposal.writeDocument(next)
+      this.publishForExtraction(proposal, message, previous)
+    }
+    await this.repo.persist(proposal)
+    return (await this.contracts([proposal]))[0]!
   }
 
   /** As an assistant iterates: `revise` with the revision it read. */
@@ -140,7 +160,12 @@ export class Proposal_Module extends Module {
     return this.revise(workspaceId, key, input)
   }
 
-  /** Ready to decide: draft → in review. Changes not published yet go first in a revision with this message. */
+  /**
+   * Ready to decide: draft → in review. Changes not published yet go first in a
+   * revision with this message; its deltas are extracted in the background, so
+   * sending it then is refused (`ProposalExtracting`) until they are ready, while
+   * the revision stays published. Not a use case: the revision commits on its own.
+   */
   async sendToReview(workspaceId: string, key: string, input: ProposalSubmitDTO): Promise<ProposalDTO> {
     const { message } = ProposalSubmitSchema.parse(input)
     const proposal = await this.get(workspaceId, key)
@@ -149,52 +174,82 @@ export class Proposal_Module extends Module {
   }
 
   /**
-   * Writes what the extraction read as the next revision, if the proposal is as it
-   * was when it was read: same revision, same working document.
+   * What the workers do when a revision waits for its deltas: reads its document
+   * outside any unit of work (it can take minutes), as whoever published it, and
+   * then writes the deltas and publishes them with it, or notes why it failed.
+   * Asked again for the same revision meanwhile, it runs after, and finds it done.
    */
-  @UseCase('proposal.commitRevision')
-  async commitRevision(workspaceId: string, key: string, input: { basedOn: number, read: string, document: string, title?: string, message: string, extraction: ExtractionDTO }): Promise<ProposalDTO> {
+  extractRevision({ proposalId, revision }: ProposalExtractionRequestedPayload): Promise<void> {
+    const id = `${proposalId}:${revision}`
+    const run = (this.extractions.get(id) ?? Promise.resolve())
+      .then(() => this.runExtraction(proposalId, revision))
+      .catch(error => console.error(`Extracting the deltas of revision ${revision} of proposal ${proposalId} failed`, error))
+    this.extractions.set(id, run)
+    void run.then(() => this.extractions.get(id) === run && this.extractions.delete(id))
+    return run
+  }
+
+  /** The server, when it starts: revisions left waiting for their deltas when it stopped are extracted now. */
+  async resumeExtractions(): Promise<void> {
+    for (const each of await this.waitingExtractions()) void this.extractRevision(each)
+  }
+
+  /** Resolves once no extraction is in progress: for scripts and tests, before they close. */
+  async idle(): Promise<void> {
+    while (this.extractions.size) await Promise.all(this.extractions.values())
+  }
+
+  /** The last revision, whose extraction failed, is extracted again in the background. */
+  @UseCase('proposal.retryExtraction')
+  async retryExtraction(workspaceId: string, key: string): Promise<ProposalDTO> {
     const proposal = await this.writable(workspaceId, key)
-    proposal.assertEditable('take new revisions')
-    if (proposal.revision !== input.basedOn) throw new ProposalChangedSince(input.basedOn, proposal.revision)
-    if (proposal.document !== input.read) throw new ProposalDocumentChanged()
-    if (input.title !== undefined) proposal.retitle(input.title)
-    if (input.document !== proposal.document) proposal.writeDocument(input.document)
-
-    // The deltas follow the document: the same ones rewritten (and kept, if they mean
-    // the same), new ones added, and the ones it no longer supports removed.
-    const current = (await this.allDeltas(workspaceId, key, 'working')).filter(delta => !delta.removed)
-    const same = (previousId: string | null, delta: DeltaInputDTO) => current.find(each => each.id === previousId && each.kind === delta.kind && each.operation === delta.operation)
-    const kept = new Set(input.extraction.deltas.map(({ previousId, input: delta }) => same(previousId, delta)?.id).filter(id => id !== undefined))
-    for (const delta of current) if (!kept.has(delta.id)) await this.deps.delta.remove(proposal.id, delta.id)
-
-    const questions = [...input.extraction.questions]
-    const refs = new Map<string, string>()
-    const resolveRefs = (value: unknown): unknown => {
-      if (typeof value === 'string' && value.startsWith('ref:')) return refs.get(value.slice(4)) ?? value
-      if (Array.isArray(value)) return value.map(resolveRefs)
-      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([field, each]) => [field, resolveRefs(each)]))
-      return value
-    }
-    for (const { previousId, ref, input: delta } of input.extraction.deltas) {
-      try {
-        const previous = same(previousId, delta)
-        const written = previous
-          ? await this.deps.delta.rewrite(workspaceId, proposal.id, previous.id, resolveRefs(delta) as DeltaInputDTO)
-          : await this.deps.delta.add(workspaceId, proposal.id, resolveRefs(delta) as DeltaInputDTO)
-        refs.set(ref, written.targetId)
-      } catch (error) {
-        if (!(error instanceof DomainError)) throw error
-        questions.push({ question: `A change could not be written as a delta: ${error.message}.`, sources: delta.sources ?? [] })
-      }
-    }
-
-    // A new title alone is no revision: revisions publish the document and the deltas.
-    const changed = proposal.revision === 0 || (await this.hasUnpublished(proposal))
-    if (!changed && input.title === undefined) throw new NothingToPublish()
-    if (changed) await this.publishWorkingCopy(proposal, input.message, questions)
+    proposal.retryExtraction()
     await this.repo.persist(proposal)
     return (await this.contracts([proposal]))[0]!
+  }
+
+  /** For the workers: every last revision waiting for its deltas. */
+  @UseCase('proposal.waitingExtractions')
+  async waitingExtractions(): Promise<ProposalExtractionRequestedPayload[]> {
+    return this.repo.extracting()
+  }
+
+  /** For the workers: what a revision waiting for its deltas reads, and who published it; null if it waits no more. */
+  @UseCase('proposal.extractionSource')
+  async extractionSource(proposalId: string, revision: number): Promise<{ workspaceId: string, document: string, publishedBy: Actor } | null> {
+    const [proposal] = await this.repo.find({ id: [proposalId] })
+    if (!proposal?.awaitsExtraction(revision)) return null
+    const row = await this.repo.revision(proposalId, revision)
+    if (!row) return null
+    return {
+      workspaceId: proposal.toDTO().workspaceId,
+      document: row.document,
+      publishedBy: { userId: row.publishedBy, sessionId: null, ...(row.assistant ? { assistant: row.assistant } : {}) },
+    }
+  }
+
+  /**
+   * For the workers: writes what the extraction read into the working copy and
+   * publishes the deltas with the revision that waited for them. Nothing, if it
+   * waits no more: extracted already, or another revision came.
+   */
+  @UseCase('proposal.completeExtraction')
+  async completeExtraction(proposalId: string, revision: number, extraction: ExtractionDTO): Promise<void> {
+    const [proposal] = await this.repo.find({ id: [proposalId] })
+    if (!proposal?.awaitsExtraction(revision)) return
+    const questions = await this.writeDeltas(proposal, extraction)
+    const published = await this.deps.delta.publish(proposal.id, revision)
+    proposal.extractionEnded({ ...published, questions })
+    await this.repo.persist(proposal)
+  }
+
+  /** For the workers: the extraction of a revision failed, and says why. */
+  @UseCase('proposal.failExtraction')
+  async failExtraction(proposalId: string, revision: number, error: string): Promise<void> {
+    const [proposal] = await this.repo.find({ id: [proposalId] })
+    if (!proposal?.awaitsExtraction(revision)) return
+    proposal.extractionFailed(error)
+    await this.repo.persist(proposal)
   }
 
   /** One change made in place: a proposal in review with that single delta, and a title written for it. */
@@ -277,6 +332,7 @@ export class Proposal_Module extends Module {
   @UseCase('proposal.accept')
   async accept(workspaceId: string, key: string): Promise<ProposalDTO> {
     const proposal = await this.writable(workspaceId, key)
+    proposal.assertExtracted('accept it')
     if (await this.hasUnpublished(proposal)) throw new ProposalUnpublished()
     await this.deps.delta.assertReady(workspaceId, proposal.id)
     return this.moveProposal(proposal, 'accepted')
@@ -374,18 +430,31 @@ export class Proposal_Module extends Module {
     if (items.length === 0) throw new DeltaNotFound(deltaId)
   }
 
-  /** The signed-in person approves or rejects a delta, while the proposal is in review. */
+  /** The signed-in person approves or rejects a delta, while the proposal is in review and its last revision has its deltas. */
   @UseCase('proposal.reviewDelta')
   async reviewDelta(workspaceId: string, key: string, deltaId: string, input: DeltaReviewInputDTO): Promise<DeltaDTO> {
     const proposal = await this.writable(workspaceId, key)
-    proposal.assertInReview()
+    proposal.assertReviewable()
     return this.deps.delta.review(workspaceId, proposal.id, deltaId, input)
+  }
+
+  /**
+   * The signed-in person approves, at once, every delta of the last revision they
+   * have given no verdict on yet, under the same rules as approving one. Their own
+   * approvals and rejections stay as they are: approving all never overturns a
+   * rejection they made.
+   */
+  @UseCase('proposal.approveAll')
+  async approveAll(workspaceId: string, key: string): Promise<ProposalApproveAllDTO> {
+    const proposal = await this.writable(workspaceId, key)
+    proposal.assertReviewable()
+    return { approved: await this.deps.delta.approveUnreviewed(proposal.id) }
   }
 
   @UseCase('proposal.withdrawReview')
   async withdrawReview(workspaceId: string, key: string, deltaId: string): Promise<DeltaDTO> {
     const proposal = await this.writable(workspaceId, key)
-    proposal.assertInReview()
+    proposal.assertReviewable()
     return this.deps.delta.withdraw(workspaceId, proposal.id, deltaId)
   }
 
@@ -410,12 +479,67 @@ export class Proposal_Module extends Module {
     proposal.publish({ message, publishedBy: userId, assistant: assistant ?? null, questions, previous, published })
   }
 
+  /** Reads a revision's document for its deltas, as whoever published it, and writes them, or why it failed. */
+  private async runExtraction(proposalId: string, revision: number): Promise<void> {
+    const source = await this.extractionSource(proposalId, revision)
+    if (!source) return
+    await runAsActor(source.publishedBy, async () => {
+      try {
+        const previous = (await this.allDeltas(source.workspaceId, proposalId)).filter(delta => !delta.removed)
+        const extraction = await this.deps.extraction.extract(source.workspaceId, source.document, previous)
+        await this.completeExtraction(proposalId, revision, extraction)
+      } catch (error) {
+        await this.failExtraction(proposalId, revision, error instanceof Error ? error.message : String(error))
+      }
+    })
+  }
+
+  /**
+   * The deltas follow the document: the same ones rewritten (and kept, if they mean
+   * the same), new ones added, and the ones it no longer supports removed. What
+   * cannot be written as a delta becomes a question, with those the extraction asked.
+   */
+  private async writeDeltas(proposal: Proposal, extraction: ExtractionDTO): Promise<ExtractionQuestionDTO[]> {
+    const workspaceId = proposal.toDTO().workspaceId
+    const current = (await this.allDeltas(workspaceId, proposal.id)).filter(delta => !delta.removed)
+    const same = (previousId: string | null, delta: DeltaInputDTO) => current.find(each => each.id === previousId && each.kind === delta.kind && each.operation === delta.operation)
+    const kept = new Set(extraction.deltas.map(({ previousId, input: delta }) => same(previousId, delta)?.id).filter(id => id !== undefined))
+    for (const delta of current) if (!kept.has(delta.id)) await this.deps.delta.remove(proposal.id, delta.id)
+
+    const questions = [...extraction.questions]
+    const refs = new Map<string, string>()
+    const resolveRefs = (value: unknown): unknown => {
+      if (typeof value === 'string' && value.startsWith('ref:')) return refs.get(value.slice(4)) ?? value
+      if (Array.isArray(value)) return value.map(resolveRefs)
+      if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([field, each]) => [field, resolveRefs(each)]))
+      return value
+    }
+    for (const { previousId, ref, input: delta } of extraction.deltas) {
+      try {
+        const previous = same(previousId, delta)
+        const written = previous
+          ? await this.deps.delta.rewrite(workspaceId, proposal.id, previous.id, resolveRefs(delta) as DeltaInputDTO)
+          : await this.deps.delta.add(workspaceId, proposal.id, resolveRefs(delta) as DeltaInputDTO)
+        refs.set(ref, written.targetId)
+      } catch (error) {
+        if (!(error instanceof DomainError)) throw error
+        questions.push({ question: `A change could not be written as a delta: ${error.message}.`, sources: delta.sources ?? [] })
+      }
+    }
+    return questions
+  }
+
+  /** The working copy's document as the next revision, waiting for its deltas: the workers extract them. */
+  private publishForExtraction(proposal: Proposal, message: string, previous: string): void {
+    const { userId, assistant } = currentActor()
+    proposal.publishForExtraction({ message, publishedBy: userId, assistant: assistant ?? null, previous })
+  }
+
   /** Every delta of a proposal, page after page. */
-  private async allDeltas(workspaceId: string, key: string, view: DeltaView = 'working'): Promise<DeltaDTO[]> {
-    const proposal = await this.load(workspaceId, key)
+  private async allDeltas(workspaceId: string, proposalId: string, view: DeltaView = 'working'): Promise<DeltaDTO[]> {
     const deltas: DeltaDTO[] = []
     for (let cursor: string | undefined, more = true; more;) {
-      const page = await this.deps.delta.list(workspaceId, { proposalId: [proposal.id] }, view, { size: 100, cursor })
+      const page = await this.deps.delta.list(workspaceId, { proposalId: [proposalId] }, view, { size: 100, cursor })
       deltas.push(...page.items)
       cursor = page.items.at(-1)?.id
       more = page.hasMore
@@ -461,7 +585,7 @@ export class Proposal_Module extends Module {
 
     const unpublished = new Map(await Promise.all(proposals.map(async proposal => [proposal.id, await this.hasUnpublished(proposal)] as const)))
 
-    return dtos.map(({ newRevision: _, ...dto }) => ({
+    return dtos.map(({ newRevision: _, extracted: __, ...dto }) => ({
       ...dto,
       unpublished: unpublished.get(dto.id) ?? false,
       key: Proposal.keyOf(dto.number),

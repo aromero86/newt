@@ -97,6 +97,8 @@ function ProposalsListWrapped() {
               <BoxRowTitle href={`${base}/${proposal.key}`}>{proposal.title}</BoxRowTitle>
               {proposal.status === 'draft' && <Badge tone="muted">draft</Badge>}
               {proposal.quick && <Badge tone="outline"><Icon icon={ZapIcon} size="sm" />quick</Badge>}
+              {proposal.extraction?.state === 'extracting' && <Badge tone="info">extracting deltas…</Badge>}
+              {proposal.extraction?.state === 'failed' && <Badge tone="bad">extraction failed</Badge>}
             </Inline>
             <BoxRowMeta>
               <Mono>{proposal.key}</Mono>

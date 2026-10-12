@@ -19,6 +19,14 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
     deltas: proposal.deltas,
     url: links.proposal(proposal.workspaceId, proposal.key),
   })
+  /** How reading the last revision's document for its deltas stands, said for an assistant. */
+  const extractionOf = (proposal: ProposalDTO) => {
+    const extraction = proposal.extraction
+    if (!extraction) return { state: 'none', note: 'No revision published yet' }
+    if (extraction.state === 'extracting') return { state: 'extracting', note: `newt is still extracting the deltas of revision ${proposal.revision} from its document (it can take a few minutes): call get_proposal later to see them and the questions it leaves` }
+    if (extraction.state === 'failed') return { state: 'failed', error: extraction.error, note: `Extracting the deltas of revision ${proposal.revision} failed: the person can retry it in the web, or you can iterate_proposal again` }
+    return { state: 'ready' }
+  }
   const deltaOf = (each: DeltaDTO) => ({
     id: each.id,
     kind: each.kind,
@@ -42,35 +50,33 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
 
   server.registerTool('get_proposal', {
     title: 'Get a proposal',
-    description: 'One proposal: its state, its last revision (to iterate on it, pass it as basedOn), its document, the deltas read from it (each with the sentences it comes from and its reviews), the questions its last revision left open, and its last revisions.',
+    description: 'One proposal: its state, its last revision (to iterate on it, pass it as basedOn) and how the extraction of its deltas stands (extracting, ready or failed, with the error), its document, its last revisions and, once the extraction is ready, the deltas read from it (each with the sentences it comes from and its reviews) and the questions its last revision left open.',
     inputSchema: { workspaceId, key, deltasCursor: z.string().optional().describe('The deltas.nextCursor of the answer before, for more deltas') },
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
     const proposal = await modules.proposal.get(args.workspaceId, args.key)
-    const deltas = await modules.proposal.deltas(args.workspaceId, args.key, 'working', { size: 50, cursor: args.deltasCursor })
     const revisions = await modules.proposal.revisions(args.workspaceId, args.key, { size: 10 })
+    // Until the last revision has its deltas, the ones there are belong to an older one.
+    const ready = proposal.extraction === null || proposal.extraction.state === 'ready'
+    const deltas = ready ? paged(await modules.proposal.deltas(args.workspaceId, args.key, 'working', { size: 50, cursor: args.deltasCursor }), deltaOf) : undefined
     return answer({
       ...summaryOf(proposal),
+      extraction: extractionOf(proposal),
       unpublishedChanges: proposal.unpublished
         ? 'Someone has changes in the web that no revision published yet: it cannot be iterated until they publish or discard them'
         : false,
       document: proposal.document,
-      deltas: paged(deltas, deltaOf),
-      questions: revisions.items[0]?.questions ?? [],
-      revisions: revisions.items.map(revision => ({ number: revision.number, message: revision.message, by: revision.publishedBy.nick, at: revision.publishedAt, assistant: revision.assistant })),
+      ...(ready ? { deltas, questions: revisions.items[0]?.questions ?? [] } : {}),
+      revisions: revisions.items.map(revision => ({ number: revision.number, message: revision.message, by: revision.publishedBy.nick, at: revision.publishedAt, assistant: revision.assistant, extraction: revision.extraction })),
     })
   })
 
-  /** What a revision left: the proposal, the deltas read from its document and what the reading could not settle. */
-  const revised = async (proposal: ProposalDTO) => {
-    const deltas = await modules.proposal.deltas(proposal.workspaceId, proposal.key, 'published', { size: 50 })
-    const [revision] = (await modules.proposal.revisions(proposal.workspaceId, proposal.key, { size: 1 })).items
-    return answer({ ...summaryOf(proposal), deltas: paged(deltas, deltaOf), questions: revision?.questions ?? [] })
-  }
+  /** What a revision left, at once: the proposal and how the extraction of its deltas stands. They come later, with get_proposal. */
+  const revised = (proposal: ProposalDTO) => answer({ key: proposal.key, url: links.proposal(proposal.workspaceId, proposal.key), status: proposal.status, revision: proposal.revision, title: proposal.title, extraction: extractionOf(proposal) })
 
   server.registerTool('write_proposal', {
     title: 'Write a proposal',
-    description: 'A new proposal: its title and its Markdown document. newt reads the document and extracts its deltas (it takes a few seconds), and publishes both as its first revision. It starts as a draft. The answer has the deltas extracted and the questions the document left open: show them to the person.',
+    description: 'A new proposal: its title and its Markdown document, published at once as its first revision. It starts as a draft. The answer has its key, its link and the extraction state: newt extracts the deltas from the document in the background (it can take a few minutes). Call get_proposal later to see the deltas and the questions the document left open, and show them to the person.',
     inputSchema: {
       workspaceId,
       title: z.string().describe('Under 120 characters'),
@@ -82,7 +88,7 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
 
   server.registerTool('iterate_proposal', {
     title: 'Iterate on a proposal',
-    description: 'Rewrites the document of a draft or a proposal in review and publishes it as its next revision, with its deltas extracted again: deltas whose meaning did not change keep their approvals; changed ones go back to pending. To change a delta, change what the document says.',
+    description: 'Rewrites the document of a draft or a proposal in review and publishes it at once as its next revision; newt extracts its deltas again in the background: deltas whose meaning did not change keep their approvals; changed ones go back to pending. The answer has the key, the link and the extraction state: call get_proposal later to see the deltas and questions. Refused while the deltas of the last revision are still being extracted: wait and try again. To change a delta, change what the document says.',
     inputSchema: {
       workspaceId,
       key,
@@ -96,7 +102,7 @@ export function registerProposalTools(server: McpServer, { modules, links }: Mcp
 
   server.registerTool('submit_proposal', {
     title: 'Send a proposal to review',
-    description: 'A draft goes to review, for people to approve it delta by delta in the web. Only when the person asks for it.',
+    description: 'A draft goes to review, for people to approve it delta by delta in the web. Only when the person asks for it, and once the deltas of its last revision are extracted (get_proposal says so).',
     inputSchema: { workspaceId, key },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async args => answer(summaryOf(await modules.proposal.sendToReview(args.workspaceId, args.key, {}))))

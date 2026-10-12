@@ -13,8 +13,10 @@ export class ClaudeCliLlm implements Llm {
   constructor(private readonly model: string) {}
 
   async answer({ system, prompt, schema }: LlmRequest): Promise<unknown> {
+    // The prompt goes through stdin: it carries the whole definition, and as an argument
+    // it soon passes the kernel's limit for one argument (128 KiB, E2BIG).
     const claude = Bun.spawn([
-      'claude', '-p', prompt,
+      'claude', '-p',
       '--output-format', 'json',
       '--json-schema', JSON.stringify(schema),
       '--system-prompt', system,
@@ -24,7 +26,7 @@ export class ClaudeCliLlm implements Llm {
       '--restricted',
       '--strict-mcp-config',
       '--no-session-persistence',
-    ], { cwd: tmpdir(), stdout: 'pipe', stderr: 'pipe', timeout: TIMEOUT_MS })
+    ], { cwd: tmpdir(), stdin: new TextEncoder().encode(prompt), stdout: 'pipe', stderr: 'pipe', timeout: TIMEOUT_MS })
     const [output, errors, code] = await Promise.all([new Response(claude.stdout).text(), new Response(claude.stderr).text(), claude.exited])
     if (code !== 0) throw new Error(`claude -p exited with ${code}: ${(errors || output).slice(0, 300)}`)
     const result = JSON.parse(output) as { is_error?: boolean, result?: string, structured_output?: unknown }

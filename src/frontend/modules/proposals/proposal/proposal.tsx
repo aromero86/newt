@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
-import { CheckCircle2Icon, CircleDashedIcon, CircleHelpIcon, GitMergeIcon, GitPullRequestIcon, HighlighterIcon, XCircleIcon, ZapIcon } from 'lucide-react'
+import { CheckCheckIcon, CheckCircle2Icon, CircleDashedIcon, CircleHelpIcon, GitMergeIcon, GitPullRequestIcon, HighlighterIcon, RotateCwIcon, XCircleIcon, ZapIcon } from 'lucide-react'
 import type { ProposalAction, ProposalDTO } from '@newt/api/proposal'
 import { Alert } from '@newt/ui/components/alert'
 import { Avatar } from '@newt/ui/components/avatar'
@@ -28,6 +28,7 @@ import { useService } from '../../../core/injector/use-service'
 import { useValue } from '../../../core/store/use-value'
 import { NotFound } from '../../../pages/not-found/not-found'
 import { ArtifactNamesService } from '../../../services/artifact-names/artifact-names.service'
+import { SessionService } from '../../../services/session/session.service'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { ProposalDelta } from './proposal-delta/proposal-delta'
 import { ProposalDiscussions } from './proposal-discussions/proposal-discussions'
@@ -76,6 +77,8 @@ function ProposalWrapped() {
           </Text>
           {proposal.quick && <Badge tone="outline"><Icon icon={ZapIcon} size="sm" />quick proposal</Badge>}
           {proposal.unpublished && proposal.revision > 0 && <Badge tone="warn">unpublished changes</Badge>}
+          {proposal.extraction?.state === 'extracting' && <Badge tone="info">extracting deltas…</Badge>}
+          {proposal.extraction?.state === 'failed' && <Badge tone="bad">extraction failed</Badge>}
         </Inline>
       </Stack>
       <Tabs defaultValue={proposal.revision > 0 ? 'conversation' : 'working'} variant="underline">
@@ -107,6 +110,7 @@ function ProposalConversation({ proposal, readOnly }: { proposal: ProposalDTO, r
   return (
     <SidebarLayout side="end" aside={<ProposalSidebar proposal={proposal} />}>
       <Stack gap={6}>
+        <ProposalExtraction proposal={proposal} readOnly={readOnly} />
         <Box label="Document">
           <BoxHeader actions={proposal.revision > 0 && sources.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setShowSources(!showSources)}>
@@ -134,6 +138,38 @@ function ProposalConversation({ proposal, readOnly }: { proposal: ProposalDTO, r
       </Stack>
     </SidebarLayout>
   )
+}
+
+/**
+ * How reading the last revision's document for its deltas stands, while it is not
+ * ready: in progress (the page reads it again by itself), or failed, to retry.
+ */
+function ProposalExtraction({ proposal, readOnly }: { proposal: ProposalDTO, readOnly: boolean }) {
+  const service = useService(ProposalService)
+  const extraction = proposal.extraction
+  const editable = !readOnly && (proposal.status === 'draft' || proposal.status === 'in review')
+
+  if (extraction?.state === 'extracting') {
+    return (
+      <Alert tone="info" title="Extracting deltas…">
+        <Inline gap={2}>
+          <Spinner size="sm" label="Extracting deltas" />
+          <Text size="sm" as="span">{`newt is reading the document of revision ${proposal.revision} for its deltas. It can take a few minutes; this page updates by itself. Until then it cannot be reviewed.`}</Text>
+        </Inline>
+      </Alert>
+    )
+  }
+  if (extraction?.state === 'failed') {
+    return (
+      <Alert tone="bad" title={`The deltas of revision ${proposal.revision} could not be extracted`}>
+        <Stack gap={3}>
+          <Text size="sm">{extraction.error ?? 'Something went wrong.'}</Text>
+          {editable && <Inline><Button size="sm" variant="outline" onClick={() => void service.retryExtraction()}><Icon icon={RotateCwIcon} size="sm" />Retry</Button></Inline>}
+        </Stack>
+      </Alert>
+    )
+  }
+  return null
 }
 
 /** What reading the last revision could not settle: its author answers it in the document. */
@@ -169,17 +205,24 @@ function ProposalDeltas({ proposal, readOnly }: { proposal: ProposalDTO, readOnl
   const deltas = useValue(service.deltas.items)
   const hasMore = useValue(service.deltas.hasMore)
   const loadingMore = useValue(service.deltas.loadingMore)
+  const me = useValue(useService(SessionService).user)
   const { deltas: counts } = proposal
+  const ready = (proposal.extraction?.state ?? 'ready') === 'ready'
+  // Approving all is approving one, for every delta the person has given no verdict on yet.
+  const unreviewed = deltas.some(delta => !delta.reviews.some(review => review.userId === me?.id)) || hasMore
+  const canApproveAll = proposal.status === 'in review' && ready && !readOnly && unreviewed
 
   if (proposal.revision === 0) return <Text size="sm" tone="muted">Nothing published yet: its deltas are in the working copy.</Text>
 
   return (
     <Stack gap={4}>
+      <ProposalExtraction proposal={proposal} readOnly={readOnly} />
       <Inline gap={4} wrap>
         <Text size="sm" tone="muted" as="span">{`${counts.total} ${counts.total === 1 ? 'delta' : 'deltas'} in revision ${proposal.revision}`}</Text>
         <Inline gap={1}><Icon icon={CheckCircle2Icon} size="sm" tone="ok" /><Text size="sm" as="span">{`${counts.approved} approved`}</Text></Inline>
         <Inline gap={1}><Icon icon={XCircleIcon} size="sm" tone="bad" /><Text size="sm" as="span">{`${counts.rejected} rejected`}</Text></Inline>
         <Inline gap={1}><Icon icon={CircleDashedIcon} size="sm" tone="warn" /><Text size="sm" as="span">{`${counts.pending} pending`}</Text></Inline>
+        {canApproveAll && <Button size="sm" variant="secondary" onClick={() => void service.approveAll()}><Icon icon={CheckCheckIcon} size="sm" />Approve all</Button>}
       </Inline>
       {deltas.map(delta => <ProposalDelta key={delta.id} delta={delta} proposal={proposal} readOnly={readOnly} />)}
       {hasMore && <Inline><Button variant="outline" size="sm" loading={loadingMore} onClick={() => void service.deltas.loadMore()}>Load more deltas</Button></Inline>}
@@ -248,7 +291,10 @@ function ProposalReject() {
   )
 }
 
-/** Sending to review publishes the working copy first: this asks for the revision's message. */
+/**
+ * Sending to review publishes the working copy first: this asks for the revision's
+ * message. Its deltas are extracted in the background, so it is sent once they are ready.
+ */
 function ProposalSubmit() {
   const service = useService(ProposalService)
   const open = useValue(service.submitting)
@@ -261,14 +307,13 @@ function ProposalSubmit() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={next => !next && service.closeSubmit()} title="Publish and send to review" description="The working copy becomes a revision that reviewers see, with the deltas newt reads from its document." size="md">
+    <Dialog open={open} onOpenChange={next => !next && service.closeSubmit()} title="Publish before sending to review" description="The working copy becomes a revision. newt extracts its deltas from the document in the background, which can take a few minutes: send it to review once they are ready." size="md">
       <form onSubmit={onSubmit} noValidate>
         <Stack gap={4}>
-          {failure && <Alert tone="bad" title="Not sent">{failure}</Alert>}
+          {failure && <Alert tone="bad" title="Not published">{failure}</Alert>}
           <FormField form={service.submitForm} name="message" label="Message" description="Like a commit: what this revision is." />
           <Inline justify="end" gap={3}>
-            {sending && <Text size="sm" tone="muted">Reading the document for its deltas…</Text>}
-            <Button type="submit" loading={sending}>Publish and send</Button>
+            <Button type="submit" loading={sending}>Publish</Button>
           </Inline>
         </Stack>
       </form>

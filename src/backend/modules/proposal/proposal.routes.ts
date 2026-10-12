@@ -45,6 +45,9 @@ export function registerProposalRoutes(base: Base, proposals: Proposal_Module) {
   base.http.post(`${one}/publish`, async request =>
     Response.json(await proposals.publish(ids(request).workspaceId, ids(request).key, (await request.json()) as ProposalPublishDTO)))
 
+  // The last revision's deltas are extracted again, when extracting them failed.
+  base.http.post(`${one}/retry-extraction`, async request => Response.json(await proposals.retryExtraction(ids(request).workspaceId, ids(request).key)))
+
   base.http.post(`${one}/discard-changes`, async request => Response.json(await proposals.discardChanges(ids(request).workspaceId, ids(request).key)))
 
   base.http.post(`${one}/submit`, async request =>
@@ -80,6 +83,9 @@ export function registerProposalRoutes(base: Base, proposals: Proposal_Module) {
     const { workspaceId, key, deltaId } = ids(request)
     return Response.json(await proposals.reviewDelta(workspaceId, key, deltaId, (await request.json()) as DeltaReviewInputDTO))
   })
+
+  // Every delta the signed-in person has not reviewed yet, approved at once.
+  base.http.post(`${one}/approve-all`, async request => Response.json(await proposals.approveAll(ids(request).workspaceId, ids(request).key)))
 
   base.http.delete(`${delta}/review`, async request => {
     const { workspaceId, key, deltaId } = ids(request)
