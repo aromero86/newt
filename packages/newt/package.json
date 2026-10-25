@@ -5,7 +5,8 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./core": "./core/index.ts"
+    "./core": "./core/index.ts",
+    "./criteria": "./criteria/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"
