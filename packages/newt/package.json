@@ -11,7 +11,9 @@
     "./analytics": "./analytics/index.ts",
     "./store": "./store/index.ts",
     "./runtime": "./runtime/index.ts",
-    "./testing": "./testing/index.ts"
+    "./testing": "./testing/index.ts",
+    "./adapter-sql": "./adapter-sql/index.ts",
+    "./adapter-sqlite": "./adapter-sqlite/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"

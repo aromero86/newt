@@ -484,6 +484,70 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await store.outbox.queues()).toEqual([{ name: 'a.b.on.c', event: 'c', attempts: 3, lastSeenAt: expect.any(String) }])
         expect(await store.outbox.list()).toEqual([])
       })
+
+      const lease = () => new Date(Date.now() + 60_000).toISOString()
+      const at = (ms: number) => new Date(Date.now() + ms).toISOString()
+
+      test('claims up to its limit, the ones due first first, of its queues only', async () => {
+        await store.outbox.add([
+          { ...job('a.b.on.c'), id: 'later', runAfter: at(-1_000) },
+          { ...job('a.b.on.c'), id: 'first', runAfter: at(-3_000) },
+          { ...job('a.b.on.c'), id: 'second', runAfter: at(-2_000) },
+          { ...job('x.y.on.z'), id: 'other' },
+          { ...job('a.b.on.c'), id: 'not yet', runAfter: at(60_000) },
+        ])
+
+        expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id).sort()).toEqual(['first', 'second'])
+        expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id)).toEqual(['later'])
+      })
+
+      test('closing a claim to retry moves when it runs, and frees it', async () => {
+        await store.outbox.add([job('a.b.on.c')])
+        const [claimed] = await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())
+        const retry = at(30_000)
+
+        await store.outbox.close(claimed!, { status: 'pending', lastError: 'boom', runAfter: retry })
+
+        expect((await store.outbox.list())[0]).toMatchObject({ status: 'pending', lastError: 'boom', runAfter: retry, lockedBy: null, lockedUntil: null })
+      })
+
+      test('a claim already closed changes nothing more', async () => {
+        await store.outbox.add([job('a.b.on.c')])
+        const [claimed] = await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())
+        await store.outbox.close(claimed!, { status: 'done', lastError: null })
+
+        await store.outbox.close(claimed!, { status: 'dead', lastError: 'late' })
+        await store.outbox.renew(claimed!, at(120_000))
+
+        expect((await store.outbox.list())[0]).toMatchObject({ status: 'done', lastError: null, lockedUntil: null })
+      })
+
+      test('purges only jobs done: pending, running and dead ones stay', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'pending' }, { ...job('a.b.on.c'), id: 'dead' }, { ...job('a.b.on.c'), id: 'running' }])
+        const claimed = await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())
+        await store.outbox.close(claimed.find(each => each.id === 'dead') ?? claimed[0]!, { status: 'dead', lastError: 'gave up' })
+
+        await store.outbox.purge(at(1_000))
+
+        expect((await store.outbox.list()).length).toBe(3)
+      })
+
+      test('a queue seen again says what it is now, and when', async () => {
+        await store.outbox.seen([{ name: 'a.b.on.c', event: 'c', attempts: 3 }])
+        const [first] = await store.outbox.queues()
+        await Bun.sleep(5)
+        await store.outbox.seen([{ name: 'a.b.on.c', event: 'c.*', attempts: 5 }])
+
+        const [again] = await store.outbox.queues()
+        expect(again).toMatchObject({ name: 'a.b.on.c', event: 'c.*', attempts: 5 })
+        expect(again!.lastSeenAt > first!.lastSeenAt).toBe(true)
+      })
+
+      test('lists the jobs oldest first', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'b', createdAt: at(-1_000) }, { ...job('a.b.on.c'), id: 'a', createdAt: at(-2_000) }])
+
+        expect((await store.outbox.list()).map(each => each.id)).toEqual(['a', 'b'])
+      })
     })
 
     describe('the job queue', () => {
