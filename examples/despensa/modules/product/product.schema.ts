@@ -1,4 +1,4 @@
-import { defineFilter } from 'newt/criteria'
+import { defineFilter } from 'newt/core'
 import { z } from 'zod'
 
 export const ProductSchema = z.object({

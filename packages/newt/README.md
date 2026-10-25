@@ -17,8 +17,7 @@ bun add newt zod
 
 | Import | What it has |
 |---|---|
-| `newt/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, pagination, value objects, observability. |
-| `newt/criteria` | What to find, field by field (`Criteria`), and the filters a client may send (`defineFilter`). |
+| `newt/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, what to find (`Criteria`) and the filters a client may send (`defineFilter`), pagination, value objects, observability. |
 | `newt/store` | The storage port (`Store`, `Table`, `Migrations`, `TransactionScope`) and the repositories built on it (`Repository`, `TableRepository`). |
 | `newt/outbox` | The port of the jobs of `handler` subscriptions (`Outbox`, `Job`). |
 | `newt/analytics` | The port of an analytical database (`Analytics`). |
@@ -75,17 +74,16 @@ Each piece is a folder and a subpath; a piece reaches another only through its
 
 ```
 core/              what a module is made of; knows nothing else
-criteria/          what to find, and a client's filters; knows nothing else
 outbox/            the port of the jobs; knows nothing else
 analytics/         the port of analytics; knows nothing else
-store/             the storage port and the repositories on it; knows core, criteria, outbox
+store/             the storage port and the repositories on it; knows core, outbox
 runtime/           a context running: Base, the event bus, the job worker; knows core, store, outbox
 testing/           the contract suites; knows core, store, runtime, analytics
-adapter-sql/       what SQL stores share; knows core, criteria, store, outbox
+adapter-sql/       what SQL stores share; knows core, store, outbox
 adapter-sqlite/    an adapter; knows adapter-sql and what it builds on
 adapter-postgres/  an adapter; knows adapter-sql
 adapter-mysql/     an adapter; knows adapter-sql
-adapter-files/     an adapter; knows core, criteria, store, outbox
+adapter-files/     an adapter; knows core, store, outbox
 kysely/            Kysely on the SQL stores; knows them
 http/              the HTTP entry; knows core
 ```

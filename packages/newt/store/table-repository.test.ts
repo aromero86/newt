@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConcurrencyConflict, Entity, type DomainEvent, type EntityInput, type Invocations } from '../core'
-import { matches, type Criteria } from '../criteria'
+import { ConcurrencyConflict, Entity, matches, type Criteria, type DomainEvent, type EntityInput, type Invocations } from '../core'
 import type { FindOptions } from './find-options'
 import type { NewRow } from './new-row'
 import type { RepositoryBase } from './repository-base'

@@ -1,4 +1,4 @@
-import type { Criteria } from '../criteria'
+import type { Criteria } from '../core'
 import type { FindOptions } from './find-options'
 import type { NewRow } from './new-row'
 import type { StoredRow } from './stored-row'

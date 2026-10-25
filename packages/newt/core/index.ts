@@ -1,6 +1,7 @@
-// newt/core: what an application builds its modules with. Storage, the runtime of a
-// context, its adapters and HTTP are subpaths of their own (newt/store, newt/runtime,
-// newt/adapter-sqlite, newt/http…); anything not exported here is private.
+// newt/core: what an application builds its modules with, and the criteria its
+// repositories find them by. Storage, the runtime of a context, its adapters and HTTP
+// are subpaths of their own (newt/store, newt/runtime, newt/adapter-sqlite, newt/http…);
+// anything not exported here is private.
 
 // Modules, entities and use cases
 export { Module } from './module/module'
@@ -44,6 +45,21 @@ export type { EventBus } from './events/event-bus'
 export type { EventHandler } from './events/event-handler'
 export type { EventPublisher } from './events/event-publisher'
 export type { SubscribeOptions } from './events/subscribe-options'
+
+// What to find, field by field, and the filters a client may send
+export type { Criteria } from './criteria/criteria'
+export type { Condition } from './criteria/condition'
+export type { Operator } from './criteria/operator'
+export { allOf } from './criteria/all-of'
+export { isCondition } from './criteria/is-condition'
+export type { CriteriaNode } from './criteria/criteria-node'
+export { criteriaTree } from './criteria/criteria-tree'
+export { matches } from './criteria/matches'
+export { compare } from './criteria/compare'
+export { defineFilter, type FilterLimits } from './criteria/filter/define-filter'
+export type { Filter } from './criteria/filter/filter'
+export type { FilterField } from './criteria/filter/filter-field'
+export type { FilterNode } from './criteria/filter/filter-node'
 
 // Pages of lists
 export type { Page } from './pagination/page'

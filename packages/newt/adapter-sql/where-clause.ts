@@ -1,4 +1,4 @@
-import type { Condition, CriteriaNode } from '../criteria'
+import type { Condition, CriteriaNode } from '../core'
 import type { SqlDialect } from './sql-dialect'
 
 /** How criteria meet a table: its columns, and its values as they go in. */

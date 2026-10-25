@@ -1,5 +1,4 @@
-import { toPage, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
-import { allOf, type Criteria } from '../criteria'
+import { allOf, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
 import type { FindOptions } from './find-options'
 import type { NewRow } from './new-row'
 import { Repository } from './repository'

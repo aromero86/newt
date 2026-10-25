@@ -6,7 +6,6 @@
   "sideEffects": false,
   "exports": {
     "./core": "./core/index.ts",
-    "./criteria": "./criteria/index.ts",
     "./outbox": "./outbox/index.ts",
     "./analytics": "./analytics/index.ts",
     "./store": "./store/index.ts",

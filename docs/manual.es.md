@@ -182,8 +182,7 @@ El framework se importa por estas puertas, y por ninguna más:
 
 | Import | Para qué |
 |---|---|
-| `newt/core` | Lo esencial: módulos, entidades, casos de uso, eventos, errores, el actor. |
-| `newt/criteria` | Qué buscar (criterios) y los filtros que manda un cliente. |
+| `newt/core` | Lo esencial: módulos, entidades, casos de uso, eventos, errores, el actor, qué buscar (criterios) y los filtros que manda un cliente. |
 | `newt/store` | El puerto de almacenamiento y los repositorios. |
 | `newt/runtime` | Un contexto en marcha: `Base`, `BoundedContext`. |
 | `newt/outbox`, `newt/analytics` | Los puertos de los jobs y de la analítica: para quien escriba un adaptador. |
