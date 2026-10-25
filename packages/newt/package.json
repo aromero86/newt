@@ -17,7 +17,8 @@
     "./adapter-files": "./adapter-files/index.ts",
     "./adapter-postgres": "./adapter-postgres/index.ts",
     "./adapter-mysql": "./adapter-mysql/index.ts",
-    "./kysely": "./kysely/index.ts"
+    "./kysely": "./kysely/index.ts",
+    "./http": "./http/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"

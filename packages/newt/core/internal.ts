@@ -8,3 +8,6 @@ export { takeEvents } from './entity/take-events'
 /** The runtime builds each context's invocations, and runs its jobs as a worker. */
 export { Invocations } from './use-case/invocations'
 export { inWorker } from './use-case/invocation-chain'
+
+/** HTTP answers with the framework's messages: what a route that is not there says, and the like. */
+export { message } from './messages/message'
