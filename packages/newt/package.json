@@ -8,7 +8,8 @@
     "./core": "./core/index.ts",
     "./criteria": "./criteria/index.ts",
     "./outbox": "./outbox/index.ts",
-    "./analytics": "./analytics/index.ts"
+    "./analytics": "./analytics/index.ts",
+    "./store": "./store/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"
