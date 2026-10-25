@@ -29,7 +29,7 @@ export abstract class TableRepository<
   B extends RepositoryBase = RepositoryBase,
 > extends Repository<E, B> {
 
-  constructor(base: B, protected readonly table: Table<Row>, private readonly options: TableRepositoryOptions = {}) {
+  constructor(base: B, protected readonly table: Table<Row>, private readonly options: TableRepositoryOptions<Row> = {}) {
     super(base)
   }
 
@@ -73,6 +73,17 @@ export abstract class TableRepository<
     return toPage(entities, page.size, total)
   }
 
+  /**
+   * The ones that meet the criteria in every scope, not only the current one: for
+   * what looks across scopes on purpose (another context asking which workspace a
+   * customer is in), never for a scope's own work. Deleted ones stay out.
+   */
+  protected async findInEveryScope(criteria: Criteria<Row> = {}, options?: FindOptions<Row>): Promise<E[]> {
+    const visible = this.options.softDelete ? allOf(criteria, { deletedAt: null } as unknown as Criteria<Row>) : criteria
+    const rows = await this.table.find(visible, options)
+    return rows.map(row => this.toEntity(row))
+  }
+
   /** Saves them, and what they have to tell, at once: all or none. */
   async persist(...entities: E[]): Promise<void> {
     await this.save(entities, entity => this.write(entity))
@@ -80,6 +91,7 @@ export abstract class TableRepository<
 
   /** Stores one: inserted when new, changed when stored, deleted (or stamped) when deleted. */
   protected async write(entity: E): Promise<void> {
+    this.assertInScope(entity)
     if (entity.isNew) return this.table.insert(this.toRow(entity))
     if (entity.isDeleted) {
       if (!this.options.softDelete) return this.table.delete(entity.id, entity.version)
@@ -90,6 +102,15 @@ export abstract class TableRepository<
   }
 
   private visible(criteria: Criteria<Row>): Criteria<Row> {
-    return this.options.softDelete ? allOf(criteria, { deletedAt: null } as unknown as Criteria<Row>) : criteria
+    const { softDelete, scope } = this.options
+    const scoped = scope ? allOf(criteria, { [scope.field]: scope.current() } as Criteria<Row>) : criteria
+    return softDelete ? allOf(scoped, { deletedAt: null } as unknown as Criteria<Row>) : scoped
+  }
+
+  private assertInScope(entity: E): void {
+    const { scope } = this.options
+    if (!scope) return
+    const value = (entity.toDTO() as Record<string, unknown>)[scope.field]
+    if (value !== scope.current()) throw new Error(`${entity.constructor.name} ${entity.id} belongs to ${scope.field} '${String(value)}', not to the current one: a repository saves only its scope's`)
   }
 }

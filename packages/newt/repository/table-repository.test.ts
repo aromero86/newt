@@ -33,7 +33,7 @@ class Thing extends Entity<typeof ThingSchema> {
 }
 
 /** One log for the whole save, so a test reads it as it happened. */
-function world(options: TableRepositoryOptions = {}, rows: ThingRow[] = []) {
+function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] = []) {
   const log: string[] = []
   const scope = new TransactionScope()
   let failNextWrite = false
@@ -93,6 +93,10 @@ function world(options: TableRepositoryOptions = {}, rows: ThingRow[] = []) {
 
     saveWith(entities: Thing[], hooks: SaveHooks) {
       return this.save(entities, entity => this.write(entity), hooks)
+    }
+
+    everywhere(criteria: Criteria<ThingRow> = {}) {
+      return this.findInEveryScope(criteria)
     }
 
     stamp(guard?: string[]) {
@@ -252,6 +256,37 @@ describe('saveRows', () => {
     await repo.stamp()
 
     expect(log.some(line => line.startsWith('guard'))).toBe(false)
+  })
+})
+
+describe('a scope', () => {
+  // The scope here is the name: what the unit needs is a string field of the row.
+  const scoped = { softDelete: true, scope: { field: 'name' as const, current: () => 'one' } }
+
+  test('is part of every query, beside the deleted ones left out, whatever the criteria say', async () => {
+    const { log, repo } = world(scoped)
+
+    await repo.find({ name: 'two' })
+
+    expect(log[0]).toBe('find {"and":[{"and":[{"name":"two"},{"name":"one"}]},{"deletedAt":null}]} {}')
+  })
+
+  test('is left out by findInEveryScope, which still leaves the deleted ones out', async () => {
+    const { log, repo } = world(scoped)
+
+    await repo.everywhere()
+
+    expect(log[0]).toBe('find {"and":[{},{"deletedAt":null}]} {}')
+  })
+
+  test('refuses to delete an entity of another one', async () => {
+    const { log, repo } = world(scoped)
+    const thing = Thing.fromRow(stored({ name: 'two' }))
+    thing.remove()
+
+    await expect(repo.persist(thing)).rejects.toThrow('not to the current one')
+    expect(log).toContain('rollback')
+    expect(log.some(line => line.startsWith('update') || line.startsWith('delete'))).toBe(false)
   })
 })
 

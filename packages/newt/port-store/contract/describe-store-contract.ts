@@ -462,6 +462,75 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
       })
     })
 
+    describe('a scoped table repository', () => {
+      class Things extends TableRepository<Thing, ThingRow> {
+        protected toEntity(row: ThingRow): Thing {
+          return Thing.fromRow(row)
+        }
+
+        unarchived(): Promise<Thing[]> {
+          return this.findInEveryScope({ archived: false })
+        }
+      }
+
+      let current: string | undefined
+      const repository = () => new Things(new Base({ name: 'test', store }), things, {
+        scope: { field: 'workspaceId', current: () => current ?? (() => { throw new Error('no workspace here') })() },
+      })
+
+      test("finds, counts and pages only its scope's rows", async () => {
+        const repo = repository()
+        current = 'w1'
+        await repo.persist(Thing.create('ana', 'w1'))
+        current = 'w2'
+        await repo.persist(Thing.create('bea', 'w2'), Thing.create('cris', 'w2'))
+
+        expect((await repo.find()).map(each => each.toDTO().name).sort()).toEqual(['bea', 'cris'])
+        expect(await repo.count({ name: 'ana' })).toBe(0)
+        expect((await repo.page({}, { size: 10 })).total).toBe(2)
+      })
+
+      test('refuses to save an entity of another scope', async () => {
+        current = 'w1'
+
+        await expect(repository().persist(Thing.create('ana', 'w2'))).rejects.toThrow("not to the current one")
+        expect(await things.count()).toBe(0)
+      })
+
+      test('pages newest first within its scope', async () => {
+        const repo = repository()
+        current = 'w1'
+        for (const name of ['ana', 'bea', 'cris']) await repo.persist(Thing.create(name, 'w1'))
+        current = 'w2'
+        await repo.persist(Thing.create('dani', 'w2'))
+        current = 'w1'
+
+        const first = await repo.page({}, { size: 2 }, { newestFirst: true })
+        const second = await repo.page({}, { size: 2, cursor: first.items.at(-1)!.id }, { newestFirst: true })
+
+        expect(first.items.map(each => each.toDTO().name)).toEqual(['cris', 'bea'])
+        expect(first.total).toBe(3)
+        expect(second.items.map(each => each.toDTO().name)).toEqual(['ana'])
+      })
+
+      test('finds across scopes only when asked to', async () => {
+        const repo = repository()
+        current = 'w1'
+        await repo.persist(Thing.create('ana', 'w1'))
+        current = 'w2'
+        await repo.persist(Thing.create('bea', 'w2'))
+        current = undefined
+
+        expect((await repo.unarchived()).map(each => each.toDTO().workspaceId).sort()).toEqual(['w1', 'w2'])
+      })
+
+      test('cannot be used outside a scope', async () => {
+        current = undefined
+
+        await expect(repository().find()).rejects.toThrow('no workspace here')
+      })
+    })
+
     describe('closing', () => {
       test('waits for the transactions in progress', async () => {
         const log: string[] = []
@@ -803,8 +872,8 @@ const ThingSchema = z.object({
 type ThingDTO = z.infer<typeof ThingSchema>
 
 class Thing extends Entity<typeof ThingSchema> {
-  static create(name: string): Thing {
-    const thing = new Thing(ThingSchema, { workspaceId: 'w1', name, archived: false, rank: 0, note: null, tags: [] } as EntityInput<ThingDTO>, true)
+  static create(name: string, workspaceId = 'w1'): Thing {
+    const thing = new Thing(ThingSchema, { workspaceId, name, archived: false, rank: 0, note: null, tags: [] } as EntityInput<ThingDTO>, true)
     thing.trackEvent({ name: 'thing.created', payload: { name }, occurredAt: new Date().toISOString() })
     return thing
   }

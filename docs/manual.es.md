@@ -1130,6 +1130,45 @@ La pertenencia se comprueba **una vez**, para todas las rutas del grupo, y ning�
 caso de uso puede olvidarla: sin espacio de trabajo en el ámbito, `current()` lanza
 un error en lugar de devolver los productos de nadie.
 
+Aún queda algo que se puede olvidar: añadir el `workspaceId` a cada consulta. Si las
+filas de una tabla son de un espacio de trabajo, díselo al repositorio con `scope`,
+y lo hará él en todas. El producto pasa a llevar su `workspaceId`, en el esquema y
+en la fila, y un nombre ya no es único en toda la tabla, sino en su espacio:
+
+```ts
+// product.repository.ts
+constructor(base: ShopBase) {
+  super(base, base.store.table<ProductRow>('product', {
+    types: { archived: 'boolean' },
+    unique: [['workspaceId', 'name']],
+  }), {
+    scope: { field: 'workspaceId', current: () => workspace.current().workspaceId },
+  })
+}
+```
+
+Y el caso de uso ya no lo nombra:
+
+```ts
+@UseCase()
+async list(filters: ProductFiltersDTO, page: PageRequest) {
+  const found = await this.repo.page(filters, page)
+  // …
+}
+```
+
+- `find`, `first`, `count` y `page` **solo ven las filas del espacio actual**,
+  digan lo que digan sus criterios.
+- Guardar una entidad de **otro** espacio es un error, no una escritura.
+- **Fuera de un ámbito, `current()` lanza un error** y el repositorio no lee nada:
+  un worker entra en el ámbito antes de usarlo (`runInWorkspace`, más abajo).
+- Lo que mira entre espacios **a propósito** (otro contexto que pregunta en qué
+  espacio está un cliente) usa `findInEveryScope`, un método protegido: queda dentro
+  del repositorio, con un nombre que se ve en una revisión.
+- Lo protegido son **esos métodos**. Lo que el repositorio escriba o lea por su
+  cuenta (`this.table`, Kysely, `saveRows`, los `after` de un guardado) pone el
+  filtro él mismo.
+
 Lo que no llega por el router entra en el ámbito por su cuenta, con `run`:
 
 - **Un script** sabe en qué espacio trabaja: `workspace.run({ … }, () => …)`.

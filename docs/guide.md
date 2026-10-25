@@ -105,6 +105,21 @@ through the router (a worker, a script, an MCP server) enters it itself with
 `workspace.run(...)`; a worker knows which from its event. An application with only
 users defines nothing: the actor is enough.
 
+A repository whose rows belong to a workspace says so once, and then none of its
+own queries can forget the filter (the entity carries the `workspaceId` too):
+
+```ts
+super(base, base.store.table<BrandRow>('brand'), {
+  scope: { field: 'workspaceId', current: () => workspace.current().workspaceId },
+})
+```
+
+`find`, `first`, `count` and `page` see only the current workspace's rows; saving an
+entity of another one throws; outside a scope `current()` throws, so a worker enters
+it first. What looks across workspaces on purpose uses the protected
+`findInEveryScope`. What a subclass reads or writes on its own (`this.table`, Kysely,
+`saveRows`, a save's `after`) adds the filter itself.
+
 ## Modules
 
 ### One responsibility
