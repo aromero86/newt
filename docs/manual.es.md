@@ -1353,6 +1353,10 @@ son iguales**, y tus módulos no deberían saber en cuál corren:
 Declarar el `guard` cuesta una línea y hace que la regla se cumpla en cualquier
 store. Cambiar de SQLite a Postgres (capítulo 24) no te obliga a revisar nada.
 
+Por eso un guardado con `after` **tiene que** decir su `guard`: sin él no compila.
+Si el `after` no comprueba ninguna regla entre filas (solo escribe lo que se sigue
+del guardado), escribe `guard: []`, y quien lo lea sabrá que no hace falta ninguno.
+
 Recuerda el reparto:
 
 - **la versión protege una fila**: nadie pisa una entidad que otro cambió

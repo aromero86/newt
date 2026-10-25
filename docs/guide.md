@@ -391,8 +391,10 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   })
   ```
 
-  Saves of other products never wait. `before` writes what must go first. The use
-  case still checks first, for a clear answer in the usual case.
+  Saves of other products never wait. A save with `after` must name its `guard`,
+  or it does not compile: `guard: []` says, where it is read, that none is needed.
+  `before` writes what must go first. The use case still checks first, for a clear
+  answer in the usual case.
 - A write that only notes something happened (`lastUsedAt`) is not a change of the
   entity: the repository writes it with `table.patch(id, changes)`, which leaves the
   version alone, so parallel requests never collide.

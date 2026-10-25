@@ -343,10 +343,13 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
         /** Saves them only if no two names start alike: a rule over several rows. */
         persistDistinctInitials(...entities: Thing[]): Promise<void> {
-          return this.save(entities, entity => this.write(entity), { after: async () => {
-            const initials = (await this.table.find({ deletedAt: null })).map(row => row.name[0])
-            if (new Set(initials).size < initials.length) throw new Error('two names start alike')
-          } })
+          return this.save(entities, entity => this.write(entity), {
+            guard: ['things:initials'],
+            after: async () => {
+              const initials = (await this.table.find({ deletedAt: null })).map(row => row.name[0])
+              if (new Set(initials).size < initials.length) throw new Error('two names start alike')
+            },
+          })
         }
       }
 

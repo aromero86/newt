@@ -23,9 +23,12 @@ export class Note_Repository extends TableRepository<Note, NoteRow, NotesBase> {
    * in between. Two people saving the same title at once cannot both get it.
    */
   async persistWithTitleFree(note: Note): Promise<void> {
-    await this.save([note], each => this.write(each), { after: async () => {
-      const { authorId, title } = note.toDTO()
-      if (await this.count({ authorId, title: { ieq: title } }) > 1) throw new NoteTitleTaken(title)
-    } })
+    const { authorId, title } = note.toDTO()
+    await this.save([note], each => this.write(each), {
+      guard: [`noteTitles:${authorId}`],
+      after: async () => {
+        if (await this.count({ authorId, title: { ieq: title } }) > 1) throw new NoteTitleTaken(title)
+      },
+    })
   }
 }

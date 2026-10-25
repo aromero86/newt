@@ -221,6 +221,15 @@ describe('save with hooks', () => {
 
     expect(log.some(line => line.startsWith('guard'))).toBe(false)
   })
+
+  test('an after names what it guards, even if it is nothing', () => {
+    // @ts-expect-error: an after without a guard
+    const unguarded: SaveHooks = { after: () => {} }
+    const none: SaveHooks = { guard: [], after: () => {} }
+    const plain: SaveHooks = { before: () => {} }
+
+    expect([unguarded, none, plain]).toHaveLength(3)
+  })
 })
 
 describe('finding', () => {
