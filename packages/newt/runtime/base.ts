@@ -1,0 +1,57 @@
+import type { EventBus, EventPublisher } from '../core'
+import { Invocations } from '../core/internal'
+import type { Store } from '../store'
+import type { BaseOptions } from './base-options'
+import { InMemoryEventBus } from './events/in-memory-event-bus'
+import { JobQueue } from './jobs/job-queue'
+
+/**
+ * The infrastructure every module of a context receives: its store, the invocations
+ * of its use cases, the event bus, and the jobs of its `handler` subscriptions. The
+ * context picks the store, opened and up to date, and may hand a tracer to watch it.
+ *
+ * An application that gives its modules more (an HTTP router, a mailer) extends it:
+ * `class AppBase extends Base<SqliteStore> { readonly http = new HttpRouter() }`.
+ */
+export class Base<S extends Store = Store> {
+
+  readonly name: string
+  readonly store: S
+  readonly invocations: Invocations
+  readonly bus: EventBus
+  /**
+   * What repositories publish entities' events to: it writes the jobs of the event's
+   * `handler` subscriptions in the transaction of the save, and runs its
+   * `fireAndForget` ones once it commits.
+   */
+  readonly publisher: EventPublisher
+  readonly jobs: JobQueue
+
+  constructor(options: BaseOptions<S>) {
+    this.name = options.name
+    this.store = options.store
+    this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule)
+    this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs)
+    const memory = new InMemoryEventBus()
+    this.bus = {
+      // Whoever publishes on the bus gets what a repository gets: the outbox, and the commit.
+      publish: event => this.publisher.publish(event),
+      subscribe: (pattern, handler, subscription) => subscription?.mode === 'handler'
+        ? this.jobs.register(subscription.name, pattern, handler, subscription.attempts)
+        : memory.subscribe(pattern, handler),
+    }
+    this.publisher = {
+      publish: async event => {
+        await this.jobs.enqueue(event)
+        this.store.afterCommit(() => {
+          memory.publish(event)
+          this.jobs.wake()
+        })
+      },
+    }
+  }
+
+  close(): Promise<void> {
+    return this.store.close()
+  }
+}

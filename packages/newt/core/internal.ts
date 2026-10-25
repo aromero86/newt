@@ -4,3 +4,7 @@
 /** The store's repositories mark an entity saved, and take the events it tracked. */
 export { markPersisted } from './entity/mark-persisted'
 export { takeEvents } from './entity/take-events'
+
+/** The runtime builds each context's invocations, and runs its jobs as a worker. */
+export { Invocations } from './use-case/invocations'
+export { inWorker } from './use-case/invocation-chain'
