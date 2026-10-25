@@ -10,7 +10,8 @@
     "./outbox": "./outbox/index.ts",
     "./analytics": "./analytics/index.ts",
     "./store": "./store/index.ts",
-    "./runtime": "./runtime/index.ts"
+    "./runtime": "./runtime/index.ts",
+    "./testing": "./testing/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"
