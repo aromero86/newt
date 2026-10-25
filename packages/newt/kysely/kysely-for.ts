@@ -17,7 +17,7 @@ import {
   type QueryResult,
 } from 'kysely'
 import type { SQLQueryBindings } from 'bun:sqlite'
-import type { SqlStore } from '../adapter-sql'
+import type { SqlStore } from '../sql'
 import { SqliteStore } from '../adapter-sqlite'
 
 const NO_TRANSACTIONS = 'Transactions run with `store.transaction`, never Kysely\'s own: its queries join the one in progress'

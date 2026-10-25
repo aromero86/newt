@@ -3,7 +3,7 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { migrationName, type Migrations } from '../store'
 import type { MigrationFile } from './migration-file'
-import { splitStatements } from '../adapter-sql'
+import { splitStatements } from '../sql'
 
 /** A migration as the database remembers it: applied, and when. */
 type MigrationRecord = { version: number, name: string, created_at: string }

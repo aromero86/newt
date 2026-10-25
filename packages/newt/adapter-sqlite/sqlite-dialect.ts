@@ -1,4 +1,4 @@
-import type { SqlDialect } from '../adapter-sql'
+import type { SqlDialect } from '../sql'
 import { isCollision } from './is-collision'
 
 /** SQLite's SQL: `?` parameters, booleans as 0 and 1, and its `lower()`, which folds A to Z only. */

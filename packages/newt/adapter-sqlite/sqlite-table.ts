@@ -1,4 +1,4 @@
-import { SqlTable, type SqlExecutor } from '../adapter-sql'
+import { SqlTable, type SqlExecutor } from '../sql'
 import type { StoredRow, TableOptions } from '../store'
 import { sqliteDialect } from './sqlite-dialect'
 import type { SqliteTableOptions } from './sqlite-table-options'

@@ -22,7 +22,7 @@ bun add newt zod
 | `newt/outbox` | The port of the jobs of `handler` subscriptions (`Outbox`, `Job`). |
 | `newt/analytics` | The port of an analytical database (`Analytics`). |
 | `newt/runtime` | A context at runtime: `Base`, `BoundedContext`, and the worker of its jobs. |
-| `newt/adapter-sql` | What every SQL store shares: its table, and the whole store on a database server. |
+| `newt/sql` | What every SQL store shares: its table, and the whole store on a database server. |
 | `newt/adapter-sqlite` | `SqliteStore`: SQLite on `bun:sqlite`, with SQL migrations. |
 | `newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
 | `newt/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
@@ -79,10 +79,10 @@ analytics/         the port of analytics; knows nothing else
 store/             the storage port and the repositories on it; knows core, outbox
 runtime/           a context running: Base, the event bus, the job worker; knows core, store, outbox
 testing/           the contract suites; knows core, store, runtime, analytics
-adapter-sql/       what SQL stores share; knows core, store, outbox
-adapter-sqlite/    an adapter; knows adapter-sql and what it builds on
-adapter-postgres/  an adapter; knows adapter-sql
-adapter-mysql/     an adapter; knows adapter-sql
+sql/               what SQL stores share; knows core, store, outbox
+adapter-sqlite/    an adapter; knows sql and what it builds on
+adapter-postgres/  an adapter; knows sql
+adapter-mysql/     an adapter; knows sql
 adapter-files/     an adapter; knows core, store, outbox
 kysely/            Kysely on the SQL stores; knows them
 http/              the HTTP entry; knows core

@@ -1,3 +1,3 @@
-import type { SqlTableOptions } from '../adapter-sql'
+import type { SqlTableOptions } from '../sql'
 
 export type SqliteTableOptions<Row> = SqlTableOptions<Row>

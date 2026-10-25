@@ -1,4 +1,4 @@
-import { errorCode, type SqlServerDialect } from '../adapter-sql'
+import { errorCode, type SqlServerDialect } from '../sql'
 
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'

@@ -1,4 +1,4 @@
-// newt/adapter-sql: what every SQL store shares, for an adapter to build on: a table that
+// newt/sql: what every SQL store shares, for an adapter to build on: a table that
 // translates criteria into SQL in the adapter's dialect, run by the adapter's executor;
 // and, for a database server on Bun.SQL (Postgres, MySQL), the whole store, given its
 // dialect.

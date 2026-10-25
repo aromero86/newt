@@ -11,7 +11,7 @@
     "./store": "./store/index.ts",
     "./runtime": "./runtime/index.ts",
     "./testing": "./testing/index.ts",
-    "./adapter-sql": "./adapter-sql/index.ts",
+    "./sql": "./sql/index.ts",
     "./adapter-sqlite": "./adapter-sqlite/index.ts",
     "./adapter-files": "./adapter-files/index.ts",
     "./adapter-postgres": "./adapter-postgres/index.ts",

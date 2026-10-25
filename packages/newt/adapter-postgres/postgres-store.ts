@@ -1,4 +1,4 @@
-import { SqlStore, type SqlStoreOptions } from '../adapter-sql'
+import { SqlStore, type SqlStoreOptions } from '../sql'
 import { postgresDialect } from './postgres-dialect'
 
 /**

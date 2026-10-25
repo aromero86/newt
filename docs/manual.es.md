@@ -186,7 +186,7 @@ El framework se importa por estas puertas, y por ninguna más:
 | `newt/store` | El puerto de almacenamiento y los repositorios. |
 | `newt/runtime` | Un contexto en marcha: `Base`, `BoundedContext`. |
 | `newt/outbox`, `newt/analytics` | Los puertos de los jobs y de la analítica: para quien escriba un adaptador. |
-| `newt/adapter-sql` | Lo que comparten los stores SQL: para quien escriba uno. |
+| `newt/sql` | Lo que comparten los stores SQL: para quien escriba uno. |
 | `newt/adapter-files` | El store de ficheros. |
 | `newt/adapter-sqlite` | El store de SQLite. |
 | `newt/adapter-postgres` | El store de PostgreSQL. |

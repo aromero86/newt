@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { errorCode, type SqlServerDialect } from '../adapter-sql'
+import { errorCode, type SqlServerDialect } from '../sql'
 
 const COLUMNS = 'id, queue, event, status, attempts, run_after, locked_by, locked_until, last_error, created_at, updated_at'
 
