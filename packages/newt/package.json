@@ -16,15 +16,23 @@
     "./adapter-sqlite": "./adapter-sqlite/index.ts",
     "./adapter-files": "./adapter-files/index.ts",
     "./adapter-postgres": "./adapter-postgres/index.ts",
-    "./adapter-mysql": "./adapter-mysql/index.ts"
+    "./adapter-mysql": "./adapter-mysql/index.ts",
+    "./kysely": "./kysely/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"
   },
   "peerDependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "kysely": "^0.29.6"
   },
   "devDependencies": {
+    "kysely": "0.29.6",
     "zod": "4.3.6"
+  },
+  "peerDependenciesMeta": {
+    "kysely": {
+      "optional": true
+    }
   }
 }
