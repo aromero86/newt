@@ -2,6 +2,11 @@
 // context, its adapters and HTTP are subpaths of their own (newt/store, newt/runtime,
 // newt/adapter-sqlite, newt/http…); anything not exported here is private.
 
+// Entities
+export { Entity } from './entity/entity'
+export type { EntityInput } from './entity/entity-input'
+export type { EntitySchema } from './entity/entity-schema'
+
 // Who is doing it
 export type { Actor } from './context/actor'
 export { currentActor } from './context/current-actor'
@@ -21,6 +26,17 @@ export { ConcurrencyConflict } from './errors/concurrency-conflict'
 export { ReferenceNotFound } from './errors/reference-not-found'
 export type { Messages } from './messages/messages'
 export { setMessages } from './messages/set-messages'
+
+// Events
+export type { DomainEvent } from './events/domain-event'
+export type { DomainEventClass } from './events/domain-event-class'
+export { DomainEventEmitter } from './events/domain-event-emitter'
+export type { Subscription } from './events/subscription'
+export { eventsOf, type EmittersOf } from './events/events-of'
+export type { EventBus } from './events/event-bus'
+export type { EventHandler } from './events/event-handler'
+export type { EventPublisher } from './events/event-publisher'
+export type { SubscribeOptions } from './events/subscribe-options'
 
 // Pages of lists
 export type { Page } from './pagination/page'
