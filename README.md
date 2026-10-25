@@ -6,6 +6,7 @@ and domain events with a transactional outbox, kept in stores you can swap or wr
 | Folder | What it holds |
 |---|---|
 | [`packages/newt`](packages/newt) | The framework, published as `newt`, one subpath per piece (`newt/core`…) |
+| [`docs`](docs) | [The guide](docs/guide.md), [stores](docs/stores.md) and [the manual, in Spanish](docs/manual.es.md) |
 | [`examples`](examples) | Applications built on it as any would be: [`notes`](examples/notes), the smallest, and [`despensa`](examples/despensa), a shop |
 
 ```bash
