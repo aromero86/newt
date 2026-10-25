@@ -1,21 +1,14 @@
 # newt
 
-To install dependencies:
+A backend framework for Bun: bounded contexts made of modules, use cases, entities
+and domain events with a transactional outbox, kept in stores you can swap or write.
+
+| Folder | What it holds |
+|---|---|
+| [`packages/newt`](packages/newt) | The framework, published as `newt`, one subpath per piece (`newt/core`…) |
 
 ```bash
 bun install
+bun run typecheck
+bun run test
 ```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-To type check:
-
-```bash
-bun check
-```
-
-This project was created using `bun init` in bun v1.4.3. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.

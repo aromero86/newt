@@ -1,15 +1,14 @@
 {
-  "name": "newt",
-  "module": "index.ts",
-  "type": "module",
+  "name": "newt-workspace",
   "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
   "scripts": {
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^7"
+    "@types/bun": "1.4.4",
+    "typescript": "7.0.2"
   }
 }
