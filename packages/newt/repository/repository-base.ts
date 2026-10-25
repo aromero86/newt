@@ -1,5 +1,5 @@
 import type { EventPublisher, Invocations } from '../core'
-import type { Store } from './store'
+import type { Store } from '../port-store'
 
 /** What a repository needs from its context: its store, and where to publish what entities tell. */
 export type RepositoryBase<S extends Store = Store> = {

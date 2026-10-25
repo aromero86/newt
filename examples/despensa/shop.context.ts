@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import type { WriteRule } from 'newt/core'
 import { BoundedContext } from 'newt/runtime'
-import type { Store } from 'newt/store'
+import type { Store } from 'newt/port-store'
 import { FileStore } from 'newt/adapter-files'
 import { serve } from 'newt/http'
 import { SqliteStore } from 'newt/adapter-sqlite'

@@ -234,7 +234,7 @@ Then it runs the contract suite, which checks every promise above, the
 repositories and the job queue on it:
 
 ```ts
-import { describeStoreContract } from 'newt/testing'
+import { describeStoreContract } from 'newt/port-store/contract'
 
 describeStoreContract('PostgresStore', {
   open: () => PostgresStore.open({ url: process.env.TEST_DATABASE_URL!, migrations: 'test/migrations' }),

@@ -183,9 +183,10 @@ El framework se importa por estas puertas, y por ninguna más:
 | Import | Para qué |
 |---|---|
 | `newt/core` | Lo esencial: módulos, entidades, casos de uso, eventos, errores, el actor, qué buscar (criterios) y los filtros que manda un cliente. |
-| `newt/store` | El puerto de almacenamiento y los repositorios. |
+| `newt/repository` | Los repositorios: donde un módulo lee y guarda sus entidades. |
+| `newt/port-store` | El puerto de almacenamiento: lo que implementa un store. |
 | `newt/runtime` | Un contexto en marcha: `Base`, `BoundedContext`. |
-| `newt/outbox`, `newt/analytics` | Los puertos de los jobs y de la analítica: para quien escriba un adaptador. |
+| `newt/port-outbox`, `newt/port-analytics` | Los puertos de los jobs y de la analítica: para quien escriba un adaptador. |
 | `newt/sql` | Lo que comparten los stores SQL: para quien escriba uno. |
 | `newt/adapter-files` | El store de ficheros. |
 | `newt/adapter-sqlite` | El store de SQLite. |
@@ -193,9 +194,9 @@ El framework se importa por estas puertas, y por ninguna más:
 | `newt/adapter-mysql` | El store de MySQL. |
 | `newt/kysely` | Consultas propias con Kysely, sobre el store (opcional). |
 | `newt/http` | El router HTTP y el servidor (opcional). |
-| `newt/testing` | Para quien escriba un store nuevo. |
+| `newt/port-store/contract`, `newt/port-analytics/contract` | Los contratos que comprueban un adaptador: para quien escriba uno. |
 
-De momento usarás `newt/core`, `newt/store`, `newt/runtime`, la de ficheros y la de HTTP.
+De momento usarás `newt/core`, `newt/repository`, `newt/port-store`, `newt/runtime`, la de ficheros y la de HTTP.
 Las demás irán apareciendo cuando hagan falta (capítulos 24 y 26).
 
 ## 4. El contexto y su base
@@ -212,7 +213,7 @@ módulos; en nuestro caso, un router HTTP para que cada módulo registre sus rut
 ```ts
 // shop-base.ts
 import { Base } from 'newt/runtime'
-import type { Store } from 'newt/store'
+import type { Store } from 'newt/port-store'
 import { HttpRouter } from 'newt/http'
 
 export class ShopBase extends Base<Store> {
@@ -594,7 +595,7 @@ cómo una fila se convierte en entidad:
 
 ```ts
 // product.repository.ts
-import { TableRepository } from 'newt/store'
+import { TableRepository } from 'newt/repository'
 import type { ShopBase } from '../../shop-base'
 import { Product, type ProductDTO } from './product'
 
@@ -3075,7 +3076,7 @@ orders.events.confirmed.subscribe(order => sales.recordSale(order), {
 ```
 
 El framework todavía no trae adaptadores (ClickHouse y DuckDB vendrán). Para los
-tests está `MemoryAnalytics`, en `newt/testing`, y quien escriba un
+tests está `MemoryAnalytics`, en `newt/port-analytics/contract`, y quien escriba un
 adaptador lo comprueba con `describeAnalyticsContract`.
 
 ---

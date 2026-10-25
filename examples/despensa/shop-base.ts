@@ -1,5 +1,5 @@
 import { Base } from 'newt/runtime'
-import type { Store } from 'newt/store'
+import type { Store } from 'newt/port-store'
 import { HttpRouter } from 'newt/http'
 
 /**

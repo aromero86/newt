@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describeStoreContract, type ThingRow } from '../testing'
+import { describeStoreContract, type ThingRow } from '../port-store/contract'
 import type { FileMigration } from './file-migration'
 import { FileStore } from './file-store'
 

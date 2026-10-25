@@ -1,5 +1,5 @@
 import { compare, ConcurrencyConflict, matches, type Criteria } from '../core'
-import type { FindOptions, NewRow, StoredRow, Table, TableOptions } from '../store'
+import type { FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
 import type { FileCollection } from './file-collection'
 import type { FileRecord } from './file-record'
 

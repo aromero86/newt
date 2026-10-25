@@ -1,4 +1,4 @@
-import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../outbox'
+import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../port-outbox'
 import type { FileCollection } from './file-collection'
 import type { FileStore } from './file-store'
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { DomainEvent, Span, SpanAttributes, Tracer } from '../core'
-import type { Job, Outbox } from '../outbox'
-import { TransactionScope, type Store } from '../store'
+import type { Job, Outbox } from '../port-outbox'
+import { TransactionScope, type Store } from '../port-store'
 import { Base } from './base'
 import { BoundedContext } from './bounded-context'
 

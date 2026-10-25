@@ -1,4 +1,4 @@
-import { migrationName, type Migrations } from '../store'
+import { migrationName, type Migrations } from '../port-store'
 import type { FileCollection } from './file-collection'
 import type { FileStore } from './file-store'
 import type { FileMigration } from './file-migration'

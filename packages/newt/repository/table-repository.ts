@@ -1,10 +1,7 @@
 import { allOf, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
-import type { FindOptions } from './find-options'
-import type { NewRow } from './new-row'
+import type { FindOptions, NewRow, StoredRow, Table } from '../port-store'
 import { Repository } from './repository'
 import type { RepositoryBase } from './repository-base'
-import type { StoredRow } from './stored-row'
-import type { Table } from './table'
 import type { TableRepositoryOptions } from './table-repository-options'
 
 /**

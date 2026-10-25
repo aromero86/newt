@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { Analytics } from '../analytics'
+import type { Analytics } from '../../port-analytics'
 import type { AnalyticsFixture } from './analytics-fixture'
 
 /** Checks an analytics adapter keeps what `Analytics` promises. */

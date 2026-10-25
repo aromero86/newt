@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/store'
+import { TableRepository } from 'newt/repository'
 import type { NotesBase } from '../../notes-base'
 import { NoteTitleTaken } from './errors/note-title-taken'
 import { Note, type NoteDTO } from './note'

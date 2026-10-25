@@ -1,5 +1,5 @@
 import type { SQLQueryBindings } from 'bun:sqlite'
-import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../outbox'
+import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqliteStore } from './sqlite-store'
 
 type JobRow = {

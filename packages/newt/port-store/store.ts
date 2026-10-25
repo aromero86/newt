@@ -1,5 +1,5 @@
 import type { Migrations } from './migrations'
-import type { Outbox } from '../outbox'
+import type { Outbox } from '../port-outbox'
 import type { StoredRow } from './stored-row'
 import type { Table } from './table'
 import type { TableOptions } from './table-options'
@@ -26,7 +26,7 @@ import type { TableOptions } from './table-options'
  *   it since it was read), or a new row whose key or unique value is taken, throws
  *   `ConcurrencyConflict`.
  *
- * `testing` has the suite that checks an adapter keeps every promise.
+ * `newt/port-store/contract` has the suite that checks an adapter keeps every promise.
  */
 export interface Store {
   /** Runs `fn` in a transaction, or in the one in progress; resolves once it commits. */

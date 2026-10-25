@@ -2,7 +2,7 @@ import type { DomainEvent, EventHandler, Invocations } from '../../core'
 import { inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
 import type { JobQueueOptions } from './job-queue-options'
-import type { Job, JobClosing, Outbox } from '../../outbox'
+import type { Job, JobClosing, Outbox } from '../../port-outbox'
 
 type Registration = { pattern: string, handler: EventHandler, attempts: number }
 

@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { TransactionScope, type Store, type StoredRow, type TableOptions } from '../store'
+import { TransactionScope, type Store, type StoredRow, type TableOptions } from '../port-store'
 import { FileCollection } from './file-collection'
 import { FileMigrations } from './file-migrations'
 import { FileOutbox } from './file-outbox'

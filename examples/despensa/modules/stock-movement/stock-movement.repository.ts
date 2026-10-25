@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/store'
+import { TableRepository } from 'newt/repository'
 import type { ShopBase } from '../../shop-base'
 import { NotEnoughStock } from './errors/not-enough-stock'
 import { StockMovement, type StockMovementDTO } from './stock-movement'

@@ -1,4 +1,4 @@
-import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../outbox'
+import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqlServerDialect } from './sql-server-dialect'
 
 const COLUMNS = ['id', 'queue', 'event', 'status', 'attempts', 'run_after', 'locked_by', 'locked_until', 'last_error', 'created_at', 'updated_at']

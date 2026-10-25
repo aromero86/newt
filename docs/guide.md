@@ -556,7 +556,7 @@ an analytical database through the `Analytics` port: only ever appended to, neve
 changed. It has no transactions, so it is fed by `handler` workers after the events of
 what the store saved; each row carries an id of its own (the order line's), so a job
 that runs twice adds nothing. Reading it is each adapter's own query language. No
-adapter comes with the framework yet; `MemoryAnalytics` (in `newt/testing`) is the one for
+adapter comes with the framework yet; `MemoryAnalytics` (in `newt/port-analytics/contract`) is the one for
 tests, and `describeAnalyticsContract` checks a new one.
 
 ## Observability

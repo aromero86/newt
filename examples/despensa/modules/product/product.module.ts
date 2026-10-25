@@ -1,9 +1,3 @@
-import { eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
-import type { ShopBase } from '../../shop-base'
-import { ProductNameTaken } from './errors/product-name-taken'
-import { ProductNotFound } from './errors/product-not-found'
-import { Product_Created } from './events/product-created'
-import { Product_Updated } from './events/product-updated'
 import {
   Product,
   ProductCreateSchema,
@@ -15,9 +9,14 @@ import {
   type ProductFiltersDTO,
   type ProductUpdateDTO,
 } from './product'
+import { eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import type { ShopBase } from '../../shop-base'
+import { ProductNameTaken } from './errors/product-name-taken'
+import { ProductNotFound } from './errors/product-not-found'
+import { Product_Created } from './events/product-created'
+import { Product_Updated } from './events/product-updated'
 import type { Product_Deps } from './product.deps'
-import type { ProductRow } from './product.repository'
-import { Product_Repository } from './product.repository'
+import { Product_Repository, type ProductRow } from './product.repository'
 import { registerProductRoutes } from './product.routes'
 import { registerProductWorkers } from './product.workers'
 

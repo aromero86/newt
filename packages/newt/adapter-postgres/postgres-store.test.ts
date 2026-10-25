@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConcurrencyConflict } from '../core'
-import { describeStoreContract } from '../testing'
+import { describeStoreContract } from '../port-store/contract'
 import { PostgresStore } from './postgres-store'
 
 /**

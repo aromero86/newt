@@ -1,6 +1,6 @@
 import type { EventBus, EventPublisher } from '../core'
 import { Invocations } from '../core/internal'
-import type { Store } from '../store'
+import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
 import { JobQueue } from './jobs/job-queue'

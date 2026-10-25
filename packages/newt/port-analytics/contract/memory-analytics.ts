@@ -1,4 +1,4 @@
-import type { Analytics, AnalyticsRow } from '../analytics'
+import type { Analytics, AnalyticsRow } from '../../port-analytics'
 
 /** Analytics kept in memory: for tests, and as the plainest example of an adapter. */
 export class MemoryAnalytics implements Analytics {

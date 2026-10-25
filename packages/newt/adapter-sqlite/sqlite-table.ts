@@ -1,5 +1,5 @@
 import { SqlTable, type SqlExecutor } from '../sql'
-import type { StoredRow, TableOptions } from '../store'
+import type { StoredRow, TableOptions } from '../port-store'
 import { sqliteDialect } from './sqlite-dialect'
 import type { SqliteTableOptions } from './sqlite-table-options'
 

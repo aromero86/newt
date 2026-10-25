@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { currentActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
-import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../outbox'
+import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
 import type { JobQueueOptions } from './job-queue-options'
 

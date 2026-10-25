@@ -1,7 +1,7 @@
 import { SQL, type ReservedSQL } from 'bun'
 import { join } from 'node:path'
 import { ConcurrencyConflict } from '../core'
-import { TransactionScope, type Migrations, type Store, type StoredRow, type TableOptions } from '../store'
+import { TransactionScope, type Migrations, type Store, type StoredRow, type TableOptions } from '../port-store'
 import type { SqlExecutor } from './sql-executor'
 import { SqlMigrationRunner } from './sql-migration-runner'
 import { SqlOutbox } from './sql-outbox'

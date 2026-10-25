@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ConcurrencyConflict } from '../core'
-import { describeStoreContract, type ThingRow } from '../testing'
+import { describeStoreContract, type ThingRow } from '../port-store/contract'
 import { SqliteStore } from './sqlite-store'
 
 const THING = `CREATE TABLE thing (

@@ -1,5 +1,5 @@
 import { ConcurrencyConflict, criteriaTree, type Criteria } from '../core'
-import type { FieldType, FindOptions, NewRow, StoredRow, Table, TableOptions } from '../store'
+import type { FieldType, FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
 import type { SqlDialect } from './sql-dialect'
 import type { SqlExecutor } from './sql-executor'
 import type { SqlTableOptions } from './sql-table-options'

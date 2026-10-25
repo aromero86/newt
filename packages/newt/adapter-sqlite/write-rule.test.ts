@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { Entity, eventsOf, Module, UseCase, type DomainEvent, type EntityInput, type WriteRule } from '../core'
 import { Base } from '../runtime'
-import { TableRepository } from '../store'
+import { TableRepository } from '../repository'
 import { SqliteStore } from './sqlite-store'
 
 const NoteSchema = z.object({ id: z.string(), text: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })

@@ -1,7 +1,7 @@
 import type { Database as Sqlite } from 'bun:sqlite'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrationName, type Migrations } from '../store'
+import { migrationName, type Migrations } from '../port-store'
 import type { MigrationFile } from './migration-file'
 import { splitStatements } from '../sql'
 

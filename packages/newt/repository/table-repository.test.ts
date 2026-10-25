@@ -1,15 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { ConcurrencyConflict, Entity, matches, type Criteria, type DomainEvent, type EntityInput, type Invocations } from '../core'
-import type { FindOptions } from './find-options'
-import type { NewRow } from './new-row'
+import { TransactionScope, type FindOptions, type NewRow, type Store, type Table } from '../port-store'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
-import type { Store } from './store'
-import type { Table } from './table'
 import { TableRepository } from './table-repository'
 import type { TableRepositoryOptions } from './table-repository-options'
-import { TransactionScope } from './transaction-scope'
 
 const ThingSchema = z.object({ id: z.string(), name: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
 type ThingDTO = z.infer<typeof ThingSchema>

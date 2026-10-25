@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrationName, type Migrations } from '../store'
+import { migrationName, type Migrations } from '../port-store'
 import type { SqlServerDialect } from './sql-server-dialect'
 import { splitStatements } from './split-statements'
 

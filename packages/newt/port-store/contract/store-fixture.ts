@@ -1,4 +1,4 @@
-import type { Store } from '../store'
+import type { Store } from '../../port-store'
 
 /**
  * How the suite gets stores of an adapter: each `open` is a fresh, empty store, which

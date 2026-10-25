@@ -1,5 +1,5 @@
 import type { Tracer, WriteRule } from '../core'
-import type { Store } from '../store'
+import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
 
 export type BaseOptions<S extends Store> = {

@@ -1,6 +1,7 @@
 // newt/core: what an application builds its modules with, and the criteria its
 // repositories find them by. Storage, the runtime of a context, its adapters and HTTP
-// are subpaths of their own (newt/store, newt/runtime, newt/adapter-sqlite, newt/http…);
+// are subpaths of their own (newt/port-store, newt/repository, newt/runtime, newt/adapter-sqlite,
+// newt/http…);
 // anything not exported here is private.
 
 // Modules, entities and use cases
