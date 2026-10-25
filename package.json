@@ -2,7 +2,10 @@
   "name": "newt-workspace",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*",
+    "examples"
+  ],
   "scripts": {
     "typecheck": "bun check",
     "test": "bun test"

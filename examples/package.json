@@ -1,0 +1,10 @@
+{
+  "name": "newt-examples",
+  "private": true,
+  "type": "module",
+  "description": "Applications built on newt, as any would be: notes, the smallest, and despensa, a shop.",
+  "dependencies": {
+    "newt": "workspace:*",
+    "zod": "4.3.6"
+  }
+}
