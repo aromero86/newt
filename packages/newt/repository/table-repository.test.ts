@@ -283,4 +283,14 @@ describe('finding', () => {
     expect(log).toContain('find {"and":[{},{"id":{"gt":"t1"}}]} {"limit":3}')
     expect(log).toContain('count {}')
   })
+
+  test('newest first, it reads back from the cursor, by id from the newest', async () => {
+    const rows = ['t1', 't2', 't3', 't4'].map(id => stored({ id }))
+    const { log, repo } = world({}, rows)
+
+    await repo.page({}, { size: 2, cursor: 't4' }, { newestFirst: true })
+
+    expect(log).toContain('find {"and":[{},{"id":{"lt":"t4"}}]} {"limit":3,"orderBy":[{"field":"id","direction":"desc"}]}')
+    expect(log).toContain('count {}')
+  })
 })

@@ -355,6 +355,19 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
       const repository = () => new Things(new Base({ name: 'test', store }), things, { softDelete: true })
 
+      test('pages newest first when told, the cursor going back', async () => {
+        const repo = repository()
+        for (const name of ['ana', 'bea', 'cris']) await repo.persist(Thing.create(name))
+
+        const first = await repo.page({}, { size: 2 }, { newestFirst: true })
+        const second = await repo.page({}, { size: 2, cursor: first.items.at(-1)!.id }, { newestFirst: true })
+
+        expect(first.items.map(each => each.toDTO().name)).toEqual(['cris', 'bea'])
+        expect(first.hasMore).toBe(true)
+        expect(second.items.map(each => each.toDTO().name)).toEqual(['ana'])
+        expect(second.hasMore).toBe(false)
+      })
+
       test('saves a new one as version 1, and each change one on', async () => {
         const repo = repository()
         const ana = Thing.create('ana')

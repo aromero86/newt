@@ -924,6 +924,14 @@ GET /api/products?size=2&cursor=<id de B>
 → { items: [C, D], hasMore: true, total: 5 }
 ```
 
+Las páginas van de la más antigua a la más nueva. Para listados que se leen al
+revés (la actividad, los últimos pedidos), pásale `{ newestFirst: true }`: empieza
+por lo más nuevo y el cursor va hacia atrás.
+
+```ts
+const found = await this.repo.page(criteria, page, { newestFirst: true })
+```
+
 ## 7. Quién y dónde: autenticación, autorización y ámbitos
 
 Hasta ahora, quién hace cada cosa lo decía una cabecera `x-user`. Este capítulo

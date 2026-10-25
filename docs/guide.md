@@ -278,6 +278,7 @@ repo.find({ workspaceId, archived: false })                       // equal; null
 repo.find({ id: { in: ids } })
 repo.count({ workspaceId, name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } })
 repo.page({ workspaceId, ...filters }, pageRequest)
+repo.page({ workspaceId }, pageRequest, { newestFirst: true })  // newest first, the cursor going back
 ```
 
 The operators are `eq`, `ne`, `in`, `gt`, `gte`, `lt`, `lte` and `ieq` (equal,

@@ -61,10 +61,15 @@ export abstract class TableRepository<
     return this.table.count(this.visible(criteria))
   }
 
-  /** A page of the ones that meet the criteria, by id: ids are v7, so in the order they were created. */
-  async page(criteria: Criteria<Row>, page: PageRequest): Promise<Page<E>> {
-    const after = page.cursor ? allOf(criteria, { id: { gt: page.cursor } } as Criteria<Row>) : criteria
-    const [entities, total] = await Promise.all([this.find(after, { limit: page.size + 1 }), this.count(criteria)])
+  /**
+   * A page of the ones that meet the criteria, by id: ids are v7, so in the order they
+   * were created, oldest first or, with `newestFirst`, newest first. The cursor is
+   * the id of the last one of the page before.
+   */
+  async page(criteria: Criteria<Row>, page: PageRequest, options: { newestFirst?: boolean } = {}): Promise<Page<E>> {
+    const next = page.cursor ? allOf(criteria, { id: { [options.newestFirst ? 'lt' : 'gt']: page.cursor } } as Criteria<Row>) : criteria
+    const orderBy = options.newestFirst ? [{ field: 'id', direction: 'desc' }] as FindOptions<Row>['orderBy'] : undefined
+    const [entities, total] = await Promise.all([this.find(next, { limit: page.size + 1, orderBy }), this.count(criteria)])
     return toPage(entities, page.size, total)
   }
 
