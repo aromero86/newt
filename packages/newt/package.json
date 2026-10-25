@@ -13,7 +13,8 @@
     "./runtime": "./runtime/index.ts",
     "./testing": "./testing/index.ts",
     "./adapter-sql": "./adapter-sql/index.ts",
-    "./adapter-sqlite": "./adapter-sqlite/index.ts"
+    "./adapter-sqlite": "./adapter-sqlite/index.ts",
+    "./adapter-files": "./adapter-files/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"

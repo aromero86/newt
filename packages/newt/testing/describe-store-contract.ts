@@ -494,10 +494,11 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
           { ...job('a.b.on.c'), id: 'first', runAfter: at(-3_000) },
           { ...job('a.b.on.c'), id: 'second', runAfter: at(-2_000) },
           { ...job('x.y.on.z'), id: 'other' },
-          { ...job('a.b.on.c'), id: 'not yet', runAfter: at(60_000) },
+          { ...job('a.b.on.c'), id: 'not-yet', runAfter: at(60_000) },
         ])
 
-        expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id).sort()).toEqual(['first', 'second'])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())).map(each => each.id)).toEqual(['first'])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())).map(each => each.id)).toEqual(['second'])
         expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id)).toEqual(['later'])
       })
 
@@ -532,6 +533,36 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.list()).length).toBe(3)
       })
 
+      test('purges only what was done before the time it is given', async () => {
+        await store.outbox.add([job('a.b.on.c')])
+        const [claimed] = await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())
+        await store.outbox.close(claimed!, { status: 'done', lastError: null })
+
+        await store.outbox.purge(at(-60_000))
+
+        expect(await store.outbox.list()).toHaveLength(1)
+      })
+
+      test('renewing and closing a claim say when they changed it', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), updatedAt: at(-60_000) }])
+        const [claimed] = await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())
+        const claimedAt = (await store.outbox.list())[0]!.updatedAt
+        await Bun.sleep(5)
+        await store.outbox.renew(claimed!, lease())
+        const renewedAt = (await store.outbox.list())[0]!.updatedAt
+        await Bun.sleep(5)
+        await store.outbox.close(claimed!, { status: 'done', lastError: null })
+
+        expect(renewedAt > claimedAt).toBe(true)
+        expect((await store.outbox.list())[0]!.updatedAt > renewedAt).toBe(true)
+      })
+
+      test('lists the queues by name', async () => {
+        await store.outbox.seen([{ name: 'z.b.on.c', event: 'c', attempts: 1 }, { name: 'a.b.on.c', event: 'c', attempts: 1 }])
+
+        expect((await store.outbox.queues()).map(queue => queue.name)).toEqual(['a.b.on.c', 'z.b.on.c'])
+      })
+
       test('a queue seen again says what it is now, and when', async () => {
         await store.outbox.seen([{ name: 'a.b.on.c', event: 'c', attempts: 3 }])
         const [first] = await store.outbox.queues()
@@ -544,9 +575,9 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
       })
 
       test('lists the jobs oldest first', async () => {
-        await store.outbox.add([{ ...job('a.b.on.c'), id: 'b', createdAt: at(-1_000) }, { ...job('a.b.on.c'), id: 'a', createdAt: at(-2_000) }])
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'a', createdAt: at(-1_000) }, { ...job('a.b.on.c'), id: 'b', createdAt: at(-2_000) }])
 
-        expect((await store.outbox.list()).map(each => each.id)).toEqual(['a', 'b'])
+        expect((await store.outbox.list()).map(each => each.id)).toEqual(['b', 'a'])
       })
     })
 
