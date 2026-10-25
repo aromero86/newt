@@ -23,7 +23,7 @@ type State = { connection?: ReservedSQL }
  * transaction guards are locks in the database (advisory locks), so two transactions
  * guarding the same key take turns, and the rest never wait for each other. A
  * transaction the database gives up (a deadlock, a serialization failure) is a
- * `ConcurrencyConflict`, which a use case marked `retryOnConflict` runs again.
+ * `ConcurrencyConflict`, which a use case runs again (unless `retryOnConflict: false`).
  */
 export class SqlStore implements Store {
 

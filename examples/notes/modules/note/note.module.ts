@@ -53,7 +53,7 @@ export class Note_Module extends Module {
   }
 
   /** Run again from the start if someone saved the note in between. */
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async update(id: string, input: NoteUpdateDTO): Promise<NoteDTO> {
     const changes = NoteUpdateSchema.parse(input)
     const note = await this.load(id)
@@ -63,7 +63,7 @@ export class Note_Module extends Module {
     return note.toDTO()
   }
 
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async delete(id: string): Promise<void> {
     const note = await this.load(id)
     note.delete()

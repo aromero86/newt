@@ -68,7 +68,7 @@ describe('a span', () => {
 
     await new Invocations(recorder).run('thing.save', async () => {
       if (conflicts-- > 0) throw new ConcurrencyConflict()
-    }, { retryOnConflict: true })
+    })
 
     expect(recorder.log).toEqual([
       'thing.save conflict.retry {"attempt":1}',

@@ -7,7 +7,7 @@ import { invocationChain, inWorker } from './invocation-chain'
 import type { UseCaseOptions } from './use-case-options'
 import type { WriteRule } from './write-rule'
 
-/** How many more times a `retryOnConflict` use case runs after a conflict. */
+/** How many more times a use case runs after a conflict (unless `retryOnConflict: false`). */
 const RETRIES = 3
 
 /**
@@ -65,7 +65,7 @@ export class Invocations {
           try {
             return await fn()
           } catch (error) {
-            if (!options?.retryOnConflict || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
+            if (options?.retryOnConflict === false || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
             span.addEvent('conflict.retry', { attempt: attempt + 1 })
             await Bun.sleep(Math.random() * 10 * (attempt + 1))
           }

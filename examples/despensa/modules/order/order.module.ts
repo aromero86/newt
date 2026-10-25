@@ -69,7 +69,7 @@ export class Order_Module extends Module {
   }
 
   /** Its customer cancels it: its stock goes back in the background. */
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async cancelMine(id: string): Promise<OrderDTO> {
     const order = await this.loadMine(id)
     order.cancel()
@@ -83,7 +83,7 @@ export class Order_Module extends Module {
    * taken twice, and an order no longer pending is left as it is. If it was cancelled
    * while this ran, what this reserved goes back.
    */
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async fulfil(id: string): Promise<void> {
     const order = await this.resolve(() => this.repo.find({ id }), () => new OrderNotFound(id))
     if (order.isCancelled) return this.deps.stockMovement.release(order.id)

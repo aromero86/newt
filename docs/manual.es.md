@@ -686,7 +686,7 @@ export class Product_Module extends Module {
     return product.toDTO()
   }
 
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
     const changes = ProductUpdateSchema.parse(input)
     const product = await this.load(id)
@@ -744,8 +744,8 @@ export class Product_Module extends Module {
   comprobar que la marca y la categoría que manda el cliente existen. Se declaran en
   `product.deps.ts` y se explican en el capítulo 19.
 - `static initialize` crea el módulo y registra sus rutas. Es lo que llama el contexto.
-- `retryOnConflict` lo explicaremos en el capítulo 9. De momento basta con saber que
-  va en los casos de uso que leen, cambian y guardan.
+- Si al guardar alguien cambió el producto entretanto, el caso de uso se repite solo:
+  lo veremos en el capítulo 9.
 
 ### 5.7 Las rutas
 
@@ -1285,14 +1285,14 @@ sequenceDiagram
 
 Nadie pierde nada en silencio.
 
-### 9.3 Reintentar solo: `retryOnConflict`
+### 9.3 Reintentar solo
 
 Que Bea reciba un error es correcto, pero en la mayoría de casos lo razonable es
 **volver a intentarlo**: leer el producto de nuevo, ya con el precio de Ana, aplicar
-el cambio de nombre y guardar. Eso hace `retryOnConflict`:
+el cambio de nombre y guardar. Eso hace todo caso de uso, sin que se lo pidas:
 
 ```ts
-@UseCase({ retryOnConflict: true })
+@UseCase()
 async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
   const changes = ProductUpdateSchema.parse(input)
   const product = await this.load(id)       // vuelve a cargar en cada intento
@@ -1305,22 +1305,36 @@ async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
 Ante un conflicto, el caso de uso se ejecuta de nuevo **desde el principio**, hasta
 tres veces más. Al final quedan los dos cambios.
 
-Úsalo en todo caso de uso que **carga, cambia y guarda, y no hace nada irreversible
-antes de guardar**. Un caso de uso que mandara un email y después guardara lo
-mandaría dos veces al reintentar (y por eso los emails salen de los workers:
-capítulo 16).
+Funciona porque un caso de uso **carga, cambia y guarda, y no hace nada
+irreversible antes de guardar**: lo irreversible sale de los workers. Un caso de uso
+que mandara un email y después guardara lo mandaría dos veces al reintentar (y por
+eso los emails salen de los workers: capítulo 16).
+
+Si uno tiene que hacer algo antes de guardar que no debe pasar dos veces (llamar a
+otro contexto, que ya guardó lo suyo), se dice donde se ve, con el motivo al lado:
+
+```ts
+// Abre la sesión en auth antes de guardar: repetirlo abriría otra.
+@UseCase({ retryOnConflict: false })
+async signIn(input: SignInDTO): Promise<SessionDTO> { … }
+```
 
 ### 9.4 Nuevos que chocan
 
 Lo mismo pasa con las altas. Si dos personas crean a la vez un producto con el mismo
-nombre, y la tabla dice que `name` es único, una de las dos recibe un
-`ConcurrencyConflict`.
+nombre, y la tabla dice que `name` es único, el guardado de una de las dos choca:
+un `ConcurrencyConflict`.
 
 Por eso en el catálogo hay dos defensas, y cada una tiene su papel:
 
+- el `unique` de la tabla es la **garantía** cuando dos llegan a la vez;
 - `assertNameFree` comprueba antes de guardar y da un **error claro**
-  (`product.name_taken`) en el caso normal;
-- el `unique` de la tabla es la **garantía** cuando dos llegan a la vez.
+  (`product.name_taken`). Como el caso de uso se repite tras el choque, también la
+  que llegó segunda acaba recibiendo ese error, no el conflicto.
+
+Sin la comprobación previa, un nombre repetido se intentaría cuatro veces para nada
+antes de devolver el conflicto: el choque con un valor único no se arregla
+reintentando.
 
 ## 10. Reglas que abarcan varias filas
 
@@ -1829,7 +1843,7 @@ base.http.post('/orders', async request => {
 El worker llama a `fulfil`, que reserva el stock y confirma, o rechaza si no hay:
 
 ```ts
-@UseCase({ retryOnConflict: true })
+@UseCase()
 async fulfil(id: string): Promise<void> {
   const order = await this.resolve(
     () => this.repo.find({ id }),
@@ -2177,7 +2191,7 @@ módulo, y desde una petición no se hace (capítulo 19):
 
 ```ts
 // order.module.ts
-@UseCase({ retryOnConflict: true })
+@UseCase()
 async cancelMine(id: string): Promise<OrderDTO> {
   const order = await this.loadMine(id)
   order.cancel()
@@ -2804,7 +2818,7 @@ Lo que cambia respecto a SQLite:
   `guard` (capítulo 10) siguen cumpliendo su promesa: dos guardados con la misma
   clave nunca se mezclan. Los que guardan claves distintas no se esperan.
 - Si la base de datos abandona una transacción (un *deadlock*), es un
-  `ConcurrencyConflict`, y un caso de uso con `retryOnConflict` la repite.
+  `ConcurrencyConflict`, y el caso de uso se repite.
 - **Las migraciones se escriben en el SQL de cada uno**: una carpeta por base de
   datos, con los mismos pares de ficheros.
 - **`ieq` compara igual en todos**: ignora mayúsculas solo de la A a la Z, como
@@ -3345,7 +3359,7 @@ temas y añade las que han ido saliendo.
 - Los métodos de la entidad reciben datos del dominio, no el DTO de entrada.
 - Lo que es de su dueño toma el actor, no un id.
 - Ninguna lista se devuelve entera; `items`, `hasMore` y `total`, escritos uno a uno.
-- `retryOnConflict` en lo que carga, cambia y guarda.
+- `retryOnConflict: false`, con el motivo al lado, en lo que hace algo irrepetible antes de guardar.
 - Un módulo lee de otros cuando quiere, pero escribe en otro solo desde un worker.
 
 **Guardar**
@@ -3401,9 +3415,9 @@ Nombres: carpeta `purchase-order`, clase `PurchaseOrder_Module`, entidad
 ## C. Problemas frecuentes
 
 **"Someone changed it in the meantime" (`ConcurrencyConflict`) en un caso de uso.**
-Dos guardados de lo mismo a la vez. Si el caso de uso carga, cambia y guarda, añade
-`retryOnConflict: true`. Si es un alta que choca con un valor único, es la protección
-funcionando: el usuario debe elegir otro valor.
+Dos guardados de lo mismo a la vez, y el caso de uso ya lo intentó cuatro veces (o
+dice `retryOnConflict: false`). Si es un alta que choca con un valor único, es la
+protección funcionando: el usuario debe elegir otro valor.
 
 **El worker no se ejecuta.**
 ¿Has llamado a `context.start()`? ¿La reacción tiene `strategy: 'handler'`, y no

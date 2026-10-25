@@ -87,7 +87,7 @@ export class Product_Module extends Module {
     return product.toDTO()
   }
 
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
     const changes = ProductUpdateSchema.parse(input)
     const product = await this.load(id)

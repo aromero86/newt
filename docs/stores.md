@@ -135,8 +135,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
 - **Transactions run side by side**, as the database runs them. A key guarded is a
   lock in the database for the transaction (`pg_advisory_xact_lock`, `GET_LOCK`), so
   only transactions guarding the same key take turns. A transaction the database gives
-  up (a deadlock, a serialization failure) is a `ConcurrencyConflict`, which a use case
-  marked `retryOnConflict` runs again.
+  up (a deadlock, a serialization failure) is a `ConcurrencyConflict`, which the use case
+  runs again (unless it says `retryOnConflict: false`).
 - **The same SQL tables as SQLite's**, written for each one: `store.table(name, { types })`
   translates criteria into the database's dialect, and `ieq` folds A to Z only here
   too. `store.query(sql, params)` runs a statement of one's own in the transaction in
@@ -247,7 +247,7 @@ Two promises deserve care in a database with concurrent transactions:
   per key, held until the transaction ends (an advisory lock), or transactions that
   run one at a time. Without it a rule checked in an `after` hook breaks without a
   sound; the suite has a test for it. A transaction the database gives up (a deadlock,
-  Postgres's `40001`) is a `ConcurrencyConflict`, which `retryOnConflict` runs again.
+  Postgres's `40001`) is a `ConcurrencyConflict`, which the use case runs again.
 - **The current transaction.** Keep it in an `AsyncLocalStorage`, as every adapter here
   does: a repository, a table and the outbox must all write in the same one without
   being handed it.

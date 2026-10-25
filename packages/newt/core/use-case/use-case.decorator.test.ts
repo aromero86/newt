@@ -34,19 +34,19 @@ class Counter {
     this.invocations = new Invocations(recorder, { context: 'shop' })
   }
 
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async increase() {
     this.runs++
     if (this.conflicts-- > 0) throw new ConcurrencyConflict()
   }
 
-  @UseCase()
+  @UseCase({ retryOnConflict: false })
   async set() {
     this.runs++
     if (this.conflicts-- > 0) throw new ConcurrencyConflict()
   }
 
-  @UseCase({ retryOnConflict: true })
+  @UseCase()
   async fail() {
     this.runs++
     throw new Error('boom')
@@ -82,7 +82,7 @@ describe('@UseCase', () => {
   })
 })
 
-describe('@UseCase with retryOnConflict', () => {
+describe('@UseCase, by default', () => {
   test('runs again after a conflict, and notes it in its span', async () => {
     const recorder = new Recorder()
     const counter = new Counter(recorder, 2)
@@ -107,7 +107,7 @@ describe('@UseCase with retryOnConflict', () => {
   })
 })
 
-describe('@UseCase without retryOnConflict', () => {
+describe('@UseCase with retryOnConflict: false', () => {
   test('lets the conflict through at once', async () => {
     const counter = new Counter(new Recorder(), 1)
 
