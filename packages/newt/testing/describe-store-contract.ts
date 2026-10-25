@@ -445,6 +445,35 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
       })
     })
 
+    describe('closing', () => {
+      test('waits for the transactions in progress', async () => {
+        const log: string[] = []
+        const running = store.transaction(async () => {
+          await Bun.sleep(20)
+          log.push('transaction ended')
+        })
+        await Bun.sleep(1)
+
+        await store.close()
+        log.push('closed')
+        await running
+        store = await fixture.open()
+
+        expect(log).toEqual(['transaction ended', 'closed'])
+      })
+    })
+
+    describe('guards in any order', () => {
+      test('two transactions guarding the same keys in another order both end', async () => {
+        const hold = (keys: string[]) => store.transaction(async () => {
+          await store.guard(keys)
+          await Bun.sleep(5)
+        })
+
+        await Promise.all(Array.from({ length: 5 }, () => [hold(['k1', 'k2']), hold(['k2', 'k1'])]).flat())
+      })
+    })
+
     describe('the outbox', () => {
       const job = (queue: string) => {
         const now = new Date().toISOString()
@@ -500,6 +529,21 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())).map(each => each.id)).toEqual(['first'])
         expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', lease())).map(each => each.id)).toEqual(['second'])
         expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id)).toEqual(['later'])
+      })
+
+      test('two claims at once never take the same job', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'one' }, { ...job('a.b.on.c'), id: 'two' }])
+
+        // A database may give one of them up (a deadlock): it is a conflict, retried at the next poll.
+        const outcomes = await Promise.allSettled([
+          store.outbox.claim(['a.b.on.c'], 1, 'w1', lease()),
+          store.outbox.claim(['a.b.on.c'], 1, 'w2', lease()),
+        ])
+
+        const claimed = outcomes.flatMap(outcome => (outcome.status === 'fulfilled' ? outcome.value : [])).map(each => each.id)
+        for (const outcome of outcomes) if (outcome.status === 'rejected') expect(outcome.reason).toBeInstanceOf(ConcurrencyConflict)
+        expect(claimed.length).toBeGreaterThan(0)
+        expect(new Set(claimed).size).toBe(claimed.length)
       })
 
       test('closing a claim to retry moves when it runs, and frees it', async () => {
