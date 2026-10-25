@@ -33,19 +33,23 @@ export class Invocations {
     const attributes = { ...this.attributes, module, useCase: name }
     const link = { context: String(this.attributes.context ?? ''), module, useCase: name }
     const chain = invocationChain.find()
-    return invocationChain.run({ root: chain?.root ?? { ...link, writesTo: options?.writesTo ?? [] }, current: link }, () => this.traced(name, attributes, fn, options))
+    // Called from another context, it is that context's API: the root of what it does here.
+    const root = chain && chain.root.context === link.context ? chain.root : { ...link, writesTo: options?.writesTo ?? [] }
+    return invocationChain.run({ root, current: link }, () => this.traced(name, attributes, fn, options))
   }
 
   /**
    * Called before a save: a use case writes to its own module, or to another one
-   * only from a worker (where a failure halfway is retried until it completes) or
-   * when its root use case says so (`writesTo`).
+   * of its context only from a worker (where a failure halfway is retried until it
+   * completes) or when its root use case says so (`writesTo`). A use case called from
+   * another context is that context's API, as an outside one would be: it is the
+   * root of what it does in its own, where the rule holds as for any other.
    */
   checkWrite(): void {
     const chain = invocationChain.find()
     if (this.writeRule === 'off' || !chain || inWorker.find()) return
     const { root, current } = chain
-    if ((root.context === current.context && root.module === current.module) || root.writesTo.includes(current.module)) return
+    if (root.module === current.module || root.writesTo.includes(current.module)) return
     const message = `${root.useCase} writes to ${current.context ? `${current.context}.` : ''}${current.module} outside a worker: write it from a worker reacting to an event, or list it in its writesTo`
     if (this.writeRule === 'error') throw new Error(message)
     const pair = `${root.useCase}>${current.context}.${current.module}`

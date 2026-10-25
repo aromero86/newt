@@ -2315,7 +2315,7 @@ aplicación funciona. Si un caso de uso de `order`, llamado por una petición, a
 guardando algo de `stockMovement`, avisa:
 
 ```
-[write rule] order.place writes to stockMovement outside a worker: write it
+[write rule] order.place writes to shop.stockMovement outside a worker: write it
 from a worker reacting to an event, or list it in its writesTo
 ```
 
@@ -2393,7 +2393,8 @@ flowchart BT
 - Un módulo puede usar los casos de uso y escuchar los eventos de los módulos que
   conoce. **Nada más**: nunca su repositorio, sus tablas ni su entidad. Para leer
   datos de otro módulo, pregúntale con un caso de uso.
-- **Lee de otro cuando quieras; escribe en otro solo desde un worker.**
+- **Lee de otro cuando quieras; escribe en otro solo desde un worker.** La regla es
+  de cada contexto: un caso de uso de otro contexto es su API (capítulo 23).
 - **Las dependencias forman un árbol, nunca un círculo.** Si dos módulos parecen
   necesitarse mutuamente, uno de los dos deja de llamar y pasa a escuchar.
 - **Un módulo no sabe quién depende de él.** `order` no sabe que existe
@@ -2732,6 +2733,11 @@ const shop = await Shop_Context.open(config.shop, auth)      // shop usa auth
 Llamar a otro contexto es como llamar a una API externa. Lo que él guarda queda
 guardado pase lo que pase después en el tuyo. Llámalo **después** de lo que pueda
 fallar, y haz que la llamada se pueda repetir.
+
+Por eso la regla de escritura (capítulo 19) no cruza contextos. El caso de uso al
+que llamas es la **raíz** de lo que hace en el suyo, como si lo llamara alguien de
+fuera: puede escribir en su módulo, y dentro de su contexto la regla se cumple como
+siempre.
 
 ---
 

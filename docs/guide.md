@@ -186,7 +186,9 @@ The framework checks it as it runs: a save of module B under a use case of modul
 outside a worker, is a warning (the default) or an error (`writeRule: 'error'` in a
 context's `Base`, for tests and development). An exception that is justified is said
 where it is seen: `@UseCase({ writesTo: ['workspaceMember'] })`, with the reason
-beside it.
+beside it. The rule is per context: a use case called from another context is that
+context's API, the root of what it does in its own, where the rule holds as for any
+other.
 
 **A module is one aggregate.** What must be saved together, all or nothing, is one
 module. Two modules whose data must always change together are one; otherwise one

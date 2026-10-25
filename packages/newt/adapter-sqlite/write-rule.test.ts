@@ -90,6 +90,29 @@ describe('the write rule', () => {
     expect(await store.table('note').count()).toBe(0)
   })
 
+  test("lets a use case call another context's, as an outside API", async () => {
+    const shop = new Base({ name: 'shop', store, writeRule: 'error' })
+    const other = new Base({ name: 'other', store, writeRule: 'error' })
+    const log = new Log(other, new Notes(other, store.table<NoteRow>('note')))
+    const diary = new Diary(shop, log)
+
+    await diary.writeBoth('theirs')
+    expect(await store.table('note').count()).toBe(1)
+  })
+
+  test('still holds inside the context that was called', async () => {
+    const shop = new Base({ name: 'shop', store, writeRule: 'error' })
+    const other = new Base({ name: 'other', store, writeRule: 'error' })
+    const otherDiary = new Diary(other, new Log(other, new Notes(other, store.table<NoteRow>('note'))))
+    class Caller extends Module {
+      constructor() { super('caller', shop.invocations) }
+      @UseCase()
+      async callTheirs() { await otherDiary.writeBoth('theirs') }
+    }
+
+    await expect(new Caller().callTheirs()).rejects.toThrow('diary.writeBoth writes to other.log outside a worker')
+  })
+
   test('covers rows written with saveRows too', async () => {
     const { diary, log } = open('error')
 

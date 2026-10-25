@@ -117,10 +117,22 @@ describe('checkWrite', () => {
     await inWorker.run(true, () => writeFrom(invocations, 'order.place', 'stock.reserve'))
   })
 
-  test('a module of the same name in another context is another module', async () => {
+  test("a use case of another context is that context's API: the root of what it does there", async () => {
     const shop = new Invocations(undefined, { context: 'shop' }, 'error')
     const billing = new Invocations(undefined, { context: 'billing' }, 'error')
-    await expect(writeFrom(shop, 'order.place', 'order.bill', { other: billing })).rejects.toThrow('writes to billing.order')
+
+    await writeFrom(shop, 'order.place', 'invoice.create', { other: billing })
+    const chain = await shop.run('order.place', () => billing.run('invoice.create', async () => invocationChain.current()), { writesTo: ['stock'] })
+
+    expect(chain?.root).toEqual({ context: 'billing', module: 'invoice', useCase: 'invoice.create', writesTo: [] })
+  })
+
+  test('inside the context called, the rule holds as for any other', async () => {
+    const shop = new Invocations(undefined, { context: 'shop' }, 'error')
+    const billing = new Invocations(undefined, { context: 'billing' }, 'error')
+
+    await expect(shop.run('order.place', () => billing.run('invoice.create', () => billing.run('payment.take', async () => billing.checkWrite()))))
+      .rejects.toThrow('invoice.create writes to billing.payment outside a worker')
   })
 
   test('off checks nothing, and outside a use case there is nothing to check', async () => {
