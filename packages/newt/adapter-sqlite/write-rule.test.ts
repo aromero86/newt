@@ -21,6 +21,11 @@ class Notes extends TableRepository<Note, NoteRow, Base> {
   protected toEntity(row: NoteRow) {
     return Note.fromRow(row)
   }
+
+  /** Rows that are no entity's, written as a save does. */
+  async stamp(text: string) {
+    await this.saveRows(() => this.table.insert({ id: Bun.randomUUIDv7(), text, createdAt: '', updatedAt: '' }))
+  }
 }
 
 class Written implements DomainEvent<{ text: string }> {
@@ -41,6 +46,8 @@ class Diary extends Module {
   async writeBoth(text: string) { await this.log.add(text) }
   @UseCase({ writesTo: ['log'] })
   async writeBothOnPurpose(text: string) { await this.log.add(text) }
+  @UseCase()
+  async stampBoth(text: string) { await this.log.stamp(text) }
 }
 
 class Log extends Module {
@@ -49,6 +56,8 @@ class Log extends Module {
   }
   @UseCase()
   async add(text: string) { await this.notes.persist(Note.write(text)) }
+  @UseCase()
+  async stamp(text: string) { await this.notes.stamp(text) }
 }
 
 let store: SqliteStore
@@ -79,6 +88,14 @@ describe('the write rule', () => {
 
     await expect(diary.writeBoth('theirs')).rejects.toThrow('diary.writeBoth writes to test.log outside a worker')
     expect(await store.table('note').count()).toBe(0)
+  })
+
+  test('covers rows written with saveRows too', async () => {
+    const { diary, log } = open('error')
+
+    await log.stamp('mine')
+    await expect(diary.stampBoth('theirs')).rejects.toThrow('diary.stampBoth writes to test.log outside a worker')
+    expect(await store.table('note').count()).toBe(1)
   })
 
   test('lets it when its use case says so', async () => {

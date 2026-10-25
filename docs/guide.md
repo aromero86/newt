@@ -398,6 +398,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 - A write that only notes something happened (`lastUsedAt`) is not a change of the
   entity: the repository writes it with `table.patch(id, changes)`, which leaves the
   version alone, so parallel requests never collide.
+- Rows that are no entity's (a projection, a search index, a link table rewritten
+  whole) are written with `saveRows(write, { guard })`: in one transaction, under
+  the write rule, guarding what it names. A repository writes through `save` or
+  `saveRows`, never in a transaction of its own; `table.patch`, above, is the one
+  exception.
 - **A value many change at once (a stock, a balance) is not a field updated in
   place**: every change would collide with the others. It is a module of movements,
   only ever inserted, and the value is what they add up to.

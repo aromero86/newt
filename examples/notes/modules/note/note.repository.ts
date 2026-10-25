@@ -31,4 +31,12 @@ export class Note_Repository extends TableRepository<Note, NoteRow, NotesBase> {
       },
     })
   }
+
+  /**
+   * Notes down that something happened to a note. Not the note's own data, so it is
+   * no entity's: a row written on the store's own API, as a report would be.
+   */
+  async recordActivity(noteId: string, what: string, at: string): Promise<void> {
+    await this.saveRows(() => this.store.collection('activity').put({ id: `${noteId}.${what}.${at.replace(/[^0-9]/g, '')}`, noteId, what, at }))
+  }
 }

@@ -103,8 +103,8 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
   `bun:sqlite` database whose statements run on the right connection when they run
   (a statement prepared outside a transaction and run inside one reads what the
   transaction wrote), and which refuses a write outside a transaction. Put a query
-  builder on it if you want one, and use `store.transaction` for its transactions,
-  never the builder's own. `kyselyFor(store)` from `newt/kysely` is
+  builder on it if you want one, and use the store's transactions, never the
+  builder's own: in a repository, `save` or `saveRows`; elsewhere, `store.transaction`. `kyselyFor(store)` from `newt/kysely` is
   that, ready made:
 
   ```ts

@@ -30,6 +30,9 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * follows from them, or checks a rule over several rows (a workspace keeps an
    * admin), which no version covers: `guard` names what that rule protects, so no
    * other save guarding it runs in between. Either hook throws to roll it all back.
+   *
+   * It is the only way a repository writes its entities: whatever it writes, it
+   * writes here or in `saveRows`, never in a transaction of its own.
    */
   protected async save<T extends E>(entities: T[], write: (entity: T) => void | Promise<void>, hooks: SaveHooks = {}): Promise<void> {
     this.base.invocations?.checkWrite()
@@ -46,6 +49,19 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
       this.store.afterCommit(() => {
         for (const entity of changed) entity[markPersisted]()
       })
+    })
+  }
+
+  /**
+   * Writes rows that are no entity's (a projection, a search index, a link table
+   * rewritten whole) as a save does: in one transaction, under the write rule, and
+   * guarding what `guard` names.
+   */
+  protected async saveRows(write: () => void | Promise<void>, options: { guard?: string[] } = {}): Promise<void> {
+    this.base.invocations?.checkWrite()
+    await this.store.transaction(async () => {
+      if (options.guard?.length) await this.store.guard(options.guard)
+      await write()
     })
   }
 }

@@ -22,7 +22,7 @@ export class Note_Module extends Module {
 
   readonly events
 
-  private constructor(private readonly base: NotesBase, private readonly repo: Note_Repository) {
+  private constructor(base: NotesBase, private readonly repo: Note_Repository) {
     super('note', base.invocations)
     this.events = eventsOf(base.bus, { created: Note_Created, updated: Note_Updated, deleted: Note_Deleted })
   }
@@ -70,14 +70,10 @@ export class Note_Module extends Module {
     await this.repo.persist(note)
   }
 
-  /**
-   * Notes down that something happened to a note: what the workers call. Not the
-   * note's own data, so it does not go through the entity: it is written on the
-   * store's own API, as a report would be.
-   */
+  /** Notes down that something happened to a note: what the workers call. */
   @UseCase()
   async recordActivity(noteId: string, what: string, at: string): Promise<void> {
-    await this.base.store.collection('activity').put({ id: `${noteId}.${what}.${at.replace(/[^0-9]/g, '')}`, noteId, what, at })
+    await this.repo.recordActivity(noteId, what, at)
   }
 
   private load(id: string): Promise<Note> {

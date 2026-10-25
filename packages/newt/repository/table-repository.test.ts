@@ -94,6 +94,10 @@ function world(options: TableRepositoryOptions = {}, rows: ThingRow[] = []) {
     saveWith(entities: Thing[], hooks: SaveHooks) {
       return this.save(entities, entity => this.write(entity), hooks)
     }
+
+    stamp(guard?: string[]) {
+      return this.saveRows(() => this.table.insert({ id: 'stamp', name: 'stamped' } as never), { guard })
+    }
   }
 
   return {
@@ -229,6 +233,25 @@ describe('save with hooks', () => {
     const plain: SaveHooks = { before: () => {} }
 
     expect([unguarded, none, plain]).toHaveLength(3)
+  })
+})
+
+describe('saveRows', () => {
+  test('writes rows as a save does: under the write rule, in a transaction, guarding what it names', async () => {
+    const { log, repo } = world()
+
+    await repo.stamp(['index:t1'])
+
+    expect(log.map(line => line.split(' ')[0])).toEqual(['checkWrite', 'begin', 'guard', 'insert', 'commit'])
+    expect(log[2]).toBe('guard index:t1')
+  })
+
+  test('guards nothing when it names nothing', async () => {
+    const { log, repo } = world()
+
+    await repo.stamp()
+
+    expect(log.some(line => line.startsWith('guard'))).toBe(false)
   })
 })
 

@@ -2887,7 +2887,8 @@ Tres cosas que saber:
   (`stock_movement`).
 - **Se ejecuta dentro de la transacción en curso**, como todo lo que hace el
   repositorio. Las transacciones de Kysely están prohibidas: las transacciones
-  siempre son las del store (`store.transaction`).
+  siempre son las del store. En un repositorio, una escritura con Kysely va dentro de
+  `saveRows` (o del `save` de sus entidades); fuera, en `store.transaction`.
 - **La misma consulta vale en SQLite, Postgres y MySQL.** En SQLite, un booleano
   vuelve como 0 o 1: `SqliteRow<Row>` lo dice en los tipos.
 
@@ -2897,6 +2898,24 @@ Y cuando las entidades no son las filas de una tabla (una entidad repartida en d
 tablas, por ejemplo), hereda de `Repository` en vez de `TableRepository` y escribe tú
 cada entidad dentro de `save`. Sigues teniendo la transacción, la versión y los
 eventos.
+
+Y si lo que escribes no es de ninguna entidad (una proyección, un índice de
+búsqueda, una tabla de enlace que se reescribe entera), usa `saveRows`. Escribe como
+un guardado: en una transacción, bajo la regla de escritura (capítulo 19) y
+protegiendo lo que diga su `guard`:
+
+```ts
+// Simplificado del ejemplo de notes
+async recordActivity(noteId: string, what: string, at: string): Promise<void> {
+  await this.saveRows(() => this.store.collection('activity').put({ id: `${noteId}.${what}.${at}`, noteId, what, at }))
+}
+```
+
+Un repositorio escribe por `save` o por `saveRows`, nunca en una transacción propia
+(`store.transaction`): así cada escritura pasa por la regla y por su `guard`. La
+excepción es `this.table.patch(id, cambios)`, para apuntar que algo pasó sin cambiar
+la entidad (un `lastUsedAt`): no toca la versión, así que dos peticiones a la vez no
+chocan.
 
 ### 26.1 La regla de la portabilidad
 
@@ -3363,8 +3382,9 @@ vuelve a provocar el trabajo (o escribe un script que haga lo que debía hacer).
 trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo pensarlo.
 
 **"A write runs inside `store.transaction`".**
-Has intentado escribir con la conexión del store fuera de un guardado. Las escrituras
-van dentro de `repo.persist`, de `save` o de `store.transaction(…)`.
+Has intentado escribir con la conexión del store fuera de un guardado. En un
+repositorio, las escrituras van dentro de `persist`, de `save` o de `saveRows`; fuera
+de él (un script, una migración), dentro de `store.transaction(…)`.
 
 **"Waited 30000 ms for the store".**
 Algo esperó demasiado su turno. La causa habitual es código que se ejecuta dentro de
