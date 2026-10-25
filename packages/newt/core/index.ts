@@ -2,10 +2,17 @@
 // context, its adapters and HTTP are subpaths of their own (newt/store, newt/runtime,
 // newt/adapter-sqlite, newt/http…); anything not exported here is private.
 
-// Entities
+// Modules, entities and use cases
+export { Module } from './module/module'
+export type { Ref } from './module/ref'
+export type { RefFinder } from './module/ref-finder'
 export { Entity } from './entity/entity'
 export type { EntityInput } from './entity/entity-input'
 export type { EntitySchema } from './entity/entity-schema'
+export { UseCase } from './use-case/use-case.decorator'
+export type { UseCaseOptions } from './use-case/use-case-options'
+export type { WriteRule } from './use-case/write-rule'
+export type { Invocations } from './use-case/invocations'
 
 // Who is doing it
 export type { Actor } from './context/actor'
