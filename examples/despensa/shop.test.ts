@@ -21,7 +21,7 @@ describe.each(stores)('the shop, on %s', (_, store) => {
   beforeEach(async () => {
     folder = await mkdtemp(join(tmpdir(), 'despensa-'))
     mails = []
-    shop = await Shop_Context.open({ store: store(folder), mailer: { send: async mail => { mails.push({ to: mail.to, subject: mail.subject }) } }, writeRule: 'error' })
+    shop = await Shop_Context.open({ store: store(folder), mailer: { send: async mail => { mails.push({ to: mail.to, subject: mail.subject }) } } })
     server = shop.serve(0)
     shop.start()
   })

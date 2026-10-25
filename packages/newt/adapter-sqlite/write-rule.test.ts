@@ -113,6 +113,13 @@ describe('the write rule', () => {
     await expect(new Caller().callTheirs()).rejects.toThrow('diary.writeBoth writes to other.log outside a worker')
   })
 
+  test('is an error by default', async () => {
+    const base = new Base({ name: 'test', store })
+    const diary = new Diary(base, new Log(base, new Notes(base, store.table<NoteRow>('note'))))
+
+    await expect(diary.writeBoth('theirs')).rejects.toThrow('outside a worker')
+  })
+
   test('covers rows written with saveRows too', async () => {
     const { diary, log } = open('error')
 
@@ -140,7 +147,7 @@ describe('the write rule', () => {
     expect(await store.table('note').count()).toBe(1)
   })
 
-  test('only warns by default, once for each pair', async () => {
+  test('warn only warns, once for each pair', async () => {
     const { diary } = open('warn')
     const warnings: string[] = []
     const original = console.warn

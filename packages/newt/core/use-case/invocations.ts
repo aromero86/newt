@@ -25,7 +25,7 @@ export class Invocations {
   constructor(
     private readonly tracer: Tracer = new NoopTracer(),
     private readonly attributes: SpanAttributes = {},
-    private readonly writeRule: WriteRule = 'warn',
+    private readonly writeRule: WriteRule = 'error',
   ) {}
 
   run<T>(name: string, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {

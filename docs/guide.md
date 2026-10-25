@@ -183,8 +183,8 @@ writes is safe to run again (idempotent), so the flow always converges.
 | a use case a worker called (a `handler`) | its job runs again until it completes |
 
 The framework checks it as it runs: a save of module B under a use case of module A,
-outside a worker, is a warning (the default) or an error (`writeRule: 'error'` in a
-context's `Base`, for tests and development). An exception that is justified is said
+outside a worker, is an error (the default), or a warning (`writeRule: 'warn'` in a
+context's `Base`, while an application moves to the rule). An exception that is justified is said
 where it is seen: `@UseCase({ writesTo: ['workspaceMember'] })`, with the reason
 beside it. The rule is per context: a use case called from another context is that
 context's API, the root of what it does in its own, where the rule holds as for any

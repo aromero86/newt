@@ -11,6 +11,9 @@ export type BaseOptions<S extends Store> = {
   tracer?: Tracer
   /** How its worker runs the jobs of `handler` subscriptions. */
   jobs?: Partial<JobQueueOptions>
-  /** What a use case writing to another module outside a worker gets: a warning by default. */
+  /**
+   * What a use case writing to another module outside a worker gets: an error by
+   * default; `warn` while an application moves to the rule, `off` never.
+   */
   writeRule?: WriteRule
 }

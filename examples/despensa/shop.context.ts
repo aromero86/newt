@@ -1,5 +1,4 @@
 import { join } from 'node:path'
-import type { WriteRule } from 'newt/core'
 import { BoundedContext } from 'newt/runtime'
 import type { Store } from 'newt/port-store'
 import { FileStore } from 'newt/adapter-files'
@@ -18,8 +17,6 @@ export type ShopConfig = {
   /** Where it keeps its data: a folder of files, or a SQLite database. */
   store: { kind: 'files', folder: string } | { kind: 'sqlite', path: string }
   mailer: Mailer
-  /** What a use case writing to another module outside a worker gets: an error in the tests. */
-  writeRule?: WriteRule
 }
 
 /**
@@ -33,7 +30,7 @@ export class Shop_Context extends BoundedContext<ShopBase> {
   }
 
   static async open(config: ShopConfig): Promise<Shop_Context> {
-    const base = new ShopBase({ name: 'shop', store: await openStore(config.store), writeRule: config.writeRule })
+    const base = new ShopBase({ name: 'shop', store: await openStore(config.store) })
     base.http.authenticateWith(async request => {
       const userId = request.headers.get('x-user')
       return userId ? { userId } : null

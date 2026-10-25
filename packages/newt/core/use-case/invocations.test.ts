@@ -141,8 +141,12 @@ describe('checkWrite', () => {
     new Invocations(undefined, {}, 'error').checkWrite()
   })
 
-  test('warns by default, once for each pair of modules', async () => {
-    const invocations = new Invocations(undefined, { context: 'shop' })
+  test('is an error by default', async () => {
+    await expect(writeFrom(new Invocations(undefined, { context: 'shop' }), 'order.place', 'stock.reserve')).rejects.toThrow('outside a worker')
+  })
+
+  test('warn warns, once for each pair of modules', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'warn')
 
     const warnings = await warningsOf(async () => {
       await writeFrom(invocations, 'order.place', 'stock.reserve')

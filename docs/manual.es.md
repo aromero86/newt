@@ -2312,7 +2312,7 @@ cuando lo que falla es un paso que ya no se puede repetir.
 
 No hace falta que te acuerdes de la regla: el framework la comprueba mientras la
 aplicación funciona. Si un caso de uso de `order`, llamado por una petición, acaba
-guardando algo de `stockMovement`, avisa:
+guardando algo de `stockMovement`, falla con:
 
 ```
 [write rule] order.place writes to shop.stockMovement outside a worker: write it
@@ -2323,16 +2323,16 @@ Lo que hace al encontrarlo lo decide la opción `writeRule` de la base:
 
 | `writeRule` | Qué hace | Para |
 |---|---|---|
-| `'warn'` | Un aviso en la consola, una vez por pareja. Es lo que hace si no dices nada. | Producción. |
-| `'error'` | Lanza un error: el guardado no se hace. | Tests y desarrollo. |
+| `'error'` | Lanza un error: el guardado no se hace. Es lo que hace si no dices nada. | Siempre. |
+| `'warn'` | Un aviso en la consola, una vez por pareja. | Una aplicación que se está pasando a la regla. |
 | `'off'` | Nada. | Casi nunca. |
 
 ```ts
-const base = new ShopBase({ name: 'shop', store, writeRule: 'error' })
+const base = new ShopBase({ name: 'shop', store, writeRule: 'warn' })  // mientras te pasas a la regla
 ```
 
-Los tests de La Despensa abren la tienda con `writeRule: 'error'`: una escritura
-fuera de sitio rompe un test en lugar de esconderse en un aviso.
+Como por defecto es un error, una escritura fuera de sitio rompe un test en lugar de esconderse
+en un aviso.
 
 A veces saltarse la regla está justificado: dos módulos que, por lo que sea, deben
 escribirse en la misma petición, aceptando el riesgo. Entonces se dice **donde se
@@ -3173,7 +3173,6 @@ beforeEach(async () => {
   shop = await Shop_Context.open({
     store: { kind: 'files', folder },
     mailer: { send: async mail => { mails.push(mail) } },
-    writeRule: 'error',
   })
   server = shop.serve(0)        // puerto 0: uno libre
   shop.start()
@@ -3186,9 +3185,9 @@ afterEach(async () => {
 })
 ```
 
-`writeRule: 'error'` hace que, en los tests, un caso de uso que escribe en otro
-módulo fuera de un worker (capítulo 19) **falle**, en vez de solo avisar. Así te
-enteras en cuanto lo escribes, no en producción.
+Un caso de uso que escribe en otro módulo fuera de un worker (capítulo 19)
+**falla**: es lo que hace la regla si no dices nada. Así te enteras en cuanto lo
+escribes, no en producción.
 
 ### 29.2 Esperar a los workers
 
@@ -3422,7 +3421,7 @@ Un caso de uso de un módulo ha guardado en otro sin pasar por un worker. Si fal
 mitad, nada lo terminará (capítulo 19). Haz que el segundo módulo reaccione a un
 evento del primero con un `handler`. Si la excepción está justificada, dila donde
 se vea: `@UseCase({ writesTo: ['otroModulo'] })`, con el motivo al lado. Con
-`writeRule: 'error'` (en los tests) es un error, no un aviso.
+`writeRule: 'warn'` es un aviso en vez de un error.
 
 **Dos pedidos se llevan las mismas últimas unidades.**
 La regla que mira varias filas no declara lo que guarda. Añade su clave al guardado:
