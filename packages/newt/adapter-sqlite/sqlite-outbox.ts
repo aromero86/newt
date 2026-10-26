@@ -33,8 +33,7 @@ export class SqliteOutbox implements Outbox {
   }
 
   /** One statement, so no other worker can claim the same job. */
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]> {
-    const now = new Date().toISOString()
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()): Promise<Job[]> {
     return this.store.transaction(() => {
       const rows = this.store.connection.query(`
         UPDATE job SET status = 'running', locked_by = ?, locked_until = ?, attempts = attempts + 1, updated_at = ?

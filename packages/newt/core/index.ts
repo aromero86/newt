@@ -25,6 +25,11 @@ export { NoActor } from './context/errors/no-actor'
 export { defineScope } from './scope/define-scope'
 export type { Scope } from './scope/scope'
 
+// What time it is
+export type { Clock } from './clock/clock'
+export { systemClock } from './clock/system-clock'
+export { now } from './clock/now'
+
 // Errors, and what they say
 export { DomainError } from './errors/domain-error'
 export { ValidationError } from './errors/validation-error'

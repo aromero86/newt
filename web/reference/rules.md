@@ -26,7 +26,10 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   `Base` on it. `Base` gives every module the store, the `invocations` of its use
   cases, the event `bus`, the `publisher` its repositories publish to, and the `jobs`
   of its `handler` subscriptions. Its options are `name`, `store`, and optionally a
-  `tracer`, the `jobs` settings and the `writeRule`.
+  `tracer`, the `jobs` settings, the `writeRule` and a `clock`: what its entities'
+  `createdAt` and `updatedAt`, its jobs' due times and backoffs, and `now()` in its
+  use cases and handlers go by (the real time by default; a test moves its own,
+  `{ now: () => new Date(time) }`, instead of waiting).
 - **An application gives its modules more by extending `Base`**: an HTTP router, a
   mailer, a query builder on the store's connection.
 

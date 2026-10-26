@@ -31,8 +31,8 @@ export class Base<S extends Store = Store> {
   constructor(options: BaseOptions<S>) {
     this.name = options.name
     this.store = options.store
-    this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule)
-    this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs)
+    this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, options.clock)
+    this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, options.clock)
     const memory = new InMemoryEventBus()
     this.bus = {
       // Whoever publishes on the bus gets what a repository gets: the outbox, and the commit.

@@ -27,7 +27,11 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   construye su `Base` sobre él. `Base` da a cada módulo el store, las `invocations` de
   sus casos de uso, el `bus` de eventos, el `publisher` en el que publican sus
   repositorios y los `jobs` de sus suscripciones `handler`. Sus opciones son `name`,
-  `store` y, si hacen falta, un `tracer`, la configuración de `jobs` y la `writeRule`.
+  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule` y
+  un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
+  tocan sus trabajos y sus esperas entre reintentos, y `now()` en sus casos de uso y sus
+  handlers (la hora real por defecto; un test mueve el suyo,
+  `{ now: () => new Date(time) }`, en vez de esperar).
 - **Una aplicación da más a sus módulos extendiendo `Base`**: un router HTTP, un
   mailer, un constructor de consultas sobre la conexión del store.
 

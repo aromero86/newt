@@ -1,4 +1,4 @@
-import type { Tracer, WriteRule } from '../core'
+import type { Clock, Tracer, WriteRule } from '../core'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
 
@@ -7,6 +7,11 @@ export type BaseOptions<S extends Store> = {
   name: string
   /** Its store, opened and up to date. */
   store: S
+  /**
+   * What tells it the time: when its entities are created and changed, when its jobs
+   * are due, when its schedules fire. The real time by default; a test's moves.
+   */
+  clock?: Clock
   /** Who watches its invocations: none, by default. */
   tracer?: Tracer
   /** How its worker runs the jobs of `handler` subscriptions. */

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import type { DomainEvent, EventHandler, Invocations } from '../../core'
-import { eventOfQueue, inWorker } from '../../core/internal'
+import { systemClock, type Clock, type DomainEvent, type EventHandler, type Invocations } from '../../core'
+import { currentClock, eventOfQueue, inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
 import { withId } from '../events/with-id'
 import type { JobQueueOptions } from './job-queue-options'
@@ -66,6 +66,8 @@ export class JobQueue {
     private readonly store: Outbox,
     private readonly invocations: Invocations,
     options: Partial<JobQueueOptions> = {},
+    /** What tells it the time: when a job is due, how long a lease and a backoff last. */
+    private readonly clock: Clock = systemClock,
   ) {
     // An option given as undefined takes its default, as one left out does.
     const given: Partial<JobQueueOptions> = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
@@ -86,7 +88,7 @@ export class JobQueue {
   /** One job for each handler the event concerns and takes, in the transaction of the save that publishes it. */
   async enqueue(event: DomainEvent): Promise<void> {
     const told = withId(event)
-    const now = new Date().toISOString()
+    const now = this.clock.now().toISOString()
     const jobs: Job[] = [...this.registrations]
       .filter(([, registration]) => eventNameMatches(registration.pattern, told.name) && (registration.when?.(told) ?? true))
       .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(told), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
@@ -99,7 +101,7 @@ export class JobQueue {
    * that does by hand what a worker would.
    */
   runAsWorker<T>(fn: () => T | Promise<T>): Promise<T> {
-    return detached(() => inWorker.run(true, async () => fn()))
+    return detached(() => currentClock.run(this.clock, () => inWorker.run(true, async () => fn())))
   }
 
   /** Starts the worker: the server does; a script that wants its jobs run does too, and waits for `idle`. */
@@ -215,7 +217,7 @@ export class JobQueue {
     const queues = [...this.registrations.keys()]
     if (queues.length === 0) return Promise.resolve([])
     const lockedBy = `${this.worker}/${++this.claims}`
-    return this.invocations.run('job.claim', () => this.store.claim(queues, limit, lockedBy, this.later(this.options.leaseMs)))
+    return this.invocations.run('job.claim', () => this.store.claim(queues, limit, lockedBy, this.later(this.options.leaseMs), this.later(0)))
   }
 
   private async process(claimed: Job): Promise<void> {
@@ -229,7 +231,7 @@ export class JobQueue {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
     }, this.options.leaseMs / 3)
     try {
-      await detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string })))
+      await detached(() => currentClock.run(this.clock, () => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string }))))
       await this.close(claimed, { status: 'done', lastError: null })
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)
@@ -251,8 +253,8 @@ export class JobQueue {
 
   /** Registers the queues this worker runs, as they are now, and says they are alive. */
   private async seen(): Promise<void> {
-    if (Date.now() - this.seenAt < this.options.seenEveryMs || this.registrations.size === 0) return
-    this.seenAt = Date.now()
+    if (this.time() - this.seenAt < this.options.seenEveryMs || this.registrations.size === 0) return
+    this.seenAt = this.time()
     await this.invocations.run('job.seen', () => this.store.seen([...this.registrations].map(([name, { pattern, attempts }]) => ({ name, event: pattern, attempts }))))
   }
 
@@ -265,9 +267,9 @@ export class JobQueue {
    * later, once for each queue.
    */
   private async warnAboutOrphans(): Promise<void> {
-    if (Date.now() - this.orphansCheckedAt < this.options.orphansCheckEveryMs) return
-    this.orphansCheckedAt = Date.now()
-    const alive = new Date(Date.now() - 5 * this.options.seenEveryMs).toISOString()
+    if (this.time() - this.orphansCheckedAt < this.options.orphansCheckEveryMs) return
+    this.orphansCheckedAt = this.time()
+    const alive = this.later(-5 * this.options.seenEveryMs)
     const seen = new Map((await this.store.queues()).map(queue => [queue.name, queue.lastSeenAt]))
     const orphans = (await this.store.waiting())
       .filter(({ queue }) => !this.registrations.has(queue) && (seen.get(queue) ?? '') <= alive)
@@ -284,8 +286,8 @@ export class JobQueue {
 
   /** Jobs done are only history: kept a while, then purged. Dead ones stay until someone looks at them. */
   private async purge(): Promise<void> {
-    if (Date.now() - this.purgedAt < PURGE_EVERY_MS) return
-    this.purgedAt = Date.now()
+    if (this.time() - this.purgedAt < PURGE_EVERY_MS) return
+    this.purgedAt = this.time()
     await this.invocations.run('job.purge', () => this.store.purge(this.later(-this.options.keepDoneMs)))
   }
 
@@ -293,8 +295,14 @@ export class JobQueue {
     return Math.min(this.options.backoffMs * 2 ** (attempts - 1), this.options.maxBackoffMs)
   }
 
+  /** Now by its clock, in milliseconds. */
+  private time(): number {
+    return this.clock.now().getTime()
+  }
+
+  /** `ms` from now by its clock, as stored. */
   private later(ms: number): string {
-    return new Date(Date.now() + ms).toISOString()
+    return new Date(this.time() + ms).toISOString()
   }
 
 }

@@ -816,6 +816,16 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id)).toEqual(['later'])
       })
 
+      test('claims what is due as of the time it is given: the worker clock', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'soon', runAfter: at(60_000) }])
+
+        expect(await store.outbox.claim(['a.b.on.c'], 1, 'w1', at(120_000), at(59_000))).toEqual([])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', at(120_000), at(60_000))).map(each => each.id)).toEqual(['soon'])
+        // Its lease runs out as of the time given, too.
+        expect(await store.outbox.claim(['a.b.on.c'], 1, 'w2', at(180_000), at(119_000))).toEqual([])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w2', at(180_000), at(121_000))).map(each => each.lockedBy)).toEqual(['w2'])
+      })
+
       test('two claims at once never take the same job', async () => {
         await store.outbox.add([{ ...job('a.b.on.c'), id: 'one' }, { ...job('a.b.on.c'), id: 'two' }])
 

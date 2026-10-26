@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { currentActor, defineScope, runAsActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
+import { currentActor, defineScope, now, runAsActor, type Clock, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
 import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
@@ -23,8 +23,7 @@ class MemoryOutbox implements Outbox {
     this.jobs.push(...jobs.map(job => ({ ...job })))
   }
 
-  async claim(queues: string[], limit: number, worker: string, leaseUntil: string) {
-    const now = new Date().toISOString()
+  async claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()) {
     const ready = this.jobs.filter(job => queues.includes(job.queue) && (
       (job.status === 'pending' && job.runAfter <= now) || (job.status === 'running' && (job.lockedUntil ?? '') < now)
     )).slice(0, limit)
@@ -94,9 +93,9 @@ const QUEUE = 'mail.sendWelcome.on.user.created'
 
 const created = (id = 'u1'): DomainEvent => ({ name: 'user.created', payload: { id }, occurredAt: '' })
 
-function setup(options: Partial<JobQueueOptions> = {}, tracer?: Tracer) {
+function setup(options: Partial<JobQueueOptions> = {}, tracer?: Tracer, clock?: Clock) {
   const outbox = new MemoryOutbox()
-  const queue = new JobQueue(outbox, new Invocations(tracer), { pollMs: 10, ...options })
+  const queue = new JobQueue(outbox, new Invocations(tracer), { pollMs: 10, ...options }, clock)
   return { outbox, queue }
 }
 
@@ -216,6 +215,30 @@ describe('a job', () => {
     await queue.idle()
     expect(msFromNow(outbox.job(QUEUE).runAfter)).toBeGreaterThan(1_400)
     expect(msFromNow(outbox.job(QUEUE).runAfter)).toBeLessThanOrEqual(1_500)
+  })
+
+  test('runs by its clock: due, retried and run again once it moves, with no wait', async () => {
+    let time = Date.parse('2026-01-01T00:00:00.000Z')
+    const clock: Clock = { now: () => new Date(time) }
+    const { outbox, queue } = setup({ backoffMs: 60_000 }, undefined, clock)
+    const times: string[] = []
+    queue.register(QUEUE, 'user.created', () => {
+      times.push(now().toISOString())
+      if (times.length === 1) throw new Error('smtp down')
+    })
+    await queue.enqueue(created())
+    expect(outbox.job(QUEUE)).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', runAfter: '2026-01-01T00:00:00.000Z' })
+
+    await queue.idle()
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', runAfter: '2026-01-01T00:01:00.000Z' })
+    time += 59_000
+    await queue.idle()
+    expect(times).toHaveLength(1)
+    time += 1_000
+    await queue.idle()
+
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'done', attempts: 2 })
+    expect(times).toEqual(['2026-01-01T00:00:00.000Z', '2026-01-01T00:01:00.000Z'])
   })
 
   test('is dead once it failed as many times as its handler allows', async () => {

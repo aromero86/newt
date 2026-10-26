@@ -21,8 +21,7 @@ export class FileOutbox implements Outbox {
     })
   }
 
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]> {
-    const now = new Date().toISOString()
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()): Promise<Job[]> {
     return this.store.transaction(async () => {
       const ready = (await this.all())
         .filter(job => queues.includes(job.queue))

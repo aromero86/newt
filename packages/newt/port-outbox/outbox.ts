@@ -16,8 +16,9 @@ export interface Outbox {
    * same ones: pending and due, or running with their lease run out. Each claim counts
    * one more attempt, and is locked by `worker`: a name no claim used before (the
    * worker's, and which of its claims), since it fences the claim with `attempts`.
+   * Due and run out are as of `now`, the worker's time: the real one if not given.
    */
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]>
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now?: string): Promise<Job[]>
   /** Moves the lease of a claim on, if it is still the claim it was. */
   renew(claimed: Job, leaseUntil: string): Promise<void>
   /** Ends a claim, if it is still the claim it was. */

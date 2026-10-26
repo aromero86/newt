@@ -23,8 +23,8 @@ export class SqlOutbox implements Outbox {
     })
   }
 
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]> {
-    return this.transaction(async run => (await this.dialect.claim(run, queues, limit, worker, leaseUntil, new Date().toISOString())).map(toJob))
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()): Promise<Job[]> {
+    return this.transaction(async run => (await this.dialect.claim(run, queues, limit, worker, leaseUntil, now)).map(toJob))
   }
 
   renew(claimed: Job, leaseUntil: string): Promise<void> {

@@ -12,6 +12,8 @@ export { Invocations } from './use-case/invocations'
 export { inWorker } from './use-case/invocation-chain'
 /** A subscription and the worker check a handler's queue by one rule. */
 export { eventOfQueue } from './events/event-of-queue'
+/** The worker runs its jobs by its context's clock. */
+export { currentClock } from './clock/current-clock'
 
 /** HTTP answers with the framework's messages: what a route that is not there says, and the like. */
 export { message } from './messages/message'
