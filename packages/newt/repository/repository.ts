@@ -1,4 +1,4 @@
-import type { Entity, EntitySchema } from '../core'
+import { ConcurrencyConflict, type Entity, type EntitySchema } from '../core'
 import { assertSavable, markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
@@ -66,6 +66,16 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
         for (const event of events) await this.base.publisher.publish(event)
       }
     })
+  }
+
+  /**
+   * Makes the use case run again, from `after`: a row the save holds no version of
+   * changed meanwhile (a card someone added to a column whose order it rewrites), so
+   * what it decided may no longer hold. It is a `ConcurrencyConflict`, as a version
+   * found stale is.
+   */
+  protected conflict(): never {
+    throw new ConcurrencyConflict()
   }
 
   /**

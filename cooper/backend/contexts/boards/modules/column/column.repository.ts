@@ -1,4 +1,3 @@
-import { ConcurrencyConflict } from 'newt/core'
 import { TableRepository } from 'newt/repository'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
@@ -59,7 +58,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
       after: async () => {
         if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
         for (const column of columns) {
-          if (await this.count({ boardId, name: column.name }) > 1) throw new ConcurrencyConflict()
+          if (await this.count({ boardId, name: column.name }) > 1) this.conflict()
         }
       },
     })
@@ -77,7 +76,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
       guard: [`columns:${boardId}`],
       after: async () => {
         const positions = (await this.ofBoard(boardId)).map(each => each.position)
-        if (positions.some((position, index) => position !== index)) throw new ConcurrencyConflict()
+        if (positions.some((position, index) => position !== index)) this.conflict()
       },
     })
   }

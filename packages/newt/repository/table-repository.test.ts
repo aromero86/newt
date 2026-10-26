@@ -103,6 +103,14 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
       return this.save(entities, entity => this.write(entity), hooks)
     }
 
+    /** Saves them only if `stale` says no row it holds no version of changed meanwhile. */
+    saveUnlessStale(entities: Thing[], stale: () => boolean) {
+      return this.save(entities, entity => this.write(entity), {
+        guard: ['things'],
+        after: () => { if (stale()) this.conflict() },
+      })
+    }
+
     everywhere(criteria: Criteria<ThingRow> = {}) {
       return this.findInEveryScope(criteria)
     }
@@ -336,6 +344,15 @@ describe('save with hooks', () => {
 
     expect(log.map(line => line.split(' ')[0])).toEqual(['checkWrite', 'begin', 'guard', 'before', 'insert', 'after', 'publish', 'commit'])
     expect(log[2]).toBe('guard stock:p1,stock:p2')
+  })
+
+  test('a conflict from after, for a row it holds no version of, rolls it all back for the use case to run again', async () => {
+    const { log, repo } = world()
+
+    await expect(repo.saveUnlessStale([Thing.create('one')], () => true)).rejects.toBeInstanceOf(ConcurrencyConflict)
+    await repo.saveUnlessStale([Thing.create('two')], () => false)
+
+    expect(log.filter(line => !line.startsWith('insert'))).toEqual(['checkWrite', 'begin', 'guard things', 'rollback', 'checkWrite', 'begin', 'guard things', 'publish thing.created', 'commit'])
   })
 
   test('guards nothing when it names nothing', async () => {

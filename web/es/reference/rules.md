@@ -735,7 +735,11 @@ entero.
   nombrar su `guard`, o no compila: `guard: []` dice, donde se lee, que no hace falta
   ninguno. `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
   cooper toma ahí su número). El caso de uso sigue comprobando antes, para dar una
-  respuesta clara en el caso habitual.
+  respuesta clara en el caso habitual. Cuando lo que encuentra `after` no es una
+  respuesta sino una fila de la que el guardado no tiene versión y que cambió entre
+  tanto (una tarjeta añadida a una columna cuyo orden reescribe), llama a
+  `this.conflict()`: un `ConcurrencyConflict`, y el caso de uso se repite con lo que
+  haya entonces.
 - Una escritura que solo anota que algo ha pasado (`lastUsedAt`) no es un cambio de la
   entidad: el repositorio la escribe con `table.patch(id, cambios)`, que no toca la
   versión, así que las peticiones en paralelo nunca chocan.

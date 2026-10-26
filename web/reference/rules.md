@@ -709,7 +709,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   save takes its turn anyway). A save with `after` must name its `guard`, or it does
   not compile: `guard: []` says, where it is read, that none is needed. `before`
   writes, or reads, what must go first (cooper's new card takes its number there). The
-  use case still checks first, for a clear answer in the usual case.
+  use case still checks first, for a clear answer in the usual case. When what
+  `after` finds is not an answer but a row the save holds no version of that changed
+  meanwhile (a card added to a column whose order it rewrites), it calls
+  `this.conflict()`: a `ConcurrencyConflict`, and the use case runs again with what
+  there is then.
 - A write that only notes something happened (`lastUsedAt`) is not a change of the
   entity: the repository writes it with `table.patch(id, changes)`, which leaves the
   version alone, so parallel requests never collide.
