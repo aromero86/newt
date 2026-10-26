@@ -7,10 +7,13 @@ import type { UserDTO } from './modules/user/user.schema'
 
 let auth: Auth_Context
 let mails: Mail[]
+/** The time by auth's clock: a test moves it instead of waiting. */
+let time: number
 
 beforeEach(async () => {
   mails = []
-  auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } })
+  time = Date.now()
+  auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
   auth.start()
 })
 
@@ -22,6 +25,7 @@ const settled = () => auth.base.jobs.idle()
 const signUp = (name: string, email = `${name.toLowerCase()}@cooper.test`) => modules().user.signUp({ email, name, password: 'a long password' })
 const as = <T>(user: UserDTO, fn: () => Promise<T>) => runAsActor({ userId: user.id, via: 'web' }, fn)
 const page = { size: 20 }
+const DAY_MS = 24 * 60 * 60_000
 /** The token in the link of the last email sent. */
 const linkToken = () => mails.at(-1)!.text.match(/invitations\/([A-Za-z0-9_-]{43})/)![1]!
 
@@ -50,6 +54,15 @@ describe('accounts', () => {
 
     await expect(modules().session.signUp({ email: 'bob@cooper.test', name: 'Bob', password: 'a long password', productId: 'backoffice' })).rejects.toMatchObject({ code: 'session.sign_up_closed' })
     await modules().session.signOut(token)
+    expect(await modules().session.authenticate(token)).toBeNull()
+  })
+
+  test('ends a session once its days pass by auth\'s clock', async () => {
+    const { token } = await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
+
+    time += (config.auth.sessionDays - 1) * DAY_MS
+    expect(await modules().session.authenticate(token)).not.toBeNull()
+    time += DAY_MS
     expect(await modules().session.authenticate(token)).toBeNull()
   })
 
@@ -193,6 +206,18 @@ describe('invitations', () => {
     await expect(as(eve, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.another_email' })
     expect(await as(bob, () => modules().invitation.accept(token))).toMatchObject({ status: 'accepted', acceptedBy: bob.id })
     expect(await modules().access.check(bob.id, 'cooper', acme.id)).toMatchObject({ role: 'member' })
+    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('cannot be accepted once their days pass by auth\'s clock', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+
+    time += config.auth.invitationDays * DAY_MS
+    expect(await modules().invitation.review(token)).toMatchObject({ open: false })
     await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
   })
 

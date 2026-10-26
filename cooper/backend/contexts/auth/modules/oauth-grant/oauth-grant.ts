@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
 import { OauthGrant_Replayed } from './events/oauth-grant-replayed'
 import { OauthGrantSchema, type OauthGrantStatus } from './oauth-grant.schema'
 
@@ -19,7 +19,7 @@ const REQUEST_MINUTES = 10
 /** How long a client has to trade its code: it does so at once. */
 const CODE_MINUTES = 5
 
-const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString()
+const minutesFromNow = (minutes: number) => new Date(now().getTime() + minutes * 60_000).toISOString()
 
 /**
  * A client asking a person for access, and their answer: from the request until the
@@ -72,8 +72,8 @@ export class OauthGrant extends Entity<typeof OauthGrantEntitySchema, typeof Oau
   }
 
   /** In the state it should be, and in time. */
-  is(status: OauthGrantStatus, now = new Date()): boolean {
-    return this.data.status === status && new Date(this.data.expiresAt) > now
+  is(status: OauthGrantStatus, at = now()): boolean {
+    return this.data.status === status && new Date(this.data.expiresAt) > at
   }
 
   /** The person said yes (or signed in to a product): the code only the client will hold. */

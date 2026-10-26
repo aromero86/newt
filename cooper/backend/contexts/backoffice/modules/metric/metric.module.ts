@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { Module, now, UseCase } from 'newt/core'
 import type { TenantDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { UserDTO } from '../../../auth/modules/user/user.schema'
 import type { CardDTO } from '../../../boards/modules/card/card.schema'
@@ -76,7 +76,7 @@ export class Metric_Module extends Module {
 
   /** The days the overview shows, the oldest first and today last. */
   private lastDays(): string[] {
-    const today = Date.now()
+    const today = now().getTime()
     return Array.from({ length: this.options.days }, (_, index) => dayOf(new Date(today - (this.options.days - 1 - index) * DAY_MS).toISOString()))
   }
 }

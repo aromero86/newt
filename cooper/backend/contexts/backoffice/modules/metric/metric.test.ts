@@ -34,6 +34,20 @@ describe('metric', () => {
     expect(overview.signUpsPerDay.slice(0, -1).every(day => day.count === 0)).toBe(true)
   })
 
+  test('counts by the day of the context\'s clock, and shows the days up to its today', async () => {
+    await t.close()
+    let time = Date.parse('2027-03-15T12:00:00Z')
+    t = await openTestBackoffice({ clock: { now: () => new Date(time) } })
+    const sam = await t.staffMember('Sam')
+    await t.settled()
+
+    expect((await t.as(sam, () => t.modules.metric.overview())).signUpsPerDay.at(-1)).toEqual({ day: '2027-03-15', count: 1 })
+
+    time += 2 * 24 * 60 * 60_000
+    const { signUpsPerDay } = await t.as(sam, () => t.modules.metric.overview())
+    expect(signUpsPerDay.slice(-3)).toEqual([{ day: '2027-03-15', count: 1 }, { day: '2027-03-16', count: 0 }, { day: '2027-03-17', count: 0 }])
+  })
+
   test('counts a card once, however many times its worker runs', async () => {
     const card = { id: '0190a0a0-0000-7000-8000-000000000001', workspaceId: 'w', createdAt: new Date().toISOString() } as CardDTO
     await t.modules.metric.recordCard(card)

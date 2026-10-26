@@ -1,4 +1,4 @@
-import { filterSpans, type Tracer } from 'newt/core'
+import { filterSpans, type Clock, type Tracer } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
@@ -10,9 +10,10 @@ import { ConsoleMailer } from './shared/mail/console-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 import type { Mailer } from './shared/mail/mailer'
 
-/** What the contexts are given from outside: the console mailer unless another is. */
+/** What the contexts are given from outside: the console mailer unless another is, and the real time unless a test gives a clock. */
 export type OpenContextsOptions = {
   mailer?: Mailer
+  clock?: Clock
 }
 
 /**
@@ -31,9 +32,10 @@ export function cooperTracer(config: Config): Tracer | undefined {
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
+  const { clock } = options
+  const auth = await Auth_Context.open(config.auth, { mailer }, clock)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined }, clock)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, clock)
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 

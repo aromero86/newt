@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Clock } from 'newt/core'
 import { ServedContext } from '../../shared/served-context'
 import { AuthBase } from './auth-base'
 import type { Auth_Config } from './auth-config'
@@ -19,11 +20,13 @@ export class Auth_Context extends ServedContext {
 
   /**
    * Opening it brings its database up to date before any module reads it, and the
-   * OAuth clients of the products in step with cooper's code and configuration.
+   * OAuth clients of the products in step with cooper's code and configuration. The
+   * real time tells its sessions, tokens and invitations when they expire, unless a
+   * test gives it a `clock` of its own.
    */
-  static async open(config: Auth_Config, deps: Auth_ModuleDeps): Promise<Auth_Context> {
+  static async open(config: Auth_Config, deps: Auth_ModuleDeps, clock?: Clock): Promise<Auth_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new AuthBase({ name: 'auth', store })
+    const base = new AuthBase({ name: 'auth', store, clock })
     const modules = initializeModules(base, config, deps)
     registerOauthServerMetadata(base.oauth, config.publicUrl)
     await modules.oauthClient.declareProducts()

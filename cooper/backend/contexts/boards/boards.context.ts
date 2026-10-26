@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Clock } from 'newt/core'
 import { ServedContext } from '../../shared/served-context'
 import { BoardsBase } from './boards-base'
 import type { Boards_Config } from './boards-config'
@@ -18,10 +19,10 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses. */
-  static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+  /** Opened after `auth`, which it uses; on the real time, unless a test gives it a `clock`. */
+  static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new BoardsBase({ name: 'boards', store })
+    const base = new BoardsBase({ name: 'boards', store, clock })
     const modules = initializeModules(base, config, deps)
     // The cards' search starts empty in memory: every card is indexed before anyone searches.
     await modules.card.reindex()

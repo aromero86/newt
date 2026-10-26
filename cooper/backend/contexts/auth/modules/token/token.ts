@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
 import { TokenSchema, type TokenPairDTO, type TokenVerifiedDTO } from './token.schema'
 
 export * from './token.schema'
@@ -20,7 +20,7 @@ const PREFIX = { access: 'cooper_at_', refresh: 'cooper_rt_' } as const
 /** How long each token lasts, as auth is configured. */
 export type TokenLifetime = { accessMinutes: number, refreshDays: number }
 
-const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString()
+const minutesFromNow = (minutes: number) => new Date(now().getTime() + minutes * 60_000).toISOString()
 
 /** A fresh pair of tokens, their hashes, and when each one expires. */
 function fresh(lifetime: TokenLifetime) {
@@ -63,12 +63,12 @@ export class Token extends Entity<typeof TokenEntitySchema, typeof TokenSchema> 
     return this.data.clientId
   }
 
-  isAccessValid(now = new Date()): boolean {
-    return new Date(this.data.accessExpiresAt) > now
+  isAccessValid(at = now()): boolean {
+    return new Date(this.data.accessExpiresAt) > at
   }
 
-  isRefreshValid(now = new Date()): boolean {
-    return new Date(this.data.refreshExpiresAt) > now
+  isRefreshValid(at = now()): boolean {
+    return new Date(this.data.refreshExpiresAt) > at
   }
 
   /** New tokens for its refresh token: the ones before stop working. */

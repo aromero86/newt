@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
 
 /** Not part of the contract: a session is only ever seen as "who is signed in". */
 const SessionEntitySchema = z.object({
@@ -27,7 +27,7 @@ export class Session extends Entity<typeof SessionEntitySchema> {
   /** A new session for `userId`, and the token only its browser will hold. */
   static open(userId: string, days: number): { session: Session, token: SecretToken } {
     const token = SecretToken.generate()
-    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+    const expiresAt = new Date(now().getTime() + days * 24 * 60 * 60_000).toISOString()
     return { session: new Session({ userId, tokenHash: SecretToken.hash(token), expiresAt }, true), token }
   }
 
@@ -35,8 +35,8 @@ export class Session extends Entity<typeof SessionEntitySchema> {
     return this.data.userId
   }
 
-  isExpired(now = new Date()): boolean {
-    return new Date(this.data.expiresAt) <= now
+  isExpired(at = now()): boolean {
+    return new Date(this.data.expiresAt) <= at
   }
 
   /** Signed out, or expired: a session is not history, its row goes. */
