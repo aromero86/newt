@@ -6,8 +6,8 @@ import type { Auth_Config } from './auth-config'
 import { initializeModules, type Auth_Modules } from './initialize-modules'
 
 /**
- * Who someone is: accounts, and who is signed in, for every app of cooper. It uses no
- * other context.
+ * Who someone is: accounts, workspaces (tenants), who may enter which app, and who
+ * is signed in. It uses no other context.
  */
 export class Auth_Context extends ServedContext {
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Email } from 'newt/contract'
+import { defineFilter, Email } from 'newt/contract'
 
 /** An account, as anyone sees it: never its password, nor its hash. */
 export const UserSchema = z.object({
@@ -21,5 +21,14 @@ export const UserSignUpSchema = z.object({
   password: UserPasswordSchema,
 })
 
+/** What the staff may look accounts up by: these fields, these operators, nothing else. */
+export const UserFilter = defineFilter({
+  email: { field: 'email', value: z.string(), ops: ['eq', 'ieq'] },
+  name: { field: 'name', value: z.string(), ops: ['eq', 'ieq'] },
+  signedUp: { field: 'createdAt', value: z.string(), ops: ['gte', 'lt'] },
+}, { maxDepth: 2, maxConditions: 10 })
+
 export type UserDTO = z.infer<typeof UserSchema>
 export type UserSignUpDTO = z.input<typeof UserSignUpSchema>
+/** A search of accounts as a client sends it. */
+export type UserFilterDTO = z.infer<typeof UserFilter.schema>

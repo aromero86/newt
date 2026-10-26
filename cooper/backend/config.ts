@@ -30,7 +30,7 @@ export const config = {
   mail: {
     from: env.COOPER_MAIL_FROM ?? 'cooper <no-reply@cooper.local>',
   },
-  /** Who someone is: accounts, and who is signed in, for every app of cooper. */
+  /** Who someone is: accounts, workspaces, who may enter what, and who is signed in. */
   auth: {
     /** `COOPER_AUTH_PORT`: where it listens. */
     port: Number(env.COOPER_AUTH_PORT ?? 3001),

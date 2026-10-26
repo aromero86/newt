@@ -26,4 +26,10 @@ export class Product_Module extends Module {
     if (!product) throw new ProductNotFound(id)
     return structuredClone(product)
   }
+
+  /** For `resolveRefs`: the products with these ids, as any module's `find` gives them. */
+  @UseCase()
+  async find(criteria: { id: string[] }): Promise<ProductDTO[]> {
+    return this.products.filter(product => criteria.id.includes(product.id)).map(product => structuredClone(product))
+  }
 }

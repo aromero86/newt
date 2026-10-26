@@ -1,10 +1,10 @@
-import { Email, eventsOf, Module, UseCase } from 'newt/core'
+import { Email, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { EmailTaken } from './errors/email-taken'
 import { UserNotFound } from './errors/user-not-found'
 import { User_SignedUp } from './events/user-signed-up'
-import { User, UserSignUpSchema, type UserDTO, type UserSignUpDTO } from './user'
-import { User_Repository } from './user.repository'
+import { User, UserFilter, UserSignUpSchema, type UserDTO, type UserSignUpDTO } from './user'
+import { User_Repository, type UserRow } from './user.repository'
 
 /**
  * A hash to check a password against when there is no account: signing in with an
@@ -49,5 +49,13 @@ export class User_Module extends Module {
   @UseCase()
   async get(id: string): Promise<UserDTO> {
     return (await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))).toDTO()
+  }
+
+  /** Every account, newest first, as the staff look them up: only what `UserFilter` allows. */
+  @UseCase()
+  async list(filter: unknown, page: PageRequest): Promise<Page<UserDTO>> {
+    const criteria = filter === undefined ? {} : UserFilter.toCriteria<UserRow>(UserFilter.schema.parse(filter))
+    const found = await this.repo.page(criteria, page, { newestFirst: true })
+    return mapPage(found, user => user.toDTO())
   }
 }
