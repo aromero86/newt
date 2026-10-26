@@ -20,7 +20,7 @@ const modules = () => auth.modules
 /** Until the background work is done: the jobs the commits wrote, run. */
 const settled = () => auth.base.jobs.idle()
 const signUp = (name: string, email = `${name.toLowerCase()}@cooper.test`) => modules().user.signUp({ email, name, password: 'a long password' })
-const as = <T>(user: UserDTO, fn: () => Promise<T>) => runAsActor({ userId: user.id }, fn)
+const as = <T>(user: UserDTO, fn: () => Promise<T>) => runAsActor({ userId: user.id, via: 'web' }, fn)
 const page = { size: 20 }
 /** The token in the link of the last email sent. */
 const linkToken = () => mails.at(-1)!.text.match(/invitations\/([A-Za-z0-9_-]{43})/)![1]!
@@ -46,7 +46,7 @@ describe('accounts', () => {
 
   test('opens a session at sign-up, unless the product takes no new accounts', async () => {
     const { user, token } = await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password', productId: 'cooper' })
-    expect(await modules().session.authenticate(token)).toEqual({ userId: user.id })
+    expect(await modules().session.authenticate(token)).toEqual({ userId: user.id, via: 'web' })
 
     await expect(modules().session.signUp({ email: 'bob@cooper.test', name: 'Bob', password: 'a long password', productId: 'backoffice' })).rejects.toMatchObject({ code: 'session.sign_up_closed' })
     await modules().session.signOut(token)

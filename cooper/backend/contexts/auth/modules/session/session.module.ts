@@ -84,7 +84,7 @@ export class Session_Module extends Module {
       await this.repo.persist(session)
       return null
     }
-    return { userId: session.userId }
+    return { userId: session.userId, via: 'web' }
   }
 
   private async find(token: string | undefined): Promise<Session | undefined> {

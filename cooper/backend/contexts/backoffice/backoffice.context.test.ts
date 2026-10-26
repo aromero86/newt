@@ -11,7 +11,7 @@ describe('the backoffice API', () => {
     // Who asks, by a header: the real authenticator reads the web session's cookie (shared/web-session tests it).
     t.backoffice.base.http.authenticateWith(async request => {
       const userId = request.headers.get('x-user')
-      return userId ? { userId } : null
+      return userId ? { userId, via: 'web' as const } : null
     })
     server = t.backoffice.serve()
   })

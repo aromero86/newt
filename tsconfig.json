@@ -1,7 +1,7 @@
 {
-  // The whole repository, as three projects: what runs on the server (newt and cooper's
-  // backend), what runs in the browser (cooper's frontends and their libraries), and
-  // the tools around them (scripts, Vite's configs). `bun check` follows the references.
+  // The whole repository, as four projects: the framework (newt), what runs on the
+  // server (cooper's backend), what runs in the browser (cooper's frontends and their
+  // libraries), and the tools around them (scripts, Vite's configs). `bun check` follows the references.
   // The paths are here too because Bun and Vite resolve imports with this file.
   "compilerOptions": {
     "paths": {
@@ -13,6 +13,7 @@
   },
   "files": [],
   "references": [
+    { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }

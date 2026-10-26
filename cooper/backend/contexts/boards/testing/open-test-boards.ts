@@ -22,7 +22,7 @@ export async function openTestBoards() {
   })
   boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
-    return userId ? { userId } : null
+    return userId ? { userId, via: 'web' as const } : null
   })
   return {
     auth,
@@ -31,7 +31,7 @@ export async function openTestBoards() {
     mails,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>): Promise<T> {
-      return runAsActor({ userId }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+      return runAsActor({ userId, via: 'web' }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
     /** Until the background work is done: auth's events heard, and what they made boards tell. */
     async settled(): Promise<void> {

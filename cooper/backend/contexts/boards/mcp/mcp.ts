@@ -51,7 +51,7 @@ export function mcpRoutes(modules: Boards_Modules, auth: Pick<Boards_Auth, 'toke
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
     await server.connect(transport)
     try {
-      return await runAsActor({ userId: identity.userId }, () => transport.handleRequest(request))
+      return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
     } finally {
       await server.close()
     }

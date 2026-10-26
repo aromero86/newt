@@ -41,11 +41,11 @@ export async function openTestBackoffice() {
       return user
     },
     as<T>(user: UserDTO, fn: () => Promise<T>): Promise<T> {
-      return runAsActor({ userId: user.id }, fn)
+      return runAsActor({ userId: user.id, via: 'web' }, fn)
     },
     /** A board with a column, made in a workspace by someone of it, with cards titled as given. */
     async board(user: UserDTO, workspaceId: string, name: string, cards: string[]) {
-      return runAsActor({ userId: user.id }, () => runInWorkspace(workspaceId, async () => {
+      return runAsActor({ userId: user.id, via: 'web' }, () => runInWorkspace(workspaceId, async () => {
         const board = await boards.modules.board.create({ name })
         const column = await boards.modules.column.add(board.id, { name: 'To do' })
         for (const title of cards) await boards.modules.card.create(board.id, { columnId: column.id, title })

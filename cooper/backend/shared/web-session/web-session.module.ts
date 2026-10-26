@@ -111,7 +111,7 @@ export class WebSession_Module extends Module {
       await this.repo.persist(session)
       return null
     }
-    return { userId: session.userId }
+    return { userId: session.userId, via: 'web' }
   }
 
   /** The signed-in person, as the context's options describe them. */

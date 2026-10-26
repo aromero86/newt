@@ -35,7 +35,7 @@ try {
 
   const ana = await account('ana@cooper.dev', 'Ana García')
   const bob = await account('bob@cooper.dev', 'Bob Smith')
-  const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id }, fn)
+  const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id, via: 'web' }, fn)
 
   const anas = await tenant.listForUser(ana.id, { size: 100 })
   const acme = anas.items.find(each => each.name === 'Acme' && each.createdBy === ana.id) ?? await asAna(() => tenant.create({ name: 'Acme' }))
@@ -47,7 +47,7 @@ try {
     if (pending.items.includes(invited)) await invitation.send(invited.id)
     await settled()
     const link = mails.findLast(mail => mail.to === (bob.email as Email))!.text.match(/invitations\/([A-Za-z0-9_-]{43})/)![1]!
-    await runAsActor({ userId: bob.id }, () => invitation.accept(link))
+    await runAsActor({ userId: bob.id, via: 'web' }, () => invitation.accept(link))
   }
   await settled()
 

@@ -41,7 +41,7 @@ class Client_Context extends ServedContext {
       identify: accessToken => auth.modules.token.verify(accessToken),
       profile: userId => auth.modules.user.get(userId),
     })
-    base.http.get('/whoami', async () => Response.json({ userId: currentActor().userId }))
+    base.http.get('/whoami', async () => Response.json(currentActor()))
     return new Client_Context(base, session, port)
   }
 }
@@ -118,7 +118,7 @@ describe('the web session of a context', () => {
     expect(back.status).toBe(302)
     expect(back.headers.get('location')).toBe('/boards/1')
     expect(await (await as(clientUrl('/api/session'))).json()).toMatchObject({ id: ana.id, email: 'ana@cooper.test' })
-    expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id })
+    expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id, via: 'web' })
     // It keeps no token: it gave them back once it knew who signed in.
     expect(await auth.base.store.table('token').count()).toBe(0)
 
