@@ -9,11 +9,12 @@ const DRAG_TYPE = 'application/x-cooper-card'
 
 /**
  * A board's columns side by side, scrolling sideways when they do not fit, like
- * a GitHub project's board view.
+ * a GitHub project's board view. It is `relative` so that what its cards place
+ * absolutely (the `sr-only` text, say) scrolls inside it instead of widening the page.
  */
 export function Board({ label, children }: { label: string, children: ReactNode }) {
   return (
-    <section aria-label={label} className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto pb-2">
+    <section aria-label={label} className="relative flex min-h-0 flex-1 items-start gap-3 overflow-x-auto pb-2">
       {children}
     </section>
   )
