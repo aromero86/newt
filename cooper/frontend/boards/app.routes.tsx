@@ -33,6 +33,8 @@ export const router = createBrowserRouter([
                 children: [
                   // A workspace opens on its boards.
                   { index: true, element: <Navigate to="boards" replace /> },
+                  { path: 'boards/*', lazy: () => import('./modules/boards/boards.routes').then(zone => ({ Component: zone.BoardsRoutes })) },
+                  { path: 'search', lazy: () => import('./modules/search/search').then(zone => ({ Component: zone.Search })) },
                   { path: 'settings/*', lazy: () => import('./modules/workspace-settings/workspace-settings').then(zone => ({ Component: zone.WorkspaceSettings })) },
                 ],
               },
