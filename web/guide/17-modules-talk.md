@@ -1,8 +1,10 @@
 # Modules that talk
 
-boards has five modules: `member`, `board`, `column`, `card` and `workspace`. A card
-needs its board and its column to exist. A new workspace needs a board, three
-columns and a card. Modules need each other all the time. This chapter is about how
+boards has six modules of its own: `member`, `board`, `column`, `card`, `workspace`
+and `activity` (plus `session` and `outbox`, which every context of cooper shares). A
+card needs its board and its column to exist. A new workspace needs a board, three
+columns and a card. A card's activity log needs to hear what happens to the card.
+Modules need each other all the time. This chapter is about how
 they talk without stepping on each other's data.
 
 ## Two ways to talk
@@ -29,22 +31,20 @@ board, then the columns, then a card.
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
 @UseCase()
 async prepare(workspaceId: string): Promise<void> {
+  if (!await this.deps.member.exists(workspaceId)) return
   await runInWorkspace(workspaceId, async () => {
     const board = await this.deps.board.findByName(WELCOME_BOARD.name)
       ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-    const columns = await this.deps.column.list(board.id)
-    for (const name of WELCOME_BOARD.columns) {
-      if (!columns.some(column => column.name === name)) columns.push(await this.deps.column.add(board.id, { name }))
-    }
-    if ((await this.deps.card.listInBoard(board.id)).length > 0) return
+    const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
     const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
-    await this.deps.card.create(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
+    await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
   })
+  if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
 }
 ```
 
-Imagine a request ran this. The board is saved, then the server restarts before the
-columns. The request already got its error, and nothing runs it again: the workspace
+Four saves, in three modules, each in its own transaction. Imagine a request ran
+this. The board is saved, then the server restarts before the columns. The request already got its error, and nothing runs it again: the workspace
 keeps a board with no columns forever.
 
 So nothing calls `prepare` from a request. A worker calls it when auth tells that a
@@ -59,8 +59,10 @@ deps.tenants.created.subscribe(tenant => workspace.prepare(tenant.id), {
 ```
 
 If `prepare` fails halfway, its job **runs again** until it finishes. Each step
-looks for what an earlier run did first, so running it again is harmless
-([chapter 13](./13-repeatable-workers)).
+looks for what an earlier run did first (`findByName`, `addMissing`, `createFirst`),
+so running it again is harmless ([chapter 13](./13-repeatable-workers)). And since a
+job may run late, it first asks whether the workspace is still there, and purges
+what it wrote if the workspace went while it ran.
 
 | Writing to another module from… | If it fails halfway… |
 |---|---|
@@ -73,11 +75,21 @@ That is why whatever a worker writes to another module must be safe to repeat.
 
 You don't have to remember the rule: newt checks it while the app runs. Call
 `workspace.prepare` from a test, outside a worker, and the first save to `board`
-fails:
+fails. boards has a test that does exactly that:
 
+```ts
+// cooper/backend/contexts/boards/modules/workspace/workspace.test.ts
+test('refuses to prepare a workspace outside a worker: it writes in other modules', async () => {
+  t.auth.join('acme', 'ana')
+
+  await expect(inAcme(() => t.modules.workspace.prepare('acme'))).rejects.toThrow('[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo')
+  expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+})
 ```
-Error: [write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo
-```
+
+The error names the use case that started it all (`workspace.prepare`), the module it
+tried to write to (`boards.board`) and the two ways out. The second line checks the
+save did not happen: no board.
 
 What newt does when it finds one is the base's `writeRule` option:
 
@@ -91,7 +103,7 @@ cooper keeps the default. Its bases are built without the option:
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-const base = new BoardsBase({ name: 'boards', store })
+const base = new BoardsBase({ name: 'boards', store, tracer })
 ```
 
 Because the default is an error, a write in the wrong place breaks a test instead of
@@ -114,7 +126,7 @@ depending on each other. The module that can answer "is it empty?" is `card`. So
 /**
  * Removes a column of a board, only if no card is in it. The cards answer, since a
  * card points at its column and a column knows nothing of the cards: the column
- * module cannot ask them without the two needing each other (ch. 19). So this use
+ * module cannot ask them without the two needing each other. So this use
  * case asks, and has the column module remove it: a write to another module outside
  * a worker, said where it is seen. It is the only write it makes, so a failure leaves
  * nothing halfway; a card moved into the column at that very moment is taken to
@@ -170,11 +182,16 @@ async remove(id: string): Promise<void> {
 If another use case called `card.removeColumn`, the column would still be removed;
 that caller only declares what it writes itself.
 
-auth has three more, each with its reason in the code:
+auth has five more, each with its reason in the code:
 
 - `tenant.create` writes to `access`: whoever makes a workspace must be able to
   enter it the moment the answer arrives. If the second save fails, the worker of
   `tenant.created` gives the admin anyway (`ensureAdmin`).
+- `tenant.delete` writes to `access`: nobody may enter a workspace from the moment
+  its deletion answers. If revoking fails, the worker of `tenant.deleted` takes the
+  accesses away (`removeAccesses`).
+- `invitation.accept` writes to `access`: whoever accepts enters at once. The access
+  goes first and is safe to give again, so accepting again finishes a half-done one.
 - `session.signUp` writes to `user`: the person waits for their account and their
   session in one answer.
 - `token.exchange` writes to `oauthGrant`: the client waits for its tokens in this
@@ -213,6 +230,7 @@ const column = Column_Module.initialize(base, { board, member })
 const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
 const { tenant, access, invitation, user } = deps.auth
 const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
 ```
 
 boards' dependencies form no circle:
@@ -224,8 +242,12 @@ boards' dependencies form no circle:
 | `column` | `board`, `member` |
 | `card` | `board`, `column`, `member` (and the `AccessEvents` port) |
 | `workspace` | `board`, `column`, `card`, `member` (and auth) |
+| `activity` | `card`, `member` (and the `WorkspaceDeletions` port) |
 
-`workspace` sits at the top: it puts the others to work. Nothing depends on it.
+`workspace` and `activity` sit at the top. `workspace` puts the others to work;
+`activity` only listens to the cards' events and keeps a log of them. Nothing depends
+on either. `card` does not know its events feed a log: adding `activity` changed no
+line of `card`.
 
 ## Ports: a dependency in your own words
 
@@ -245,6 +267,8 @@ export type Workspaces = {
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
+  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
+  exists(workspaceId: string): Promise<boolean>
 }
 ```
 

@@ -94,7 +94,7 @@ export function mcpRoutes(modules: Boards_Modules, auth: Pick<Boards_Auth, 'toke
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
     await server.connect(transport)
     try {
-      return await runAsActor({ userId: identity.userId }, () => transport.handleRequest(request))
+      return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
     } finally {
       await server.close()
     }
@@ -110,13 +110,45 @@ Tres cosas que ver:
 
 - **`runAsActor`.** Una vez verificado el token, toda la petición corre como su
   persona. Cada caso de uso que llama una herramienta la ve en `currentActor()`,
-  igual que una ruta después del autenticador de la sesión web.
+  igual que una ruta después del autenticador de la sesión web. El actor dice además
+  **por dónde** entró: `via: 'mcp'` aquí, `'web'` con la cookie de sesión.
 - **Sin sesión.** Cada petición tiene su propio servidor (`sessionIdGenerator:
   undefined`), que responde en JSON (`enableJsonResponse: true`). Nada se envía al
   cliente sin que lo pida, así que no queda ningún stream abierto. Escala como
   cualquier otra ruta.
 - **El SDK hace MCP, newt hace el resto.** `@modelcontextprotocol/sdk` habla el
   protocolo. Quién es la persona, y qué puede hacer, sigue en auth y boards.
+
+## El actor dice por dónde entró
+
+El `Actor` de newt sabe una cosa: el usuario. cooper añade una segunda, una sola vez
+para todos los contextos, ampliando el tipo de newt:
+
+```ts
+// cooper/backend/shared/actor.ts
+/**
+ * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
+ * through boards' MCP server, with an access token.
+ */
+export type ActorVia = 'web' | 'mcp'
+
+// …
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+El campo es obligatorio, así que TypeScript obliga a todo sitio que dice quién actúa
+a decir también por dónde: los autenticadores de sesión devuelven `via: 'web'`, el
+servidor MCP `via: 'mcp'`. Ninguno puede olvidarlo.
+
+`via` es **quién es alguien, no lo que puede hacer**. Ningún caso de uso permite o
+rechaza nada por él: el asistente puede hacer lo que pueda su persona. Sirve para el
+registro. Los eventos de una tarjeta llevan quién la cambió (`by`) y por dónde
+(`via`), y el registro de actividad de la tarjeta guarda los dos. Así, una tarjeta
+que movió Claude dice "Ana, por MCP", no solo "Ana".
 
 ## Las herramientas llaman a los mismos casos de uso
 
@@ -173,21 +205,40 @@ Las herramientas son:
 | `list_workspaces` | `workspace.mine` |
 | `list_boards` | `board.list` |
 | `get_board` | `workspace.boardView`, `workspace.members` |
+| `list_members` | `workspace.members` |
 | `search_cards` | `card.search`, `workspace.members` |
 | `create_card` | `card.create` |
 | `move_card` | `card.move` |
 | `assign_card` | `card.assign` o `card.unassign` |
+
+`list_members` existe por el asistente. Para asignar una tarjeta necesita el id de
+un miembro. `get_board` también lista los miembros, pero a un asistente al que le
+piden "dale esto a Bob" no debería tocarle leer un tablero entero para encontrar a
+Bob. Una herramienta por cada pregunta que va a hacer el asistente:
+
+```ts
+// cooper/backend/contexts/boards/mcp/mcp-tools.ts
+server.registerTool('list_members', {
+  title: 'List members',
+  description: 'Who belongs to a workspace, its admin first: whom its cards can be assigned to, those with no card too.',
+  inputSchema: { workspaceId },
+  annotations: READ_ONLY,
+}, async args => within(args.workspaceId, async () =>
+  answer((await workspace.members()).map(({ id, name, email, isAdmin }) => ({ id, name, email, isAdmin })))))
+```
 
 Como son los mismos casos de uso, todo lo demás viene gratis. Una tarjeta asignada
 desde Claude manda un email a su persona, desde un worker. Un movimiento que choca
 con alguien que arrastra la misma tarjeta en el navegador se reintenta. Asignar a
 alguien que no es miembro se rechaza. Cuando un caso de uso lanza un error, el SDK
 responde la llamada a la herramienta con `isError` y el mensaje del error, que el
-asistente lee.
+asistente lee. Y el registro de actividad de la tarjeta apunta cada cambio con
+`via: 'mcp'`, porque es por donde entró el actor.
 
 Escribe las descripciones de las herramientas para el asistente: qué hace la
-herramienta, de dónde salen sus ids (`'The workspace\'s id, from list_workspaces'`),
-y anotaciones que digan si solo lee (`readOnlyHint`) o cambia algo.
+herramienta, de dónde salen sus ids
+(`'A member\'s id, from list_members; null to unassign'`), y anotaciones que digan si
+solo lee (`readOnlyHint`) o cambia algo.
 
 ## CORS
 
@@ -237,11 +288,35 @@ Luego usa las herramientas con el cliente del propio SDK:
 
 ```ts
 // cooper/backend/cooper.test.ts
+expect(await use(client, 'list_members', { workspaceId: acme.id })).toEqual([
+  { id: ana.id, name: 'Ana', email: 'ana@cooper.test', isAdmin: true },
+  { id: bob.id, name: 'Bob', email: 'bob@cooper.test', isAdmin: false },
+])
+// …
 const card = await use<{ id: string, number: number }>(client, 'create_card', { workspaceId: acme.id, boardId: boards.items[0]!.id, columnId: todo.id, title: 'Ship the MCP server' })
 expect(card.number).toBe(2)
 expect(await use(client, 'move_card', { workspaceId: acme.id, cardId: card.id, columnId: doing.id })).toMatchObject({ columnId: doing.id, position: 0 })
 expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: bob.id })).toMatchObject({ assignee: { id: bob.id, name: 'Bob' } })
+// …
+```
 
+Cuando han corrido los workers, la actividad de la tarjeta dice que lo hizo el
+asistente, como Ana:
+
+```ts
+// cooper/backend/cooper.test.ts
+expect(activity.items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+  ['unassigned', ana.id, 'mcp'],
+  ['assigned', ana.id, 'mcp'],
+  ['moved', ana.id, 'mcp'],
+  ['created', ana.id, 'mcp'],
+])
+```
+
+Y un espacio en el que Ana no está tampoco existe para su asistente:
+
+```ts
+// cooper/backend/cooper.test.ts
 // As on the web: a workspace the person is not in does not exist to them.
 const result = (await client.callTool({ name: 'list_boards', arguments: { workspaceId: '01900000-0000-7000-8000-000000000000' } })) as { isError?: boolean, content: { text: string }[] }
 expect(result.isError).toBe(true)
@@ -301,7 +376,12 @@ interfaz de boards.
 - **Los metadatos del recurso protegido** dicen que el servidor de autorización es
   auth; un 401 con `WWW-Authenticate` apunta a ellos.
 - **Verifica el token bearer en el mismo proceso** con `token.verify` de auth, y
-  acéptalo solo para este recurso. Luego ejecuta la petición con `runAsActor`.
+  acéptalo solo para este recurso. Luego ejecuta la petición con `runAsActor`,
+  `via: 'mcp'`.
+- `via` dice **por dónde** entró alguien, nunca lo que puede hacer: va al registro
+  (los eventos y la actividad de una tarjeta), no a las reglas.
+- Da forma a las herramientas según **las preguntas del asistente**
+  (`list_members`), cada una una llamada fina a casos de uso que ya tienes.
 - Una herramienta que recibe un espacio entra en él con **`inWorkspace`**: la misma
   comprobación que el grupo de rutas.
 - Las rutas que funcionan con un token bearer, nunca con una cookie, pueden estar

@@ -23,9 +23,11 @@ export function initializeModules(base: AuthBase, config: Auth_Config, deps: Aut
     // …
   })
   const oauthClient = OauthClient_Module.initialize(base, { product }, { secrets: config.clientSecrets })
-  const oauthGrant = OauthGrant_Module.initialize(base, { oauthClient, product, access }, { publicUrl: config.publicUrl })
+  const oauthGrant = OauthGrant_Module.initialize(base, { oauthClient, product, access, session }, { publicUrl: config.publicUrl })
   const token = Token_Module.initialize(base, { oauthClient, oauthGrant }, config.oauth)
-  return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token }
+  // Its dead jobs, for the staff's backoffice to look at and retry.
+  const outbox = Outbox_Module.initialize(base)
+  return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token, outbox }
 }
 ```
 
@@ -40,12 +42,26 @@ export function initializeModules(base: AuthBase, config: Auth_Config, deps: Aut
 | `oauthClient` | Los clientes OAuth: el de cada producto, y los clientes MCP que se registran solos. |
 | `oauthGrant` | Las peticiones de autorización, la respuesta de la persona y el código. |
 | `token` | Los tokens de acceso y de refresco. |
+| `outbox` | Nada de OAuth: el módulo que comparten todos los contextos de cooper, para listar y reintentar sus jobs muertos. |
 
 ## Usuarios y la sesión del propio auth
 
 Un usuario es un email (el value object `Email` de newt), un nombre y el hash de su
-contraseña (`Bun.password`). Comprobar una contraseña tarda lo mismo con un email que
-no existe que con una contraseña equivocada, así que el tiempo no delata nada:
+contraseña (`Bun.password`). El `Email` lo crea la entidad, así que no existe ningún
+usuario con una dirección que no lo sea:
+
+```ts
+// cooper/backend/contexts/auth/modules/user/user.ts
+/** A new account, with its password already hashed: the email as someone typed it becomes an `Email`. */
+static signUp(input: { email: string, name: string, passwordHash: string }): User {
+  const user = new User({ ...input, email: Email.from(input.email) }, true)
+  user.trackEvent(new User_SignedUp(user.contract()))
+  return user
+}
+```
+
+Comprobar una contraseña tarda lo mismo con un email que no existe que con una
+contraseña equivocada, así que el tiempo no delata nada:
 
 ```ts
 // cooper/backend/contexts/auth/modules/user/user.module.ts
@@ -102,7 +118,7 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
       redirectUri: `${config.boardsPublicUrl}${WEB_SESSION_CALLBACK}`,
     },
     {
-      id: 'backoffice',
+      id: PRODUCTS.backoffice,
       name: 'Cooper backoffice',
       publicUrl: config.backofficePublicUrl,
       signUp: false,
@@ -142,8 +158,106 @@ async check(userId: string, productId: string, tenantId: string | null = null): 
 }
 ```
 
+### Un acceso se da una sola vez
+
+Hay varios caminos que dan el mismo acceso: un administrador lo da dos veces, alguien
+acepta una invitación mientras el administrador le da acceso, y al administrador de un
+tenant nuevo lo dan tanto `tenant.create` como el worker de `tenant.created`
+(`ensureAdmin`). Corran a la vez los que corran, hay un solo acceso. Lo consiguen dos
+cosas:
+
+- **Un guard por clave de acceso.** Cada guardado de un acceso protege
+  `access:<usuario>:<producto>:<tenant>`, así que dos guardados del mismo chocan
+  ([capítulo 7](./07-concurrency)).
+- **Un índice único**, para lo que un guard no ve:
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql
+-- One access per person, product and tenant: two saves giving the same one at once
+-- cannot both succeed. A null tenant (the whole product) counts as a value, so the
+-- staff's access is kept once too.
+CREATE UNIQUE INDEX access_once ON access (user_id, product_id, ifnull(tenant_id, ''));
+```
+
+El guardado que pierde recibe un `ConcurrencyConflict`. `give` lo convierte en el
+acceso que guardó el otro, así que darlo otra vez no hace nada, no es un error:
+
+```ts
+// cooper/backend/contexts/auth/modules/access/access.module.ts
+private async give(input: { userId: string, productId: string, tenantId: string | null, role: 'admin' | 'member' }): Promise<AccessDTO> {
+  const { userId, productId, tenantId } = input
+  const existing = await this.repo.first({ userId, productId, tenantId })
+  if (existing) return existing.toDTO()
+  const access = Access.grant(input)
+  try {
+    await this.repo.persistKeepingOneAdmin(access)
+  } catch (error) {
+    // Given by another save at the same time (a tenant's admin, by the request that
+    // made it and by its worker): given once, and this one gives what is there.
+    const given = error instanceof ConcurrencyConflict ? await this.repo.first({ userId, productId, tenantId }) : undefined
+    if (!given) throw error
+    return given.toDTO()
+  }
+  return access.toDTO()
+}
+```
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+test('gives an access once, however many give it at the same time', async () => {
+  // …
+  await Promise.all([as(ana, () => modules().access.grant(bobIn)), as(ana, () => modules().access.grant(bobIn)), modules().access.admit({ ...bobIn, role: 'member' })])
+  expect((await modules().access.listForTenant(acme.id, page)).total).toBe(2)
+  // …
+})
+```
+
 El [capítulo 8](./08-rules-over-rows) cuenta lo de un solo administrador por tenant,
-y el [capítulo 16](./16-sagas) el borrado de un tenant entre auth y boards.
+la otra regla que cumple `persistKeepingOneAdmin`.
+
+### Un tenant borrado no deja entrar a nadie
+
+Borrar un tenant tiene pasos en auth (sus accesos, sus invitaciones) y en boards (sus
+tableros, columnas y tarjetas), cada uno desde un worker
+([capítulo 16](./16-sagas)). Pero uno no puede esperar: desde que `tenant.delete`
+responde, nadie puede entrar en el espacio. Así que el caso de uso quita él mismo los
+accesos, justo después de guardar el borrado, y dice por qué:
+
+```ts
+// cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
+/**
+ * Only its admin deletes it. The rest follows from `tenant.deleted`, each part from
+ * a worker: its invitations here, its boards in boards, its accesses once more.
+ * Its accesses also go at once, after it: it writes to `access` without being a
+ * worker, on purpose, so that nobody enters it from the moment it answers. Should
+ * that second save fail, its worker takes them away. It never runs again on a
+ * conflict: it would find the workspace deleted already.
+ */
+@UseCase({ writesTo: ['access'], retryOnConflict: false })
+async delete(tenantId: string): Promise<void> {
+  await this.assertAdmin(tenantId)
+  const tenant = await this.load(tenantId)
+  tenant.delete()
+  await this.repo.persist(tenant)
+  await this.deps.access.revokeTenant(tenantId)
+}
+```
+
+El `removeAccesses` del worker se queda como respaldo, y `revokeTenant` se puede
+repetir sin daño. El test para el worker de auth, borra y comprueba que no entra
+nadie:
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+await auth.base.jobs.stop()
+
+await as(ana, () => modules().tenant.delete(acme.id))
+expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+expect(await modules().access.check(ana.id, 'cooper', acme.id)).toBeNull()
+```
+
+Por lo mismo, `invitation.accept` rechaza una invitación cuyo tenant ya no está,
+aunque su worker todavía no la haya cerrado.
 
 ## Clientes OAuth
 
@@ -157,9 +271,9 @@ Hay dos tipos:
 
 ```ts
 // cooper/backend/contexts/auth/auth.context.ts
-static async open(config: Auth_Config, deps: Auth_ModuleDeps): Promise<Auth_Context> {
+static async open(config: Auth_Config, deps: Auth_ModuleDeps, tracer?: Tracer): Promise<Auth_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new AuthBase({ name: 'auth', store })
+  const base = new AuthBase({ name: 'auth', store, tracer })
   const modules = initializeModules(base, config, deps)
   await modules.oauthClient.declareProducts()
   return new Auth_Context(base, modules, config)
@@ -218,12 +332,16 @@ navegador a auth hasta que cambia el código:
 1. **`request`**: el cliente manda el navegador a `/oauth/authorize`. auth comprueba
    el cliente, su dirección de vuelta y el reto PKCE (solo S256), guarda la petición
    y manda el navegador a su propia interfaz.
-2. **`review`**: la interfaz de auth enseña quién pide acceso.
+2. **`review`**: la interfaz de auth enseña quién pide acceso. Si ya hay alguien
+   dentro y el producto no le va a dejar entrar, lo dice de antemano (`refused`).
 3. **`approve`** o **`deny`**: la persona, ya dentro, responde. El cliente propio de
    un producto (first party) se aprueba al entrar; cualquier otro pide
    consentimiento. Un producto con `access: 'granted'` comprueba que la persona
    tiene acceso.
 4. **`redeem`**: el cliente cambia el código, una sola vez, con su verificador PKCE.
+
+Quién puede entrar en un producto es un método privado, al que preguntan tanto
+`approve` como `review`:
 
 ```ts
 // cooper/backend/contexts/auth/modules/oauth-grant/oauth-grant.module.ts
@@ -233,12 +351,48 @@ async approve(id: string): Promise<OauthGrantRedirectDTO> {
   const grant = await this.load(id)
   if (!grant.is('pending')) throw new AuthorizationNotOpen()
   const product = await this.deps.product.get(grant.productId)
-  if (product.access === 'granted' && !(await this.deps.access.check(userId, product.id, null))) throw new NoProductAccess(product.name)
+  if (!(await this.mayEnter(userId, product))) throw new NoProductAccess(product.name)
 
   const code = grant.approve(userId)
   await this.repo.persist(grant)
   return { redirectTo: this.redirect(grant, { code }) }
 }
+
+// …
+
+/** A product that lets in only whom it was told lets in those with access to all of it. */
+private async mayEnter(userId: string, product: ProductDTO): Promise<boolean> {
+  return product.access !== 'granted' || (await this.deps.access.check(userId, product.id, null)) !== null
+}
+```
+
+`review` crea el mismo error `NoProductAccess` que lanzaría `approve`, pero lo
+devuelve como dato en lugar de lanzarlo. La interfaz enseña el porqué, en vez de
+pedir una respuesta que solo puede fallar:
+
+```ts
+// cooper/backend/contexts/auth/modules/oauth-grant/oauth-grant.module.ts
+const userId = signedIn()
+const refused = userId !== null && !(await this.mayEnter(userId, product)) ? new NoProductAccess(name) : null
+return {
+  // …
+  open: grant.is('pending'),
+  refused: refused && { code: refused.code, message: refused.message },
+}
+```
+
+La ruta de la revisión es pública: cualquiera con la dirección de la petición puede
+verla, haya entrado o no. Así que la ruta lee ella misma la cookie de auth, y ejecuta
+el caso de uso como esa persona solo si la hay. Por eso `oauthGrant` depende de
+`session`:
+
+```ts
+// cooper/backend/contexts/auth/modules/oauth-grant/oauth-grant.routes.ts
+base.http.get('/authorizations/:id', async request => {
+  const actor = await deps.session.authenticate(request.cookies.get(SessionCookie) ?? undefined)
+  const review = () => grants.review(request.params.id)
+  return Response.json(await (actor ? runAsActor(actor, review) : review()))
+}, { public: true })
 ```
 
 La entidad guarda las reglas de OAuth. El código se genera con el `SecretToken` de
@@ -355,7 +509,8 @@ protected override routes(): Bun.Serve.Routes<undefined, string> {
 | `POST /oauth/token` | `token.exchange` (`authorization_code`) o `token.refresh` (`refresh_token`). |
 | `POST /oauth/register` | `oauthClient.register` (RFC 7591). |
 | `POST /oauth/revoke` | `token.revoke` (RFC 7009). |
-| `GET /api/authorizations/:id`, `POST …/approve`, `POST …/deny` | Para la interfaz de auth: la petición y la respuesta de la persona. |
+| `GET /oauth/logout?redirect=` | Cierra la sesión del propio auth, y devuelve el navegador a `redirect` si es una dirección de uno de los productos. |
+| `GET /api/authorizations/:id`, `POST …/approve`, `POST …/deny` | Para la interfaz de auth: la petición (con `refused`) y la respuesta de la persona. |
 
 Los endpoints que un cliente MCP llama por sí mismo están abiertos a cualquier origen
 (CORS): algunos clientes, como el MCP inspector, funcionan en un navegador.
@@ -452,8 +607,9 @@ Registra cuatro rutas y el autenticador del router:
   cookie corta, y el navegador al `/oauth/authorize` de auth.
 - `GET /api/session/callback`: auth devuelve el navegador con un código. El servidor
   lo cambia en el `/oauth/token` de auth, por HTTP de verdad, con su secreto.
-- `GET /api/session`: la persona que ha entrado. `POST /api/session/sign-out` la
-  saca.
+- `GET /api/session`: la persona que ha entrado.
+- `POST /api/session/sign-out`: la saca, y responde `{ next }`, adónde va el
+  navegador después.
 
 La vuelta es donde todo encaja:
 
@@ -490,6 +646,49 @@ Fíjate:
 - **`retryOnConflict: false`**: llamó a auth antes de guardar. Repetirlo presentaría
   un código ya gastado.
 
+## Salir de dos sitios
+
+Salir de boards cierra la sesión de boards. Pero la sesión del propio auth sigue
+abierta, así que "entrar" volvería a meter a la misma persona sin preguntar, y no
+habría forma de cambiar de cuenta. Por eso la salida de la aplicación no acaba ahí:
+responde adónde va el navegador después, al logout de auth, con el camino de vuelta:
+
+```ts
+// cooper/backend/shared/web-session/web-session.routes.ts
+base.http.post('/session/sign-out', async request => {
+  await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
+  request.cookies.delete({ name: cookies.session, path: '/' })
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  return Response.json({ next } satisfies WebSessionSignOutDTO)
+}, { public: true })
+```
+
+auth cierra su sesión y devuelve el navegador. `redirect` viene en la URL, así que
+cualquiera puede escribir uno: `session.returnAddress` solo acepta el origen de uno
+de los productos de cooper, y manda cualquier otra cosa al inicio de auth. Una
+redirección abierta en un servidor de acceso es una herramienta de phishing.
+
+```ts
+// cooper/backend/contexts/auth/modules/session/session.routes.ts
+base.oauth.get('/logout', async request => {
+  await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
+  request.cookies.delete({ name: SessionCookie, path: '/' })
+  const location = await sessions.returnAddress(new URL(request.url).searchParams.get('redirect') ?? undefined)
+  return new Response(null, { status: 302, headers: { location } })
+}, { public: true })
+```
+
+```ts
+// cooper/backend/contexts/auth/modules/session/session.module.ts
+@UseCase()
+async returnAddress(redirect: string | undefined): Promise<string> {
+  const url = URL.parse(redirect ?? '')
+  if (!url) return '/'
+  const origins = (await this.deps.product.list()).map(product => new URL(product.publicUrl).origin)
+  return origins.includes(url.origin) ? url.toString() : '/'
+}
+```
+
 ## Cómo comprobarlo
 
 El test de OAuth de auth recorre todo el flujo por HTTP, como lo haría un cliente MCP:
@@ -520,8 +719,35 @@ await auth.base.jobs.idle()
 expect(await auth.modules.token.verify(first.access_token)).toBeNull()
 ```
 
+El backoffice solo deja entrar a su equipo. Con la sesión abierta pero sin acceso, la
+revisión lo dice antes de que nadie pulse nada, y `approve` responde lo mismo:
+
+```ts
+// cooper/backend/contexts/auth/oauth.test.ts
+// Signed in, the review says upfront what approving would answer.
+expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ refused: { code: 'oauthGrant.no_access' } })
+expect(await (await as(`/api/authorizations/${id}/approve`, { method: 'POST' })).json()).toMatchObject({ code: 'oauthGrant.no_access' })
+
+await auth.modules.access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
+expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ refused: null })
+```
+
+Y salir de auth devuelve a un producto, nunca a otra dirección:
+
+```ts
+// cooper/backend/contexts/auth/oauth.test.ts
+const back = await as(`/oauth/logout?${new URLSearchParams({ redirect: `${config.auth.backofficePublicUrl}/workspaces` })}`)
+expect(back.status).toBe(302)
+expect(back.headers.get('location')).toBe(`${config.auth.backofficePublicUrl}/workspaces`)
+expect((await as('/api/session')).status).toBe(401)
+
+for (const redirect of ['https://evil.test/', 'javascript:alert(1)', '//evil.test', '']) {
+  expect((await as(`/oauth/logout?${new URLSearchParams({ redirect })}`)).headers.get('location')).toBe('/')
+}
+```
+
 ```bash
-bun test cooper/backend/contexts/auth
+bun test cooper/backend/contexts/auth cooper/backend/shared/web-session
 ```
 
 Con cooper en marcha (`bun run cooper`), pregunta a auth dónde está todo:
@@ -559,7 +785,15 @@ que pasa `/oauth` y `/.well-known` al puerto 3001.
 - Los endpoints de OAuth viven en **su propio router**, fuera de `/api`, y responden
   los errores con **`toOauthErrorResponse`**: errores de dominio de entrada,
   `{ error, error_description }` de salida.
+- Un acceso se **da una sola vez**: un guard por clave y un índice único, y darlo
+  otra vez responde con el que ya está.
+- Lo que no puede esperar a un worker (que nadie entre en un tenant borrado) se hace
+  en el caso de uso, con un `writesTo` y su porqué; el worker se queda de respaldo.
 - Cada contexto pregunta a auth con **`token.verify`** para quién es un token, en el
   mismo proceso.
+- Dile a la persona **de antemano** cuál sería la respuesta (`refused`), con la misma
+  comprobación (`mayEnter`) que usa la respuesta.
 - Cada aplicación es un **cliente confidencial** cuyo servidor hace el OAuth. El
-  navegador tiene la cookie de sesión de la aplicación, nunca un token.
+  navegador tiene la cookie de sesión de la aplicación, nunca un token. Salir cierra
+  las dos sesiones, la de la aplicación y la de auth, y auth solo devuelve el
+  navegador a un producto.
