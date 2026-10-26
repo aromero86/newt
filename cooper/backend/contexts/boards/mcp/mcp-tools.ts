@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Page, PageRequest } from 'newt/core'
+import { mapPage, type Page, type PageRequest } from 'newt/core'
 import { z } from 'zod'
 import type { Boards_Modules } from '../initialize-modules'
 import type { CardDTO, CardFilterDTO } from '../modules/card/card.schema'
@@ -20,9 +20,9 @@ const pageArgs = {
 const pageOf = (args: { cursor?: string, size?: number }): PageRequest => ({ size: args.size ?? 20, cursor: args.cursor })
 
 /** A page as a tool answers it: with the cursor of the next one, if there is one. */
-function paged<T extends { id: string }, R>(page: Page<T>, map: (item: T) => R) {
-  const last = page.items.at(-1)
-  return { items: page.items.map(map), total: page.total, nextCursor: page.hasMore && last ? last.id : null }
+function paged<T, R>(page: Page<T>, map: (item: T) => R) {
+  const { items, total, nextCursor } = mapPage(page, map)
+  return { items, total, nextCursor: nextCursor ?? null }
 }
 
 /** What a tool returns: its answer as JSON, for the assistant to read. */

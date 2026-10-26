@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { ConcurrencyConflict, currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { Access, AccessAdmitSchema, AccessGrantSchema, type AccessAdmitDTO, type AccessDTO, type AccessGrantDTO } from './access'
 import type { Access_Deps } from './access.deps'
@@ -11,7 +11,7 @@ import { Access_Granted } from './events/access-granted'
 import { Access_Revoked } from './events/access-revoked'
 
 /** A page of accesses as a page of their DTOs. */
-const toDTOs = (found: Page<Access>): Page<AccessDTO> => ({ items: found.items.map(access => access.toDTO()), hasMore: found.hasMore, total: found.total })
+const toDTOs = (found: Page<Access>): Page<AccessDTO> => mapPage(found, access => access.toDTO())
 
 /**
  * Who may enter each product: the members of each workspace of `cooper`, and the

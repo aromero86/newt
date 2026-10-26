@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { CardAuthor, CardDTO } from '../card/card.schema'
@@ -40,7 +40,7 @@ export class Activity_Module extends Module {
   @UseCase()
   async listForCard(cardId: string, page: PageRequest): Promise<Page<ActivityDTO>> {
     const found = await this.repo.page({ cardId }, page, { newestFirst: true })
-    return { items: found.items.map(entry => entry.toDTO()), hasMore: found.hasMore, total: found.total }
+    return mapPage(found, entry => entry.toDTO())
   }
 
   @UseCase()

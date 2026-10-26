@@ -68,6 +68,8 @@ export type { FilterNode } from './criteria/filter/filter-node'
 export type { Page } from './pagination/page'
 export type { PageRequest } from './pagination/page-request'
 export { toPage } from './pagination/to-page'
+export { mapPage } from './pagination/map-page'
+export { allPages } from './pagination/all-pages'
 
 // Value objects
 export type { ValueObject } from './value-objects/value-object'

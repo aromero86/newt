@@ -1,4 +1,4 @@
-import { Email, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { Email, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { EmailTaken } from './errors/email-taken'
 import { UserNotFound } from './errors/user-not-found'
@@ -71,6 +71,6 @@ export class User_Module extends Module {
   async list(filter: unknown, page: PageRequest): Promise<Page<UserDTO>> {
     const criteria = filter === undefined ? {} : UserFilter.toCriteria<UserRow>(UserFilter.schema.parse(filter))
     const found = await this.repo.page(criteria, page, { newestFirst: true })
-    return { items: found.items.map(user => user.contract()), hasMore: found.hasMore, total: found.total }
+    return mapPage(found, user => user.contract())
   }
 }

@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { NotTenantAdmin } from './errors/not-tenant-admin'
 import { TenantNotFound } from './errors/tenant-not-found'
@@ -71,7 +71,7 @@ export class Tenant_Module extends Module {
   async list(filter: unknown, page: PageRequest): Promise<Page<TenantDTO>> {
     const criteria = filter === undefined ? {} : TenantFilter.toCriteria<TenantRow>(TenantFilter.schema.parse(filter))
     const found = await this.repo.page(criteria, page, { newestFirst: true })
-    return { items: found.items.map(tenant => tenant.toDTO()), hasMore: found.hasMore, total: found.total }
+    return mapPage(found, tenant => tenant.toDTO())
   }
 
   /** The workspaces someone belongs to, the ones they joined last first. */
@@ -80,7 +80,7 @@ export class Tenant_Module extends Module {
     const accesses = await this.deps.access.listForUser(userId, page, this.options.productId)
     const tenants = new Map((await this.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
     // A workspace deleted while this read, or whose accesses its deletion failed to take away (its worker will), is left out.
-    return { items: accesses.items.flatMap(access => tenants.get(access.tenantId!) ?? []), hasMore: accesses.hasMore, total: accesses.total }
+    return mapPage(accesses, access => tenants.get(access.tenantId!))
   }
 
   /** Only its admin renames it. */

@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { UserFilterDTO } from '../../../auth/modules/user/user.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import type { User_Deps } from './user.deps'
@@ -52,14 +52,10 @@ export class User_Module extends Module {
     await this.deps.user.get(userId)
     const accesses = await this.deps.access.listForUser(userId, page, this.options.workspacesProduct)
     const tenants = new Map((await this.deps.tenant.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
-    return {
-      // A workspace deleted a moment ago, whose accesses are not taken away yet, is left out.
-      items: accesses.items.flatMap(access => {
-        const tenant = tenants.get(access.tenantId ?? '')
-        return tenant ? [{ id: access.id, workspaceId: tenant.id, name: tenant.name, role: access.role, since: access.createdAt }] : []
-      }),
-      hasMore: accesses.hasMore,
-      total: accesses.total,
-    }
+    // A workspace deleted a moment ago, whose accesses are not taken away yet, is left out.
+    return mapPage(accesses, access => {
+      const tenant = tenants.get(access.tenantId ?? '')
+      return tenant && { id: access.id, workspaceId: tenant.id, name: tenant.name, role: access.role, since: access.createdAt }
+    })
   }
 }

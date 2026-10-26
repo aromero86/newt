@@ -748,17 +748,17 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   of the last item shown: ids are v7, so they sort by time. `TableRepository.page`
   does all of it; routes read the page with `pageRequestFrom(request)` (`?size` from 1
   to 100, 20 by default, and `?cursor`). The page of entities becomes a page of DTOs
-  written out, so it reads as what it is:
+  with `mapPage`:
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.module.ts
-  const found = await this.repo.page({}, page, { newestFirst: true })
-  return {
-    items: found.items.map(board => board.toDTO()),
-    hasMore: found.hasMore,
-    total: found.total,
-  }
+  return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
   ```
+
+  A page made from another (a workspace's members, from its accesses) leaves out an
+  item `mapPage` makes `undefined`, and says where the next one starts, `nextCursor`:
+  after the last item of the page it was made from. `allPages(read)` reads every
+  page of a list that is never long, a hundred at a time.
 
   A list bounded by the domain may come whole, and says why (a board's columns, at
   most ten).

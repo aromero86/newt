@@ -1,4 +1,4 @@
-import { currentActor, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { UserDTO } from '../../../auth/modules/user/user.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import { NotStaff } from './errors/not-staff'
@@ -52,14 +52,10 @@ export class Staff_Module extends Module {
   async list(page: PageRequest): Promise<Page<StaffMemberDTO>> {
     const accesses = await this.deps.access.listForProduct(this.options.productId, page)
     const users = new Map((await this.deps.user.getMany(accesses.items.map(access => access.userId))).map(user => [user.id, user]))
-    return {
-      items: accesses.items.flatMap(access => {
-        const user = users.get(access.userId)
-        return user ? [{ id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }] : []
-      }),
-      hasMore: accesses.hasMore,
-      total: accesses.total,
-    }
+    return mapPage(accesses, access => {
+      const user = users.get(access.userId)
+      return user && { id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }
+    })
   }
 
   /**
