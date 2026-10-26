@@ -52,6 +52,15 @@ done: these are proposals to decide on.
   publishes events. *Proposal:* `jobs.runAsWorker(fn)` or a test helper.
 - **"Does this scope still exist"** is a question every worker writing into a tenant
   must ask; cooper asks auth by hand in each one.
+- **A handler sees only the payload**, not the event's id or time, so a reaction
+  that must be idempotent by event (the card activity log) carries its own id in the
+  payload. *Proposal:* `subscribe((payload, meta: { id, name, occurredAt }) => …)`.
+- **The outbox's reads are too coarse.** `outbox.list()` returns every job, a week of
+  done ones included, and `retry(id)` answers `false` without saying why. *Proposal:*
+  `list({ status, limit, after })` and `get(id)`.
+- **Messages cannot be put back.** `setMessages` is process-wide and returns nothing,
+  so testing it needs a child process. *Proposal:* it returns a function that
+  restores the previous messages.
 
 ## HTTP
 
