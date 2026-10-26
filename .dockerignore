@@ -1,0 +1,8 @@
+.git
+node_modules
+dist
+data
+web/.vitepress/cache
+web/.vitepress/dist
+*.tsbuildinfo
+.env*
