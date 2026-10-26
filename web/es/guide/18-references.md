@@ -31,13 +31,14 @@ cuando lo otro desaparece, y cómo enseñar su nombre.
 
 ## Al escribir: comprobar que existe
 
-Crear una tarjeta comprueba las dos referencias. Son **lecturas**, así que el módulo
-de tarjetas puede hacerlas desde donde sea:
+Toda tarjeta nueva, la haga `create` para una persona o `createFirst` para el tablero
+de bienvenida, pasa por `newCard`, que comprueba las dos referencias. Son
+**lecturas**, así que el módulo de tarjetas puede hacerlas desde donde sea:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
-@UseCase()
-async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
+/** A new card of a board, checked: its column is the board's, its assignee a member. */
+private async newCard(boardId: string, input: CardCreateDTO, author: CardAuthor): Promise<Card> {
   const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
   const board = await this.deps.board.get(boardId)
   await this.assertColumnOf(boardId, columnId)
@@ -51,7 +52,7 @@ private async assertColumnOf(boardId: string, columnId: string): Promise<void> {
   if (!columns.some(column => column.id === columnId)) throw new ColumnNotInBoard(columnId, boardId)
 }
 
-/** The assignee belongs to the workspace now: asked to auth, through the member module, every time (ch. 20). */
+/** The assignee belongs to the workspace now: asked to auth, through the member module, every time. */
 private async assertMember(userId: string): Promise<void> {
   if (!await this.deps.member.isMember(userId)) throw new AssigneeNotMember(userId)
 }
@@ -94,7 +95,7 @@ export class AssigneeNotMember extends ValidationError {
 }
 ```
 
-`null` significa "nadie": entonces `create` no pregunta nada.
+`null` significa "nadie": entonces `newCard` no pregunta nada.
 
 ## Cuando lo otro desaparece: un worker limpia
 
@@ -119,7 +120,7 @@ deps.column.events.removed.subscribe(column => cards.leaveRemovedColumn(column),
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
  * A column was removed: any card still in it goes to the bottom of the board's
- * first column. What a worker calls (ch. 20.3); the second time, there are none.
+ * first column. What a worker calls; the second time, there are none.
  */
 @UseCase()
 async leaveRemovedColumn(column: ColumnDTO): Promise<void> {
@@ -129,7 +130,7 @@ async leaveRemovedColumn(column: ColumnDTO): Promise<void> {
     const [first] = await this.deps.column.list(column.boardId)
     if (!first) return
     const bottom = await this.repo.count({ columnId: first.id })
-    left.forEach((card, index) => card.moveTo(first.id, bottom + index))
+    left.forEach((card, index) => card.moveTo(first.id, bottom + index, BOARDS))
     await this.repo.persistOrder(left, [column.id, first.id])
   })
 }
@@ -159,19 +160,28 @@ deps.access.revoked.subscribe(async access => {
 async unassignMember(workspaceId: string, userId: string): Promise<void> {
   await runInWorkspace(workspaceId, async () => {
     const cards = await this.repo.find({ assigneeId: userId })
-    for (const card of cards) card.unassign()
+    for (const card of cards) card.unassign(BOARDS)
     await this.repo.persist(...cards)
   })
 }
 ```
 
-Fíjate en dos detalles de los dos:
+Fíjate en tres detalles de los dos:
 
 - **Buscan las tarjetas cuando corren**, no antes. El evento solo dice qué columna se
   quitó, o quién se fue. Las tarjetas se leen en ese momento, así que no se escapa
   ninguna que cambiara entre medias.
 - **Se pueden repetir.** La segunda vez no hay tarjetas en la columna quitada, ni
   asignadas a quien se fue. No pasa nada.
+- **No lo hizo nadie.** Los eventos de una tarjeta dicen quién la cambió (`by`) y por
+  dónde (`via`). Aquí no fue una persona: fue boards, desde un worker. Así que el
+  cambio lleva `BOARDS`, un autor con los dos vacíos:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.module.ts
+/** Boards' own work, from a worker: no one did it. */
+const BOARDS: CardAuthor = { by: null, via: null }
+```
 
 Un worker corre fuera de cualquier petición, así que no tiene ámbito de espacio.
 Entra en uno con `runInWorkspace`, que se fía del id: el evento ya dice qué espacio es.

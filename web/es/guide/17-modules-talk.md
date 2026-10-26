@@ -1,9 +1,10 @@
 # Módulos que hablan entre sí
 
-boards tiene cinco módulos: `member`, `board`, `column`, `card` y `workspace`. Una
-tarjeta necesita que existan su tablero y su columna. Un espacio de trabajo nuevo
-necesita un tablero, tres columnas y una tarjeta. Los módulos se necesitan todo el
-rato. Este capítulo va de cómo hablan sin pisarse los datos.
+boards tiene seis módulos propios: `member`, `board`, `column`, `card`, `workspace` y
+`activity` (más `session` y `outbox`, que comparten todos los contextos de cooper).
+Una tarjeta necesita que existan su tablero y su columna. Un espacio de trabajo nuevo
+necesita un tablero, tres columnas y una tarjeta. El registro de actividad de una
+tarjeta necesita enterarse de lo que le pasa. Los módulos se necesitan todo el rato. Este capítulo va de cómo hablan sin pisarse los datos.
 
 ## Dos formas de hablar
 
@@ -29,21 +30,20 @@ luego las columnas, luego una tarjeta.
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
 @UseCase()
 async prepare(workspaceId: string): Promise<void> {
+  if (!await this.deps.member.exists(workspaceId)) return
   await runInWorkspace(workspaceId, async () => {
     const board = await this.deps.board.findByName(WELCOME_BOARD.name)
       ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-    const columns = await this.deps.column.list(board.id)
-    for (const name of WELCOME_BOARD.columns) {
-      if (!columns.some(column => column.name === name)) columns.push(await this.deps.column.add(board.id, { name }))
-    }
-    if ((await this.deps.card.listInBoard(board.id)).length > 0) return
+    const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
     const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
-    await this.deps.card.create(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
+    await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
   })
+  if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
 }
 ```
 
-Imagina que lo ejecutara una petición. El tablero se guarda, y el servidor se
+Cuatro guardados, en tres módulos, cada uno en su transacción. Imagina que lo
+ejecutara una petición. El tablero se guarda, y el servidor se
 reinicia antes de las columnas. La petición ya devolvió su error, y nada la vuelve a
 intentar: el espacio se queda para siempre con un tablero sin columnas.
 
@@ -59,8 +59,11 @@ deps.tenants.created.subscribe(tenant => workspace.prepare(tenant.id), {
 ```
 
 Si `prepare` falla a la mitad, su job **se repite** hasta que termina. Cada paso
-busca primero lo que hizo una ejecución anterior, así que repetirlo no hace daño
-([capítulo 13](./13-repeatable-workers)).
+busca primero lo que hizo una ejecución anterior (`findByName`, `addMissing`,
+`createFirst`), así que repetirlo no hace daño
+([capítulo 13](./13-repeatable-workers)). Y como un job puede llegar tarde, primero
+pregunta si el espacio sigue ahí, y borra lo que escribió si el espacio se fue
+mientras corría.
 
 | Escribir en otro módulo desde… | Si falla a la mitad… |
 |---|---|
@@ -73,11 +76,21 @@ Por eso lo que un worker escribe en otro módulo tiene que poder repetirse sin d
 
 No hace falta que te acuerdes de la regla: newt la comprueba mientras la aplicación
 funciona. Llama a `workspace.prepare` desde un test, fuera de un worker, y el primer
-guardado en `board` falla:
+guardado en `board` falla. boards tiene un test que hace justo eso:
 
+```ts
+// cooper/backend/contexts/boards/modules/workspace/workspace.test.ts
+test('refuses to prepare a workspace outside a worker: it writes in other modules', async () => {
+  t.auth.join('acme', 'ana')
+
+  await expect(inAcme(() => t.modules.workspace.prepare('acme'))).rejects.toThrow('[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo')
+  expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+})
 ```
-Error: [write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo
-```
+
+El error nombra el caso de uso que lo empezó todo (`workspace.prepare`), el módulo en
+el que intentó escribir (`boards.board`) y las dos salidas. La segunda línea comprueba
+que el guardado no se hizo: no hay tablero.
 
 Lo que hace newt al encontrarlo lo decide la opción `writeRule` de la base:
 
@@ -91,7 +104,7 @@ cooper se queda con el valor por defecto. Sus bases se crean sin la opción:
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-const base = new BoardsBase({ name: 'boards', store })
+const base = new BoardsBase({ name: 'boards', store, tracer })
 ```
 
 Como por defecto es un error, una escritura fuera de sitio rompe un test en lugar de
@@ -115,7 +128,7 @@ quite:
 /**
  * Removes a column of a board, only if no card is in it. The cards answer, since a
  * card points at its column and a column knows nothing of the cards: the column
- * module cannot ask them without the two needing each other (ch. 19). So this use
+ * module cannot ask them without the two needing each other. So this use
  * case asks, and has the column module remove it: a write to another module outside
  * a worker, said where it is seen. It is the only write it makes, so a failure leaves
  * nothing halfway; a card moved into the column at that very moment is taken to
@@ -171,11 +184,17 @@ El `writesTo` vale para todo lo que se escribe **por debajo** del caso de uso, l
 llame quien lo llame. Si otro caso de uso llamara a `card.removeColumn`, la columna
 se quitaría igual; a ese otro solo le toca declarar lo que escribe él.
 
-auth tiene tres más, cada uno con su porqué en el código:
+auth tiene cinco más, cada uno con su porqué en el código:
 
 - `tenant.create` escribe en `access`: quien crea un espacio tiene que poder entrar
   en cuanto llega la respuesta. Si el segundo guardado falla, el worker de
   `tenant.created` da igualmente el administrador (`ensureAdmin`).
+- `tenant.delete` escribe en `access`: nadie puede entrar en un espacio desde que su
+  borrado responde. Si quitar los accesos falla, el worker de `tenant.deleted` los
+  quita (`removeAccesses`).
+- `invitation.accept` escribe en `access`: quien acepta entra al momento. El acceso
+  va primero y se puede dar otra vez sin daño, así que aceptar de nuevo termina una
+  aceptación a medias.
 - `session.signUp` escribe en `user`: la persona espera su cuenta y su sesión en
   una sola respuesta.
 - `token.exchange` escribe en `oauthGrant`: el cliente espera sus tokens en esta
@@ -214,6 +233,7 @@ const column = Column_Module.initialize(base, { board, member })
 const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
 const { tenant, access, invitation, user } = deps.auth
 const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
 ```
 
 Las dependencias de boards no forman ningún círculo:
@@ -225,8 +245,12 @@ Las dependencias de boards no forman ningún círculo:
 | `column` | `board`, `member` |
 | `card` | `board`, `column`, `member` (y el puerto `AccessEvents`) |
 | `workspace` | `board`, `column`, `card`, `member` (y auth) |
+| `activity` | `card`, `member` (y el puerto `WorkspaceDeletions`) |
 
-`workspace` está arriba del todo: pone a trabajar a los demás. Nadie depende de él.
+`workspace` y `activity` están arriba del todo. `workspace` pone a trabajar a los
+demás; `activity` solo escucha los eventos de las tarjetas y lleva un registro de
+ellos. Nadie depende de ninguno de los dos. `card` no sabe que sus eventos alimentan
+un registro: añadir `activity` no cambió ni una línea de `card`.
 
 ## Puertos: una dependencia con tus palabras
 
@@ -246,6 +270,8 @@ export type Workspaces = {
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
+  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
+  exists(workspaceId: string): Promise<boolean>
 }
 ```
 

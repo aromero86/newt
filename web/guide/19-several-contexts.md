@@ -29,9 +29,11 @@ what it needs:
 // cooper/backend/open-contexts.ts
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth, boards })
+  // …
+  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
@@ -46,6 +48,38 @@ export async function stopContexts(contexts: Awaited<ReturnType<typeof openConte
 The server (`index.ts`), the seed and the end-to-end test all open cooper through
 this one function. They can't get the order wrong.
 
+## One tracer for all of them
+
+Each context opens with its own base, but they all get **the same tracer**. With
+`COOPER_TRACE=1`, `openContexts` makes one `ConsoleTracer` and hands it to the three
+(`tracer` in the code above). The contexts run in one process, so one tracer sees
+them all.
+
+A trace is the use case called from outside, with every use case it called inside
+it, each one with its context's name and how long it took. One tracer means one tree:
+when a backoffice use case asks auth for a user, auth's `user.get` shows up indented
+inside it, not as a separate trace. The tracer's test shows the shape of what it
+writes:
+
+```ts
+// cooper/backend/shared/observability/console-tracer.test.ts
+expect(lines.map(line => line.replace(/\d+\.\d ms/, 'n ms'))).toEqual([
+  '[trace] backoffice workspace.get n ms',
+  '[trace]   backoffice staff.enter n ms (conflict.retry {"attempt":1})',
+  '[trace]   broken n ms (error: disk full)',
+])
+```
+
+```bash
+COOPER_TRACE=1 bun run cooper
+```
+
+With tracing on, boards also gets a `log`: its `activity` module writes a console
+line each time a card moves.
+
+`ConsoleTracer` is newt's `Tracer`, the same interface an OpenTelemetry adapter
+implements. Swap it, and the contexts don't change ([chapter 26](./26-production)).
+
 ## A context reaches another only through its use cases and events
 
 Never through its store. boards never reads auth's tables, and has no idea auth runs
@@ -59,6 +93,8 @@ export type Boards_ModuleDeps = {
   access: AccessEvents
   auth: Boards_Auth
   mailer: Mailer
+  /** Where a line goes as each card moves, for whoever watches: the console while tracing, nowhere if none. */
+  log?: (line: string) => void
 }
 ```
 
@@ -73,8 +109,26 @@ export type Boards_ModuleDeps = {
 export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
 ```
 
-`boardsOnAuth` wires the ports to auth. It is the only place that knows a workspace
-is a tenant of the product `cooper`, and a member is someone with access to it:
+Which product a workspace belongs to is a name auth declares, next to its products,
+and the other contexts import it from there:
+
+```ts
+// cooper/backend/contexts/auth/modules/product/product.schema.ts
+/**
+ * The ids of cooper's products, which other contexts name when they ask auth about
+ * them: `cooper` (the boards) and `backoffice` (the staff's console).
+ */
+export const PRODUCTS = { cooper: 'cooper', backoffice: 'backoffice' } as const
+
+/** The product whose workspaces the tenants are: boards, the SaaS. */
+export const WORKSPACES_PRODUCT = PRODUCTS.cooper
+```
+
+It is a constant, not a module: importing it gives boards no way into auth's data.
+
+`boardsOnAuth` wires the ports to auth. It is where boards' words become auth's: a
+workspace is a tenant of the product `cooper`, and a member is someone with access to
+it:
 
 ```ts
 // cooper/backend/open-contexts.ts
@@ -84,7 +138,7 @@ is a tenant of the product `cooper`, and a member is someone with access to it:
  * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */
-function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer'> {
+function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'log'> {
   const { access, user, tenant, token, invitation } = auth.modules
   return {
     workspaces: {
@@ -94,6 +148,8 @@ function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer'> {
         const [found] = await user.getMany([userId])
         return found ? { id: found.id, name: found.name, email: found.email } : null
       },
+      // A deleted tenant is not among them.
+      exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
     },
     tenants: tenant.events,
     access: access.events,
@@ -103,6 +159,9 @@ function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer'> {
 ```
 
 auth's emitters fit the event ports as they are: a port only asks for `subscribe`.
+And each answer of the `Workspaces` port is a call to one of auth's use cases:
+`exists`, which a worker asks before writing in a workspace that may be gone, is
+`tenant.getMany`, which leaves deleted tenants out.
 
 ## Calling another context is calling an external API
 
@@ -224,16 +283,26 @@ async function settled() {
 
 ## backoffice
 
-backoffice opens last, and gets the two contexts it reads:
+backoffice opens last. It is not handed the two contexts it reads, only their
+modules, and of those only the ones it uses:
 
 ```ts
 // cooper/backend/contexts/backoffice/initialize-modules.ts
-/** What `backoffice`'s modules are given besides its base: the contexts it reads. */
 export type Backoffice_ModuleDeps = {
-  auth: Auth_Context
-  boards: Boards_Context
+  auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
+  boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
 }
 ```
+
+`openContexts` passes `auth.modules` and `boards.modules`, and the `Pick` narrows them.
+Never a context's base, never its store: with only modules in hand, backoffice can
+reach auth and boards through their use cases and nothing else. And the list says
+what it touches: backoffice knows nothing of boards' columns, auth's invitations or
+OAuth grants. If one day it needs `column`, the change shows up in this type.
+
+The two `outbox` entries are the shared module each context has for its dead jobs:
+backoffice lists them and retries them for the staff, through each context's own use
+cases.
 
 Its modules come in [chapter 22](./22-backoffice). They follow the same rules: they
 read auth and boards through their use cases, and change them only through those.
@@ -274,7 +343,10 @@ bun test cooper/backend/cooper.test.ts
 - **Contexts depend on each other without circles.** Each opens after those it uses,
   and stops before them. Lint enforces who may import whom.
 - **A context reaches another only through its use cases and events.** What it needs
-  for its own logic, it takes as ports, in its own words.
+  for its own logic, it takes as ports, in its own words. What it calls as is, it
+  takes as a `Pick` of the other's modules: never the context, its base or its store.
+- **One tracer for every context**: a call into another context shows up inside the
+  use case that made it.
 - **Calling another context is calling an external API**: after what can fail, and
   safe to repeat. The called use case is the root of what it does in its context.
 - **Writes into another context start at a route**, an entry point. No use case of
