@@ -802,8 +802,10 @@ export function registerProductRoutes(
 - No hay `try/catch`. Si el caso de uso lanza un `ProductNotFound`, el router
   responde 404 con `{ error, code }`. Un dato de entrada mal formado es un 400: un
   cuerpo que no es JSON (`malformed_body`), o uno que no pasa el esquema del caso de
-  uso (`validation`, con sus `issues`). Cualquier otro error, un 500 que no cuenta
-  nada de dentro.
+  uso (`validation`, con sus `issues`). Un cuerpo JSON llega como
+  `application/json` (o `…+json`); con otro `Content-Type` es un 415
+  (`unsupported_media_type`). Cualquier otro error, un 500 que no cuenta nada de
+  dentro.
 
 ### 5.8 Registrarlo
 
@@ -2800,6 +2802,8 @@ setMessages({
     `${method} no está permitido en ${path}`,
   validation: () => 'La petición no es válida',
   malformed_body: () => 'El cuerpo de la petición no es JSON válido',
+  unsupported_media_type: () =>
+    'El cuerpo de la petición tiene que enviarse como application/json',
   filter_too_deep: ({ max }) => `Un filtro anida como mucho ${max} grupos`,
   filter_too_many_conditions: ({ max }) =>
     `Un filtro tiene como mucho ${max} condiciones`,

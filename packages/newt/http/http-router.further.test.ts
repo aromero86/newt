@@ -4,6 +4,8 @@ import { HttpRouter } from './http-router'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
 
+const JSON_TYPE = { 'content-type': 'application/json' }
+
 const servers: Server<undefined>[] = []
 
 afterEach(async () => {
@@ -55,6 +57,54 @@ describe('HttpRouter, further', () => {
       expect(await response.json()).toMatchObject({ code: 'method_not_allowed' })
     }
   })
+
+  test('a 405 lists the methods the path has, and OPTIONS is one too', async () => {
+    const router = new HttpRouter()
+    router.get('/things', own('GET'), { public: true })
+    router.post('/things', own('POST'), { public: true })
+    const server = serve(router)
+
+    for (const method of ['DELETE', 'OPTIONS']) {
+      const response = await fetch(new URL('/api/things', server.url), { method })
+      expect(response.status).toBe(405)
+      expect(response.headers.get('allow')).toBe('GET, POST')
+    }
+  })
+
+  test('the prefix itself is a 404, never the frontend', async () => {
+    const server = serve(new HttpRouter())
+
+    const response = await fetch(new URL('/api', server.url))
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ code: 'route_not_found' })
+  })
+
+  test('is case-sensitive: a prefix written in other letters is not the API', async () => {
+    const router = new HttpRouter()
+    router.get('/things', own('GET'), { public: true })
+    const server = serve(router)
+
+    expect(await (await fetch(new URL('/API/things', server.url))).text()).toBe('frontend')
+  })
+
+  test('paths that differ only in their params\' names are one path, each route with its own names', async () => {
+    const router = new HttpRouter()
+    router.get('/things/:id', request => Response.json({ got: request.params.id }), { public: true })
+    router.delete('/things/:thingId', request => Response.json({ deleted: request.params.thingId }), { public: true })
+    const group = router.group('/things/:key', (_request, next) => next())
+    group.put('', request => Response.json({ put: request.params.key }), { public: true })
+    const server = serve(router)
+
+    expect(await (await fetch(new URL('/api/things/1', server.url))).json()).toEqual({ got: '1' })
+    expect(await (await fetch(new URL('/api/things/1', server.url), { method: 'DELETE' })).json()).toEqual({ deleted: '1' })
+    expect(await (await fetch(new URL('/api/things/1', server.url), { method: 'PUT' })).json()).toEqual({ put: '1' })
+  })
+
+  test('refuses the same method twice on paths that differ only in their params\' names', () => {
+    const router = new HttpRouter()
+    router.get('/things/:id', own('GET'))
+    expect(() => router.get('/things/:thingId', own('GET'))).toThrow('registered twice')
+  })
 })
 
 describe('a body', () => {
@@ -63,8 +113,8 @@ describe('a body', () => {
     router.post('/things', async request => Response.json(await request.json()), { public: true })
     const server = serve(router)
 
-    const bad = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{not json' })
-    const good = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{"a":1}' })
+    const bad = await fetch(new URL('/api/things', server.url), { method: 'POST', headers: JSON_TYPE, body: '{not json' })
+    const good = await fetch(new URL('/api/things', server.url), { method: 'POST', headers: JSON_TYPE, body: '{"a":1}' })
 
     expect(bad.status).toBe(400)
     expect(await bad.json()).toEqual({ error: 'The body of the request is not valid JSON', code: 'malformed_body' })
@@ -79,11 +129,38 @@ describe('a body', () => {
     console.error = () => {}
 
     try {
-      const response = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{"a":1}' })
+      const response = await fetch(new URL('/api/things', server.url), { method: 'POST', headers: JSON_TYPE, body: '{"a":1}' })
       expect(response.status).toBe(500)
     } finally {
       console.error = original
     }
+  })
+
+  test('read as JSON must say it is JSON: anything else is a 415, as a form from another site is', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json(await request.json()), { public: true })
+    const server = serve(router)
+    const post = (type: string) => fetch(new URL('/api/things', server.url), { method: 'POST', headers: { 'content-type': type }, body: '{"a":1}' })
+
+    const plain = await post('text/plain')
+    expect(plain.status).toBe(415)
+    expect(await plain.json()).toMatchObject({ code: 'unsupported_media_type' })
+    expect((await post('application/x-www-form-urlencoded')).status).toBe(415)
+    expect(await (await post('application/json; charset=utf-8')).json()).toEqual({ a: 1 })
+    expect(await (await post('application/merge-patch+json')).json()).toEqual({ a: 1 })
+  })
+
+  test('that is not a form, read as one, is the client\'s fault: a 400', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json(Object.fromEntries(await request.formData())), { public: true })
+    const server = serve(router)
+
+    const bad = await fetch(new URL('/api/things', server.url), { method: 'POST', headers: JSON_TYPE, body: '{"a":1}' })
+    const good = await fetch(new URL('/api/things', server.url), { method: 'POST', body: new URLSearchParams({ a: '1' }) })
+
+    expect(bad.status).toBe(400)
+    expect(await bad.json()).toMatchObject({ code: 'malformed_body' })
+    expect(await good.json()).toEqual({ a: '1' })
   })
 })
 

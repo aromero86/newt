@@ -49,7 +49,9 @@ const base = new AppBase({ name: 'shop', store: await SqliteStore.open({ path: '
   invalid input a 400 (a body that is not JSON, `malformed_body`, or one that fails
   the use case's schema, `validation`), anything else a 500 that says nothing about
   the inside. An entity that fails its own schema (`InvalidEntity`) is a
-  programming error, so a 500 too.
+  programming error, so a 500 too. A JSON body must come as `application/json`
+  (or `…+json`); any other `Content-Type` is a 415, `unsupported_media_type`, so a
+  form posted from another site never reaches a route.
 - **Every route needs a session** unless it is registered with `{ public: true }`.
   The router asks its `Authenticator` who sent the request, and the route runs as
   that actor: any use case it reaches knows who is doing it through
