@@ -20,6 +20,12 @@ export interface Outbox {
   renew(claimed: Job, leaseUntil: string): Promise<void>
   /** Ends a claim, if it is still the claim it was. */
   close(claimed: Job, closing: JobClosing): Promise<void>
+  /**
+   * Puts a dead job back to wait, as new: no attempts, due now. For whoever fixed
+   * what killed it. Whether it was dead and is now waiting: a job in any other state,
+   * or none with that id, is left as it is.
+   */
+  retry(id: string): Promise<boolean>
   /** Registers the queues a worker runs, as they are now, and says they are alive. */
   seen(queues: JobQueueRegistration[]): Promise<void>
   /** Forgets the jobs done before `before`: they are only history. */

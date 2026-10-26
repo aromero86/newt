@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { currentActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
+import { currentActor, runAsActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
 import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
@@ -53,6 +53,10 @@ class MemoryOutbox implements Outbox {
 
   async list() {
     return this.jobs
+  }
+
+  async retry() {
+    return false
   }
 
   async waiting() {
@@ -364,6 +368,17 @@ describe('the worker', () => {
     await queue.stop()
 
     expect(warnings).toHaveLength(2)
+  })
+
+  test('runs a job with no actor, even when whoever waits for it has one', async () => {
+    const { queue } = setup()
+    let seen = 'not run'
+    queue.register(QUEUE, 'user.created', async () => { try { seen = currentActor().userId } catch { seen = 'none' } })
+    await queue.enqueue(created())
+
+    await runAsActor({ userId: 'ana' }, () => queue.idle())
+
+    expect(seen).toBe('none')
   })
 
   test('a failure of its own is logged, and it goes on at its next poll', async () => {

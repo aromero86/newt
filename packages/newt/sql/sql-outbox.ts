@@ -37,6 +37,17 @@ export class SqlOutbox implements Outbox {
       : this.onClaim(claimed, ['status', 'last_error', 'locked_by', 'locked_until'], [closing.status, closing.lastError, null, null])
   }
 
+  retry(id: string): Promise<boolean> {
+    const now = new Date().toISOString()
+    return this.transaction(async run => {
+      // Locked as it is read, so no other retry nor claim slips in before the update.
+      const [dead] = await run(`SELECT id FROM job WHERE id = ${this.dialect.param(1)} AND status = 'dead' FOR UPDATE`, [id])
+      if (!dead) return false
+      await run(`UPDATE job SET status = 'pending', attempts = 0, run_after = ${this.dialect.param(1)}, locked_by = NULL, locked_until = NULL, updated_at = ${this.dialect.param(2)} WHERE id = ${this.dialect.param(3)} AND status = 'dead'`, [now, now, id])
+      return true
+    })
+  }
+
   seen(queues: JobQueueRegistration[]): Promise<void> {
     const now = new Date().toISOString()
     return this.transaction(async run => {

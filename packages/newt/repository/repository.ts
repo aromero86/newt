@@ -22,9 +22,10 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
   /**
    * Saves entities of this module, and what they have to tell, at once: all of them
    * or none. `write` stores one, in the transaction; one with nothing to save is not
-   * written, and keeps its version. Every stored one changed or deleted must still be
-   * the version it was read as, and a new one must not collide with a key or unique
-   * value: `ConcurrencyConflict` otherwise.
+   * written, keeps its version, and tells nothing (a change undone is no change: an
+   * event always comes with a change). Every stored one changed or deleted must still
+   * be the version it was read as, and a new one must not collide with a key or
+   * unique value: `ConcurrencyConflict` otherwise.
    *
    * `before` writes what must go first (the rows they replace); `after` writes what
    * follows from them, or checks a rule over several rows (a workspace keeps an
@@ -43,7 +44,10 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
       for (const entity of changed) await write(entity)
       await hooks.after?.()
       for (const entity of entities) {
-        for (const event of entity[takeEvents]()) await this.base.publisher.publish(event)
+        const events = entity[takeEvents]()
+        // One that ends as it was read has nothing to tell: a change undone is no change.
+        if (!entity.hasPendingChanges) continue
+        for (const event of events) await this.base.publisher.publish(event)
       }
       // Saved once it commits, which may be later: inside another transaction, when that one does.
       this.store.afterCommit(() => {

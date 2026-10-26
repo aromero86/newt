@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DomainEvent, EventHandler, Invocations } from '../../core'
 import { inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
@@ -33,6 +34,12 @@ const NAME = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.on\.(.+)$/
 export class JobQueue {
 
   private readonly registrations = new Map<string, Registration>()
+  /**
+   * The context it was made in, at startup: jobs run in it, never in that of whoever
+   * started the worker or waits for it (`idle`), so a handler has no actor nor scope
+   * but the ones it sets itself.
+   */
+  private readonly detached = AsyncLocalStorage.snapshot()
   /** Who holds a lease: this process, until it stops. */
   private readonly worker = Bun.randomUUIDv7()
   private readonly options: JobQueueOptions
@@ -177,7 +184,7 @@ export class JobQueue {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
     }, this.options.leaseMs / 3)
     try {
-      await inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent))
+      await this.detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent)))
       await this.close(claimed, { status: 'done', lastError: null })
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)

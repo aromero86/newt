@@ -50,6 +50,16 @@ export class FileOutbox implements Outbox {
     }))
   }
 
+  retry(id: string): Promise<boolean> {
+    const now = new Date().toISOString()
+    return this.store.transaction(async () => {
+      const stored = await this.jobs.get(id) as Job | undefined
+      if (stored?.status !== 'dead') return false
+      await this.jobs.put({ ...stored, status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, updatedAt: now })
+      return true
+    })
+  }
+
   seen(queues: JobQueueRegistration[]): Promise<void> {
     const now = new Date().toISOString()
     return this.store.transaction(async () => {

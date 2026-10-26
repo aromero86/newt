@@ -63,6 +63,16 @@ export class SqliteOutbox implements Outbox {
     )
   }
 
+  retry(id: string): Promise<boolean> {
+    const now = new Date().toISOString()
+    return this.store.transaction(() => {
+      const changed = this.store.connection
+        .prepare(`UPDATE job SET status = 'pending', attempts = 0, run_after = ?, locked_by = NULL, locked_until = NULL, updated_at = ? WHERE id = ? AND status = 'dead'`)
+        .run(now, now, id)
+      return changed.changes > 0
+    })
+  }
+
   seen(queues: JobQueueRegistration[]): Promise<void> {
     const now = new Date().toISOString()
     return this.store.transaction(() => {

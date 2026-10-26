@@ -117,8 +117,9 @@ export class MigrationRunner implements Migrations {
     let names: string[]
     try {
       names = await readdir(folder)
-    } catch {
-      return []
+    } catch (error) {
+      // A folder named but not there is a path gone wrong, not a database with no migrations.
+      throw new Error(`The migrations folder '${folder}' cannot be read`, { cause: error })
     }
 
     const byVersion = new Map<number, Partial<MigrationFile>>()

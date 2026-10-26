@@ -173,6 +173,11 @@ CREATE TRIGGER thing_stamp BEFORE INSERT ON thing FOR EACH ROW EXECUTE FUNCTION 
       }
     })
 
+    test('refuse a migrations folder that is not there', async () => {
+      await empty()
+      await expect(PostgresStore.open({ url: url!, migrations: join(tmpdir(), 'framework-postgres-missing') })).rejects.toThrow('cannot be read')
+    })
+
     test('refuse a database whose last migration is not in the folder', async () => {
       await empty()
       const folder = await migrations()

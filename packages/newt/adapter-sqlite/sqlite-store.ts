@@ -51,8 +51,14 @@ export class SqliteStore implements Store {
     this.connection = this.routedConnection()
     this.outbox = new SqliteOutbox(this)
     const own = new MigrationRunner(writer, options.migrations)
+    const framework = new MigrationRunner(writer, join(import.meta.dir, 'migrations'), 'framework_migrations')
     this.migrations = {
-      up: () => this.scope.exclusive(() => own.up()),
+      // Its own, then the framework's (its outbox), as `open` does.
+      up: () => this.scope.exclusive(async () => {
+        const applied = await own.up()
+        await framework.up()
+        return applied
+      }),
       down: () => this.scope.exclusive(() => own.down()),
       status: () => own.status(),
     }
@@ -63,7 +69,6 @@ export class SqliteStore implements Store {
     const store = await SqliteStore.connect(options)
     try {
       await store.migrations.up()
-      await store.scope.exclusive(() => new MigrationRunner(store.writer, join(import.meta.dir, 'migrations'), 'framework_migrations').up())
     } catch (error) {
       await store.close()
       throw error

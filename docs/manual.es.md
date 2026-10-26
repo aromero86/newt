@@ -555,7 +555,10 @@ avisar de una subida de precio, por ejemplo).
 **Cada tipo de evento se cuenta una vez por guardado.** Si un caso de uso llama dos
 veces a `update` antes de guardar, no salen dos `product.updated`: el segundo
 sustituye al primero, y el que se publica cuenta los dos cambios juntos, tal como
-queda la entidad. Si en un mismo guardado te encuentras con dos tipos distintos (un
+queda la entidad. Y si el segundo deshace el primero (de 1000 a 1200 y vuelta a
+1000), no se guarda nada ni se publica nada: un cambio deshecho no es un cambio. Por
+lo mismo, un evento va siempre con un cambio de la entidad: uno que no cambia nada no
+se publica. Si en un mismo guardado te encuentras con dos tipos distintos (un
 `created` y un `updated`), suele ser señal de que el caso de uso está haciendo dos
 cosas.
 
@@ -2147,7 +2150,8 @@ completarse**. Quita una de las dos y el flujo se puede quedar a medias para sie
 
 ¿Y si se agotan los intentos? El trabajo queda muerto, y eso significa algo concreto:
 **un flujo atascado a mitad**. No es un log más: alguien tiene que mirarlo, arreglar
-la causa y relanzarlo.
+la causa y relanzarlo con `store.outbox.retry(id)`, que lo devuelve a la cola como
+nuevo: sin intentos y para ya.
 
 ### 18.3 Cuando otro camino detiene el flujo
 
@@ -3375,17 +3379,21 @@ scripts en transacciones cortas, una por fila o por lote pequeño.
 ### 31.4 Migrar a mano
 
 Abrir con `open` migra solo. Para hacerlo a mano (ver qué hay pendiente, deshacer la
-última), abre con `connect`, que no migra, y usa `store.migrations`:
+última), abre con `connect`, que no migra, y usa `store.migrations`: `up()` aplica
+las tuyas y después las del framework, como `open`.
 
 ```ts
 const store = await SqliteStore.connect({
   path: 'data/despensa.db',
-  migrations: 'migrations',
+  migrations: 'examples/despensa/migrations',   // relativa a donde ejecutas
 })
 // { applied: ['00001_shop'], pending: [] }
 console.log(await store.migrations.status())
 await store.close()
 ```
+
+Una carpeta de migraciones que no existe es un error al migrar (al abrir con `open`),
+no una base de datos sin migraciones: una ruta mal escrita no deja un store vacío sin avisar.
 
 ---
 
@@ -3501,8 +3509,8 @@ porque todo va por turnos; en Postgres y MySQL, no.
 
 **Un trabajo está `dead`.**
 Agotó sus intentos. Mira su `lastError` en `store.outbox.list()`, corrige la causa y
-vuelve a provocar el trabajo (o escribe un script que haga lo que debía hacer). Un
-trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo pensarlo.
+relánzalo con `store.outbox.retry(id)` (o escribe un script que haga lo que debía
+hacer). Un trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo pensarlo.
 
 **"A write runs inside `store.transaction`".**
 Has intentado escribir con la conexión de un `SqliteStore` fuera de un guardado. En

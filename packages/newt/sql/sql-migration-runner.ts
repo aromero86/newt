@@ -84,8 +84,9 @@ export class SqlMigrationRunner implements Migrations {
     let names: string[]
     try {
       names = await readdir(this.folder)
-    } catch {
-      return []
+    } catch (error) {
+      // A folder named but not there is a path gone wrong, not a database with no migrations.
+      throw new Error(`The migrations folder '${this.folder}' cannot be read`, { cause: error })
     }
     const byVersion = new Map<number, Partial<Pair>>()
     for (const fileName of names) {

@@ -80,16 +80,20 @@ each adapter exposes one.
 `outbox` keeps the jobs of `handler` subscriptions: written in the transaction of
 the change that publishes them, then claimed, renewed and closed by the job worker,
 each claim fenced by its attempt so a worker whose lease ran out cannot close a job
-another one took. `list()` and `queues()` show what it holds; `waiting()` counts
-the jobs still to run of each queue, which the worker reads every minute to warn
-about a queue nobody serves, so it must not read the jobs done nor their payloads.
+another one took. `retry(id)` puts a dead job back to wait, as new. `list()` and
+`queues()` show what it holds; `waiting()` counts the jobs still to run of each
+queue, which the worker reads every minute to warn about a queue nobody serves, so
+it should not read the jobs done nor their payloads (the files store, which reads
+whole collections, does).
 
 ### Migrations
 
 `migrations` applies the changes to the store's structure, in order, and remembers
 them: `up()`, `down()`, `status()`. Each adapter decides what a migration is.
 Opening a store with `open` applies the pending ones; `connect` opens it as it is,
-for the scripts that migrate it by hand.
+for the scripts that migrate it by hand, whose `up()` applies the store's own and
+then the framework's (its outbox), as `open` does. A migrations folder that cannot
+be read is an error, never "no migrations".
 
 ## SQLite: `newt/adapter-sqlite`
 

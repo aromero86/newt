@@ -259,7 +259,9 @@ export class Note extends Entity<typeof NoteSchema> {
   entity's file (`OrderPlacement`), never a `…DTO` and never in the schema file.
 - **Each kind of thing is told once per save, as it stands.** An event replaces an
   earlier one of its name not yet saved, so two `update` calls before a save make one
-  `updated`, with both changes. Two different kinds in one save (`created` and
+  `updated`, with both changes; and if the second undoes the first, the save writes
+  nothing and tells nothing. An event always comes with a change: an entity that
+  changes nothing publishes nothing. Two different kinds in one save (`created` and
   `updated`) usually mean the use case does two things.
 - **`getChanges()` and `getPrevious()`** are the transition a save makes: the fields
   that changed, as they are now and as they were when it was read.
@@ -464,7 +466,8 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   may be stopped by another path (the order cancelled meanwhile), each step done has
   its **compensation**, a step that undoes it (giving the stock back), run from a
   worker on the event that stops the flow: a saga. A job that runs out of attempts is
-  a flow stuck halfway: someone must look at it.
+  a flow stuck halfway: someone must look at it, fix the cause and put it back with
+  `store.outbox.retry(id)`.
 - To turn a `find` into one item or an error, use `this.resolve(find, onMissing)`
   from `Module`: the caller picks the error. `this.resolveRefs` turns the ids of an
   input into named references, or a `ReferenceNotFound`.

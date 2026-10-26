@@ -598,6 +598,21 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await store.outbox.waiting()).toEqual([{ queue: 'a.b.on.c', jobs: 2 }, { queue: 'd.e.on.f', jobs: 1 }])
       })
 
+      test('puts a dead job back to wait, as new, and leaves any other as it is', async () => {
+        const dead = job('a.b.on.c')
+        const alive = job('a.b.on.c')
+        await store.outbox.add([dead, alive])
+        const [claimed] = await store.outbox.claim(['a.b.on.c'], 1, 'w1', new Date(Date.now() + 60_000).toISOString())
+        await store.outbox.close(claimed!, { status: 'dead', lastError: 'boom' })
+
+        expect(await store.outbox.retry(claimed!.id)).toBe(true)
+        expect(await store.outbox.retry(claimed!.id)).toBe(false)
+        expect(await store.outbox.retry('none')).toBe(false)
+        const retried = (await store.outbox.list()).find(each => each.id === claimed!.id)
+        expect(retried).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: 'boom' })
+        expect((await store.outbox.claim(['a.b.on.c'], 10, 'w2', new Date(Date.now() + 60_000).toISOString())).map(each => each.id).sort()).toEqual([dead.id, alive.id].sort())
+      })
+
       test('remembers the queues and forgets jobs done long ago', async () => {
         await store.outbox.seen([{ name: 'a.b.on.c', event: 'c', attempts: 3 }])
         await store.outbox.add([job('a.b.on.c')])

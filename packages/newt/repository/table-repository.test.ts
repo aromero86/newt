@@ -5,6 +5,7 @@ import { TransactionScope, type FindOptions, type NewRow, type Store, type Table
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 import { TableRepository } from './table-repository'
+import { takeEvents } from '../core/internal'
 import type { TableRepositoryOptions } from './table-repository-options'
 
 const ThingSchema = z.object({ id: z.string(), name: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
@@ -146,6 +147,18 @@ describe('persist', () => {
 
     expect(log).toEqual(['checkWrite', 'begin', 'commit'])
     expect(unchanged.version).toBe(2)
+  })
+
+  test('a change undone is no change: it writes nothing and tells nothing', async () => {
+    const { log, repo } = world()
+    const thing = Thing.fromRow(stored())
+
+    thing.rename('two')
+    thing.rename('one')
+    await repo.persist(thing)
+
+    expect(log).toEqual(['checkWrite', 'begin', 'commit'])
+    expect(thing[takeEvents]()).toEqual([])
   })
 
   test('deletes a deleted one at its version, or stamps it when deleting softly', async () => {

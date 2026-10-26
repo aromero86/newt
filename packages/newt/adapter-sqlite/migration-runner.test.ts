@@ -86,8 +86,12 @@ describe('down', () => {
 })
 
 describe('the folder', () => {
-  test('one that does not exist has nothing to apply', async () => {
-    expect(await new MigrationRunner(sqlite, join(folder, 'missing')).up()).toEqual([])
+  test('one that does not exist is a path gone wrong, not a database with no migrations', async () => {
+    await expect(new MigrationRunner(sqlite, join(folder, 'missing')).up()).rejects.toThrow('cannot be read')
+  })
+
+  test('none named: nothing to apply', async () => {
+    expect(await new MigrationRunner(sqlite, undefined).up()).toEqual([])
   })
 
   test('only files named with five digits, a name and up or down are migrations', async () => {

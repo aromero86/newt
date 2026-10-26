@@ -95,6 +95,20 @@ describe('SqliteStore', () => {
 })
 
 describe('SqliteStore, further', () => {
+  test('connected, its migrations bring up the framework\'s too, as opening does', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'framework-sqlite-'))
+    folders.push(folder)
+    await Bun.write(join(folder, 'migrations/00001_thing_up.sql'), THING)
+    await Bun.write(join(folder, 'migrations/00001_thing_down.sql'), 'DROP TABLE thing')
+    const store = await SqliteStore.connect({ path: join(folder, 'test.db'), migrations: join(folder, 'migrations') })
+    try {
+      expect(await store.migrations.up()).toEqual(['00001_thing'])
+      expect(await store.outbox.list()).toEqual([])
+    } finally {
+      await store.close()
+    }
+  })
+
   test('a collision raised by its own SQL inside a transaction is a ConcurrencyConflict', async () => {
     const store = await open()
     try {

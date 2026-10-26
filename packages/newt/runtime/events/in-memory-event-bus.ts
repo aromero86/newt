@@ -8,7 +8,7 @@ export class InMemoryEventBus implements EventBus {
   /**
    * The context it was made in, at startup: handlers run in it, never in the
    * publisher's. Like a job's, a handler inherits nothing of whatever published, not
-   * its actor: it reacts on its own, as the system.
+   * its actor: it reacts on its own, with no actor but one it sets itself.
    */
   private readonly detached = AsyncLocalStorage.snapshot()
 
