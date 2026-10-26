@@ -1047,14 +1047,15 @@ export const cooperMessages: Partial<Messages> = {
 }
 
 // …
-export function setCooperMessages(): void {
-  setMessages(cooperMessages)
+export function setCooperMessages(): () => void {
+  return setMessages(cooperMessages)
 }
 ```
 
-Being the whole process's, it is tested in a process of its own (cooper's
-`messages.test.ts` runs it with `Bun.spawn`): set in a test, it would change what
-every other test in that process reads.
+They are the whole process's, so `setMessages` gives back what puts the ones before
+it back: a test that sets its own restores them when it ends (cooper's
+`messages.test.ts` does, in a `finally`), and the other tests of that process read
+newt's own again.
 
 Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,

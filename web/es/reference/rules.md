@@ -1091,14 +1091,15 @@ export const cooperMessages: Partial<Messages> = {
 }
 
 // …
-export function setCooperMessages(): void {
-  setMessages(cooperMessages)
+export function setCooperMessages(): () => void {
+  return setMessages(cooperMessages)
 }
 ```
 
-Como es de todo el proceso, se prueba en un proceso propio (el `messages.test.ts` de
-cooper lo ejecuta con `Bun.spawn`): fijado en un test, cambiaría lo que leen todos los
-demás tests de ese proceso.
+Son de todo el proceso, así que `setMessages` devuelve lo que vuelve a poner los de
+antes: un test que fija los suyos los restaura al acabar (el `messages.test.ts` de
+cooper lo hace en un `finally`), y los demás tests del proceso vuelven a leer los de
+newt.
 
 Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
