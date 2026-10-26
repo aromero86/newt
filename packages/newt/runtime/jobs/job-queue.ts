@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DomainEvent, EventHandler, Invocations } from '../../core'
 import { eventOfQueue, inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
+import { withId } from '../events/with-id'
 import type { JobQueueOptions } from './job-queue-options'
 import type { Job, JobClosing, Outbox } from '../../port-outbox'
 
@@ -83,10 +84,11 @@ export class JobQueue {
 
   /** One job for each handler the event concerns and takes, in the transaction of the save that publishes it. */
   async enqueue(event: DomainEvent): Promise<void> {
+    const told = withId(event)
     const now = new Date().toISOString()
     const jobs: Job[] = [...this.registrations]
-      .filter(([, registration]) => eventNameMatches(registration.pattern, event.name) && (registration.when?.(event) ?? true))
-      .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(event), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
+      .filter(([, registration]) => eventNameMatches(registration.pattern, told.name) && (registration.when?.(told) ?? true))
+      .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(told), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
     if (jobs.length > 0) await this.store.add(jobs)
   }
 
@@ -217,7 +219,7 @@ export class JobQueue {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
     }, this.options.leaseMs / 3)
     try {
-      await detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent)))
+      await detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string })))
       await this.close(claimed, { status: 'done', lastError: null })
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)

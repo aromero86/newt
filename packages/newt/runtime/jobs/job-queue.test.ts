@@ -148,7 +148,11 @@ describe('enqueue', () => {
     await queue.enqueue(created())
 
     expect(outbox.jobs.map(job => job.queue).sort()).toEqual(['audit.record.on.user.*', QUEUE])
-    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: null, event: JSON.stringify(created()) })
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: null })
+    // The event as it was told, with one id for all of its jobs.
+    const [first, second] = outbox.jobs.map(job => JSON.parse(job.event) as DomainEvent)
+    expect(first).toEqual({ ...created(), id: expect.any(String) })
+    expect(second!.id).toBe(first!.id!)
   })
 
   test('writes no job for an event a handler does not take', async () => {

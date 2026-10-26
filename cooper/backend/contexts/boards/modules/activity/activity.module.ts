@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { Module, UseCase, type EventMeta, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { CardAuthor, CardDTO } from '../card/card.schema'
@@ -6,7 +6,6 @@ import type { Card_Assigned } from '../card/events/card-assigned'
 import type { Card_Created } from '../card/events/card-created'
 import type { Card_Deleted } from '../card/events/card-deleted'
 import type { Card_Edited } from '../card/events/card-edited'
-import type { CardEventStamp } from '../card/events/card-event-stamp'
 import type { Card_Moved } from '../card/events/card-moved'
 import type { Card_Unassigned } from '../card/events/card-unassigned'
 import { Activity, type ActivityDTO, type ActivityKind } from './activity'
@@ -44,33 +43,33 @@ export class Activity_Module extends Module {
   }
 
   @UseCase()
-  async recordCreated(card: Card_Created['payload']): Promise<void> {
-    await this.append(card, card, 'created', { number: card.number, title: card.title, columnId: card.columnId })
+  async recordCreated(card: Card_Created['payload'], event: EventMeta): Promise<void> {
+    await this.append(card, card, event, 'created', { number: card.number, title: card.title, columnId: card.columnId })
   }
 
   @UseCase()
-  async recordEdited({ dto, changes, ...origin }: Card_Edited['payload']): Promise<void> {
-    await this.append(dto, origin, 'edited', { changed: Object.keys(changes).filter(field => field !== 'updatedAt').join(', '), title: dto.title })
+  async recordEdited({ dto, changes, ...origin }: Card_Edited['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'edited', { changed: Object.keys(changes).filter(field => field !== 'updatedAt').join(', '), title: dto.title })
   }
 
   @UseCase()
-  async recordMoved({ dto, previous, ...origin }: Card_Moved['payload']): Promise<void> {
-    await this.append(dto, origin, 'moved', { fromColumnId: previous.columnId ?? dto.columnId, toColumnId: dto.columnId })
+  async recordMoved({ dto, previous, ...origin }: Card_Moved['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'moved', { fromColumnId: previous.columnId ?? dto.columnId, toColumnId: dto.columnId })
   }
 
   @UseCase()
-  async recordAssigned({ dto, previousAssigneeId, ...origin }: Card_Assigned['payload']): Promise<void> {
-    await this.append(dto, origin, 'assigned', { assigneeId: dto.assigneeId, previousAssigneeId })
+  async recordAssigned({ dto, previousAssigneeId, ...origin }: Card_Assigned['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'assigned', { assigneeId: dto.assigneeId, previousAssigneeId })
   }
 
   @UseCase()
-  async recordUnassigned({ dto, previousAssigneeId, ...origin }: Card_Unassigned['payload']): Promise<void> {
-    await this.append(dto, origin, 'unassigned', { previousAssigneeId })
+  async recordUnassigned({ dto, previousAssigneeId, ...origin }: Card_Unassigned['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'unassigned', { previousAssigneeId })
   }
 
   @UseCase()
-  async recordDeleted(card: Card_Deleted['payload']): Promise<void> {
-    await this.append(card, card, 'deleted', { number: card.number, title: card.title })
+  async recordDeleted(card: Card_Deleted['payload'], event: EventMeta): Promise<void> {
+    await this.append(card, card, event, 'deleted', { number: card.number, title: card.title })
   }
 
   /** A workspace was deleted in auth: its log goes. A step of that deletion, safe to run again. */
@@ -83,19 +82,18 @@ export class Activity_Module extends Module {
    * Records an event of a card, in its workspace (a worker is in none), by the event's
    * id: the second time, the entry is there already.
    */
-  private async append(card: CardDTO, told: CardAuthor & CardEventStamp, kind: ActivityKind, detail: ActivityDTO['detail']): Promise<void> {
-    const { eventId, at, by, via } = told
+  private async append(card: CardDTO, { by, via }: CardAuthor, event: EventMeta, kind: ActivityKind, detail: ActivityDTO['detail']): Promise<void> {
     await runInWorkspace(card.workspaceId, async () => {
-      if (await this.repo.first({ id: eventId })) return
+      if (await this.repo.first({ id: event.id })) return
       await this.repo.persist(Activity.record({
-        id: eventId,
+        id: event.id,
         workspaceId: card.workspaceId,
         boardId: card.boardId,
         cardId: card.id,
         kind,
         actorId: by,
         via,
-        at,
+        at: event.occurredAt,
         detail,
       }))
     })

@@ -3,6 +3,7 @@ import { Invocations } from '../core/internal'
 import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
+import { withId } from './events/with-id'
 import { JobQueue } from './jobs/job-queue'
 
 /**
@@ -42,9 +43,10 @@ export class Base<S extends Store = Store> {
     }
     this.publisher = {
       publish: async event => {
-        await this.jobs.enqueue(event)
+        const told = withId(event)
+        await this.jobs.enqueue(told)
         this.store.afterCommit(() => {
-          memory.publish(event)
+          memory.publish(told)
           this.jobs.wake()
         })
       },

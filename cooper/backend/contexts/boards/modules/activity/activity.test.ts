@@ -63,10 +63,11 @@ describe('activity', () => {
   test('records each event once, however many times its job runs', async () => {
     const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
     await t.settled()
-    const told = { ...card, by: 'ana', via: 'web' as const, eventId: Bun.randomUUIDv7(), at: new Date().toISOString() }
+    const told = { ...card, by: 'ana', via: 'web' as const }
+    const event = { id: Bun.randomUUIDv7(), name: 'card.created', occurredAt: new Date().toISOString() }
 
-    await t.modules.activity.recordCreated(told)
-    await t.modules.activity.recordCreated(told)
+    await t.modules.activity.recordCreated(told, event)
+    await t.modules.activity.recordCreated(told, event)
 
     expect((await activityOf(card.id)).total).toBe(2)
   })

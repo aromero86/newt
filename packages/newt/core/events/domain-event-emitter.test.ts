@@ -8,6 +8,7 @@ import { eventsOf } from './events-of'
 
 class Confirmed implements DomainEvent<{ id: string }> {
   static readonly eventName = 'order.confirmed'
+  readonly id = 'e1'
   readonly name = Confirmed.eventName
   readonly occurredAt = ''
   constructor(readonly payload: { id: string }) {}
@@ -15,6 +16,7 @@ class Confirmed implements DomainEvent<{ id: string }> {
 
 class Placed implements DomainEvent<{ id: string }> {
   static readonly eventName = 'order.placed'
+  readonly id = 'e1'
   readonly name = Placed.eventName
   readonly occurredAt = ''
   constructor(readonly payload: { id: string }) {}
@@ -64,6 +66,21 @@ describe('DomainEventEmitter.subscribe', () => {
     expect(seen).toEqual([{ id: 'o1' }])
   })
 
+  test("hands every handler the event's id, name and time beside its payload, whatever the strategy", async () => {
+    const { bus, subscriptions } = recordingBus()
+    const { placed } = eventsOf(bus, { placed: Placed })
+    const seen: unknown[] = []
+
+    placed.subscribe((_, meta) => seen.push(meta), { strategy: 'fire-and-forget' })
+    placed.subscribe((_, meta) => seen.push(meta), { strategy: 'handler', queue: 'notification.orderPlaced.on.order.placed' })
+    for (const { handler } of subscriptions) await handler({ id: 'e7', name: 'order.placed', payload: { id: 'o1' }, occurredAt: '2026-01-01T00:00:00.000Z' })
+
+    expect(seen).toEqual([
+      { id: 'e7', name: 'order.placed', occurredAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'e7', name: 'order.placed', occurredAt: '2026-01-01T00:00:00.000Z' },
+    ])
+  })
+
   test("refuses a queue that does not say who reacts with what to this event", () => {
     const { placed } = eventsOf(recordingBus().bus, { placed: Placed })
 
@@ -106,6 +123,7 @@ describe('DomainEventEmitter.subscribe, when', () => {
     type Line = { sku: string, giftNote: string | null }
     class Added implements DomainEvent<Line> {
       static readonly eventName = 'cart.added'
+      readonly id = 'e1'
       readonly name = Added.eventName
       readonly occurredAt = ''
       constructor(readonly payload: Line) {}

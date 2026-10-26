@@ -887,6 +887,16 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   `runInWorkspace`). It calls a use case of its own module, which is the only place it
   may write to another module (see [How modules talk](#how-modules-talk)). It may run
   more than once: it is idempotent.
+- A handler gets the payload, and what else is known of the event:
+  `subscribe((payload, event) => …)`, `event` being its `id`, `name` and
+  `occurredAt`. The publisher gives every event its id, the same for each of its
+  handlers and each run of their jobs: what a handler that must do something once
+  per event keys on (cooper's activity log takes it as each entry's id).
+
+  ```ts
+  // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  ```
 - **What cannot be taken back leaves from a worker, never from a use case**: an email
   is sent after the event of what it is about, so only for what was saved (cooper's
   `card.notifyAssignee`, on `card.created` and `card.assigned`).

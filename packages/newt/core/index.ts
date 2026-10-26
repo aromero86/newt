@@ -47,6 +47,7 @@ export type { Subscription } from './events/subscription'
 export { eventsOf, type EmittersOf } from './events/events-of'
 export type { EventBus } from './events/event-bus'
 export type { EventHandler } from './events/event-handler'
+export type { EventMeta } from './events/event-meta'
 export type { EventPublisher } from './events/event-publisher'
 export type { SubscribeOptions } from './events/subscribe-options'
 

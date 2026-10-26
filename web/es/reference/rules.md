@@ -921,6 +921,17 @@ entero.
   módulo, que es el único sitio desde el que puede escribir en otro módulo (ver
   [Cómo hablan los módulos](#como-hablan-los-modulos)). Puede ejecutarse más de una
   vez: es idempotente.
+- Un handler recibe el payload y lo demás que se sabe del evento:
+  `subscribe((payload, event) => …)`, siendo `event` su `id`, su `name` y su
+  `occurredAt`. El publicador da a cada evento su id, el mismo para cada uno de sus
+  handlers y cada ejecución de sus trabajos: aquello en lo que se apoya un handler que
+  debe hacer algo una sola vez por evento (el registro de actividad de cooper lo toma
+  como id de cada entrada).
+
+  ```ts
+  // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  ```
 - **Lo que no se puede deshacer sale de un worker, nunca de un caso de uso**: un email
   se envía después del evento de aquello de lo que trata, así que solo por lo que se
   ha guardado (el `card.notifyAssignee` de cooper, con `card.created` y
