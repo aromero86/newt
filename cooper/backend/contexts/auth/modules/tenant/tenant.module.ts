@@ -5,7 +5,7 @@ import { TenantNotFound } from './errors/tenant-not-found'
 import { Tenant_Created } from './events/tenant-created'
 import { Tenant_Deleted } from './events/tenant-deleted'
 import { Tenant_Renamed } from './events/tenant-renamed'
-import { Tenant, TenantCreateSchema, TenantFilter, TenantRenameSchema, type TenantCreateDTO, type TenantDTO, type TenantRenameDTO } from './tenant'
+import { Tenant, TenantCreateSchema, TenantFilter, TenantRenameSchema, type TenantDTO } from './tenant'
 import type { Tenant_Deps } from './tenant.deps'
 import type { Tenant_Options } from './tenant-options'
 import { Tenant_Repository, type TenantRow } from './tenant.repository'
@@ -45,7 +45,7 @@ export class Tenant_Module extends Module {
    * It never runs again on a conflict: it would make a second workspace.
    */
   @UseCase({ writesTo: ['access'], retryOnConflict: false })
-  async create(input: TenantCreateDTO): Promise<TenantDTO> {
+  async create(input: unknown): Promise<TenantDTO> {
     const { name } = TenantCreateSchema.parse(input)
     const tenant = Tenant.create({ name, createdBy: currentActor().userId })
     await this.repo.persist(tenant)
@@ -85,7 +85,7 @@ export class Tenant_Module extends Module {
 
   /** Only its admin renames it. */
   @UseCase()
-  async rename(tenantId: string, input: TenantRenameDTO): Promise<TenantDTO> {
+  async rename(tenantId: string, input: unknown): Promise<TenantDTO> {
     const { name } = TenantRenameSchema.parse(input)
     await this.assertAdmin(tenantId)
     const tenant = await this.load(tenantId)

@@ -1,8 +1,6 @@
 import { allPages, currentActor } from 'newt/core'
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import { InvitationNotOpen } from '../../../auth/modules/invitation/errors/invitation-not-open'
-import type { InvitationCreateDTO } from '../../../auth/modules/invitation/invitation.schema'
-import type { TenantCreateDTO, TenantRenameDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Workspace_Deps } from './workspace.deps'
@@ -27,13 +25,13 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   base.http.get('/workspaces', async () => Response.json(await workspaces.mine()))
 
   base.http.post('/workspaces', async request => {
-    const created = await tenant.create(await request.json() as TenantCreateDTO)
+    const created = await tenant.create(await request.json())
     return Response.json(workspaceOf(created, currentActor().userId), { status: 201 })
   })
 
   // The rest is about one workspace: a member's (404 for anyone else), and auth checks the admin.
   workspace.patch('', async request => {
-    const renamed = await tenant.rename(request.params.workspaceId, await request.json() as TenantRenameDTO)
+    const renamed = await tenant.rename(request.params.workspaceId, await request.json())
     return Response.json(workspaceOf(renamed, currentActor().userId))
   })
 
@@ -56,7 +54,7 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   })
 
   workspace.post('/invitations', async request => {
-    const created = await invitation.create(request.params.workspaceId, await request.json() as InvitationCreateDTO)
+    const created = await invitation.create(request.params.workspaceId, await request.json())
     return Response.json(workspaceInvitationOf(created), { status: 201 })
   })
 

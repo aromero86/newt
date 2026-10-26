@@ -11,15 +11,11 @@ import {
   CardMoveSchema,
   CardSearchSchema,
   MAX_CARDS,
-  type CardAssignDTO,
   type CardAuthor,
   type CardCountByBoard,
   type CardCountByWorkspace,
   type CardCreateDTO,
   type CardDTO,
-  type CardEditDTO,
-  type CardMoveDTO,
-  type CardSearchDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
 import type { Card_Options } from './card-options'
@@ -108,7 +104,7 @@ export class Card_Module extends Module {
    * behind; the cards are read as they are now, and one gone since is left out.
    */
   @UseCase()
-  async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
+  async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
     const { text, filter } = CardSearchSchema.parse(input)
     const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
     const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
@@ -122,7 +118,7 @@ export class Card_Module extends Module {
    * a board holds at most `MAX_CARDS`.
    */
   @UseCase()
-  async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
+  async create(boardId: string, input: unknown): Promise<CardDTO> {
     const card = await this.newCard(boardId, input, actingAuthor())
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
     if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
@@ -144,7 +140,7 @@ export class Card_Module extends Module {
   }
 
   @UseCase()
-  async edit(id: string, input: CardEditDTO): Promise<CardDTO> {
+  async edit(id: string, input: unknown): Promise<CardDTO> {
     const changes = CardEditSchema.parse(input)
     const card = await this.load(id)
     card.edit(changes, actingAuthor())
@@ -160,7 +156,7 @@ export class Card_Module extends Module {
    * at once both get their move, one after the other.
    */
   @UseCase()
-  async move(id: string, input: CardMoveDTO): Promise<CardDTO> {
+  async move(id: string, input: unknown): Promise<CardDTO> {
     const { columnId, position } = CardMoveSchema.parse(input)
     const card = await this.load(id)
     const from = card.columnId
@@ -177,7 +173,7 @@ export class Card_Module extends Module {
 
   /** Assigns it to a member of its workspace: anyone else is a mistake of the request (400). */
   @UseCase()
-  async assign(id: string, input: CardAssignDTO): Promise<CardDTO> {
+  async assign(id: string, input: unknown): Promise<CardDTO> {
     const { assigneeId } = CardAssignSchema.parse(input)
     const card = await this.load(id)
     await this.assertMember(assigneeId)
@@ -333,7 +329,7 @@ export class Card_Module extends Module {
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
-  private async newCard(boardId: string, input: CardCreateDTO, author: CardAuthor): Promise<Card> {
+  private async newCard(boardId: string, input: unknown, author: CardAuthor): Promise<Card> {
     const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
     const board = await this.deps.board.get(boardId)
     await this.assertColumnOf(boardId, columnId)

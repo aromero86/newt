@@ -8,7 +8,8 @@ export type AccessRow = AccessDTO & { version: number }
 export class Access_Repository extends TableRepository<Access, AccessRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<AccessRow>('access'))
+    // No scope: a person's accesses span tenants (and the staff's belong to none); the use cases ask who may see them.
+    super(base, base.store.table<AccessRow>('access'), { scope: 'none' })
   }
 
   protected toEntity(row: AccessRow): Access {

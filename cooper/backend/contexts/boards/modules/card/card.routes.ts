@@ -1,7 +1,6 @@
 import { pageRequestFrom, type KeptAnswer } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { CardAssignDTO, CardCreateDTO, CardEditDTO, CardMoveDTO, CardSearchDTO } from './card'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 
@@ -12,33 +11,18 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   // A client may send it again with the same `Idempotency-Key` (its answer lost on the
   // way): it gets the card made the first time, kept in the store, not a second one.
-  workspace.post('/boards/:boardId/cards', async request => {
-    const input = await request.json() as CardCreateDTO
-    return Response.json(await cards.create(request.params.boardId, input), { status: 201 })
-  }, { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
+  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }), { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
 
   // A search sends its filter in the body: groups of conditions do not fit in a URL.
-  workspace.post('/cards/search', async request => {
-    const input = await request.json() as CardSearchDTO
-    return Response.json(await cards.search(input, pageRequestFrom(request)))
-  })
+  workspace.post('/cards/search', async request => Response.json(await cards.search(await request.json(), pageRequestFrom(request))))
 
   workspace.get('/cards/:cardId', async request => Response.json(await cards.get(request.params.cardId)))
 
-  workspace.patch('/cards/:cardId', async request => {
-    const input = await request.json() as CardEditDTO
-    return Response.json(await cards.edit(request.params.cardId, input))
-  })
+  workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json())))
 
-  workspace.post('/cards/:cardId/move', async request => {
-    const input = await request.json() as CardMoveDTO
-    return Response.json(await cards.move(request.params.cardId, input))
-  })
+  workspace.post('/cards/:cardId/move', async request => Response.json(await cards.move(request.params.cardId, await request.json())))
 
-  workspace.post('/cards/:cardId/assign', async request => {
-    const input = await request.json() as CardAssignDTO
-    return Response.json(await cards.assign(request.params.cardId, input))
-  })
+  workspace.post('/cards/:cardId/assign', async request => Response.json(await cards.assign(request.params.cardId, await request.json())))
 
   workspace.post('/cards/:cardId/unassign', async request => Response.json(await cards.unassign(request.params.cardId)))
 

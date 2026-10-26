@@ -7,7 +7,8 @@ export type InvitationRow = InvitationEntityDTO & { version: number }
 export class Invitation_Repository extends TableRepository<Invitation, InvitationRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<InvitationRow>('invitation'))
+    // No scope: an invitation is found by its token before anyone is in its tenant; the use cases ask who is its admin.
+    super(base, base.store.table<InvitationRow>('invitation'), { scope: 'none' })
   }
 
   protected toEntity(row: InvitationRow): Invitation {

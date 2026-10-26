@@ -103,13 +103,14 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock)
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.routes.ts
-  workspace.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  workspace.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   workspace.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
   ```
+
+  El cuerpo llega al caso de uso tal como vino, `unknown`, y el caso de uso lo parsea
+  con su esquema de entrada: una ruta nunca dice qué es un cuerpo antes de que algo lo
+  compruebe (`await request.json() as X` es lo que rechaza `newt/route-body`).
 - **Lo que lanza una ruta se convierte en una respuesta**: un error de dominio, con su
   estado y su código (`{ error, code }`); una entrada no válida, en un 400 (un cuerpo
   que no se puede leer, `malformed_body`, o uno que no pasa el esquema del caso de uso,
@@ -298,8 +299,20 @@ super(base, base.store.table<BoardRow>('board', { unique: [['workspaceId', 'name
 
 `find`, `first`, `count` y `page` ven solo las filas del espacio de trabajo actual;
 guardar una entidad de otro, o una que estaba guardada en otro, lanza un error; fuera
-de un ámbito `current()` lanza un error, así que un worker entra antes en él. Lo que
-mira a través de los espacios de trabajo a propósito usa el método protegido
+de un ámbito `current()` lanza un error, así que un worker entra antes en él.
+
+**Todo `TableRepository` dice su ámbito**: `scope` es obligatorio, así que quitarlo
+no es omitirlo (eso no compila) sino escribir `scope: 'none'`, con el motivo al lado.
+Es lo que dicen los repositorios de auth, porque las personas, sus sesiones y tokens,
+los clientes de OAuth y los propios tenants no pertenecen a ningún tenant:
+
+```ts
+// cooper/backend/contexts/auth/modules/user/user.repository.ts
+// No scope: people belong to no tenant; they are in many.
+super(base, base.store.table<UserRow>('user'), { scope: 'none' })
+```
+
+Lo que mira a través de los espacios de trabajo a propósito usa el método protegido
 `findInEveryScope`, detrás de un método cuyo nombre lo dice, al que no llega ninguna
 ruta de la gente del propio espacio:
 
@@ -672,7 +685,7 @@ export type CardFilterDTO = z.infer<typeof CardFilter.schema>
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 @UseCase()
-async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
+async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
   const { text, filter } = CardSearchSchema.parse(input)
   const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
   const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
@@ -881,8 +894,13 @@ entero.
 - Cada método público de un módulo es un caso de uso, marcado con `@UseCase()`. Se
   llama como su módulo y él mismo (`list` de `board` es `board.list`), y cada llamada
   es una invocación: un span de la traza, dentro del de quien lo llama cuando lo llama
-  otro caso de uso. No abre ninguna transacción: cada `persist` es una.
-- Valida la entrada en la puerta: `<M>CreateSchema.parse(input)`.
+  otro caso de uso. No abre ninguna transacción: cada `persist` es una. Un método que
+  solo llama el módulo es `private`; uno público sin `@UseCase` es lo que rechaza
+  `newt/use-case`, porque correría fuera de la regla de escritura, del reintento ante
+  un conflicto y de la traza.
+- Valida la entrada en la puerta: `<M>CreateSchema.parse(input)`. Lo que manda un
+  cliente entra como `unknown` (`create(input: unknown)`), así que nada se fía de ello
+  antes.
 - Forma: validar → cargar → decidir → cambiar la entidad → `persist` → devolver DTOs.
   Guardar una vez, al final. Cuando un caso de uso no puede evitar guardar en pasos (o
   llamar a otro contexto), pon primero lo que pueda fallar, y haz que cada paso se
@@ -891,7 +909,7 @@ entero.
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.module.ts
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)

@@ -2,7 +2,7 @@ import { Module, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidClient } from './errors/invalid-client'
 import { OauthClientNotFound } from './errors/oauth-client-not-found'
-import { OauthClient, OauthClientRegisterSchema, type OauthClientDTO, type OauthClientRegisterDTO } from './oauth-client'
+import { OauthClient, OauthClientRegisterSchema, type OauthClientDTO } from './oauth-client'
 import type { OauthClient_Deps } from './oauth-client.deps'
 import type { OauthClient_Options } from './oauth-client-options'
 import { OauthClient_Repository } from './oauth-client.repository'
@@ -33,7 +33,7 @@ export class OauthClient_Module extends Module {
 
   /** Anyone may register a client: it opens nothing until a person says yes to it. */
   @UseCase()
-  async register(input: OauthClientRegisterDTO): Promise<OauthClientDTO> {
+  async register(input: unknown): Promise<OauthClientDTO> {
     const client = OauthClient.register(OauthClientRegisterSchema.parse(input))
     await this.repo.persist(client)
     return client.toDTO()

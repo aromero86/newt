@@ -1,7 +1,7 @@
 import type { BunRequest } from 'bun'
 import type { AuthBase } from '../../auth-base'
 import type { Session_Module } from './session.module'
-import { SessionCookie, type SessionSignInDTO, type SessionSignUpDTO } from './session.schema'
+import { SessionCookie } from './session.schema'
 
 export function registerSessionRoutes(base: AuthBase, sessions: Session_Module): void {
   /** The session lives in a cookie the page's scripts cannot read, sent only to auth. */
@@ -15,13 +15,13 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
 
   // The use cases validate every body.
   base.http.post('/session/sign-up', async request => {
-    const { user, token } = await sessions.signUp((await request.json()) as SessionSignUpDTO)
+    const { user, token } = await sessions.signUp(await request.json())
     keep(request, token)
     return Response.json(user, { status: 201 })
   }, { public: true })
 
   base.http.post('/session/sign-in', async request => {
-    const { user, token } = await sessions.signIn((await request.json()) as SessionSignInDTO)
+    const { user, token } = await sessions.signIn(await request.json())
     keep(request, token)
     return Response.json(user)
   }, { public: true })

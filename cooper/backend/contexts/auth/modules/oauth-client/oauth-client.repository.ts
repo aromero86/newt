@@ -7,7 +7,8 @@ export type OauthClientRow = OauthClientEntityDTO & { version: number }
 export class OauthClient_Repository extends TableRepository<OauthClient, OauthClientRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<OauthClientRow>('oauth_client', { types: { redirectUris: 'json' }, unique: [['clientId']] }))
+    // No scope: OAuth clients are auth's, in no tenant.
+    super(base, base.store.table<OauthClientRow>('oauth_client', { types: { redirectUris: 'json' }, unique: [['clientId']] }), { scope: 'none' })
   }
 
   protected toEntity(row: OauthClientRow): OauthClient {

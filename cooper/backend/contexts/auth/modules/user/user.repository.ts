@@ -9,7 +9,8 @@ export type UserRow = UserEntityDTO & { version: number }
 export class User_Repository extends TableRepository<User, UserRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<UserRow>('user'))
+    // No scope: people belong to no tenant; they are in many.
+    super(base, base.store.table<UserRow>('user'), { scope: 'none' })
   }
 
   protected toEntity(row: UserRow): User {

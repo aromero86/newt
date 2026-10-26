@@ -5,7 +5,9 @@ import { assertUsesTree, contextBoundaries } from './context-boundaries.js'
 import { moduleAnatomy } from './module-anatomy.js'
 import { moduleBoundaries } from './module-boundaries.js'
 import { queueName } from './queue-name.js'
+import { routeBody } from './route-body.js'
 import { schemaImports } from './schema-imports.js'
+import { useCase } from './use-case.js'
 
 RuleTester.describe = describe
 RuleTester.it = it
@@ -132,5 +134,51 @@ tester.run('queue-name', queueName, {
     { code: "(orders: m.Product_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { register() { this.orders.events.placed.subscribe(o => this.products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { constructor(private readonly orders: Product_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
+  ],
+})
+
+const ORDER_MODULE = '/repo/src/contexts/ws/modules/order/order.module.ts'
+const moduleClass = body => `class Order_Module extends Module {\n${body}\n}`
+tester.run('use-case', useCase, {
+  valid: [
+    { code: moduleClass("@UseCase() async place(input: unknown) {}\n@UseCase({ writesTo: ['stock'] }) async cancel(id: string) {}"), filename: ORDER_MODULE },
+    { code: moduleClass("static initialize(base: unknown) { return new Order_Module() }\nprivate constructor() { super('order') }"), filename: ORDER_MODULE },
+    { code: moduleClass("private load(id: string) {}\nprotected check() {}\n#secret() {}\nget name() { return 'order' }\nset name(value: string) {}"), filename: ORDER_MODULE },
+    { code: moduleClass('readonly events = {}\nprivate readonly helper = () => 1'), filename: ORDER_MODULE },
+    { code: moduleClass('place(input: string): void\nplace(input: number): void\n@UseCase() place(input: unknown) {}'), filename: ORDER_MODULE },
+    // Not a module: another class, or another file.
+    { code: 'class Order_Helper { place() {} }', filename: ORDER_MODULE },
+    { code: moduleClass('place() {}'), filename: `${MODULE}/price-change.ts` },
+  ],
+  invalid: [
+    { code: moduleClass('async place(input: unknown) {}'), filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'Order_Module' } }] },
+    { code: moduleClass('public async place(input: unknown) {}\n@UseCase() cancel() {}'), filename: ORDER_MODULE, errors: [{ messageId: 'method' }] },
+    { code: moduleClass('@Traced() place() {}'), filename: ORDER_MODULE, errors: [{ messageId: 'method' }] },
+    { code: moduleClass('place = async (input: unknown) => {}'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
+    { code: 'export default class extends core.Module { place() {} }', filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'this module' } }] },
+    // A module every context shares, outside modules/, is one too.
+    { code: moduleClass('place() {}'), filename: '/repo/src/shared/outbox/outbox.module.ts', errors: [{ messageId: 'method' }] },
+  ],
+})
+
+const ORDER_ROUTES = '/repo/src/contexts/ws/modules/order/order.routes.ts'
+tester.run('route-body', routeBody, {
+  valid: [
+    { code: 'async (request: Request) => orders.place(await request.json())', filename: ORDER_ROUTES },
+    { code: 'async (request: Request) => { const body: unknown = await request.json(); return orders.place(body) }', filename: ORDER_ROUTES },
+    { code: 'async (request: Request) => orders.place(await request.json() as unknown)', filename: ORDER_ROUTES },
+    { code: 'async (request: Request) => orders.place(Schema.parse(await request.json()))', filename: ORDER_ROUTES },
+    { code: 'async (response: Response) => (await response.json()) as OrderDTO', filename: `${MODULE}/price-change.test.ts` },
+    { code: 'const x = value as OrderPlaceDTO', filename: ORDER_ROUTES },
+  ],
+  invalid: [
+    { code: 'async (request: Request) => orders.place(await request.json() as OrderPlaceDTO)', filename: ORDER_ROUTES, errors: [{ messageId: 'body', data: { type: 'OrderPlaceDTO' } }] },
+    { code: 'async (request: Request) => orders.place((await request.json()) as OrderPlaceDTO)', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
+    { code: 'async (req: Request) => orders.place(<OrderPlaceDTO>await req.json())', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
+    { code: 'async (request: Request) => { const input: OrderPlaceDTO = await request.json(); return orders.place(input) }', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
+    { code: 'async (request: Request) => { const { id }: { id: string } = await request.json(); return orders.get(id) }', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
+    { code: 'async (request: Request) => orders.place(await (request.json() as Promise<OrderPlaceDTO>))', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
+    // Routes outside modules/ (a shared module's) too.
+    { code: 'async (request: Request) => sessions.open(await request.json() as SessionDTO)', filename: '/repo/src/shared/web-session/web-session.routes.ts', errors: [{ messageId: 'body' }] },
   ],
 })

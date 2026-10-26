@@ -73,6 +73,19 @@ describe('the preset of newt', () => {
     expect(await complaints('src/contexts/ws/modules/order/order.module.ts', "import { Module } from 'newt/core'\nexport const x = Module\n")).toEqual([])
   })
 
+  test('keeps every public method of a module a use case, wherever the module is', async () => {
+    const module = body => `import { Module, UseCase } from 'newt/core'\nexport class Order_Module extends Module {\n${body}\n}\n`
+    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', module('@UseCase() async place() {}\nprivate load() {}'))).toEqual([])
+    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', module('async place() {}'))).toEqual(['newt/use-case'])
+    expect(await complaints('src/shared/outbox/outbox.module.ts', module('async dead() {}'))).toEqual(['newt/use-case'])
+  })
+
+  test("passes a route's body to a use case as it came", async () => {
+    const routes = call => `type OrderPlaceDTO = { item: string }\ndeclare const orders: { place(input: unknown): Promise<void> }\nexport const route = async (request: Request) => orders.place(${call})\n`
+    expect(await complaints('src/contexts/ws/modules/order/order.routes.ts', routes('await request.json()'))).toEqual([])
+    expect(await complaints('src/contexts/ws/modules/order/order.routes.ts', routes('await request.json() as OrderPlaceDTO'))).toEqual(['newt/route-body'])
+  })
+
   test('refuses a promise left unawaited', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.module.ts', 'async function save() {}\nexport function create() { save() }\n')).toEqual(['@typescript-eslint/no-floating-promises'])
   })

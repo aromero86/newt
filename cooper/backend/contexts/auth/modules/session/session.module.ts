@@ -9,7 +9,7 @@ import type { Session_Options } from './session-options'
 import { Session_Repository } from './session.repository'
 import { registerSessionRoutes } from './session.routes'
 import { registerSessionWorkers } from './session.workers'
-import { SessionCookie, SessionSignInSchema, SessionSignUpSchema, type SessionSignInDTO, type SessionSignUpDTO } from './session.schema'
+import { SessionCookie, SessionSignInSchema, SessionSignUpSchema } from './session.schema'
 
 /**
  * Who is signed in to auth itself: signing up, in and out, and who sends each request
@@ -46,7 +46,7 @@ export class Session_Module extends Module {
    * opening the session fails, the account stays, and the person signs in.
    */
   @UseCase({ writesTo: ['user'] })
-  async signUp(input: SessionSignUpDTO): Promise<{ user: UserDTO, token: SecretToken }> {
+  async signUp(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { productId, ...account } = SessionSignUpSchema.parse(input)
     if (productId !== undefined) {
       const product = await this.deps.product.get(productId)
@@ -58,7 +58,7 @@ export class Session_Module extends Module {
   }
 
   @UseCase()
-  async signIn(input: SessionSignInDTO): Promise<{ user: UserDTO, token: SecretToken }> {
+  async signIn(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { email, password } = SessionSignInSchema.parse(input)
     const user = await this.deps.user.verifyPassword(email, password)
     if (!user) throw new InvalidCredentials()

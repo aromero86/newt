@@ -41,7 +41,7 @@ class Thing extends Entity<typeof ThingSchema> {
 }
 
 /** One log for the whole save, so a test reads it as it happened. */
-function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] = []) {
+function world(options: TableRepositoryOptions<ThingRow> = { scope: 'none' }, rows: ThingRow[] = []) {
   const log: string[] = []
   const scope = new TransactionScope()
   let failNextWrite = false
@@ -205,7 +205,7 @@ describe('persist', () => {
     gone.remove()
     await hard.repo.persist(gone)
 
-    const soft = world({ softDelete: true })
+    const soft = world({ softDelete: true, scope: 'none' })
     const stamped = Thing.fromRow(stored({ deletedAt: null }))
     stamped.remove()
     await soft.repo.persist(stamped)
@@ -215,7 +215,7 @@ describe('persist', () => {
   })
 
   test('stamps a soft deletion by the clock of the context at work', async () => {
-    const { updates, repo } = world({ softDelete: true })
+    const { updates, repo } = world({ softDelete: true, scope: 'none' })
     const thing = Thing.fromRow(stored({ deletedAt: null }))
     thing.remove()
 
@@ -225,7 +225,7 @@ describe('persist', () => {
   })
 
   test('a new row deleted softly is stored with deletedAt null', async () => {
-    const { log, repo } = world({ softDelete: true })
+    const { log, repo } = world({ softDelete: true, scope: 'none' })
 
     await repo.persist(Thing.create('one'))
 
@@ -436,6 +436,15 @@ describe('a scope', () => {
   // The scope here is the name: what the unit needs is a string field of the row.
   const scoped = { softDelete: true, scope: { field: 'name' as const, current: () => 'one' } }
 
+  test("is said by every repository, or said to be 'none': left out, it does not compile", () => {
+    // @ts-expect-error: a scope is never dropped by leaving it out
+    const unsaid: TableRepositoryOptions<ThingRow> = { softDelete: true }
+    // @ts-expect-error: nor by passing no options at all
+    const nothing: ConstructorParameters<typeof TableRepository<Thing, ThingRow>> = [{} as never, {} as never]
+    const none: TableRepositoryOptions<ThingRow> = { scope: 'none' }
+    expect([unsaid, nothing, none]).toHaveLength(3)
+  })
+
   test('is part of every query, beside the deleted ones left out, whatever the criteria say', async () => {
     const { log, repo } = world(scoped)
 
@@ -477,7 +486,7 @@ describe('a scope', () => {
 
 describe('finding', () => {
   test('leaves out the ones deleted softly', async () => {
-    const { log, repo } = world({ softDelete: true }, [stored(), stored({ id: 't2', deletedAt: 'gone' })])
+    const { log, repo } = world({ softDelete: true, scope: 'none' }, [stored(), stored({ id: 't2', deletedAt: 'gone' })])
 
     expect((await repo.find()).map(thing => thing.id)).toEqual(['t1'])
     expect(await repo.count()).toBe(1)
@@ -485,7 +494,7 @@ describe('finding', () => {
   })
 
   test('first asks for one', async () => {
-    const { log, repo } = world({}, [stored(), stored({ id: 't2' })])
+    const { log, repo } = world({ scope: 'none' }, [stored(), stored({ id: 't2' })])
 
     expect((await repo.first())?.id).toBe('t1')
     expect(log[0]).toContain('{"limit":1}')
@@ -493,7 +502,7 @@ describe('finding', () => {
 
   test('a page reads one more than its size after the cursor, and counts them all', async () => {
     const rows = ['t1', 't2', 't3', 't4'].map(id => stored({ id }))
-    const { log, repo } = world({}, rows)
+    const { log, repo } = world({ scope: 'none' }, rows)
 
     const page = await repo.page({}, { size: 2, cursor: 't1' })
 
@@ -506,7 +515,7 @@ describe('finding', () => {
 
   test('newest first, it reads back from the cursor, by id from the newest', async () => {
     const rows = ['t1', 't2', 't3', 't4'].map(id => stored({ id }))
-    const { log, repo } = world({}, rows)
+    const { log, repo } = world({ scope: 'none' }, rows)
 
     await repo.page({}, { size: 2, cursor: 't4' }, { newestFirst: true })
 

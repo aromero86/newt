@@ -9,7 +9,7 @@ import { InvitationNotOpen } from './errors/invitation-not-open'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'
-import { Invitation, InvitationCreateSchema, type InvitationCreateDTO, type InvitationDTO, type InvitationReviewDTO } from './invitation'
+import { Invitation, InvitationCreateSchema, type InvitationDTO, type InvitationReviewDTO } from './invitation'
 import type { Invitation_Deps } from './invitation.deps'
 import type { Invitation_Options } from './invitation-options'
 import { Invitation_Repository } from './invitation.repository'
@@ -41,7 +41,7 @@ export class Invitation_Module extends Module {
 
   /** The workspace's admin invites an email, which is not a member nor invited already. Its email leaves from a worker. */
   @UseCase()
-  async create(tenantId: string, input: InvitationCreateDTO): Promise<InvitationDTO> {
+  async create(tenantId: string, input: unknown): Promise<InvitationDTO> {
     const { email } = InvitationCreateSchema.parse(input)
     const invitation = Invitation.create({ tenantId, email, invitedBy: currentActor().userId, days: this.options.days })
     await this.assertAdmin(tenantId)

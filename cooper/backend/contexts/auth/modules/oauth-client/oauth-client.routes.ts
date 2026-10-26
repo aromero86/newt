@@ -1,22 +1,26 @@
 import { toOauthErrorResponse } from 'newt/http'
+import { z } from 'zod'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors'
 import type { AuthBase } from '../../auth-base'
 import type { OauthClient_Module } from './oauth-client.module'
 
-/** What RFC 7591 calls the fields this route reads. */
-type RegistrationRequest = { client_name?: unknown, redirect_uris?: unknown, token_endpoint_auth_method?: unknown }
+/**
+ * What RFC 7591 calls the fields this route reads: an object, each field as it came.
+ * The use case checks what they say.
+ */
+const RegistrationRequest = z.object({ client_name: z.unknown(), redirect_uris: z.unknown(), token_endpoint_auth_method: z.unknown() })
 
 export function registerOauthClientRoutes(base: AuthBase, clients: OauthClient_Module): void {
   // Dynamic client registration (RFC 7591), for MCP clients. Public: whoever registers
   // is nobody in cooper yet. It speaks OAuth's wire format, errors included.
   base.oauth.post('/oauth/register', async request => {
-    const body = (await request.json()) as RegistrationRequest
+    const body = RegistrationRequest.parse(await request.json())
     if (body.token_endpoint_auth_method !== undefined && body.token_endpoint_auth_method !== 'none') {
       return Response.json({ error: 'invalid_client_metadata', error_description: 'A registered client is public: its token_endpoint_auth_method is none' }, { status: 400, headers: { 'cache-control': 'no-store' } })
     }
     const client = await clients.register({
       name: typeof body.client_name === 'string' ? body.client_name : undefined,
-      redirectUris: body.redirect_uris as string[],
+      redirectUris: body.redirect_uris,
     })
     return Response.json({
       client_id: client.clientId,

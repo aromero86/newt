@@ -3,7 +3,9 @@ import { assertUsesTree, contextBoundaries } from './rules/context-boundaries.js
 import { moduleAnatomy } from './rules/module-anatomy.js'
 import { moduleBoundaries } from './rules/module-boundaries.js'
 import { queueName } from './rules/queue-name.js'
+import { routeBody } from './rules/route-body.js'
 import { schemaImports } from './rules/schema-imports.js'
+import { useCase } from './rules/use-case.js'
 
 /** The rules of newt that no other plugin has. */
 export const plugin = {
@@ -13,7 +15,9 @@ export const plugin = {
     'module-anatomy': moduleAnatomy,
     'module-boundaries': moduleBoundaries,
     'queue-name': queueName,
+    'route-body': routeBody,
     'schema-imports': schemaImports,
+    'use-case': useCase,
   },
 }
 
@@ -32,6 +36,10 @@ const MODULES = '**/modules/*/**/*.ts'
  * - a module writes through its repository's `save` or `saveRows`, never in a
  *   transaction of its own, and a handler's queue names who reacts with what to
  *   which event;
+ * - every public method of a class extending `Module` in a `*.module.ts` is a use
+ *   case, marked `@UseCase` (`newt/use-case`), wherever the module is;
+ * - a route passes a body to a use case as it came, never asserting its type
+ *   (`newt/route-body`): the use case parses it;
  * - nothing saved is left unawaited;
  * - with `contexts`, each context imports only the ones it says it uses, so they
  *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
@@ -62,7 +70,12 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
       files,
       languageOptions: { parser: tseslint.parser, parserOptions: { projectService: true } },
       plugins: { newt: plugin, '@typescript-eslint': tseslint.plugin },
-      rules: { '@typescript-eslint/no-floating-promises': 'error' },
+      rules: {
+        '@typescript-eslint/no-floating-promises': 'error',
+        // By the file's name, wherever it is: a module (or its routes) outside modules/, one every context shares, too.
+        'newt/use-case': 'error',
+        'newt/route-body': 'error',
+      },
     },
     ...contextRules,
     {
