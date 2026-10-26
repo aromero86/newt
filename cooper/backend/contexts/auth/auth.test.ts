@@ -13,7 +13,7 @@ let time: number
 beforeEach(async () => {
   mails = []
   time = Date.now()
-  auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
   auth.start()
 })
 

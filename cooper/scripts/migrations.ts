@@ -3,10 +3,12 @@
 // opens each context; this is for looking at what is pending, applying it before a
 // deploy, or reverting the last one. `status` and `up` go through every context unless
 // one is named; `down` reverts one context's last migration, so it needs its name.
+// Each context's database is the one it opens (`COOPER_<CONTEXT>_DATABASE`): a SQLite
+// file, or a Postgres address, migrated with that database's own folder of migrations.
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { SqliteStore } from 'newt/adapter-sqlite'
 import { config } from '../backend/config'
+import { connectStore } from '../backend/shared/open-store'
 
 const CONTEXTS = ['auth', 'boards', 'backoffice'] as const
 type ContextName = (typeof CONTEXTS)[number]
@@ -29,10 +31,7 @@ const contexts = named === undefined ? CONTEXTS : [named as ContextName]
 
 for (const context of contexts) {
   // `connect` opens the database as it is: `open` would migrate it first.
-  const store = await SqliteStore.connect({
-    path: config[context].dbPath,
-    migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations/sqlite`),
-  })
+  const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
   try {
     if (command === 'status') {
       const { applied, pending } = await store.migrations.status()

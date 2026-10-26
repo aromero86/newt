@@ -18,9 +18,9 @@ describe('signing in to the backoffice', () => {
     backofficeUrl = `http://localhost:${backofficePort}`
     const testConfig: Config = {
       ...config,
-      auth: { ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: authUrl, backofficePublicUrl: backofficeUrl },
-      boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-      backoffice: { ...config.backoffice, dbPath: ':memory:', port: backofficePort, publicUrl: backofficeUrl, authPublicUrl: authUrl },
+      auth: { ...config.auth, database: ':memory:', port: authPort, publicUrl: authUrl, backofficePublicUrl: backofficeUrl },
+      boards: { ...config.boards, database: ':memory:', port: 0 },
+      backoffice: { ...config.backoffice, database: ':memory:', port: backofficePort, publicUrl: backofficeUrl, authPublicUrl: authUrl },
       trace: false,
     }
     contexts = await openContexts(testConfig, { mailer: { send: async () => {} } })

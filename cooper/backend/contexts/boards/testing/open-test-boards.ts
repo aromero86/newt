@@ -19,7 +19,7 @@ export async function openTestBoards() {
   const mails: Mail[] = []
   const lines: string[] = []
   const search = new MemoryCardSearch()
-  const boards = await Boards_Context.open({ ...config.boards, dbPath: ':memory:', port: 0 }, {
+  const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,

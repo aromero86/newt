@@ -18,12 +18,12 @@ export class Access_Repository extends TableRepository<Access, AccessRow, AuthBa
   /**
    * Saves new accesses, each one once, keeping every tenant they touch with one admin
    * at most. Each is guarded by its key, which only makes two saves of it wait for
-   * each other: what refuses the second row (`DuplicateValue`) is the unique
-   * index `access_once` of auth's SQLite migrations, on (user, product, tenant) with a
-   * null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
+   * each other: what refuses the second row (`DuplicateValue`) is the unique index
+   * `access_once` of auth's migrations (SQLite's and Postgres'), on (user, product,
+   * tenant) with a null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
    * stores ignore it (their indexes say it), and the files store, the only one that
    * keeps it, lets a row with a null field share its value, so the staff's accesses
-   * would go unguarded there. Another SQL store needs that index in its migrations.
+   * would go unguarded there. Any other SQL store needs that index in its migrations.
    * The admins are checked after the writes, in their transaction, guarding each
    * tenant's admin, so two saves giving a tenant an admin at once cannot both succeed.
    */

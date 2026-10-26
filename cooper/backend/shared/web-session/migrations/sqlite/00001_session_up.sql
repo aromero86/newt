@@ -10,4 +10,4 @@ CREATE TABLE session (
   updated_at TEXT NOT NULL,
   version INTEGER NOT NULL
 );
-CREATE INDEX session_user ON session (user_id);
+CREATE INDEX session_user_id ON session (user_id);

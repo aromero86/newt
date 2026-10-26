@@ -11,9 +11,9 @@ import { ConsoleTracer } from './shared/observability/console-tracer'
 function testConfig(): Config {
   return {
     ...config,
-    auth: { ...config.auth, dbPath: ':memory:', port: 0 },
-    boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0 },
+    auth: { ...config.auth, database: ':memory:', port: 0 },
+    boards: { ...config.boards, database: ':memory:', port: 0 },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0 },
   }
 }
 

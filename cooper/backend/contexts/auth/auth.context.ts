@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { SqliteStore } from 'newt/adapter-sqlite'
 import type { Clock } from 'newt/core'
+import { openStore } from '../../shared/open-store'
 import { ServedContext } from '../../shared/served-context'
 import { AuthBase } from './auth-base'
 import type { Auth_Config } from './auth-config'
@@ -25,7 +25,7 @@ export class Auth_Context extends ServedContext {
    * test gives it a `clock` of its own.
    */
   static async open(config: Auth_Config, deps: Auth_ModuleDeps, clock?: Clock): Promise<Auth_Context> {
-    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations/sqlite') })
+    const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
     const base = new AuthBase({ name: 'auth', store, clock })
     const modules = initializeModules(base, config, deps)
     registerOauthServerMetadata(base.oauth, config.publicUrl)

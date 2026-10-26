@@ -46,7 +46,7 @@ let servers: Server<undefined>[]
 
 beforeEach(async () => {
   const [authPort, clientPort] = [freePort(), freePort()]
-  auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: `http://localhost:${authPort}`, boardsPublicUrl: `http://localhost:${clientPort}` }, { mailer: { send: async () => {} } })
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: authPort, publicUrl: `http://localhost:${authPort}`, boardsPublicUrl: `http://localhost:${clientPort}` }, { mailer: { send: async () => {} } })
   client = await Client_Context.open(clientPort, auth)
   servers = [serve(auth.serving()), serve(client.serving())]
 })

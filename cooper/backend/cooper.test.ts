@@ -19,9 +19,9 @@ function testConfig(authPort: number, boardsPort: number): Config {
   const [authUrl, boardsUrl] = [`http://localhost:${authPort}`, `http://localhost:${boardsPort}`]
   return {
     ...config,
-    auth: { ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
-    boards: { ...config.boards, dbPath: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0, authPublicUrl: authUrl },
+    auth: { ...config.auth, database: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
+    boards: { ...config.boards, database: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0, authPublicUrl: authUrl },
   }
 }
 
