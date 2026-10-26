@@ -55,4 +55,19 @@ describe('serve', () => {
     expect(await (await fetch(new URL('/mcp', server.url))).text()).toBe('mcp')
     expect(await (await fetch(new URL('/api/things', server.url))).text()).toBe('beside')
   })
+
+  test('what throws outside the router is the same 500, never a page with the source', async () => {
+    const server = serve({ port: 0, router: router(), routes: { '/webhook': () => { throw new Error('secret inside') } } })
+    servers.push(server)
+    const original = console.error
+    console.error = () => {}
+
+    try {
+      const response = await fetch(new URL('/webhook', server.url))
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({ error: 'Something went wrong', code: 'internal' })
+    } finally {
+      console.error = original
+    }
+  })
 })
