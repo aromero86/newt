@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, type Email, type EntityInput } from 'newt/core'
+import { Email, Entity, type EntityInput } from 'newt/core'
 import { User_SignedUp } from './events/user-signed-up'
 import { UserSchema, type UserDTO } from './user.schema'
 
@@ -24,9 +24,9 @@ export class User extends Entity<typeof UserEntitySchema> {
     return new User(dto, false)
   }
 
-  /** A new account, with its password already hashed. */
-  static signUp(input: { email: Email, name: string, passwordHash: string }): User {
-    const user = new User(input, true)
+  /** A new account, with its password already hashed: the email as someone typed it becomes an `Email`. */
+  static signUp(input: { email: string, name: string, passwordHash: string }): User {
+    const user = new User({ ...input, email: Email.from(input.email) }, true)
     user.trackEvent(new User_SignedUp(user.contract()))
     return user
   }

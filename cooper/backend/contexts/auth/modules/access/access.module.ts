@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { ConcurrencyConflict, currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { Access, AccessAdmitSchema, AccessGrantSchema, type AccessAdmitDTO, type AccessDTO, type AccessGrantDTO } from './access'
 import type { Access_Deps } from './access.deps'
@@ -89,8 +89,9 @@ export class Access_Module extends Module {
   /**
    * An access auth gives on its own, once it checked who may have it: a new tenant's
    * admin (its creator), the member an accepted invitation makes, the first staff a
-   * script makes. Safe to run again: given twice, it is given once. A tenant never
-   * gets a second admin, whoever asks (the save checks it).
+   * script makes. Safe to run again, even at the same time: given twice, it is given
+   * once, and the second time answers with it. A tenant never gets a second admin,
+   * whoever asks (the save checks it).
    */
   @UseCase()
   async admit(input: AccessAdmitDTO): Promise<AccessDTO> {
@@ -100,8 +101,8 @@ export class Access_Module extends Module {
   }
 
   /**
-   * A tenant is gone: nobody enters it any more, its admin neither. What a worker
-   * calls, a step of the tenant's deletion; safe to run again.
+   * A tenant is gone: nobody enters it any more, its admin neither. What its deletion
+   * calls, and its worker after it; safe to run again.
    */
   @UseCase()
   async revokeTenant(tenantId: string): Promise<void> {
@@ -115,7 +116,15 @@ export class Access_Module extends Module {
     const existing = await this.repo.first({ userId, productId, tenantId })
     if (existing) return existing.toDTO()
     const access = Access.grant(input)
-    await this.repo.persistKeepingOneAdmin(access)
+    try {
+      await this.repo.persistKeepingOneAdmin(access)
+    } catch (error) {
+      // Given by another save at the same time (a tenant's admin, by the request that
+      // made it and by its worker): given once, and this one gives what is there.
+      const given = error instanceof ConcurrencyConflict ? await this.repo.first({ userId, productId, tenantId }) : undefined
+      if (!given) throw error
+      return given.toDTO()
+    }
     return access.toDTO()
   }
 
