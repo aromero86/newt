@@ -31,6 +31,20 @@ describe('serveFrontend', () => {
     expect(response.headers.get('content-security-policy')).toBe("frame-ancestors 'none'")
   })
 
+  test('a page asked for by its name refuses to be framed too; any other file needs not', async () => {
+    await Bun.write(join(folder, 'consent.html'), 'consent')
+    for (const path of ['/index.html', '/consent.html']) {
+      expect((await get(path)).headers.get('x-frame-options')).toBe('DENY')
+    }
+    expect((await get('/assets/app.js')).headers.get('x-frame-options')).toBeNull()
+  })
+
+  test('an address with a NUL names no file: it gets the frontend', async () => {
+    const response = await get('/a%00b')
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('<div id="root"></div>')
+  })
+
   test('never leaves its folder', async () => {
     expect(await (await get('/../../etc/passwd')).text()).toBe('<div id="root"></div>')
   })

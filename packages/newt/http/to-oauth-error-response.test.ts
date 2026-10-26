@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { UnauthorizedError, ValidationError } from '../core'
+import { MalformedBody } from './errors/malformed-body'
 import { toOauthErrorResponse } from './to-oauth-error-response'
 
 class CodeUsed extends ValidationError {
@@ -60,10 +61,22 @@ describe('toOauthErrorResponse', () => {
     expect(toOauthErrorResponse(new Expired('Expired'), 'invalid_request').status).toBe(401)
   })
 
-  test('a body that is not even text is the fallback, a 400', async () => {
-    const response = toOauthErrorResponse(new TypeError('Body already used'), 'invalid_request')
+  test('a form that cannot be read inside `handle` is the fallback, a 400', async () => {
+    const response = toOauthErrorResponse(new MalformedBody(), 'invalid_request')
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ error: 'invalid_request' })
+  })
+
+  test('a TypeError is a bug of the server\'s, not the client\'s: a server_error', () => {
+    const original = console.error
+    console.error = () => {}
+    try {
+      const error = (() => { try { (undefined as unknown as { client: string }).client } catch (caught) { return caught } })()
+
+      expect(toOauthErrorResponse(error, 'invalid_request').status).toBe(500)
+    } finally {
+      console.error = original
+    }
   })
 })

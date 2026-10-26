@@ -7,4 +7,6 @@ export type ServeOptions = {
   routes?: Bun.Serve.Routes<undefined, string>
   /** A built frontend, handed out for every address no route takes. */
   frontend?: string
+  /** Bun's development mode, whose error page shows the source: off unless asked for. */
+  development?: boolean
 }
