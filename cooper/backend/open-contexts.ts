@@ -1,4 +1,4 @@
-import type { Tracer } from 'newt/core'
+import { filterSpans, type Tracer } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
@@ -9,13 +9,18 @@ import { ConsoleMailer } from './shared/mail/console-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 import type { Mailer } from './shared/mail/mailer'
 
-/**
- * What the contexts are given from outside: the console mailer unless another is,
- * and the console tracer if `COOPER_TRACE` asks for one, unless another is given.
- */
+/** What the contexts are given from outside: the console mailer unless another is. */
 export type OpenContextsOptions = {
   mailer?: Mailer
-  tracer?: Tracer
+}
+
+/**
+ * The console tracer, if `COOPER_TRACE` asks for one: the application's, for every
+ * context. The worker's own spans (`job.claim` every few seconds, `job.close`…) are
+ * left out: what a job does is a use case, and that one is written.
+ */
+export function cooperTracer(config: Config): Tracer | undefined {
+  return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
 }
 
 /**
@@ -25,12 +30,9 @@ export type OpenContextsOptions = {
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  // One tracer for every context: a use case that calls another context's shows that
-  // call inside it, since they run in one process.
-  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
-  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+  const auth = await Auth_Context.open(config.auth, { mailer })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 

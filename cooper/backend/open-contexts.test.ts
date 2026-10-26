@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { runAsActor } from 'newt/core'
+import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { openContexts, stopContexts } from './open-contexts'
@@ -66,7 +66,8 @@ test('lets no member into a deleted workspace whose accesses are not taken away 
 
 test('traces a use case across contexts: auth\'s calls inside the backoffice\'s that made them', async () => {
   const lines: string[] = []
-  const contexts = await openContexts(testConfig(), { tracer: new ConsoleTracer(line => lines.push(line)) })
+  const contexts = await openContexts(testConfig())
+  setTracer(new ConsoleTracer(line => lines.push(line)))
   try {
     const { access, user } = contexts.auth.modules
     const sam = await user.signUp({ email: 'sam@cooper.test', name: 'Sam', password: 'a long password' })
@@ -82,6 +83,7 @@ test('traces a use case across contexts: auth\'s calls inside the backoffice\'s 
       '[trace]   auth user.get',
     ])
   } finally {
+    setTracer(new NoopTracer())
     await stopContexts(contexts)
   }
 })

@@ -1,6 +1,6 @@
 import { ConcurrencyConflict } from '../errors/concurrency-conflict'
 import { DomainError } from '../errors/domain-error'
-import { NoopTracer } from '../observability/noop-tracer'
+import { applicationTracer } from '../observability/application-tracer'
 import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
 import { invocationChain, inWorker } from './invocation-chain'
@@ -23,7 +23,8 @@ export class Invocations {
   private readonly warned = new Set<string>()
 
   constructor(
-    private readonly tracer: Tracer = new NoopTracer(),
+    /** Its own; the application's (`setTracer`) when it has none. */
+    private readonly tracer?: Tracer,
     private readonly attributes: SpanAttributes = {},
     private readonly writeRule: WriteRule = 'error',
   ) {}
@@ -70,7 +71,7 @@ export class Invocations {
 
   /** Runs it in its span; `retry`, only for the first of a chain, says whether a conflict runs it again. */
   private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry?: { allowed: boolean }): Promise<T> {
-    return this.tracer.startActiveSpan(name, attributes, async span => {
+    return (this.tracer ?? applicationTracer.value).startActiveSpan(name, attributes, async span => {
       try {
         for (let attempt = 0; ; attempt++) {
           try {

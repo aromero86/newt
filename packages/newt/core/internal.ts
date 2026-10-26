@@ -13,3 +13,5 @@ export { inWorker } from './use-case/invocation-chain'
 
 /** HTTP answers with the framework's messages: what a route that is not there says, and the like. */
 export { message } from './messages/message'
+/** HTTP starts each request's span on the application's tracer. */
+export { applicationTracer } from './observability/application-tracer'

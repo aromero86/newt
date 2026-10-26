@@ -14,9 +14,9 @@ and, if it has any, its entry points. cooper has three: `auth`, `boards` and
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store, tracer })
+  const base = new BoardsBase({ name: 'boards', store })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -52,10 +52,9 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
-  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+  const auth = await Auth_Context.open(config.auth, { mailer })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   ```
 - A context reaches another only through that one's use cases and events, never its
   base or its store. Its deps type says which modules, as a `Pick`, so nothing else is
@@ -1069,16 +1068,23 @@ deps.card.events.created.subscribe(card => metrics.recordCard(card), {
 
 ## Observability
 
-Each context may hand its `Base` a `Tracer` (`new BoardsBase({ name, store, tracer
-})`): every use case call is a span, named after it, with the context, module and use
-case as attributes, a child of its caller's, marked with the error when one that is
-not a domain error escapes, and with an event (`conflict.retry`) for each retry on a
-conflict. The job worker's own steps are spans too. Without a tracer, nothing is
-recorded (`NoopTracer`).
+An application has **one** `Tracer`, set once where it starts: `setTracer(tracer)`
+from `newt/core` (or `runContexts`' `tracer`). Every use case call of every context is
+a span, named after it, with the context, module and use case as attributes, a child
+of its caller's, marked with the error when one that is not a domain error escapes,
+and with an event (`conflict.retry`) for each retry on a conflict. Every request a
+router answers is a span too (`GET /api/boards/:boardId`), marked with an error on a
+5xx, and the job worker's own steps are spans. The active span travels with the work,
+so the use cases a request calls, in whatever context, land inside it: one trace for
+the whole request, across contexts. Without a tracer, nothing is recorded
+(`NoopTracer`). A context may still hand its `Base` a `tracer` of its own, which goes
+before the application's for its use cases.
 
-Hand the **same** tracer to every context of a process. The active span travels with
-the work, so a use case of one context called by another's lands inside its caller's
-span: one trace for the whole request, across contexts. cooper makes one
-`ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1` and gives it to all
-three (see `open-contexts.ts` above); it writes each trace once it ends, and leaves the
-worker's `job.…` spans out.
+`filterSpans(tracer, keep)` hands a tracer only the spans whose name it keeps. cooper
+sets a `ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1`, without the
+worker's `job.…` spans; it writes each trace once it ends.
+
+```ts
+// cooper/backend/open-contexts.ts
+return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+```

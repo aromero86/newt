@@ -1,6 +1,5 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
-import type { Tracer } from 'newt/core'
 import { CooperBase } from '../../shared/cooper-base'
 import { ServedContext } from '../../shared/served-context'
 import type { Backoffice_Config } from './backoffice-config'
@@ -17,10 +16,10 @@ export class Backoffice_Context extends ServedContext {
     super('backoffice', base, config)
   }
 
-  /** Opened after `auth` and `boards`, which it uses; watched by `tracer`, if one is given. */
-  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, tracer?: Tracer): Promise<Backoffice_Context> {
+  /** Opened after `auth` and `boards`, which it uses. */
+  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps): Promise<Backoffice_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new CooperBase({ name: 'backoffice', store, tracer })
+    const base = new CooperBase({ name: 'backoffice', store })
     return new Backoffice_Context(base, initializeModules(base, config, deps), config)
   }
 }

@@ -1,5 +1,6 @@
 import type { BunRequest } from 'bun'
 import { runAsActor } from '../core'
+import { applicationTracer } from '../core/internal'
 import type { Authenticator } from './authenticator'
 import type { Cors } from './cors'
 import { corsHeaders } from './cors-headers'
@@ -33,6 +34,9 @@ type Answer = (request: BunRequest) => Promise<Response>
  *
  * Every route needs a session unless it is registered as public. A signed-in
  * request runs as its actor, so every use case it calls knows who is doing it.
+ *
+ * Each request is a span of the application's tracer (`setTracer`), `GET /api/things/:id`,
+ * which the use cases it calls are inside of, in whatever context.
  *
  * A context may have more than one: its API under `/api`, and another at the root
  * for addresses with a format of their own (OAuth's, with its own `onError`).
@@ -112,7 +116,7 @@ export class HttpRouter {
         new Response(null, { status: 204, headers: corsHeaders(cors!, request, [...methods, 'OPTIONS']) })
 
       routes[path] = Object.fromEntries([
-        ...[...byMethod].map(([method, { route, options }]) => [method, withCors(handle(route, options.onError), options.cors)]),
+        ...[...byMethod].map(([method, { route, options }]) => [method, traced(method, path, withCors(handle(route, options.onError), options.cors))]),
         ...METHODS.filter(method => !byMethod.has(method)).map(method => [method, answerNotAllowed]),
         ['OPTIONS', cors ? preflight : answerNotAllowed],
       ])
@@ -174,4 +178,18 @@ function withCors(answer: Answer, cors: Cors | undefined): Answer {
     for (const [name, value] of Object.entries(corsHeaders(cors, request))) open.headers.set(name, value)
     return open
   }
+}
+
+/** An answer in a span of its own, an error when it is a 5xx: the root of the trace of a request. */
+function traced(method: string, path: string, answer: Answer): Answer {
+  const name = `${method} ${path}`
+  return request => applicationTracer.value.startActiveSpan(name, { 'http.method': method, 'http.route': path }, async span => {
+    try {
+      const response = await answer(request)
+      if (response.status >= 500) span.setError(new Error(`${name} answered ${response.status}`))
+      return response
+    } finally {
+      span.end()
+    }
+  })
 }

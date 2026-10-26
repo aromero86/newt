@@ -7,7 +7,6 @@ describe('ConsoleTracer', () => {
     const tracer = new ConsoleTracer(line => lines.push(line))
 
     const answer = await tracer.startActiveSpan('workspace.get', { context: 'backoffice' }, async () => {
-      await tracer.startActiveSpan('job.claim', {}, async () => {})
       await tracer.startActiveSpan('staff.enter', { context: 'backoffice' }, async span => {
         span.addEvent('conflict.retry', { attempt: 1 })
       })
@@ -21,11 +20,5 @@ describe('ConsoleTracer', () => {
       '[trace]   backoffice staff.enter n ms (conflict.retry {"attempt":1})',
       '[trace]   broken n ms (error: disk full)',
     ])
-  })
-
-  test('leaves the worker\'s own spans out', async () => {
-    const lines: string[] = []
-    await new ConsoleTracer(line => lines.push(line)).startActiveSpan('job.claim', {}, async () => {})
-    expect(lines).toEqual([])
   })
 })
