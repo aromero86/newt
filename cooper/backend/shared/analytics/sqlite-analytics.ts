@@ -9,7 +9,7 @@ const FIELD = /^[A-Za-z_][A-Za-z0-9_]*$/
  * newt's analytics port on SQLite, for an application whose numbers are small enough
  * for its own database: newt brings no adapter yet (ClickHouse and DuckDB will come).
  * Every dataset is in one table, `analytics_row`, each row whole as JSON, in the
- * database of the context that reads it: it copies `migrations/00001_analytics_up.sql`
+ * database of the context that reads it: it copies `migrations/sqlite/00001_analytics_up.sql`
  * into its own.
  *
  * It keeps the port's promises (`describeAnalyticsContract`): rows are only added, and

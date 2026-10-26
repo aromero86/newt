@@ -19,7 +19,7 @@ export class Backoffice_Context extends ServedContext {
 
   /** Opened after `auth` and `boards`, which it uses; on the real time, unless a test gives it a `clock`. */
   static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, clock?: Clock): Promise<Backoffice_Context> {
-    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
+    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new CooperBase({ name: 'backoffice', store, clock })
     return new Backoffice_Context(base, initializeModules(base, config, deps), config)
   }

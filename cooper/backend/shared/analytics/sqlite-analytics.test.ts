@@ -5,7 +5,7 @@ import { describeAnalyticsContract } from 'newt/port-analytics/contract'
 import { SqliteAnalytics } from './sqlite-analytics'
 
 /** A store of its own, in memory, with the analytics table and nothing else. */
-const openStore = () => SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations') })
+const openStore = () => SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations/sqlite') })
 
 const stores: SqliteStore[] = []
 

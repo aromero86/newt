@@ -25,7 +25,7 @@ export class Auth_Context extends ServedContext {
    * test gives it a `clock` of its own.
    */
   static async open(config: Auth_Config, deps: Auth_ModuleDeps, clock?: Clock): Promise<Auth_Context> {
-    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
+    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new AuthBase({ name: 'auth', store, clock })
     const modules = initializeModules(base, config, deps)
     registerOauthServerMetadata(base.oauth, config.publicUrl)

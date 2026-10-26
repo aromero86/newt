@@ -23,7 +23,7 @@ class Client_Context extends ServedContext {
   }
 
   static async open(port: number, auth: Auth_Context): Promise<Client_Context> {
-    const store = await SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations') })
+    const store = await SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new CooperBase({ name: 'client', store })
     const session = WebSession_Module.initialize(base, {
       context: 'client',

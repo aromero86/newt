@@ -31,7 +31,7 @@ for (const context of contexts) {
   // `connect` opens the database as it is: `open` would migrate it first.
   const store = await SqliteStore.connect({
     path: config[context].dbPath,
-    migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
+    migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations/sqlite`),
   })
   try {
     if (command === 'status') {

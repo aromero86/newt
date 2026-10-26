@@ -33,7 +33,7 @@ export const ownPath = (path: string | undefined) => (path && path.startsWith('/
  *   authenticator.
  *
  * A context's sessions are its own, in its own store: it initializes this module in
- * its `initialize-modules.ts` and copies `migrations/00001_session_up.sql` (and its
+ * its `initialize-modules.ts` and copies `migrations/sqlite/00001_session_up.sql` (and its
  * down) into its own migrations, numbered after the ones it has:
  *
  * ```ts
