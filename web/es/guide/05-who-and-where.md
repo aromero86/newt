@@ -34,14 +34,73 @@ El seed lo hace para actuar como Ana:
 
 ```ts
 // cooper/scripts/seed.ts
-const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id }, fn)
+const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id, via: 'web' }, fn)
 ```
 
-El framework solo sabe una cosa del actor: su `userId`. Es todo lo que cooper
-necesita. Si tu aplicación necesita más (la sesión por la que entró, si es un
-asistente), puedes ampliar el tipo `Actor` con `declare module 'newt/core'`, en un
-fichero que carguen todos los programas de la aplicación. Amplíalo con **quién** es
-alguien, nunca con **qué puede hacer**: enseguida verás por qué.
+### Ampliar el actor
+
+El framework solo sabe una cosa del actor: su `userId`. Si tu aplicación necesita más,
+amplía el tipo `Actor` con `declare module 'newt/core'`, en un fichero que carguen
+todos los programas de la aplicación. cooper añade por dónde ha entrado alguien: por
+sus aplicaciones web, o por un asistente de IA que usa el servidor MCP de boards.
+
+```ts
+// cooper/backend/shared/actor.ts
+import 'newt/core'
+
+/**
+ * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
+ * through boards' MCP server, with an access token.
+ */
+export type ActorVia = 'web' | 'mcp'
+
+// …
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+`CooperBase` lo importa, así que todos los contextos ven el campo. Es **obligatorio**:
+todo sitio que dice quién actúa tiene que decir también por dónde entró, o no compila.
+Por eso el seed de arriba escribe `via: 'web'`. Las dos puertas lo fijan donde
+autentican: la sesión web responde `{ userId, via: 'web' }` (más abajo), y el servidor
+MCP ejecuta cada petición como `via: 'mcp'`:
+
+```ts
+// cooper/backend/contexts/boards/mcp/mcp.ts
+return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
+```
+
+Y un caso de uso lo lee como lee el id del usuario. El módulo de tarjetas pone los dos
+en cada evento que cuenta, así que la actividad de una tarjeta dice "Ana la movió, a
+través del asistente":
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.module.ts
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
+```
+
+```ts
+// cooper/backend/cooper.test.ts
+// Its activity says the assistant did it, as Ana.
+await settled()
+// …
+expect(activity.items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+  ['unassigned', ana.id, 'mcp'],
+  ['assigned', ana.id, 'mcp'],
+  ['moved', ana.id, 'mcp'],
+  ['created', ana.id, 'mcp'],
+])
+```
+
+Amplía el actor con **quién** es alguien y por dónde entró, nunca con **qué puede
+hacer**: enseguida verás por qué.
 
 ## Autenticación: quién es
 
@@ -93,7 +152,7 @@ async authenticate(token: string | undefined): Promise<Actor | null> {
     await this.repo.persist(session)
     return null
   }
-  return { userId: session.userId }
+  return { userId: session.userId, via: 'web' }
 }
 
 // …
@@ -144,15 +203,35 @@ async complete(input: { code?: string, state?: string, error?: string, errorDesc
 Fíjate en `retryOnConflict: false`. Lo explica el capítulo [7](./07-concurrency).
 
 Una ruta que puede llamar cualquiera lo dice con `{ public: true }`. Todas las demás
-necesitan sesión:
+necesitan sesión. Cerrar sesión es pública, y enseña algo más: cerrar la sesión del
+contexto no basta. auth sigue teniendo su propia sesión en el navegador, y al volver a
+entrar se iniciaría sesión con la misma persona sin preguntar. Así que la ruta
+responde `{ next }`, la dirección de `/oauth/logout` de auth, y el navegador va allí:
 
 ```ts
 // cooper/backend/shared/web-session/web-session.routes.ts
-// Public: signing out with a session already gone still clears the cookie.
+// Public: signing out with a session already gone still clears the cookie. The
+// browser goes on to auth, to sign out there too and come back: otherwise signing
+// in again would sign the same person in, with no way to switch accounts.
 base.http.post('/session/sign-out', async request => {
   await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
   request.cookies.delete({ name: cookies.session, path: '/' })
-  return new Response(null, { status: 204 })
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  return Response.json({ next } satisfies WebSessionSignOutDTO)
+}, { public: true })
+```
+
+auth cierra también su sesión y devuelve el navegador a `redirect`, pero solo si es la
+dirección de uno de los productos de cooper. Cualquier otra cosa va al inicio de auth,
+así que la ruta no sirve para rebotar a nadie a otro sitio:
+
+```ts
+// cooper/backend/contexts/auth/modules/session/session.routes.ts
+base.oauth.get('/logout', async request => {
+  await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
+  request.cookies.delete({ name: SessionCookie, path: '/' })
+  const location = await sessions.returnAddress(new URL(request.url).searchParams.get('redirect') ?? undefined)
+  return new Response(null, { status: 302, headers: { location } })
 }, { public: true })
 ```
 
@@ -172,9 +251,18 @@ const back = await as(redirectTo)
 expect(back.status).toBe(302)
 expect(back.headers.get('location')).toBe('/boards/1')
 expect(await (await as(clientUrl('/api/session'))).json()).toMatchObject({ id: ana.id, email: 'ana@cooper.test' })
-expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id })
+expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id, via: 'web' })
 // It keeps no token: it gave them back once it knew who signed in.
 expect(await auth.base.store.table('token').count()).toBe(0)
+// …
+// Signing out goes on to auth, which ends its own session too and sends the browser back.
+const { next } = (await (await as(clientUrl('/api/session/sign-out'), { method: 'POST' })).json()) as { next: string }
+expect(next).toBe(authUrl(`/oauth/logout?${new URLSearchParams({ redirect: `http://localhost:${servers[1]!.port}` })}`))
+expect((await as(clientUrl('/api/session'))).status).toBe(401)
+expect((await as(clientUrl('/api/whoami'))).status).toBe(401)
+const loggedOut = await as(next)
+expect(loggedOut.headers.get('location')).toBe(clientUrl('/'))
+expect((await as(authUrl('/api/session'))).status).toBe(401)
 ```
 
 Con cooper en marcha (`bun run cooper`), una petición sin la cookie se rechaza:
@@ -202,18 +290,26 @@ export type Workspaces = {
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
+  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
+  exists(workspaceId: string): Promise<boolean>
 }
 ```
 
-Quien abre los contextos lo conecta con `access.check` de auth:
+Quien abre los contextos lo conecta con los casos de uso de auth:
 
 ```ts
 // cooper/backend/open-contexts.ts
 workspaces: {
   isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
   // …
+  // A deleted tenant is not among them.
+  exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
 },
 ```
+
+`isMember` responde por una persona. `exists` responde a un worker, que no actúa por
+nadie y solo necesita saber si el espacio sigue ahí antes de escribir en él (capítulo
+[13](./13-repeatable-workers)).
 
 Y el módulo `member` de `boards` convierte la respuesta en un caso de uso:
 
@@ -411,11 +507,45 @@ Lo que te da el scope:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
-const matching = await this.base.db
+const matching = this.base.db
   .selectFrom('card')
-  .select('id')
   .where('workspaceId', '=', currentWorkspaceId())
+  .where(eb => whereOf(eb, criteriaTree(criteria)))
   // …
+```
+
+La vista general del backoffice es el único sitio de cooper que mira entre espacios a
+propósito: el staff ve los últimos tableros creados, sean del espacio que sean. El
+repositorio lo dice con su nombre:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.repository.ts
+/**
+ * The boards created last, in every workspace: for the staff, who look across them
+ * on purpose. Archived ones stay out.
+ */
+recentInEveryScope(limit: number): Promise<Board[]> {
+  return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
+}
+```
+
+Y el caso de uso que lo usa no se ejecuta en ningún espacio, y ninguna ruta de
+`boards` lo llama. Solo lo llama el backoffice, a través de sus dependencias (capítulo
+[22](./22-backoffice)):
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+/**
+ * For the staff's backoffice: the boards created last, whatever their workspace. It
+ * reads every workspace on purpose, so it does not run in one: no person of a
+ * workspace reaches it (no route of boards calls it), and its repository says so by
+ * name (`findInEveryScope`), where a review sees it.
+ */
+@UseCase()
+async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+  const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+  return boards.map(board => board.toDTO())
+}
 ```
 
 ### Entrar en un ámbito sin ruta
@@ -447,7 +577,7 @@ export async function inWorkspace<T>(members: Member_Module, workspaceId: string
 async unassignMember(workspaceId: string, userId: string): Promise<void> {
   await runInWorkspace(workspaceId, async () => {
     const cards = await this.repo.find({ assigneeId: userId })
-    for (const card of cards) card.unassign()
+    for (const card of cards) card.unassign(BOARDS)
     await this.repo.persist(...cards)
   })
 }
@@ -471,9 +601,9 @@ Los tests entran en un espacio como una persona, igual que una ruta:
 
 ```ts
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
-/** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
-as<T>(userId: string, workspaceId: string, fn: () => Promise<T>): Promise<T> {
-  return runAsActor({ userId }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+/** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
+as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
+  return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
 },
 ```
 
@@ -514,8 +644,11 @@ cliente. Cada una define los que necesita, con las mismas tres piezas: `defineSc
 
 - Un caso de uso sabe quién actúa con `currentActor()`. Nunca recibas un id de usuario
   como parámetro para "lo mío".
+- Amplía el `Actor` con `declare module 'newt/core'` para quién es alguien y por dónde
+  entró (`via`), fijado donde se autentica. Nunca para lo que puede hacer.
 - La autenticación es un caso de uso del módulo que guarda las sesiones; el router lo
-  llama mediante `authenticateWith`. Guarda solo el hash de un token.
+  llama mediante `authenticateWith`. Guarda solo el hash de un token. Cerrar sesión en
+  una aplicación la cierra también en auth.
 - La autorización se le pregunta al módulo que lo sabe, cada vez, desde el caso de uso.
   Nunca metas los permisos en el actor.
 - 404 a quien no es de dentro; 403 al miembro que no puede.

@@ -4,7 +4,8 @@ A version protects **one row** (chapter [7](./07-concurrency)). Some rules speak
 **several**:
 
 - A board's name is unique in its workspace, whatever its case.
-- A board has at most 10 columns.
+- A board has at most 10 columns, and 500 cards.
+- An access is given once.
 - A workspace has one admin, and only one.
 - An email belongs to one account.
 
@@ -48,7 +49,7 @@ This is how a column is added:
 // cooper/backend/contexts/boards/modules/column/column.repository.ts
 /**
  * Saves a new column at the end of its board, only if the board is left with no more
- * than `MAX_COLUMNS`: a rule over several rows, which no version covers (ch. 10). The
+ * than `MAX_COLUMNS`: a rule over several rows, which no version covers. The
  * save guards its board's columns: its place is read before writing it, and the
  * columns counted after, with no other column of the board added, moved or removed
  * in between, in any store. Ten added at once to a board of five: five get in.
@@ -139,6 +140,45 @@ test('lets in only the columns that fit, when many are added at once', async () 
 Eight columns added at once to a board of five: five get in, three are refused, and
 the positions run 0 to 9 without a gap.
 
+### The same rule, on cards
+
+A board holds at most 500 cards: it is read whole, as one screen. It is the same rule
+as the columns, in the cards' own save. The `after` counts the board's cards under the
+board's key, `boardCards:<board id>`:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+async persistNew(card: Card, options: { first?: boolean } = {}): Promise<void> {
+  const { boardId, columnId } = card
+  await this.save([card], each => this.write(each), {
+    guard: [`boardCards:${boardId}`, `cards:${columnId}`],
+    // …
+    after: async () => {
+      const count = await this.count({ boardId })
+      if (count > MAX_CARDS) throw new TooManyCards(boardId)
+      // …
+    },
+  })
+}
+```
+
+The key is per board, not per column, because the rule is about the board: two cards
+created at once in two columns of a full board must still take turns. The same key
+guards the board's card numbers, which chapter [9](./09-shared-counters) is about.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
+  await Promise.all(Array.from({ length: MAX_CARDS - 3 }, (_, i) => create(`Task ${i}`)))
+
+  const created = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => create(`More ${i}`)))
+
+  expect(created.filter(each => each.status === 'fulfilled')).toHaveLength(3)
+  for (const each of created.filter(each => each.status === 'rejected')) expect(each.reason).toMatchObject({ code: 'card.too_many' })
+  expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
+})
+```
+
 ## Why say it, if SQLite already takes turns
 
 Because **not every store is the same**, and your modules should not know which one
@@ -172,12 +212,13 @@ with `ieq`, which ignores case:
  * Saves a board only if no other one of its workspace has its name, whatever the
  * case: counted again after writing it, in its transaction, guarding the name in
  * lower case, so no other save of that name slips in between. `Roadmap` and
- * `ROADMAP` created at once cannot both have it (ch. 10).
+ * `ROADMAP` created at once cannot both have it. Only A to Z are folded, as `ieq`
+ * and the table's unique index compare: `Ärger` and `ärger` are two names.
  */
 async persistWithNameFree(board: Board): Promise<void> {
   const { workspaceId, name } = board
   await this.save([board], each => this.write(each), {
-    guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+    guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
     after: async () => {
       if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
     },
@@ -189,6 +230,15 @@ async persistWithNameFree(board: Board): Promise<void> {
 [5](./05-who-and-where)) and only boards not archived (`softDelete`), so the name of
 an archived board is free again. Both `create` and `update` save through it, so a
 rename cannot take a name either.
+
+Look at how the key is folded: only A to Z, not with `toLowerCase()`. The key has to
+say exactly what the rule compares. `ieq` and the unique index (`lower(name)` in
+SQLite) fold A to Z only, so for the rule *Ärger* and *ärger* are two names, and
+their saves have nothing to wait for. A key folded with `toLowerCase()` would still be
+safe, since names that compare equal always share it, but it would make saves of
+different names wait for each other. The other way round is the bug to avoid: a key
+that folds **less** than the comparison gives two different keys to names the rule
+sees as one, and both get in.
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.test.ts
@@ -240,23 +290,38 @@ const atOnce = await Promise.allSettled([signUp('Bob', 'bob@cooper.test'), signU
 expect(atOnce.map(each => each.status).sort()).toEqual(['fulfilled', 'rejected'])
 ```
 
-## One admin per workspace
+## Accesses: each one once, one admin per workspace
 
-In auth, a workspace has a single admin: the person who made it. Accesses are rows of
-`access`, one per member, with a `role`. "One admin at most" is a count over the
-workspace's rows:
+In auth, accesses are rows of `access`: one per person, product and workspace, with a
+`role`. Two rules speak about them:
+
+- **An access is given once.** Ana's access to Acme is one row, however many times it
+  is given. And it is given twice quite often: when Ana creates Acme, the request
+  gives her the admin access, and the worker of `tenant.created` gives it again in
+  case the request stopped halfway (chapter [6](./06-transactions)). Both may run at
+  the same moment.
+- **A workspace has one admin at most**: the person who made it.
+
+One save keeps both. It guards a key per access (who, which product, which
+workspace), so two saves of the same access take turns, and a key per workspace's
+admin, which its `after` counts:
 
 ```ts
 // cooper/backend/contexts/auth/modules/access/access.repository.ts
 /**
- * Saves accesses keeping every tenant they touch with one admin at most: checked
- * after the writes, in their transaction, guarding each tenant's admin, so two
- * saves giving a tenant an admin at once cannot both succeed.
+ * Saves new accesses, each one once, keeping every tenant they touch with one admin
+ * at most. Each is guarded by its key, and the store's unique index refuses a second
+ * row for it (`ConcurrencyConflict`). The admins are checked after the writes, in
+ * their transaction, guarding each tenant's admin, so two saves giving a tenant an
+ * admin at once cannot both succeed.
  */
 async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
   const tenants = [...new Set(accesses.map(access => access.tenantId).filter(tenantId => tenantId !== null))]
   await this.save(accesses, access => this.write(access), {
-    guard: tenants.map(tenantId => `tenantAdmin:${tenantId}`),
+    guard: [
+      ...accesses.map(access => `access:${access.userId}:${access.productId}:${access.tenantId ?? ''}`),
+      ...tenants.map(tenantId => `tenantAdmin:${tenantId}`),
+    ],
     after: async () => {
       for (const tenantId of tenants) {
         if (await this.count({ tenantId, role: 'admin' }) > 1) throw new TenantHasAdmin(tenantId)
@@ -267,8 +332,61 @@ async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
 ```
 
 One save can touch several workspaces, so it guards one key per workspace, and checks
-each one. A staff access to the backoffice has no workspace (`tenantId` is null), and
-guards nothing.
+each one. A staff access to the backoffice has no workspace (`tenantId` is null): it
+has its access key, and no admin to count.
+
+"Given once" has no `after`: here the unique index is the check. With the access key
+guarded, the second save waits for the first, writes its row, and the index refuses
+it.
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql
+-- One access per person, product and tenant: two saves giving the same one at once
+-- cannot both succeed. A null tenant (the whole product) counts as a value, so the
+-- staff's access is kept once too.
+CREATE UNIQUE INDEX access_once ON access (user_id, product_id, ifnull(tenant_id, ''));
+```
+
+A row refused by a unique index is a `ConcurrencyConflict`. Here it does not mean "try
+again": it means "someone gave it a moment ago". So the use case that gives an access
+catches it, reads the access that won, and answers with it. Given twice, it is given
+once, and the second caller cannot tell:
+
+```ts
+// cooper/backend/contexts/auth/modules/access/access.module.ts
+private async give(input: { userId: string, productId: string, tenantId: string | null, role: 'admin' | 'member' }): Promise<AccessDTO> {
+  const { userId, productId, tenantId } = input
+  const existing = await this.repo.first({ userId, productId, tenantId })
+  if (existing) return existing.toDTO()
+  const access = Access.grant(input)
+  try {
+    await this.repo.persistKeepingOneAdmin(access)
+  } catch (error) {
+    // Given by another save at the same time (a tenant's admin, by the request that
+    // made it and by its worker): given once, and this one gives what is there.
+    const given = error instanceof ConcurrencyConflict ? await this.repo.first({ userId, productId, tenantId }) : undefined
+    if (!given) throw error
+    return given.toDTO()
+  }
+  return access.toDTO()
+}
+```
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+test('gives an access once, however many give it at the same time', async () => {
+  // …
+  const bobIn = { userId: bob.id, productId: 'cooper', tenantId: acme.id }
+  await Promise.all([as(ana, () => modules().access.grant(bobIn)), as(ana, () => modules().access.grant(bobIn)), modules().access.admit({ ...bobIn, role: 'member' })])
+  expect((await modules().access.listForTenant(acme.id, page)).total).toBe(2)
+
+  const staffIn = { userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' as const }
+  await Promise.all([modules().access.admit(staffIn), modules().access.admit(staffIn)])
+  expect((await modules().access.listForProduct('backoffice', page)).total).toBe(1)
+})
+```
+
+Acme ends with two accesses (Ana's and Bob's), not four; the staff member with one.
 
 "Never less than one" is the other half, and it needs no guard: an admin's access is
 never revoked, so nothing can take the count to zero.
@@ -311,7 +429,11 @@ and **check again in `after`**, which is the guarantee.
   between.
 - Check it in the save's `after`, which rolls everything back by throwing.
 - Name what it protects in `guard`, with a key as narrow as the rule (per board, per
-  workspace, per name). Saves with the same key never interleave, in any store.
+  workspace, per name, per access). Saves with the same key never interleave, in any
+  store. Fold the key exactly as the rule compares.
+- When a unique index can say the rule, it is the check: a second row is a
+  `ConcurrencyConflict`. If it means "already given", read what is there and answer
+  with it.
 - A save with `after` must say its `guard`; `guard: []` when it checks no rule.
 - `before` reads what the new row needs (its place at the end) where nothing slips in.
 - Keep the check before saving too: it gives the clear error in the usual case.

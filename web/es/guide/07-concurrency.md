@@ -96,10 +96,10 @@ se repite con la columna como está ahora:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
 /**
- * Saves cards in their new order, all of them or none (ch. 8.2): the one moved or
+ * Saves cards in their new order, all of them or none: the one moved or
  * deleted, and the ones that took the places left, in each column it touches. Each
  * was read at a version, so a card someone else moved meanwhile makes it a
- * conflict, and the use case runs again with the columns as they are then (ch. 9).
+ * conflict, and the use case runs again with the columns as they are then.
  * One created meanwhile has no version here: the order of each column is checked
  * whole after writing, guarding those columns, so it is a conflict too.
  */
@@ -166,7 +166,7 @@ llamada a otro contexto, o un guardado propio que una segunda vuelta repetiría.
 dicen donde se ve, con el motivo al lado: `retryOnConflict: false`. Vale para toda la
 cadena: ninguno se repite, tampoco los que lo llamaron, aunque sean de otro contexto.
 
-cooper tiene tres, y cada uno con su motivo.
+cooper tiene cuatro, y cada uno con su motivo.
 
 **`tenant.create` de auth** guarda el espacio de trabajo, y después el acceso de su
 administrador. Si ese segundo guardado chocara y el caso de uso se repitiera, crearía
@@ -178,7 +178,8 @@ un **segundo espacio**:
  * A new workspace, made by the signed-in person, who is its admin. It writes to
  * `access` without being a worker, on purpose: whoever makes a workspace enters it
  * the moment it answers. The workspace is saved first and its admin after; should
- * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it.
+ * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it;
+ * whichever of the two gives it second finds it given.
  * It never runs again on a conflict: it would make a second workspace.
  */
 @UseCase({ writesTo: ['access'], retryOnConflict: false })
@@ -193,6 +194,11 @@ async create(input: TenantCreateDTO): Promise<TenantDTO> {
 
 `boards` lo llama desde su ruta `POST /api/workspaces`. Ahí también cuenta: la llamada
 empieza en auth, y auth dice que no se repite.
+
+**`tenant.delete` de auth** tiene la misma forma: guarda el espacio como borrado, y
+después le quita sus accesos (capítulo [6](./06-transactions)). Si se repitiera tras el
+primer guardado, encontraría el espacio ya borrado, y le respondería "no existe" al
+administrador que acaba de borrarlo.
 
 **`token.exchange` de auth** gasta el código de autorización (un guardado en
 `oauthGrant`) antes de guardar los tokens. Si se repitiera, traería el mismo código por
@@ -293,7 +299,7 @@ guardado de ese nombre se cuele en medio:
 async persistWithNameFree(board: Board): Promise<void> {
   const { workspaceId, name } = board
   await this.save([board], each => this.write(each), {
-    guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+    guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
     after: async () => {
       if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
     },

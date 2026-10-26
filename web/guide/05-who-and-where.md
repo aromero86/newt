@@ -33,14 +33,72 @@ seed does it to act as Ana:
 
 ```ts
 // cooper/scripts/seed.ts
-const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id }, fn)
+const asAna = <T>(fn: () => Promise<T>) => runAsActor({ userId: ana.id, via: 'web' }, fn)
 ```
 
-The framework knows one thing about the actor: its `userId`. That is all cooper
-needs. If your app needs more (the session it came through, whether it is an
-assistant), you can extend the `Actor` type with `declare module 'newt/core'`, in a
-file every program of the app loads. Extend it with **who** someone is, never with
-**what they may do**: you will see why in a moment.
+### Extending the actor
+
+The framework knows one thing about the actor: its `userId`. If your app needs more,
+extend the `Actor` type with `declare module 'newt/core'`, in a file every program of
+the app loads. cooper adds how someone came in: through its web apps, or through an
+AI assistant using boards' MCP server.
+
+```ts
+// cooper/backend/shared/actor.ts
+import 'newt/core'
+
+/**
+ * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
+ * through boards' MCP server, with an access token.
+ */
+export type ActorVia = 'web' | 'mcp'
+
+// …
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+`CooperBase` imports it, so every context sees the field. It is **required**: every
+place that says who acts has to say how they came in too, or it does not compile. That
+is why the seed above writes `via: 'web'`. The two doors set it where they
+authenticate: the web session answers `{ userId, via: 'web' }` (below), and the MCP
+server runs each request as `via: 'mcp'`:
+
+```ts
+// cooper/backend/contexts/boards/mcp/mcp.ts
+return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
+```
+
+And a use case reads it like the user's id. The card module stamps both on every
+event it tells, so a card's activity says "Ana moved it, through the assistant":
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.module.ts
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
+```
+
+```ts
+// cooper/backend/cooper.test.ts
+// Its activity says the assistant did it, as Ana.
+await settled()
+// …
+expect(activity.items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+  ['unassigned', ana.id, 'mcp'],
+  ['assigned', ana.id, 'mcp'],
+  ['moved', ana.id, 'mcp'],
+  ['created', ana.id, 'mcp'],
+])
+```
+
+Extend the actor with **who** someone is and how they came in, never with **what they
+may do**: you will see why in a moment.
 
 ## Authentication: who is it
 
@@ -92,7 +150,7 @@ async authenticate(token: string | undefined): Promise<Actor | null> {
     await this.repo.persist(session)
     return null
   }
-  return { userId: session.userId }
+  return { userId: session.userId, via: 'web' }
 }
 
 // …
@@ -143,15 +201,35 @@ async complete(input: { code?: string, state?: string, error?: string, errorDesc
 Notice `retryOnConflict: false`. Chapter [7](./07-concurrency) explains it.
 
 A route that anyone may call says so with `{ public: true }`. Every other route needs
-a session:
+a session. Signing out is public, and it shows one more thing: closing the context's
+session is not enough. auth still has its own session in the browser, and signing in
+again would sign the same person in without asking. So the route answers `{ next }`,
+the address of auth's `/oauth/logout`, and the browser goes there:
 
 ```ts
 // cooper/backend/shared/web-session/web-session.routes.ts
-// Public: signing out with a session already gone still clears the cookie.
+// Public: signing out with a session already gone still clears the cookie. The
+// browser goes on to auth, to sign out there too and come back: otherwise signing
+// in again would sign the same person in, with no way to switch accounts.
 base.http.post('/session/sign-out', async request => {
   await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
   request.cookies.delete({ name: cookies.session, path: '/' })
-  return new Response(null, { status: 204 })
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  return Response.json({ next } satisfies WebSessionSignOutDTO)
+}, { public: true })
+```
+
+auth ends its session too, and sends the browser back to `redirect`, but only if it is
+the address of one of cooper's products. Anything else goes to auth's start, so the
+route cannot be used to bounce someone to another site:
+
+```ts
+// cooper/backend/contexts/auth/modules/session/session.routes.ts
+base.oauth.get('/logout', async request => {
+  await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
+  request.cookies.delete({ name: SessionCookie, path: '/' })
+  const location = await sessions.returnAddress(new URL(request.url).searchParams.get('redirect') ?? undefined)
+  return new Response(null, { status: 302, headers: { location } })
 }, { public: true })
 ```
 
@@ -171,9 +249,18 @@ const back = await as(redirectTo)
 expect(back.status).toBe(302)
 expect(back.headers.get('location')).toBe('/boards/1')
 expect(await (await as(clientUrl('/api/session'))).json()).toMatchObject({ id: ana.id, email: 'ana@cooper.test' })
-expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id })
+expect(await (await as(clientUrl('/api/whoami'))).json()).toEqual({ userId: ana.id, via: 'web' })
 // It keeps no token: it gave them back once it knew who signed in.
 expect(await auth.base.store.table('token').count()).toBe(0)
+// …
+// Signing out goes on to auth, which ends its own session too and sends the browser back.
+const { next } = (await (await as(clientUrl('/api/session/sign-out'), { method: 'POST' })).json()) as { next: string }
+expect(next).toBe(authUrl(`/oauth/logout?${new URLSearchParams({ redirect: `http://localhost:${servers[1]!.port}` })}`))
+expect((await as(clientUrl('/api/session'))).status).toBe(401)
+expect((await as(clientUrl('/api/whoami'))).status).toBe(401)
+const loggedOut = await as(next)
+expect(loggedOut.headers.get('location')).toBe(clientUrl('/'))
+expect((await as(authUrl('/api/session'))).status).toBe(401)
 ```
 
 With cooper running (`bun run cooper`), a request without the cookie is refused:
@@ -200,18 +287,26 @@ export type Workspaces = {
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
+  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
+  exists(workspaceId: string): Promise<boolean>
 }
 ```
 
-Whoever opens the contexts wires it to auth's `access.check`:
+Whoever opens the contexts wires it to auth's use cases:
 
 ```ts
 // cooper/backend/open-contexts.ts
 workspaces: {
   isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
   // …
+  // A deleted tenant is not among them.
+  exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
 },
 ```
+
+`isMember` answers for a person. `exists` answers for a worker, which acts for nobody
+and only needs to know whether the workspace is still there before it writes in it
+(chapter [13](./13-repeatable-workers)).
 
 And the `member` module of `boards` turns the answer into a use case:
 
@@ -410,11 +505,44 @@ What the scope gives you:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
-const matching = await this.base.db
+const matching = this.base.db
   .selectFrom('card')
-  .select('id')
   .where('workspaceId', '=', currentWorkspaceId())
+  .where(eb => whereOf(eb, criteriaTree(criteria)))
   // …
+```
+
+The backoffice's overview is the one place in cooper that looks across workspaces on
+purpose: the staff see the boards created last, whatever their workspace. The
+repository says so by name:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.repository.ts
+/**
+ * The boards created last, in every workspace: for the staff, who look across them
+ * on purpose. Archived ones stay out.
+ */
+recentInEveryScope(limit: number): Promise<Board[]> {
+  return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
+}
+```
+
+And the use case on top of it runs in no workspace, and no route of `boards` calls it.
+Only the backoffice does, through its dependencies (chapter [22](./22-backoffice)):
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+/**
+ * For the staff's backoffice: the boards created last, whatever their workspace. It
+ * reads every workspace on purpose, so it does not run in one: no person of a
+ * workspace reaches it (no route of boards calls it), and its repository says so by
+ * name (`findInEveryScope`), where a review sees it.
+ */
+@UseCase()
+async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+  const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+  return boards.map(board => board.toDTO())
+}
 ```
 
 ### Entering a scope without a route
@@ -446,7 +574,7 @@ export async function inWorkspace<T>(members: Member_Module, workspaceId: string
 async unassignMember(workspaceId: string, userId: string): Promise<void> {
   await runInWorkspace(workspaceId, async () => {
     const cards = await this.repo.find({ assigneeId: userId })
-    for (const card of cards) card.unassign()
+    for (const card of cards) card.unassign(BOARDS)
     await this.repo.persist(...cards)
   })
 }
@@ -470,9 +598,9 @@ The tests enter a workspace as a person, the way a route does:
 
 ```ts
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
-/** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
-as<T>(userId: string, workspaceId: string, fn: () => Promise<T>): Promise<T> {
-  return runAsActor({ userId }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+/** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
+as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
+  return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
 },
 ```
 
@@ -512,8 +640,11 @@ the ones it needs, with the same three pieces: `defineScope`, `http.group` and `
 
 - A use case knows who acts with `currentActor()`. Never take a user id as a parameter
   for "mine".
+- Extend the `Actor` with `declare module 'newt/core'` for who someone is and how they
+  came in (`via`), set where they authenticate. Never for what they may do.
 - Authentication is a use case of the module that keeps the sessions; the router calls
-  it through `authenticateWith`. Store only the hash of a token.
+  it through `authenticateWith`. Store only the hash of a token. Signing out of an
+  app signs out of auth too.
 - Authorization is asked of the module that knows, every time, from the use case. Never
   put permissions in the actor.
 - 404 to whoever does not belong; 403 to a member who may not.
