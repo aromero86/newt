@@ -52,7 +52,7 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     const columns = Object.keys(values)
     await this.writing(async () => {
       await this.executor.run(
-        `INSERT INTO ${this.dialect.quote(this.name)} (${columns.map(this.dialect.quote).join(', ')}) VALUES (${columns.map((_, i) => this.dialect.param(i + 1)).join(', ')})`,
+        `INSERT INTO ${this.dialect.quote(this.name)} (${columns.map(this.dialect.quote).join(', ')}) VALUES (${columns.map((column, i) => this.param(column, i + 1)).join(', ')})`,
         Object.values(values),
       )
     })
@@ -86,9 +86,15 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     if (this.missing(id)) return 0
     const columns = Object.keys(values)
     const params = [...Object.values(values), id, ...(version === undefined ? [] : [version])]
-    const sets = columns.map((column, i) => `${this.dialect.quote(column)} = ${this.dialect.param(i + 1)}`).join(', ')
+    const sets = columns.map((column, i) => `${this.dialect.quote(column)} = ${this.param(column, i + 1)}`).join(', ')
     const where = `id = ${this.dialect.param(columns.length + 1)}${version === undefined ? '' : ` AND version = ${this.dialect.param(columns.length + 2)}`}`
     return this.executor.run(`UPDATE ${this.dialect.quote(this.name)} SET ${sets} WHERE ${where}`, params)
+  }
+
+  /** The n-th parameter, written to a column: as JSON, where the dialect says how. */
+  private param(column: string, n: number): string {
+    const param = this.dialect.param(n)
+    return this.type(this.field(column)) === 'json' && this.dialect.json ? this.dialect.json(param) : param
   }
 
   /** A write in the transaction in progress, or one of its own; a collision is a `ConcurrencyConflict` there and then. */

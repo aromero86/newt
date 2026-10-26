@@ -23,6 +23,9 @@ export const postgresDialect: SqlServerDialect = {
   ieq: (column, next) => `translate(${column}, '${UPPER}', '${LOWER}') = translate(${next()}, '${UPPER}', '${LOWER}')`,
   boolean: value => value,
   nullsLast: true,
+  // Its driver would write JSON text bound to a JSONB column as a JSON string: as text, the column parses it.
+  json: param => `${param}::text::jsonb`,
+  parsesJson: true,
   refusesNul: true,
   // 100 is the database's own collation; 20 is bigint.
   columns: `

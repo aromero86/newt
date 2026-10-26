@@ -37,11 +37,24 @@ if (url) {
       }
     })
 
+    test('reads a json field the table wrote as the object it is', async () => {
+      const store = await open()
+      try {
+        const db = kyselyFor<{ thing: { id: string, tags: unknown } }>(store)
+        await store.table<{ id: string, version: number, workspaceId: string, name: string, archived: boolean, rank: number, note: null, tags: unknown, createdAt: string, updatedAt: string, deletedAt: null }>('thing', { types: { tags: 'json' } })
+          .insert({ id: 't1', workspaceId: 'w1', name: 'a', archived: false, rank: 2, note: null, tags: { colour: 'red', sizes: [1, 2] }, createdAt: '', updatedAt: '', deletedAt: null })
+
+        expect(await db.selectFrom('thing').select(['id', 'tags']).execute()).toEqual([{ id: 't1', tags: { colour: 'red', sizes: [1, 2] } }])
+      } finally {
+        await store.close()
+      }
+    })
+
     test('writes in the store\'s transaction, undone with it, and refuses transactions of its own', async () => {
       const store = await open()
       try {
-        const db = kyselyFor<{ thing: { id: string, workspaceId: string, name: string, archived: boolean, rank: number, tags: string, createdAt: string, updatedAt: string, version: number } }>(store)
-        const thing = (id: string) => ({ id, workspaceId: 'w1', name: id, archived: false, rank: 0, tags: '[]', createdAt: '', updatedAt: '', version: 1 })
+        const db = kyselyFor<{ thing: { id: string, workspaceId: string, name: string, archived: boolean, rank: number, tags: string[], createdAt: string, updatedAt: string, version: number } }>(store)
+        const thing = (id: string) => ({ id, workspaceId: 'w1', name: id, archived: false, rank: 0, tags: [], createdAt: '', updatedAt: '', version: 1 })
 
         await store.transaction(async () => {
           await db.insertInto('thing').values(thing('t1')).execute()
