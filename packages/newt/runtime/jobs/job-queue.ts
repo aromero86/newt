@@ -68,7 +68,9 @@ export class JobQueue {
     private readonly invocations: Invocations,
     options: Partial<JobQueueOptions> = {},
   ) {
-    this.options = { ...DEFAULTS, ...options }
+    // An option given as undefined takes its default, as one left out does.
+    const given = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+    this.options = { ...DEFAULTS, ...given }
     const { concurrency } = this.options
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`A job queue runs at least one job at a time: its concurrency is a whole number from 1, not ${concurrency}`)
   }

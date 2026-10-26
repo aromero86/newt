@@ -13,7 +13,7 @@ export type Messages = {
   method_not_allowed: (params: { method: string, path: string }) => string
   /** A request whose input does not pass its schema. */
   validation: () => string
-  /** A request whose body cannot be read as JSON. */
+  /** A request whose body cannot be read, as JSON or as a form. */
   malformed_body: () => string
   /** A request whose body is read as JSON but whose `Content-Type` does not say it is. */
   unsupported_media_type: () => string

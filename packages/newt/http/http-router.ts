@@ -102,9 +102,9 @@ export class HttpRouter {
     const notFound = handle(request => {
       throw new ApiRouteNotFound(request.method, new URL(request.url).pathname)
     })
-    // A route registered at '' is the prefix itself: it keeps its place.
+    // A route registered at '' is the prefix itself, and one at '/*' all under it: they keep their place.
     routes[this.prefix] ??= notFound
-    routes[`${this.prefix}/*`] = notFound
+    routes[`${this.prefix}/*`] ??= notFound
     return routes as Bun.Serve.Routes<undefined, string>
   }
 

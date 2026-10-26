@@ -89,6 +89,16 @@ describe('HttpRouter, further', () => {
     expect((await fetch(new URL('/api/other', server.url))).status).toBe(404)
   })
 
+  test('a route registered at \'/*\' takes what no other route under the prefix does', async () => {
+    const router = new HttpRouter()
+    router.get('/things', own('GET'), { public: true })
+    router.get('/*', own('ANY'), { public: true })
+    const server = serve(router)
+
+    expect(await (await fetch(new URL('/api/things', server.url))).json()).toEqual({ method: 'GET' })
+    expect(await (await fetch(new URL('/api/other', server.url))).json()).toEqual({ method: 'ANY' })
+  })
+
   test('is case-sensitive: a prefix written in other letters is not the API', async () => {
     const router = new HttpRouter()
     router.get('/things', own('GET'), { public: true })

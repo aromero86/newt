@@ -66,14 +66,34 @@ export const queueName = {
     /** That `object` is the module: `this` in its own file, or a name of its type (`orders: Order_Module`, `m.Order_Module`), or named after it when it has no type (`orders`, `this.orders`). */
     const isModule = (object) => {
       if (object.type === 'ThisExpression') return true
-      if (object.type === 'MemberExpression') return !object.computed && object.property.type === 'Identifier' && names.has(object.property.name)
+      if (object.type === 'MemberExpression') {
+        if (object.computed || object.property.type !== 'Identifier') return false
+        const annotation = object.object.type === 'ThisExpression' ? fieldType(object, object.property.name) : undefined
+        return annotation ? isType(annotation) : names.has(object.property.name)
+      }
       if (object.type !== 'Identifier') return false
       const annotation = variableOf(context.sourceCode.getScope(object), object.name)?.defs[0]?.name.typeAnnotation?.typeAnnotation
-      if (annotation) {
-        const name = annotation.type === 'TSTypeReference' ? annotation.typeName : null
-        return (name?.type === 'Identifier' ? name.name : name?.type === 'TSQualifiedName' ? name.right.name : null) === type
+      return annotation ? isType(annotation) : names.has(object.name)
+    }
+
+    /** That a type annotation names the module's type, also qualified (`m.Order_Module`). */
+    const isType = (annotation) => {
+      const name = annotation.type === 'TSTypeReference' ? annotation.typeName : null
+      return (name?.type === 'Identifier' ? name.name : name?.type === 'TSQualifiedName' ? name.right.name : null) === type
+    }
+
+    /** The type `this.<field>` is given in the class around `node`: a property's, or a constructor parameter's (`private orders: Order_Module`). */
+    const fieldType = (node, field) => {
+      let around = node.parent
+      while (around && around.type !== 'ClassBody') around = around.parent
+      for (const member of around?.body ?? []) {
+        if (member.type === 'PropertyDefinition' && member.key.type === 'Identifier' && member.key.name === field) return member.typeAnnotation?.typeAnnotation
+        if (member.type !== 'MethodDefinition' || member.kind !== 'constructor') continue
+        for (const param of member.value.params) {
+          if (param.type === 'TSParameterProperty' && param.parameter.type === 'Identifier' && param.parameter.name === field) return param.parameter.typeAnnotation?.typeAnnotation
+        }
       }
-      return names.has(object.name)
+      return undefined
     }
 
     /** What the callback runs: its body when written there or a function declared in the file, else `null` (`orders.fulfil.bind(orders)`), and nothing is guessed. */

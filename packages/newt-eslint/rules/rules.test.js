@@ -114,5 +114,6 @@ tester.run('queue-name', queueName, {
     { code: "orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler' satisfies string, queue: 'order.bad' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'shape' }] },
     { code: "(orders: m.Product_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { register() { this.orders.events.placed.subscribe(o => this.products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
+    { code: "class W { constructor(private readonly orders: Product_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
   ],
 })
