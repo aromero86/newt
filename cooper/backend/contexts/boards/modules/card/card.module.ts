@@ -1,6 +1,6 @@
-import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { allPages, currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
-import { runInWorkspace } from '../../workspace-scope'
+import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import type { ColumnDTO } from '../column/column.schema'
 import {
   Card,
@@ -23,7 +23,7 @@ import {
 } from './card'
 import type { Card_Deps } from './card.deps'
 import type { Card_Options } from './card-options'
-import { Card_Repository, type CardRow } from './card.repository'
+import { Card_Repository } from './card.repository'
 import { registerCardRoutes } from './card.routes'
 import { registerCardWorkers } from './card.workers'
 import { AssigneeNotMember } from './errors/assignee-not-member'
@@ -104,13 +104,17 @@ export class Card_Module extends Module {
 
   /**
    * A page of the workspace's cards that have the text and pass the filter: only the
-   * fields and operators `CardFilter` allows.
+   * fields and operators `CardFilter` allows. The search finds their ids, a moment
+   * behind; the cards are read as they are now, and one gone since is left out.
    */
   @UseCase()
   async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
     const { text, filter } = CardSearchSchema.parse(input)
-    const criteria = filter ? CardFilter.toCriteria<CardRow>(filter) : {}
-    return mapPage(await this.repo.search(criteria, text, page), card => card.toDTO())
+    const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
+    const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
+    const cards = new Map((await this.repo.find({ id: { in: found.items } })).map(card => [card.id, card]))
+    // The next page starts after the last id the search found, whether or not its card is still there.
+    return mapPage({ ...found, nextCursor: found.items.at(-1) }, id => cards.get(id)?.toDTO())
   }
 
   /**
@@ -282,10 +286,34 @@ export class Card_Module extends Module {
     return runInWorkspace(workspaceId, () => this.repo.countByBoard())
   }
 
-  /** A workspace was deleted in auth: its cards go. A step of that deletion, safe to run again. */
+  /**
+   * The search finds a card as it is now: read again, it is indexed, or removed if it
+   * is gone. What a worker calls on every change of a card, in any order, as many
+   * times as it takes: each run indexes what is there then.
+   */
+  @UseCase()
+  async indexCard(workspaceId: string, id: string): Promise<void> {
+    const card = await runInWorkspace(workspaceId, () => this.repo.first({ id }))
+    if (card) await this.options.search.index(card.toDTO())
+    else await this.options.search.remove(id)
+  }
+
+  /**
+   * Every card of every workspace indexed again: what boards does when it opens, since
+   * a search in memory starts empty. Read a page at a time, all of them kept, as the
+   * search keeps them too.
+   */
+  @UseCase()
+  async reindex(): Promise<void> {
+    const cards = await allPages(page => this.repo.pageInEveryScope(page))
+    for (const card of cards) await this.options.search.index(card.toDTO())
+  }
+
+  /** A workspace was deleted in auth: its cards go, and the search forgets them. A step of that deletion, safe to run again. */
   @UseCase()
   async purgeWorkspace(workspaceId: string): Promise<void> {
     await this.repo.purgeWorkspace(workspaceId)
+    await this.options.search.removeWorkspace(workspaceId)
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */

@@ -4,6 +4,7 @@ import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
 import { Backoffice_Context } from './contexts/backoffice/backoffice.context'
 import { Boards_Context } from './contexts/boards/boards.context'
+import { MemoryCardSearch } from './contexts/boards/search/memory-card-search'
 import type { Boards_ModuleDeps } from './contexts/boards/initialize-modules'
 import { ConsoleMailer } from './shared/mail/console-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
@@ -31,7 +32,7 @@ export function cooperTracer(config: Config): Tracer | undefined {
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined })
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
@@ -43,7 +44,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
  * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */
-function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'log'> {
+function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'search' | 'log'> {
   const { access, user, tenant, token, invitation } = auth.modules
   // A deleted tenant is not among them.
   const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
