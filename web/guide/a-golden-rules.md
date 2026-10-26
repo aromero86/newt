@@ -1,128 +1,116 @@
 # A. The golden rules
 
-Every rule of the guide on one page, grouped by subject, each with the chapter that
-explains it. Come back to it now and then: it is shorter than the code it keeps tidy.
+Every rule the tutorial taught, on one page, each in one line with the chapter that
+teaches it. Come back to it now and then: it is shorter than the code it keeps tidy.
 
-## The eleven that never break
+## The ones that never break
 
-1. **One module, one responsibility.** If describing it needs an "and", it is two.
-2. **A route does not think.** It reads the request, calls a use case and answers.
-3. **Only the entity changes itself**, with methods that say what happened.
-4. **Only the repository touches the store.**
-5. **A transaction is one save**, not a whole use case.
-6. **A module reads from others whenever it wants, but writes into another only from
-   a worker**, reacting to an event.
-7. **The irreversible (an email, a payment) leaves from a worker**, never from a use
-   case.
-8. **A worker may run more than once**, so it must not matter if it does.
-9. **Dependencies between modules never form a cycle.** Nor between contexts.
-10. **A module points at another's things only by id**, never by its entity or its
-    table.
-11. **No list is returned whole unless a rule of the domain bounds it (at most 10 columns, 500 cards); every other list goes by pages.**
+1. **One module, one responsibility.** If describing it needs an "and", it is two. ([2](./02-first-module))
+2. **A route does not think.** It reads the request, calls a use case and answers. ([2](./02-first-module))
+3. **Only the entity changes itself**, with methods that say what happened. ([2](./02-first-module))
+4. **Only the repository touches the store.** ([2](./02-first-module))
+5. **A transaction is one save**, never a whole use case. ([6](./06-rules-over-rows))
+6. **A use case writes into another module only from a worker**, reacting to an event; an exception says `writesTo`, with its reason. ([8](./08-two-people-one-card), [13](./13-another-context))
+7. **What cannot be undone leaves from a worker** (an email, a call to another system), never from the use case that makes the change. ([12](./12-failures))
+8. **A job may run more than once**, so a second run must find nothing to do. ([11](./11-reacting))
+9. **Modules and contexts never depend on each other in a cycle.** ([1](./01-project-and-context), [20](./20-wiring-contexts))
+10. **A module points at another's things only by id**, never by its entity or its table. ([7](./07-cards-and-a-counter))
+11. **No list is returned whole unless a rule of the domain bounds it** (at most 10 columns, 500 cards); every other list goes by pages. ([3](./03-pages-and-errors))
 
-## Design
+## The project and its modules
 
-- A module's entity has the module's name (`card` → `Card`). An entity named
-  otherwise is a second responsibility. ([3](./03-first-module))
-- What is saved together, all or nothing, is one module. The rest follows by events.
-  ([17](./17-modules-talk))
-- A module knows the modules in its `<m>.deps.ts`, and never who depends on it.
-  ([17](./17-modules-talk))
-- A context reaches another only through its use cases and events, never its
-  repositories or its store. Each context is opened after the ones it uses, and
-  receives the other's modules as a `Pick` of the ones it needs.
-  ([19](./19-several-contexts), [22](./22-backoffice))
-- No foreign key, `JOIN` or entity across modules: an id. ([18](./18-references))
+- The backend is a TypeScript project of its own, importing newt by its name; standard decorators, never `experimentalDecorators`. ([1](./01-project-and-context))
+- A context opens its store, creates its base and initializes its modules; it receives its config and never reads the environment. ([1](./01-project-and-context))
+- Every module has the same files, named after it ([appendix B](./b-module-anatomy)); the lint keeps them so. ([2](./02-first-module))
+- A module's `*.schema.ts` is its contract: input schemas take only what a client sends, and reuse the rules of the whole one. ([2](./02-first-module), [23](./23-frontends))
+- A value object keeps a value's rules in one place: `from` forgives what someone typed, `schema` is strict about what is kept. ([2](./02-first-module))
+- A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`). ([6](./06-rules-over-rows))
+- A module checks its references by calling the other module's use cases, never its tables. ([7](./07-cards-and-a-counter))
 
 ## Use cases
 
-- Validate → load → decide → change the entity → save once → return DTOs.
-  ([4](./04-use-cases))
-- Two validations: the input's, in the use case (`<M>Schema.parse`); the state's, in
-  the entity. ([4](./04-use-cases))
-- An entity's methods take domain values, not the input DTO. ([3](./03-first-module))
-- What only its owner may change takes the actor (`currentActor()`), not an id.
-  ([5](./05-who-and-where))
-- A list takes a `PageRequest` and returns `items`, `hasMore` and `total`, written out
-  one by one. ([4](./04-use-cases))
-- A use case runs again on a `ConcurrencyConflict`, up to three more times. One that
-  does something before saving that must not happen twice says
-  `retryOnConflict: false`, with the reason beside it. ([7](./07-concurrency))
-- An exception to the write rule is said where it is seen:
-  `@UseCase({ writesTo: ['access'] })`, with the reason beside it.
-  ([17](./17-modules-talk))
-- The write rule is per context: a use case called from another context is the root
-  of what it does in its own. ([19](./19-several-contexts))
+- Validate, load, decide, change the entity, save once, return DTOs. ([2](./02-first-module))
+- Validate twice: the input in the use case (a 400), the state in the entity (`InvalidEntity`, a 500: a bug). ([3](./03-pages-and-errors))
+- **Who** is the actor: `currentActor()`, never a user id passed by hand. ([4](./04-who-and-where))
+- Extend `Actor` for who someone is and how they came in (`via`), never for what they may do. ([4](./04-who-and-where), [24](./24-mcp-server))
+- **May they** is asked every time, of the module that knows; a stranger gets a 404, not a 403. ([4](./04-who-and-where))
+- A list takes a `PageRequest` and returns a `Page`; `mapPage` turns entities into DTOs. ([3](./03-pages-and-errors))
+- A use case runs again on a `ConcurrencyConflict`, up to three more times, so it does nothing that cannot be undone before it saves. ([8](./08-two-people-one-card))
+- One that must not run twice says `retryOnConflict: false`, with its reason; what it calls then handles its own conflicts. ([8](./08-two-people-one-card), [18](./18-tenants-and-access))
+- A public route runs as nobody; to show more to whoever is signed in it uses `runAsActor`, and the use case asks `findCurrentActor()`. ([21](./21-oauth-server))
+- Time is a dependency: ask `now()`, never `new Date()`; a test hands the base a clock. ([19](./19-invitations-and-time))
 
 ## Saving
 
-- A save is one transaction: `persist`, or `save`/`saveRows` inside the repository.
-  A module never opens a transaction of its own. ([6](./06-transactions))
-- A rule over several rows is checked in the save's `after`, and names what it
-  guards with `guard`. It does not compile without it. ([8](./08-rules-over-rows))
-- A value everyone changes at once (a counter, a stock) lives in a row of its own
-  module, never in a row other saves write too, and is taken in the save's `before`,
-  under a `guard`, so the changes take turns: the cards' `card_counter`, not the
-  board. Only when even turns are too slow, add rows instead of updating one.
-  ([9](./09-shared-counters))
+- Every row has a version; saving one someone saved since is a `ConcurrencyConflict` (409), and nothing is written. ([8](./08-two-people-one-card))
+- A rule over several rows is checked in the save's `after`, which names what it protects in `guard`, keys as narrow as the rule. ([6](./06-rules-over-rows))
+- A save that reads rows and guards nothing is refused (the guard rule): `guard: []` when nothing needs it. ([6](./06-rules-over-rows))
+- Check first in the use case for the clear answer; a unique index has the last word (`DuplicateValue`). ([6](./06-rules-over-rows), [18](./18-tenants-and-access))
+- A value everyone changes at once lives in a row of its own, taken in the save's `before` under a `guard`. ([7](./07-cards-and-a-counter))
+- A value that must never come back is kept in a row that only grows, not derived from rows that can be deleted. ([7](./07-cards-and-a-counter))
+- A row created meanwhile has no version: check the whole order in `after` and call `this.conflict()`. ([8](./08-two-people-one-card))
+- Several entities of one module saved at once are one `save`: all or none. ([8](./08-two-people-one-card))
+- Rows that will never tell anything go for good with `purge(criteria)`, or `saveRows` around several tables. ([14](./14-sagas))
+- An entity with a secret has a public schema; keep a hash, never the secret. ([17](./17-auth))
+
+## Asking twice
+
+- A POST that creates something takes `{ idempotency: { table } }`; the client sends a new `Idempotency-Key` per submit, the same one when it sends it again. ([9](./09-idempotent-posts), [23](./23-frontends))
+- What fails is not kept: the same key may try again. ([9](./09-idempotent-posts))
 
 ## Events and workers
 
-- An event exists only if its transaction committed. ([10](./10-events))
-- One event of each kind per entity and save: two changes before a save make one
-  `updated`. ([10](./10-events))
-- What matters goes with `strategy: 'handler'`; what may be lost (a log line, a
-  cache), with `'fire-and-forget'`. ([11](./11-reacting))
-- A handler's queue is `<module>.<use case>.on.<module>.<event>`, and its callback
-  calls that one use case. ([11](./11-reacting))
-- A worker calls a use case, without an actor (what it needs comes from the event),
-  and may run again. ([11](./11-reacting), [13](./13-repeatable-workers))
-- What fails halfway is fixed forward: retries, or a compensation.
-  ([15](./15-failures), [16](./16-sagas))
-- A dead job is someone's to look at: each context offers its dead jobs through use
-  cases; fix the cause, then retry. ([22](./22-backoffice))
-- An event's shape only grows. ([10](./10-events))
+- An event is `<module>.<verb in past tense>`, noted by the entity with `trackEvent`, only if something changed. ([10](./10-events))
+- Whatever a listener needs that only the moment knows (who acted) goes in the payload: a listener has no actor. ([10](./10-events))
+- An event is heard only once its save commits. `fire-and-forget` is for what may be lost; what matters is `'handler'`, a job in the outbox. ([10](./10-events), [11](./11-reacting))
+- A handler's queue is `<module>.<use case>.on.<module>.<event>`; renaming it leaves its pending jobs behind. ([11](./11-reacting))
+- A job runs with no actor and no scope: it reads who from the payload and enters the workspace itself. ([11](./11-reacting), [13](./13-another-context))
+- A worker that runs late reads again what it is about before acting. ([12](./12-failures))
+- `when` decides from the payload which events get a job; business rules stay in the use case. ([12](./12-failures), [13](./13-another-context))
+- Work over several modules is a saga from a worker: each step finds what an earlier run did, and the saga only goes forward. ([14](./14-sagas))
+- A dead job is work stuck halfway: fix the cause, then retry it. ([12](./12-failures), [26](./26-dead-jobs-and-analytics))
+- What is due at a time is a schedule (`base.schedules.define`), told once per tick across processes. ([19](./19-invitations-and-time))
+- A secret is made where it leaves, never kept in a job. ([19](./19-invitations-and-time))
+
+## Contexts
+
+- What a context needs of another is a port in its own words, in the module's `.deps.ts`; a test hands it a fake. ([4](./04-who-and-where), [13](./13-another-context))
+- A context gets ports and a `Pick` of the other's modules, never its context, base or store. ([20](./20-wiring-contexts))
+- A subscription on another context's emitter is a job of that context's outbox, run by its worker. ([20](./20-wiring-contexts))
+- Writes into another context start at an entry point (a route); a call into another context is like an external API. ([20](./20-wiring-contexts))
+- A context that reads two reads them through their use cases, never their stores. ([25](./25-backoffice))
+- Each context imports only the contexts its `uses` names (`newt/context-boundaries`). ([17](./17-auth), [20](./20-wiring-contexts))
+
+## Queries
+
+- Criteria are for the module's own code; what they cannot say is Kysely, in the repository of the table it reads. ([15](./15-kysely))
+- Kysely does not apply the repository's scope: write the workspace's `where` yourself. ([15](./15-kysely))
+- A client filters only by what `defineFilter` allows; the system's rules go beside its filter, never inside. ([15](./15-kysely), [18](./18-tenants-and-access))
+- One query for the page and its total; never ids fetched to be sent back in an `in`. ([15](./15-kysely))
+- Text search lives behind a port of your own, proved by a contract suite; a projection is a moment behind, and rules never read it. ([16](./16-search-port))
+- A read across every scope is `findInEveryScope`, behind a name that says so. ([4](./04-who-and-where))
+- Analytics only appends, and every row has its id. ([26](./26-dead-jobs-and-analytics))
 
 ## In and out
 
-- A route does not think. ([3](./03-first-module))
-- Data is validated at the door, and value objects normalize it.
-  ([3](./03-first-module))
-- A client filters only by what `defineFilter` allows. The system's rules go beside
-  its filter, never inside. ([23](./23-search))
-- Errors are classes with a stable `code`, one per file; their base decides the
-  status. ([3](./03-first-module))
-- 404 when a 403 would reveal that something exists. ([5](./05-who-and-where),
-  [22](./22-backoffice))
-- newt's own messages are replaced once, at startup, with `setMessages`. Codes never
-  change. ([26](./26-production))
+- A route never catches: what it throws becomes `{ error, code }` with its base class's status. ([3](./03-pages-and-errors))
+- A client acts on `code`, which never changes; `setMessages`, once at startup, puts newt's messages in your words. ([3](./03-pages-and-errors))
+- Routes nobody can be signed in for say `{ public: true }`; a session lives in an `httpOnly` cookie. ([17](./17-auth))
+- A router has one authenticator, set by the module that knows the sessions. ([22](./22-web-session))
+- Addresses with a format of their own are a router at the root (`prefix: ''`), answering errors their way with `onError`. ([21](./21-oauth-server), [24](./24-mcp-server))
+- A route other origins call says so with `cors`, and never with cookies. ([21](./21-oauth-server))
+- The browser loads `newt/contract`, never `newt/core`. ([23](./23-frontends))
+- An MCP tool is another door to the same use cases; it adds no rules. ([24](./24-mcp-server))
 
-## Data
+## Migrations and production
 
-- `TableRepository` and criteria by default, Kysely for the rest, a store's own SQL
-  only when there is no other way, kept in one place and marked.
-  ([22](./22-backoffice))
-- Kysely does not apply a repository's scope: write it yourself.
-  ([22](./22-backoffice), [23](./23-search))
-- A read across every scope goes through `findInEveryScope`, behind a method whose
-  name says it, bounded, and reached by no route of the scope's own people.
-  ([22](./22-backoffice))
-- Never fetch ids to send them back in an `in`: one query does it.
-  ([23](./23-search))
-- Analytics only appends, and every row has its id. ([22](./22-backoffice))
-- An applied migration is never edited. A later one takes the rows there are.
-  ([24](./24-migrations))
+- A change of shape is a new migration; an applied one is never edited (its checksum is checked). ([5](./05-sqlite), [18](./18-tenants-and-access))
+- Each dialect has its own migrations folder; `open` migrates, `connect` does not. ([27](./27-postgres))
+- One tracer for every context of a process. ([28](./28-observability))
 
 ## Tests
 
-- Wait for workers with `jobs.idle()`, never a sleep, in the order the work flows
-  across contexts. ([25](./25-tests))
-- Test the hard cases: at once, twice, refused, and limits crossed.
-  ([25](./25-tests))
-- What is set for the whole process is tested in a process of its own.
-  ([25](./25-tests))
-
-## Running it
-
-- One tracer for every context of a process: a call across contexts shows inside
-  its caller. Without one, nothing is recorded. ([22](./22-backoffice))
+- Wait for workers with `jobs.idle()`, never a sleep, in the order the work flows across contexts. ([11](./11-reacting), [20](./20-wiring-contexts))
+- Move time with the base's clock and `schedules.tick()`. ([19](./19-invitations-and-time))
+- Test the hard cases: at once, twice, refused, limits crossed. ([7](./07-cards-and-a-counter), [8](./08-two-people-one-card))
+- A port is proved by a contract suite every adapter runs. ([16](./16-search-port), [D](./d-writing-a-store))

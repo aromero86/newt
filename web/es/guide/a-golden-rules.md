@@ -1,130 +1,117 @@
 # A. Las reglas de oro
 
-Todas las reglas de la guía en una página, agrupadas por tema, cada una con el capítulo
-que la explica. Vuelve a ella de vez en cuando: es más corta que el código que mantiene en
-orden.
+Todas las reglas que ha enseñado el tutorial, en una página, cada una en una línea con el
+capítulo que la enseña. Vuelve a ella de vez en cuando: es más corta que el código que
+mantiene ordenado.
 
-## Las once que nunca se rompen
+## Las que nunca se rompen
 
-1. **Un módulo, una responsabilidad.** Si para describirlo necesitas un "y", son dos.
-2. **Una ruta no piensa.** Lee la petición, llama a un caso de uso y responde.
-3. **Solo la entidad se cambia a sí misma**, con métodos que dicen qué ha pasado.
-4. **Solo el repositorio toca el store.**
-5. **Una transacción es un guardado**, no un caso de uso entero.
-6. **Un módulo lee de otros cuando quiere, pero escribe en otro solo desde un worker**,
-   reaccionando a un evento.
-7. **Lo irreversible (un email, un cobro) sale de un worker**, nunca de un caso de uso.
-8. **Un worker puede ejecutarse más de una vez**, así que debe dar igual que lo haga.
-9. **Las dependencias entre módulos nunca forman un círculo.** Tampoco entre contextos.
-10. **Un módulo apunta a lo de otro solo por su id**, nunca por su entidad ni por su
-    tabla.
-11. **Ninguna lista se devuelve entera salvo que una regla del dominio la acote (como mucho 10 columnas, 500 cards); las demás van por páginas.**
+1. **Un módulo, una responsabilidad.** Si describirlo necesita una "y", son dos. ([2](./02-first-module))
+2. **Una ruta no piensa.** Lee la petición, llama a un caso de uso y responde. ([2](./02-first-module))
+3. **Solo la entidad se cambia a sí misma**, con métodos que dicen qué ha pasado. ([2](./02-first-module))
+4. **Solo el repositorio toca el store.** ([2](./02-first-module))
+5. **Una transacción es un guardado**, nunca un caso de uso entero. ([6](./06-rules-over-rows))
+6. **Un caso de uso escribe en otro módulo solo desde un worker**, reaccionando a un evento; una excepción dice `writesTo`, con su motivo. ([8](./08-two-people-one-card), [13](./13-another-context))
+7. **Lo que no se puede deshacer sale de un worker** (un email, una llamada a otro sistema), nunca del caso de uso que hace el cambio. ([12](./12-failures))
+8. **Un job puede ejecutarse más de una vez**, así que una segunda ejecución no debe encontrar nada que hacer. ([11](./11-reacting))
+9. **Los módulos y los contextos nunca dependen unos de otros en un ciclo.** ([1](./01-project-and-context), [20](./20-wiring-contexts))
+10. **Un módulo apunta a las cosas de otro solo por id**, nunca por su entidad ni por su tabla. ([7](./07-cards-and-a-counter))
+11. **Ninguna lista se devuelve entera salvo que una regla del dominio la acote** (como mucho 10 columnas, 500 tarjetas); todas las demás van por páginas. ([3](./03-pages-and-errors))
 
-## Diseño
+## El proyecto y sus módulos
 
-- La entidad de un módulo lleva su nombre (`card` → `Card`). Una entidad con otro nombre
-  es una segunda responsabilidad. ([3](./03-first-module))
-- Lo que se guarda junto, todo o nada, es un módulo. Lo demás se sigue por eventos.
-  ([17](./17-modules-talk))
-- Un módulo conoce los módulos de su `<m>.deps.ts`, y nunca quién depende de él.
-  ([17](./17-modules-talk))
-- Un contexto llega a otro solo por sus casos de uso y sus eventos, nunca por sus
-  repositorios ni por su store. Cada contexto se abre después de los que usa, y recibe
-  los módulos del otro como un `Pick` de los que necesita.
-  ([19](./19-several-contexts), [22](./22-backoffice))
-- Ni claves ajenas, ni `JOIN`, ni entidades entre módulos: un id.
-  ([18](./18-references))
+- El backend es un proyecto TypeScript propio que importa newt por su nombre; decoradores estándar, nunca `experimentalDecorators`. ([1](./01-project-and-context))
+- Un contexto abre su store, crea su base e inicializa sus módulos; recibe su config y nunca lee el entorno. ([1](./01-project-and-context))
+- Todos los módulos tienen los mismos archivos, con su nombre ([apéndice B](./b-module-anatomy)); el lint los mantiene así. ([2](./02-first-module))
+- El `*.schema.ts` de un módulo es su contrato: los esquemas de entrada toman solo lo que envía un cliente, y reutilizan las reglas del esquema completo. ([2](./02-first-module), [23](./23-frontends))
+- Un objeto de valor guarda las reglas de un valor en un solo sitio: `from` perdona lo que alguien escribió, `schema` es estricto con lo que se guarda. ([2](./02-first-module))
+- Un módulo llega a otro solo a través de su módulo, su esquema, sus eventos, sus errores y sus objetos de valor (`newt/module-boundaries`). ([6](./06-rules-over-rows))
+- Un módulo comprueba sus referencias llamando a los casos de uso del otro módulo, nunca a sus tablas. ([7](./07-cards-and-a-counter))
 
 ## Casos de uso
 
-- Validar → cargar → decidir → cambiar la entidad → guardar una vez → devolver DTOs.
-  ([4](./04-use-cases))
-- Dos validaciones: la de la entrada, en el caso de uso (`<M>Schema.parse`); la del
-  estado, en la entidad. ([4](./04-use-cases))
-- Los métodos de la entidad reciben valores del dominio, no el DTO de entrada.
-  ([3](./03-first-module))
-- Lo que solo puede cambiar su dueño toma el actor (`currentActor()`), no un id.
-  ([5](./05-who-and-where))
-- Una lista recibe un `PageRequest` y devuelve `items`, `hasMore` y `total`, escritos uno
-  a uno. ([4](./04-use-cases))
-- Un caso de uso se repite ante un `ConcurrencyConflict`, hasta tres veces más. El que
-  hace antes de guardar algo que no debe pasar dos veces dice
-  `retryOnConflict: false`, con el motivo al lado. ([7](./07-concurrency))
-- Una excepción a la regla de escritura se dice donde se vea:
-  `@UseCase({ writesTo: ['access'] })`, con el motivo al lado.
-  ([17](./17-modules-talk))
-- La regla de escritura es por contexto: un caso de uso al que llama otro contexto es la
-  raíz de lo que hace en el suyo. ([19](./19-several-contexts))
+- Valida, carga, decide, cambia la entidad, guarda una vez, devuelve DTOs. ([2](./02-first-module))
+- Valida dos veces: la entrada en el caso de uso (un 400), el estado en la entidad (`InvalidEntity`, un 500: un bug). ([3](./03-pages-and-errors))
+- **Quién** es el actor: `currentActor()`, nunca un id de usuario pasado a mano. ([4](./04-who-and-where))
+- Extiende `Actor` para quién es alguien y cómo ha entrado (`via`), nunca para lo que puede hacer. ([4](./04-who-and-where), [24](./24-mcp-server))
+- **Puede** se pregunta cada vez, al módulo que lo sabe; un extraño recibe un 404, no un 403. ([4](./04-who-and-where))
+- Una lista recibe un `PageRequest` y devuelve una `Page`; `mapPage` convierte entidades en DTOs. ([3](./03-pages-and-errors))
+- Un caso de uso se ejecuta otra vez ante un `ConcurrencyConflict`, hasta tres veces más, así que no hace nada que no se pueda deshacer antes de guardar. ([8](./08-two-people-one-card))
+- Uno que no debe ejecutarse dos veces dice `retryOnConflict: false`, con su motivo; lo que llama entonces maneja sus propios conflictos. ([8](./08-two-people-one-card), [18](./18-tenants-and-access))
+- Una ruta pública se ejecuta como nadie; para mostrar más a quien ha iniciado sesión usa `runAsActor`, y el caso de uso pregunta `findCurrentActor()`. ([21](./21-oauth-server))
+- El tiempo es una dependencia: pide `now()`, nunca `new Date()`; un test le da un reloj a la base. ([19](./19-invitations-and-time))
 
 ## Guardar
 
-- Un guardado es una transacción: `persist`, o `save`/`saveRows` dentro del
-  repositorio. Un módulo nunca abre una transacción propia. ([6](./06-transactions))
-- Una regla sobre varias filas se comprueba en el `after` del guardado, y dice qué
-  protege con `guard`. Sin él no compila. ([8](./08-rules-over-rows))
-- Un valor que todos cambian a la vez (un contador, un stock) vive en una fila de su
-  propio módulo, nunca en una fila que escriben también otros guardados, y se toma en
-  el `before` del guardado, bajo un `guard`, para que los cambios se turnen: el
-  `card_counter` de las tarjetas, no el tablero. Solo cuando ni turnarse es bastante
-  rápido, añade filas en lugar de actualizar una. ([9](./09-shared-counters))
+- Cada fila tiene una versión; guardar una que alguien ha guardado después es un `ConcurrencyConflict` (409), y no se escribe nada. ([8](./08-two-people-one-card))
+- Una regla sobre varias filas se comprueba en el `after` del guardado, que nombra lo que protege en `guard`, con claves tan estrechas como la regla. ([6](./06-rules-over-rows))
+- Un guardado que lee filas y no protege nada se rechaza (la regla del guard): `guard: []` cuando no hace falta. ([6](./06-rules-over-rows))
+- Comprueba primero en el caso de uso para dar la respuesta clara; un índice único tiene la última palabra (`DuplicateValue`). ([6](./06-rules-over-rows), [18](./18-tenants-and-access))
+- Un valor que todos cambian a la vez vive en una fila propia, que se toma en el `before` del guardado bajo un `guard`. ([7](./07-cards-and-a-counter))
+- Un valor que nunca debe volver atrás se guarda en una fila que solo crece, no se deriva de filas que se pueden borrar. ([7](./07-cards-and-a-counter))
+- Una fila creada entretanto no tiene versión: comprueba el orden completo en `after` y llama a `this.conflict()`. ([8](./08-two-people-one-card))
+- Varias entidades de un mismo módulo guardadas a la vez son un solo `save`: todas o ninguna. ([8](./08-two-people-one-card))
+- Las filas que nunca dirán nada se van para siempre con `purge(criteria)`, o con `saveRows` alrededor de varias tablas. ([14](./14-sagas))
+- Una entidad con un secreto tiene un esquema público; guarda un hash, nunca el secreto. ([17](./17-auth))
+
+## Pedir dos veces
+
+- Un POST que crea algo recibe `{ idempotency: { table } }`; el cliente envía una `Idempotency-Key` nueva por envío, la misma cuando lo envía otra vez. ([9](./09-idempotent-posts), [23](./23-frontends))
+- Lo que falla no se guarda: la misma clave puede volver a intentarlo. ([9](./09-idempotent-posts))
 
 ## Eventos y workers
 
-- Un evento existe solo si su transacción se confirmó. ([10](./10-events))
-- Un evento de cada tipo por entidad y guardado: dos cambios antes de guardar son un solo
-  `updated`. ([10](./10-events))
-- Lo que importa, con `strategy: 'handler'`; lo que se puede perder (una línea de log,
-  una caché), con `'fire-and-forget'`. ([11](./11-reacting))
-- La cola de un handler es `<módulo>.<caso de uso>.on.<módulo>.<evento>`, y su callback
-  llama a ese caso de uso. ([11](./11-reacting))
-- Un worker llama a un caso de uso, sin actor (lo que necesite lo lee del evento), y puede
-  repetirse. ([11](./11-reacting), [13](./13-repeatable-workers))
-- Lo que falla a mitad se arregla hacia delante: reintentos o una compensación.
-  ([15](./15-failures), [16](./16-sagas))
-- Un job muerto es cosa de alguien: cada contexto ofrece sus jobs muertos con casos de
-  uso; arregla la causa y después reintenta. ([22](./22-backoffice))
-- Un evento solo crece. ([10](./10-events))
+- Un evento es `<módulo>.<verbo en pasado>`, anotado por la entidad con `trackEvent`, solo si algo ha cambiado. ([10](./10-events))
+- Lo que un listener necesita y solo conoce el momento (quién actuó) va en el payload: un listener no tiene actor. ([10](./10-events))
+- Un evento se oye solo cuando su guardado se confirma. `fire-and-forget` es para lo que se puede perder; lo que importa es `'handler'`, un job en el outbox. ([10](./10-events), [11](./11-reacting))
+- La cola de un handler es `<módulo>.<caso de uso>.on.<módulo>.<evento>`; renombrarla deja atrás sus jobs pendientes. ([11](./11-reacting))
+- Un job se ejecuta sin actor y sin scope: lee quién es del payload y entra él mismo en el espacio de trabajo. ([11](./11-reacting), [13](./13-another-context))
+- Un worker que se ejecuta tarde vuelve a leer aquello de lo que trata antes de actuar. ([12](./12-failures))
+- `when` decide, a partir del payload, qué eventos tienen un job; las reglas de negocio se quedan en el caso de uso. ([12](./12-failures), [13](./13-another-context))
+- El trabajo sobre varios módulos es una saga desde un worker: cada paso encuentra lo que hizo una ejecución anterior, y la saga solo avanza. ([14](./14-sagas))
+- Un job muerto es trabajo atascado a medias: arregla la causa, y luego reinténtalo. ([12](./12-failures), [26](./26-dead-jobs-and-analytics))
+- Lo que toca a una hora es una programación (`base.schedules.define`), avisada una vez por tick entre procesos. ([19](./19-invitations-and-time))
+- Un secreto se hace donde sale, nunca se guarda en un job. ([19](./19-invitations-and-time))
+
+## Contextos
+
+- Lo que un contexto necesita de otro es un puerto en sus propias palabras, en el `.deps.ts` del módulo; un test le da un falso. ([4](./04-who-and-where), [13](./13-another-context))
+- Un contexto recibe puertos y un `Pick` de los módulos del otro, nunca su contexto, su base ni su store. ([20](./20-wiring-contexts))
+- Una suscripción al emisor de otro contexto es un job del outbox de ese contexto, ejecutado por su worker. ([20](./20-wiring-contexts))
+- Las escrituras en otro contexto empiezan en un punto de entrada (una ruta); una llamada a otro contexto es como una API externa. ([20](./20-wiring-contexts))
+- Un contexto que lee dos los lee a través de sus casos de uso, nunca de sus stores. ([25](./25-backoffice))
+- Cada contexto importa solo los contextos que nombra su `uses` (`newt/context-boundaries`). ([17](./17-auth), [20](./20-wiring-contexts))
+
+## Consultas
+
+- Los criterios son para el código del propio módulo; lo que no pueden decir es Kysely, en el repositorio de la tabla que lee. ([15](./15-kysely))
+- Kysely no aplica el scope del repositorio: escribe tú el `where` del espacio de trabajo. ([15](./15-kysely))
+- Un cliente filtra solo por lo que permite `defineFilter`; las reglas del sistema van junto a su filtro, nunca dentro. ([15](./15-kysely), [18](./18-tenants-and-access))
+- Una consulta para la página y su total; nunca ids traídos para enviarlos de vuelta en un `in`. ([15](./15-kysely))
+- La búsqueda de texto vive detrás de un puerto propio, demostrado por una suite de contrato; una proyección va un momento por detrás, y las reglas nunca la leen. ([16](./16-search-port))
+- Una lectura a través de todos los scopes es `findInEveryScope`, con un nombre que lo dice. ([4](./04-who-and-where))
+- Las analíticas solo añaden, y cada fila tiene su id. ([26](./26-dead-jobs-and-analytics))
 
 ## Entrada y salida
 
-- Una ruta no piensa. ([3](./03-first-module))
-- Los datos se validan en la puerta, y los value objects los normalizan.
-  ([3](./03-first-module))
-- Un cliente filtra solo por lo que `defineFilter` le permite. Las reglas del sistema van
-  al lado de su filtro, nunca dentro. ([23](./23-search))
-- Los errores son clases con un `code` estable, una por fichero; su clase base decide el
-  estado HTTP. ([3](./03-first-module))
-- 404 cuando un 403 revelaría que algo existe. ([5](./05-who-and-where),
-  [22](./22-backoffice))
-- Los mensajes propios de newt se cambian una vez, al arrancar, con `setMessages`. Los
-  códigos no cambian nunca. ([26](./26-production))
+- Una ruta nunca captura: lo que lanza se convierte en `{ error, code }` con el estado de su clase base. ([3](./03-pages-and-errors))
+- Un cliente actúa según `code`, que nunca cambia; `setMessages`, una vez al arrancar, pone los mensajes de newt en tus palabras. ([3](./03-pages-and-errors))
+- Las rutas para las que nadie puede haber iniciado sesión dicen `{ public: true }`; una sesión vive en una cookie `httpOnly`. ([17](./17-auth))
+- Un router tiene un solo autenticador, puesto por el módulo que conoce las sesiones. ([22](./22-web-session))
+- Las direcciones con un formato propio son un router en la raíz (`prefix: ''`), que responde a los errores a su manera con `onError`. ([21](./21-oauth-server), [24](./24-mcp-server))
+- Una ruta a la que llaman otros orígenes lo dice con `cors`, y nunca con cookies. ([21](./21-oauth-server))
+- El navegador carga `newt/contract`, nunca `newt/core`. ([23](./23-frontends))
+- Una herramienta MCP es otra puerta a los mismos casos de uso; no añade reglas. ([24](./24-mcp-server))
 
-## Datos
+## Migraciones y producción
 
-- `TableRepository` y criterios por defecto, Kysely para lo demás, y el SQL propio de un
-  store solo cuando no hay otro camino, en un único sitio y marcado.
-  ([22](./22-backoffice))
-- Kysely no aplica el ámbito de un repositorio: escríbelo tú. ([22](./22-backoffice),
-  [23](./23-search))
-- Una lectura de todos los ámbitos pasa por `findInEveryScope`, detrás de un método cuyo
-  nombre lo dice, con límite, y sin ruta por la que llegue la gente del propio ámbito.
-  ([22](./22-backoffice))
-- Nunca pidas unos ids para devolverlos en un `in`: una consulta lo hace.
-  ([23](./23-search))
-- La analítica solo añade, y cada fila lleva su id. ([22](./22-backoffice))
-- Una migración aplicada no se edita nunca. Una posterior toma las filas que hay.
-  ([24](./24-migrations))
+- Un cambio de forma es una migración nueva; una ya aplicada nunca se edita (se comprueba su checksum). ([5](./05-sqlite), [18](./18-tenants-and-access))
+- Cada dialecto tiene su propia carpeta de migraciones; `open` migra, `connect` no. ([27](./27-postgres))
+- Un solo tracer para todos los contextos de un proceso. ([28](./28-observability))
 
 ## Tests
 
-- Espera a los workers con `jobs.idle()`, nunca con un sleep, en el orden en que fluye el
-  trabajo entre contextos. ([25](./25-tests))
-- Prueba lo difícil: a la vez, dos veces, rechazado, y los límites, cruzados.
-  ([25](./25-tests))
-- Lo que se fija para todo el proceso se prueba en un proceso propio.
-  ([25](./25-tests))
-
-## En marcha
-
-- Un solo tracer para todos los contextos de un proceso: una llamada entre contextos sale
-  dentro de quien la hizo. Sin tracer, no se registra nada. ([22](./22-backoffice))
+- Espera a los workers con `jobs.idle()`, nunca con un sleep, en el orden en que el trabajo fluye entre contextos. ([11](./11-reacting), [20](./20-wiring-contexts))
+- Mueve el tiempo con el reloj de la base y `schedules.tick()`. ([19](./19-invitations-and-time))
+- Prueba los casos difíciles: a la vez, dos veces, rechazado, límites superados. ([7](./07-cards-and-a-counter), [8](./08-two-people-one-card))
+- Un puerto se demuestra con una suite de contrato que ejecuta cada adaptador. ([16](./16-search-port), [D](./d-writing-a-store))
