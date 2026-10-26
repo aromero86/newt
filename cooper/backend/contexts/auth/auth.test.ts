@@ -66,6 +66,22 @@ describe('accounts', () => {
     expect(await modules().session.authenticate(token)).toBeNull()
   })
 
+  test('removes the expired sessions every night at three, by auth\'s clock', async () => {
+    const sessions = () => auth.base.store.table('session').count({})
+    time = Date.parse('2027-03-15T12:00:00Z')
+    // The first look at a schedule tells nothing of before: its next tick is tonight's.
+    await auth.base.schedules.tick()
+    await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
+    time += config.auth.sessionDays * DAY_MS
+    await modules().session.signIn({ email: 'ana@cooper.test', password: 'a long password' })
+    expect(await sessions()).toBe(2)
+
+    await auth.base.schedules.tick()
+    await settled()
+
+    expect(await sessions()).toBe(1)
+  })
+
   test('lists accounts newest first, with the filters it allows', async () => {
     await signUp('Ana')
     await signUp('Bob')
