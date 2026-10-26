@@ -1,3 +1,4 @@
+import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 
@@ -25,8 +26,9 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   })
 
   // auth took someone's access to a workspace: their cards there are left unassigned.
+  // auth tells every access it takes away, to any product: only a workspace's is boards'.
   deps.access.revoked.subscribe(async access => {
-    if (access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
+    if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
   }, {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',

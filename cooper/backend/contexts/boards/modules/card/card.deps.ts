@@ -8,8 +8,11 @@ import type { Member_Module } from '../member/member.module'
  * words. auth's emitters fit it; a test hands its own.
  */
 export type AccessEvents = {
-  /** Someone lost their access to a workspace (`tenantId`), or to an app with none (null). */
-  revoked: Pick<DomainEventEmitter<{ userId: string, tenantId: string | null }>, 'subscribe'>
+  /**
+   * Someone lost their access to a product of auth's: to a workspace of `cooper`
+   * (`tenantId`), or to a product with none (null, the backoffice's staff).
+   */
+  revoked: Pick<DomainEventEmitter<{ userId: string, productId: string, tenantId: string | null }>, 'subscribe'>
 }
 
 export interface Card_Deps {

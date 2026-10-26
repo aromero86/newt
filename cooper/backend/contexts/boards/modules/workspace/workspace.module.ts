@@ -1,10 +1,20 @@
-import { Module, UseCase } from 'newt/core'
+import { currentActor, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
 import type { BoardsBase } from '../../boards-base'
-import { runInWorkspace } from '../../workspace-scope'
+import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import type { Workspace_Deps } from './workspace.deps'
 import { registerWorkspaceRoutes } from './workspace.routes'
-import { WELCOME_BOARD, type BoardViewDTO } from './workspace.schema'
+import { WELCOME_BOARD, workspaceOf, type BoardViewDTO, type WorkspaceDTO, type WorkspaceMemberDTO } from './workspace.schema'
 import { registerWorkspaceWorkers } from './workspace.workers'
+
+/** Every item of a list read in pages: a person's workspaces, a workspace's members, are never many. */
+export async function everything<T extends { id: string }>(read: (page: PageRequest) => Promise<Page<T>>): Promise<T[]> {
+  const items: T[] = []
+  for (let page = await read({ size: 100 }); ; page = await read({ size: 100, cursor: items.at(-1)!.id })) {
+    items.push(...page.items)
+    if (!page.hasMore || page.items.length === 0) return items
+  }
+}
 
 /**
  * A workspace as `boards` has it: what its boards, columns and cards are together.
@@ -30,6 +40,36 @@ export class Workspace_Module extends Module {
     const board = await this.deps.board.get(boardId)
     const [columns, cards] = await Promise.all([this.deps.column.list(boardId), this.deps.card.listInBoard(boardId)])
     return { board, columns, cards }
+  }
+
+  /**
+   * The workspaces the signed-in person belongs to, the ones they joined last first.
+   * auth keeps them: this only reads it, its accesses to `cooper` and their tenants.
+   */
+  @UseCase()
+  async mine(): Promise<WorkspaceDTO[]> {
+    const { userId } = currentActor()
+    const accesses = await everything(page => this.deps.auth.access.listForUser(userId, page, WORKSPACES_PRODUCT))
+    const tenants = new Map((await this.deps.auth.tenant.getMany(accesses.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
+    // A workspace deleted a moment ago, whose accesses auth's worker has not taken away yet, is left out.
+    return accesses.flatMap(access => {
+      const tenant = tenants.get(access.tenantId ?? '')
+      return tenant ? [workspaceOf(tenant, userId)] : []
+    })
+  }
+
+  /**
+   * Who belongs to the current workspace, its admin first: auth's accesses to it, and
+   * the users they are for. It only reads auth.
+   */
+  @UseCase()
+  async members(): Promise<WorkspaceMemberDTO[]> {
+    const accesses = await everything(page => this.deps.auth.access.listForTenant(currentWorkspaceId(), page))
+    const users = new Map((await this.deps.auth.user.getMany(accesses.map(access => access.userId))).map(user => [user.id, user]))
+    return accesses.flatMap(access => {
+      const user = users.get(access.userId)
+      return user ? [{ id: user.id, name: user.name, email: user.email, isAdmin: access.role === 'admin' }] : []
+    })
   }
 
   /**

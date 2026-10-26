@@ -8,7 +8,7 @@ import { FakeAuth } from './fake-auth'
 /**
  * `boards` for a test: its database in memory, a fake auth behind its ports, its
  * emails in a list, and who sends a request told by an `x-user` header (the real
- * authenticator reads a session, and is wired with auth).
+ * authenticator, the web session's, is replaced).
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
@@ -17,6 +17,7 @@ export async function openTestBoards() {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
+    auth: auth.modules,
     mailer: { send: async mail => { mails.push(mail) } },
   })
   boards.base.http.authenticateWith(async request => {

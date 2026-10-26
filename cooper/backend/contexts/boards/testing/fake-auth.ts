@@ -1,6 +1,7 @@
 import { SqliteStore } from 'newt/adapter-sqlite'
 import { Email, eventsOf, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
+import type { Boards_Auth } from '../initialize-modules'
 import type { AccessEvents } from '../modules/card/card.deps'
 import type { Workspaces } from '../modules/member/member.deps'
 import type { MemberDTO } from '../modules/member/member.schema'
@@ -20,7 +21,7 @@ class Tenant_Deleted implements DomainEvent<{ id: string }> {
   constructor(readonly payload: { id: string }) {}
 }
 
-type Access = { userId: string, tenantId: string | null }
+type Access = { userId: string, productId: string, tenantId: string | null }
 
 class Access_Revoked implements DomainEvent<Access> {
   static readonly eventName = 'access.revoked'
@@ -47,6 +48,17 @@ export class FakeAuth {
 
   readonly tenants: TenantEvents
   readonly access: AccessEvents
+
+  /**
+   * auth's use cases, which boards' own tests never reach: who signs in, and the
+   * routes for workspaces, members and invitations, which run on the real auth in
+   * cooper's test (`cooper/backend/cooper.test.ts`). Any call says so.
+   */
+  readonly modules = new Proxy({}, {
+    get: (_, module) => new Proxy({}, {
+      get: (__, useCase) => () => Promise.reject(new Error(`auth.${String(module)}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
+    }),
+  }) as Boards_Auth
 
   private constructor(private readonly base: Base) {
     this.tenants = eventsOf(base.bus, { created: Tenant_Created, deleted: Tenant_Deleted })
@@ -81,7 +93,7 @@ export class FakeAuth {
   /** Someone leaves a workspace: `access.revoked`. */
   async revoke(workspaceId: string, userId: string): Promise<void> {
     this.members.get(workspaceId)?.delete(userId)
-    await this.tell(new Access_Revoked({ userId, tenantId: workspaceId }))
+    await this.tell(new Access_Revoked({ userId, productId: 'cooper', tenantId: workspaceId }))
   }
 
   /** Until the jobs of its events are done: boards' reactions. */
