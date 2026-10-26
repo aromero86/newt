@@ -132,8 +132,12 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
   its column to name it back); `types` matters here: a boolean is kept as 0 or 1,
   JSON as text.
 - **Migrations are SQL**: pairs of `000NN_<name>_up.sql` and `000NN_<name>_down.sql`
-  in a folder, applied all or none. A file is run whole, so a trigger, with
-  semicolons in its body, goes in one. An entity's table has `id TEXT PRIMARY KEY` and
+  in a folder, applied all or none; two with the same number are refused. A file
+  runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
+  in its body, is one), and any statement that fails fails it. Migrations run with
+  foreign keys off, so a table rebuilt as SQLite documents it (create the new one,
+  copy, drop, rename) keeps the rows that point at it; one that leaves a row pointing
+  nowhere fails (`PRAGMA foreign_key_check`). An entity's table has `id TEXT PRIMARY KEY` and
   `version INTEGER NOT NULL`; a unique value is a unique index (partial,
   `WHERE deleted_at IS NULL`, when rows are deleted softly). The framework's own
   tables (`job`, `job_queue`) are migrated after the context's.

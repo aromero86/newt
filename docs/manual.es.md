@@ -2955,7 +2955,12 @@ Reglas:
   `CREATE UNIQUE INDEX … WHERE deleted_at IS NULL`.
 - **Una migración aplicada no se edita nunca**: un cambio es una migración nueva.
 - **Los datos sobreviven a todas las migraciones**: una columna nueva lleva un valor
-  por defecto, y una tabla que cambia de forma copia sus filas.
+  por defecto, y una tabla que cambia de forma copia sus filas. En SQLite las
+  migraciones corren con las claves ajenas apagadas, así que rehacer una tabla
+  (crear la nueva, copiar, borrar la vieja, renombrar) no borra las filas que
+  apuntan a ella; si alguna queda apuntando a nada, la migración falla.
+- **Dos migraciones con el mismo número** (dos ramas que se juntan) no arrancan:
+  renumera una.
 - `down` deshace exactamente lo que hizo `up`.
 
 Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
@@ -2963,7 +2968,8 @@ Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
 [`stores.md`](stores.md) cuenta los detalles de cada uno.
 
 Un fichero puede tener varias sentencias, y también triggers y funciones con sus
-propios `;` dentro: SQLite ejecuta el fichero entero, y en Postgres un cuerpo entre
+propios `;` dentro: SQLite lo ejecuta sentencia a sentencia, con el trigger de una
+pieza, y en Postgres un cuerpo entre
 `$$ … $$` va de una pieza. En MySQL cada `;` cierra una sentencia, así que un trigger
 de MySQL tiene que ser de una sola (`FOR EACH ROW SET NEW.x = …`), sin `BEGIN … END`.
 
