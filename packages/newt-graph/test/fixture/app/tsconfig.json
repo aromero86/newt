@@ -1,0 +1,14 @@
+{
+  // A tiny newt application for newt-graph's tests: two contexts, three modules.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["**/*.ts"]
+}
