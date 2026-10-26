@@ -2,6 +2,10 @@
 import { serve } from 'newt/http'
 import { config } from './config'
 import { Boards_Context } from './contexts/boards/boards.context'
+import { setCooperMessages } from './shared/messages'
+
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
 
 const boards = await Boards_Context.open(config.boards)
 // For now, who sends a request says who they are in an `x-user` header (chapter 22 signs them in).

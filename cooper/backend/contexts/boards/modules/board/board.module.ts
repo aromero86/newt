@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import {
   Board,
@@ -21,6 +21,12 @@ export class Board_Module extends Module {
 
   private constructor(base: BoardsBase, private readonly repo: Board_Repository) {
     super('board', base.invocations)
+  }
+
+  /** A page of the boards, the newest first. */
+  @UseCase()
+  async list(page: PageRequest): Promise<Page<BoardDTO>> {
+    return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
   }
 
   @UseCase()

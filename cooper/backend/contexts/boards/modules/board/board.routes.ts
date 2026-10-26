@@ -1,7 +1,10 @@
+import { pageRequestFrom } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import type { Board_Module } from './board.module'
 
 export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): void {
+  base.http.get('/boards', async request => Response.json(await boards.list(pageRequestFrom(request))))
+
   base.http.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   base.http.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))

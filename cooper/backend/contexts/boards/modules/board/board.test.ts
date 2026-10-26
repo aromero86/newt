@@ -12,6 +12,18 @@ describe('board', () => {
 
   const create = (name: string) => t.modules.board.create({ name })
 
+  test('lists boards by pages, the newest first', async () => {
+    for (const name of ['Roadmap', 'Bugs', 'Launch']) await create(name)
+
+    const first = await t.modules.board.list({ size: 2 })
+    expect(first.items.map(board => String(board.name))).toEqual(['Launch', 'Bugs'])
+    expect(first).toMatchObject({ hasMore: true, total: 3 })
+
+    const next = await t.modules.board.list({ size: 2, cursor: first.items[1]!.id })
+    expect(next.items.map(board => String(board.name))).toEqual(['Roadmap'])
+    expect(next.hasMore).toBe(false)
+  })
+
   test('keeps a name as a board\'s name: trimmed, one space between words, 1 to 60 characters', async () => {
     expect(String((await create('  Road   map ')).name)).toBe('Road map')
     await expect(create('   ')).rejects.toMatchObject({ code: 'board.invalid_name' })
@@ -26,11 +38,12 @@ describe('board', () => {
     expect(String((await t.modules.board.get(bugs.id)).name)).toBe('Known bugs')
   })
 
-  test('archives a board: it is not found any more', async () => {
+  test('archives a board: out of every list', async () => {
     const roadmap = await create('Roadmap')
 
     await t.modules.board.archive(roadmap.id)
 
     await expect(t.modules.board.get(roadmap.id)).rejects.toMatchObject({ code: 'board.not_found' })
+    expect((await t.modules.board.list({ size: 10 })).total).toBe(0)
   })
 })
