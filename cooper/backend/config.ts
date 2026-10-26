@@ -107,6 +107,12 @@ export const config = {
    */
   trace: env.COOPER_TRACE === '1',
   /**
+   * `COOPER_DRAIN_MS`: how long each server goes on answering once told to stop, its
+   * health a 503 meanwhile, so whoever balances the load sends it nothing new: 2
+   * seconds. Only the backend's process drains: a test stops its servers at once.
+   */
+  drainMs: Number(env.COOPER_DRAIN_MS ?? 2000),
+  /**
    * `COOPER_OTLP_URL`: an OpenTelemetry collector (OTLP over HTTP,
    * `http://localhost:4318`) the traces go to instead, as service `cooper`.
    */

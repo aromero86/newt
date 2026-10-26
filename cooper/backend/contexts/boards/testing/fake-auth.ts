@@ -1,5 +1,6 @@
 import { SqliteStore } from 'newt/adapter-sqlite'
-import { Email, eventsOf, now, type DomainEvent } from 'newt/core'
+import { Email } from 'newt/contract'
+import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { Boards_Auth } from '../initialize-modules'
 import type { AccessEvents } from '../modules/card/card.deps'

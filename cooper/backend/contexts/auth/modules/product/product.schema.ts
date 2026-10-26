@@ -26,6 +26,7 @@ export const ProductSchema = z.object({
   publicUrl: z.url(),
   /** Whether someone without an account may make one on the way to it. */
   signUp: z.boolean(),
+  /** Who may enter it: anyone with an account (boards), or only those given access to it (the backoffice's staff). */
   access: ProductAccessSchema,
   /** Its MCP server, if it has one: the resource (RFC 8707) the tokens of MCP clients are for. */
   mcpResource: z.url().nullable(),

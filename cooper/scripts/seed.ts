@@ -3,6 +3,7 @@
 // where Bob joined by accepting her invitation. Safe to run again: what is there stays.
 import { runAsActor, type Email } from 'newt/core'
 import { config } from '../backend/config'
+import { PRODUCTS } from '../backend/contexts/auth/modules/product/product.schema'
 import { inWorkspace } from '../backend/contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from '../backend/open-contexts'
 import { ConsoleMailer } from '../backend/shared/mail/console-mailer'
@@ -31,7 +32,7 @@ try {
   const account = async (email: string, name: string) => (await user.findByEmail(email)) ?? user.signUp({ email, name, password: PASSWORD })
 
   const staff = await account('staff@cooper.dev', 'Cooper Staff')
-  await access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
+  await access.admit({ userId: staff.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
 
   const ana = await account('ana@cooper.dev', 'Ana García')
   const bob = await account('bob@cooper.dev', 'Bob Smith')
