@@ -11,20 +11,21 @@ function testConfig(): Config {
     ...config,
     auth: { ...config.auth, database: ':memory:', port: 0 },
     boards: { ...config.boards, database: ':memory:', port: 0 },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0 },
   }
 }
 
-test('opens the two contexts, serves each on its own port, and stops them', async () => {
+test('opens the three contexts, serves each on its own port, and stops them', async () => {
   const mailer = new RecordingMailer()
   const mails = mailer.mails
   const contexts = await openContexts(testConfig(), { mailer })
-  expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards'])
+  expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards', 'backoffice'])
 
   const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
   try {
     const servers = Object.values(app.servers)
-    expect(Object.keys(app.servers)).toEqual(['auth', 'boards'])
-    expect(new Set(servers.map(server => server.port)).size).toBe(2)
+    expect(Object.keys(app.servers)).toEqual(['auth', 'boards', 'backoffice'])
+    expect(new Set(servers.map(server => server.port)).size).toBe(3)
     for (const server of servers) {
       const response = await fetch(new URL('/api/health', server.url))
       expect(response.status).toBe(200)

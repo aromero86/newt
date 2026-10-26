@@ -2,6 +2,7 @@ import type { Clock } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
+import { Backoffice_Context } from './contexts/backoffice/backoffice.context'
 import { Boards_Context } from './contexts/boards/boards.context'
 import { MemoryCardSearch } from './contexts/boards/search/memory-card-search'
 import type { Boards_ModuleDeps } from './contexts/boards/initialize-modules'
@@ -16,8 +17,8 @@ export type OpenContextsOptions = {
 
 /**
  * Every context, each one after those it uses: `auth` first, which every other one
- * signs people in with, then `boards`. The server opens them, and so does any script
- * that works with their modules (the seed).
+ * signs people in with, then `boards`, then `backoffice`, which reads both. The
+ * server opens them, and so does any script that works with their modules (the seed).
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
@@ -25,7 +26,8 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const auth = await Auth_Context.open(config.auth, { mailer }, clock)
   // For now each card's move is a line on the console (chapter 28 writes it only while tracing).
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
-  return { auth, boards, all: [auth, boards] as const }
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, clock)
+  return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
 /**

@@ -12,8 +12,8 @@ import type { Mail } from './shared/mail/mailer'
 import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /**
- * cooper end to end: auth and boards open as the server opens them, on SQLite in
- * memory, and boards used as its UI and an MCP client use it, over HTTP.
+ * cooper end to end: auth, boards and backoffice open as the server opens them, on
+ * SQLite in memory, and boards used as its UI and an MCP client use it, over HTTP.
  */
 
 function testConfig(authPort: number, boardsPort: number): Config {
@@ -22,6 +22,7 @@ function testConfig(authPort: number, boardsPort: number): Config {
     ...config,
     auth: { ...config.auth, database: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
     boards: { ...config.boards, database: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0, authPublicUrl: authUrl },
   }
 }
 

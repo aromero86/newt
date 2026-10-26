@@ -82,6 +82,21 @@ export const config = {
     /** `COOPER_BOARDS_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BOARDS_FRONTEND ?? 'dist/cooper/boards'),
   },
+  /** The staff's console. */
+  backoffice: {
+    /** `COOPER_BACKOFFICE_PORT`: where it listens. */
+    port: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+    /** `COOPER_BACKOFFICE_DATABASE`: its database, a SQLite file. */
+    database: fromRoot(env.COOPER_BACKOFFICE_DATABASE ?? 'data/cooper-backoffice.db'),
+    publicUrl: publicUrls.backoffice,
+    /** Where the staff sign in. */
+    authPublicUrl: publicUrls.auth,
+    /** Its OAuth client's secret: the product `backoffice` in auth. */
+    clientSecret: clientSecrets.backoffice,
+    sessionDays,
+    /** `COOPER_BACKOFFICE_FRONTEND`: its built frontend. */
+    frontendFolder: fromRoot(env.COOPER_BACKOFFICE_FRONTEND ?? 'dist/cooper/backoffice'),
+  },
 }
 
 export type Config = typeof config

@@ -7,7 +7,7 @@ import { newt } from 'newt-eslint'
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
-  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'] } },
+  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
 // The frontends build their UI from @cooper/ui only. Styling lives in cooper/libs/ui and

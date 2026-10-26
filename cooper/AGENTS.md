@@ -16,6 +16,7 @@ is said in the root's eslint.config.js, and the lint keeps it.
 - boards: the boards of each workspace, their columns and cards. Uses auth.
 - auth: people, the workspaces (its tenants) and who may enter each, and how people
   sign in. Uses none.
+- backoffice: what the staff see and do across the others. Uses auth and boards.
 
 ## Conventions
 
