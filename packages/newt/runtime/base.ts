@@ -35,7 +35,7 @@ export class Base<S extends Store = Store> {
     const clock = options.clock ?? systemClock
     this.name = options.name
     this.store = options.store
-    this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock)
+    this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     const memory = new InMemoryEventBus()
     this.bus = {
       // Whoever publishes on the bus gets what a repository gets: the outbox, and the commit.

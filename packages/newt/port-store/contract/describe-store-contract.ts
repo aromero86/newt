@@ -500,6 +500,14 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
             },
           })
         }
+
+        /** Reads in its save, guarding nothing: what the guard rule tells. */
+        persistUnguarded(entity: Thing, read: 'find' | 'count'): Promise<void> {
+          return this.save([entity], each => this.write(each), {
+            guard: [],
+            after: async () => { await (read === 'find' ? this.table.find() : this.table.count()) },
+          })
+        }
       }
 
       const repository = () => new Things(new Base({ name: 'test', store }), things, { softDelete: true })
@@ -515,6 +523,14 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(first.hasMore).toBe(true)
         expect(second.items.map(each => each.toDTO().name)).toEqual(['ana'])
         expect(second.hasMore).toBe(false)
+      })
+
+      test('a save that guards nothing and reads is refused, finding or counting: each table tells it (the guard rule)', async () => {
+        const repo = repository()
+
+        await expect(repo.persistUnguarded(Thing.create('ana'), 'find')).rejects.toThrow('[guard rule]')
+        await expect(repo.persistUnguarded(Thing.create('bea'), 'count')).rejects.toThrow('[guard rule]')
+        expect(await names()).toEqual([])
       })
 
       test('saves a new one as version 1, and each change one on', async () => {

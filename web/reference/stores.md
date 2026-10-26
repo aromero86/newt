@@ -390,7 +390,10 @@ Two promises deserve care in a database with concurrent transactions:
   per key, held until the transaction ends (an advisory lock), or transactions that
   run one at a time. Without it a rule checked in an `after` hook breaks without a
   sound; the suite has a test for it. A transaction the database gives up (a deadlock,
-  Postgres's `40001`) is a `ConcurrencyConflict`, which the use case runs again.
+  Postgres's `40001`) is a `ConcurrencyConflict`, which the use case runs again. Each
+  `find` and `count` of a table calls `noteRead(name)` (from `newt/port-store`), so a
+  save that reads and guards nothing is told on this store too (the guard rule); the
+  suite checks it.
 - **The current transaction.** Keep it in an `AsyncLocalStorage`, as every adapter here
   does: a repository, a table and the outbox must all write in the same one without
   being handed it.

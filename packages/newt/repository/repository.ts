@@ -1,5 +1,6 @@
 import { ConcurrencyConflict, type Entity, type EntitySchema } from '../core'
 import { assertSavable, markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
+import { saveReads } from '../port-store/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 
@@ -36,6 +37,8 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * follows from them, or checks a rule over several rows (a workspace keeps an
    * admin), which no version covers: `guard` names what that rule protects, so no
    * other save guarding it runs in between. Either hook throws to roll it all back.
+   * A save that guards nothing and reads rows in its transaction (in a hook, or in
+   * `write`) breaks the guard rule (`guardRule` of the context's `Base`), on every store.
    *
    * It is the only way a repository writes its entities: whatever it writes, it
    * writes here or in `saveRows`, never in a transaction of its own.
@@ -44,7 +47,7 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
     this.base.invocations?.checkWrite()
     for (const entity of entities) entity[assertSavable]()
     const changed = new Set(entities.filter(entity => entity.hasPendingChanges))
-    await this.store.transaction(async () => {
+    await this.transaction(hooks.guard, async () => {
       // Each is saved as it is written, so saving it again in the same transaction
       // writes what changed since; if the transaction rolls back, even one it joined
       // later, each is put back as it was, and refuses to be saved again.
@@ -52,7 +55,6 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
       this.store.afterRollback(() => {
         for (const { entity, state } of saved) entity[restoreSaved](state)
       })
-      if (hooks.guard?.length) await this.store.guard(hooks.guard)
       await hooks.before?.()
       for (const entity of changed) {
         await write(entity)
@@ -85,9 +87,19 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    */
   protected async saveRows(write: () => void | Promise<void>, options: { guard?: string[] } = {}): Promise<void> {
     this.base.invocations?.checkWrite()
+    await this.transaction(options.guard, write)
+  }
+
+  /**
+   * Runs a save's `fn` in a transaction, guarding `guard`, and checks the guard rule
+   * on what its tables read in it.
+   */
+  private async transaction(guard: string[] = [], fn: () => void | Promise<void>): Promise<void> {
     await this.store.transaction(async () => {
-      if (options.guard?.length) await this.store.guard(options.guard)
-      await write()
+      if (guard.length) await this.store.guard(guard)
+      const reads = { guarded: guard.length > 0, tables: new Set<string>() }
+      await saveReads.run(reads, fn)
+      if (reads.tables.size) this.base.invocations?.checkGuard([...reads.tables])
     })
   }
 }

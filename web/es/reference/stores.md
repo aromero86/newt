@@ -417,7 +417,10 @@ Dos promesas piden cuidado en una base de datos con transacciones concurrentes:
   bloqueo consultivo), o transacciones que vayan de una en una. Sin él, una regla
   comprobada en un hook `after` se rompe sin hacer ruido; la batería tiene un test
   para eso. Una transacción que la base de datos abandona (un interbloqueo, el `40001`
-  de Postgres) es un `ConcurrencyConflict`, que el caso de uso repite.
+  de Postgres) es un `ConcurrencyConflict`, que el caso de uso repite. Cada `find` y
+  `count` de una tabla llama a `noteRead(name)` (de `newt/port-store`), para que un
+  guardado que lee y no protege nada se note también en este store (la regla de
+  guardas); la batería lo comprueba.
 - **La transacción en curso.** Guárdala en un `AsyncLocalStorage`, como hacen todos
   los adaptadores de aquí: un repositorio, una tabla y el outbox tienen que escribir
   todos en la misma sin que nadie se la pase.

@@ -27,8 +27,8 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   construye su `Base` sobre él. `Base` da a cada módulo el store, las `invocations` de
   sus casos de uso, el `bus` de eventos, el `publisher` en el que publican sus
   repositorios y los `jobs` de sus suscripciones `handler`. Sus opciones son `name`,
-  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule` y
-  un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
+  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule`, la
+  `guardRule` y un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
   tocan sus trabajos y sus esperas entre reintentos, y `now()` en sus casos de uso y sus
   handlers (la hora real por defecto; un test mueve el suyo,
   `{ now: () => new Date(time) }`, en vez de esperar).
@@ -798,7 +798,13 @@ entero.
   En Postgres y MySQL, los guardados de otras claves nunca esperan (en SQLite y en
   ficheros cada guardado espera su turno de todos modos). Un guardado con `after` debe
   nombrar su `guard`, o no compila: `guard: []` dice, donde se lee, que no hace falta
-  ninguno. `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
+  ninguno. **La regla de guardas** caza el olvidado en cualquier store, también en
+  SQLite, donde los guardados esperan su turno y la regla se cumple de todos modos: un
+  guardado (o `saveRows`) que no protege nada y lee filas en su transacción (`find`,
+  `count`, en `before`, `write` o `after`) es un error (por defecto), o un aviso
+  (`guardRule: 'warn'` en la `Base` de un contexto; `'off'` no comprueba nada). Las
+  lecturas de antes del guardado (la entidad cargada, la comprobación del propio caso
+  de uso) no son asunto suyo, ni una consulta propia (`store.query`, Kysely). `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
   cooper toma ahí su número). El caso de uso sigue comprobando antes, para dar una
   respuesta clara en el caso habitual. Cuando lo que encuentra `after` no es una
   respuesta sino una fila de la que el guardado no tiene versión y que cambió entre

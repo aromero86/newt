@@ -1,5 +1,5 @@
 import { ConcurrencyConflict, criteriaTree, DuplicateValue, type Criteria } from '../core'
-import type { FieldType, FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
+import { noteRead, type FieldType, type FindOptions, type NewRow, type StoredRow, type Table, type TableOptions } from '../port-store'
 import type { SqlDialect } from './sql-dialect'
 import type { SqlExecutor } from './sql-executor'
 import type { SqlTableOptions } from './sql-table-options'
@@ -44,10 +44,12 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     const rows = await this.executor.all(sql, params)
     // A column it has not learned of was added since (a migration): it learns them again.
     const learned = this.dialect.columns && rows[0] && Object.keys(rows[0]).some(column => !columns.all.has(column)) ? await this.columns(true) : columns
+    noteRead(this.name)
     return rows.map(row => this.decode(row, learned))
   }
 
   async count(criteria?: Criteria<Row>): Promise<number> {
+    noteRead(this.name)
     const params: unknown[] = []
     const [row] = await this.executor.all(`SELECT count(*) AS total FROM ${this.dialect.quote(this.name)}${this.where(criteria, params)}`, params)
     return Number(row?.total ?? 0)

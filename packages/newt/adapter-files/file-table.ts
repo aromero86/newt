@@ -1,5 +1,5 @@
 import { compare, ConcurrencyConflict, DuplicateValue, matches, type Criteria } from '../core'
-import type { FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
+import { noteRead, type FindOptions, type NewRow, type StoredRow, type Table, type TableOptions } from '../port-store'
 import type { FileCollection } from './file-collection'
 import type { FileRecord } from './file-record'
 
@@ -24,10 +24,12 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
         }
         return 0
       })
+    noteRead(this.records.name)
     return options.limit === undefined ? rows : rows.slice(0, options.limit)
   }
 
   async count(criteria?: Criteria<Row>): Promise<number> {
+    noteRead(this.records.name)
     return (await this.rows()).filter(row => matches(row, criteria)).length
   }
 

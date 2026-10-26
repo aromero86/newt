@@ -26,7 +26,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   `Base` on it. `Base` gives every module the store, the `invocations` of its use
   cases, the event `bus`, the `publisher` its repositories publish to, and the `jobs`
   of its `handler` subscriptions. Its options are `name`, `store`, and optionally a
-  `tracer`, the `jobs` settings, the `writeRule` and a `clock`: what its entities'
+  `tracer`, the `jobs` settings, the `writeRule`, the `guardRule` and a `clock`: what its entities'
   `createdAt` and `updatedAt`, its jobs' due times and backoffs, and `now()` in its
   use cases and handlers go by (the real time by default; a test moves its own,
   `{ now: () => new Date(time) }`, instead of waiting).
@@ -766,7 +766,13 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 
   On Postgres and MySQL, saves of other keys never wait (on SQLite and files every
   save takes its turn anyway). A save with `after` must name its `guard`, or it does
-  not compile: `guard: []` says, where it is read, that none is needed. `before`
+  not compile: `guard: []` says, where it is read, that none is needed. **The guard
+  rule** catches the one forgotten on every store, SQLite too, where saves take turns
+  and the rule holds anyway: a save (or `saveRows`) that guards nothing and reads rows
+  in its transaction (`find`, `count`, in `before`, `write` or `after`) is an error
+  (the default), or a warning (`guardRule: 'warn'` in a context's `Base`; `'off'`
+  checks nothing). Reads before the save (the entity loaded, the use case's own check)
+  are not its business, nor are a query of one's own (`store.query`, Kysely). `before`
   writes, or reads, what must go first (cooper's new card takes its number there). The
   use case still checks first, for a clear answer in the usual case. When what
   `after` finds is not an answer but a row the save holds no version of that changed

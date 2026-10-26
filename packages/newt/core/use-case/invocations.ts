@@ -8,6 +8,7 @@ import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
 import { invocationChain, inWorker } from './invocation-chain'
 import type { UseCaseOptions } from './use-case-options'
+import type { GuardRule } from './guard-rule'
 import type { WriteRule } from './write-rule'
 
 /** How many more times the first use case of a chain runs after a conflict (unless one in it says `retryOnConflict: false`). */
@@ -34,6 +35,7 @@ export class Invocations {
     private readonly writeRule: WriteRule = 'error',
     /** The context's clock, which its use cases tell the time by (`now`): the real one if none. */
     private readonly clock?: Clock,
+    private readonly guardRule: GuardRule = 'error',
   ) {}
 
   run<T>(name: string, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {
@@ -74,6 +76,21 @@ export class Invocations {
     const pair = `${root.useCase}>${current.context}.${current.module}`
     if (this.warned.has(pair)) return
     this.warned.add(pair)
+    console.warn(message)
+  }
+
+  /**
+   * Called at the end of a save that guards nothing and read rows of `tables` in its
+   * transaction, besides its own entities': a rule over several rows, which another
+   * save may break in between on a store whose transactions run side by side.
+   */
+  checkGuard(tables: string[]): void {
+    if (this.guardRule === 'off') return
+    const useCase = invocationChain.find()?.current.useCase ?? 'a save outside any use case'
+    const message = `[guard rule] ${useCase} reads ${tables.join(', ')} in a save that guards nothing: on Postgres and MySQL another save may change what it read before it commits. Name what its rule protects in the save's guard`
+    if (this.guardRule === 'error') throw new Error(message)
+    if (this.warned.has(message)) return
+    this.warned.add(message)
     console.warn(message)
   }
 
