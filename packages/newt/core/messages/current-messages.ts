@@ -10,6 +10,7 @@ export const currentMessages: { value: Messages } = {
     route_not_found: ({ method, path }) => `There is no route for ${method} ${path}`,
     method_not_allowed: ({ method, path }) => `${method} is not allowed on ${path}`,
     validation: () => 'The request is not valid',
+    malformed_body: () => 'The body of the request is not valid JSON',
     internal: () => 'Something went wrong',
   },
 }

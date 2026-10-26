@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConflictError } from '../core'
+import { ConflictError, InvalidEntity } from '../core'
 import { toErrorResponse } from './to-error-response'
 
 class SlugTaken extends ConflictError {
@@ -22,6 +22,21 @@ describe('toErrorResponse', () => {
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ code: 'validation', issues: [expect.objectContaining({ path: ['title'] })] })
+  })
+
+  test('an entity that does not pass its schema is not the client\'s fault: a 500 that tells nothing', async () => {
+    const parsed = z.object({ priceCents: z.number().min(0) }).safeParse({ priceCents: -5 })
+    const original = console.error
+    console.error = () => {}
+    try {
+      const response = toErrorResponse(new InvalidEntity('Product', 'p1', parsed.error!))
+
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body).toEqual({ error: 'Something went wrong', code: 'internal' })
+    } finally {
+      console.error = original
+    }
   })
 
   test('anything else is a 500 that tells nothing about the inside', async () => {

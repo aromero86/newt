@@ -57,6 +57,36 @@ describe('HttpRouter, further', () => {
   })
 })
 
+describe('a body', () => {
+  test('that is not JSON is the client\'s fault: a 400 that says so', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json(await request.json()), { public: true })
+    const server = serve(router)
+
+    const bad = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{not json' })
+    const good = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{"a":1}' })
+
+    expect(bad.status).toBe(400)
+    expect(await bad.json()).toEqual({ error: 'The body of the request is not valid JSON', code: 'malformed_body' })
+    expect(await good.json()).toEqual({ a: 1 })
+  })
+
+  test('read twice is the route\'s mistake, not the client\'s: a 500', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json([await request.json(), await request.json()]), { public: true })
+    const server = serve(router)
+    const original = console.error
+    console.error = () => {}
+
+    try {
+      const response = await fetch(new URL('/api/things', server.url), { method: 'POST', body: '{"a":1}' })
+      expect(response.status).toBe(500)
+    } finally {
+      console.error = original
+    }
+  })
+})
+
 describe('a group, further', () => {
   test('routes each method to its own route', async () => {
     const router = new HttpRouter()

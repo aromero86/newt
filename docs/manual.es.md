@@ -789,8 +789,10 @@ export function registerProductRoutes(
 - **Toda ruta exige un actor**, salvo que la registres con `{ public: true }`. Sin
   `x-user`, responde 401.
 - No hay `try/catch`. Si el caso de uso lanza un `ProductNotFound`, el router
-  responde 404 con `{ error, code }`. Un dato de entrada mal formado es un 400; cualquier
-  otro error, un 500 que no cuenta nada de dentro.
+  responde 404 con `{ error, code }`. Un dato de entrada mal formado es un 400: un
+  cuerpo que no es JSON (`malformed_body`), o uno que no pasa el esquema del caso de
+  uso (`validation`, con sus `issues`). Cualquier otro error, un 500 que no cuenta
+  nada de dentro.
 
 ### 5.8 Registrarlo
 
@@ -867,7 +869,7 @@ trabajos distintos:
 | Qué valida | Lo que **entra**: la petición del cliente | Su **estado**: lo que es un producto válido |
 | Cómo es | Indulgente: recorta espacios, pone valores por defecto | Estricta: un dato inválido no entra nunca |
 | Cuándo | Una vez, al llegar | En cada cambio, y también al leer del store |
-| Si falla | Un 400, con lo que está mal, para el cliente | Un error de programación: algo se coló |
+| Si falla | Un 400, con lo que está mal, para el cliente | `InvalidEntity`, un error de programación: algo se coló. El cliente recibe un 500 que no cuenta nada; el log, el campo y el motivo |
 
 La primera es para el cliente: le dice qué ha mandado mal. La segunda es la
 garantía de que **ninguna** entidad inválida existe, venga de donde venga el cambio
@@ -2721,6 +2723,7 @@ setMessages({
   method_not_allowed: ({ method, path }) =>
     `${method} no está permitido en ${path}`,
   validation: () => 'La petición no es válida',
+  malformed_body: () => 'El cuerpo de la petición no es JSON válido',
   internal: () => 'Algo ha fallado',
 })
 ```

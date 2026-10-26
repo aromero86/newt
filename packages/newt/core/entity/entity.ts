@@ -1,7 +1,8 @@
-import type { z } from 'zod'
+import { ZodError, type z } from 'zod'
 import type { DomainEvent } from '../events/domain-event'
 import { DeletedEntityNotChangeable } from './errors/deleted-entity-not-changeable'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
+import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { UnknownEntityField } from './errors/unknown-entity-field'
 import type { EntityInput } from './entity-input'
@@ -28,7 +29,7 @@ export class Entity<TSchema extends EntitySchema> {
     const id = input.id ?? Bun.randomUUIDv7()
     if (!isNew && input.version === undefined) throw new Error(`${new.target.name} read from storage comes with its version`)
 
-    this.current = schema.parse({ ...input, id }) as z.infer<TSchema>
+    this.current = this.checked(() => schema.parse({ ...input, id }), new.target.name, id) as z.infer<TSchema>
 
     if (isNew) {
       const now = new Date().toISOString()
@@ -39,6 +40,15 @@ export class Entity<TSchema extends EntitySchema> {
     this.initial = isNew ? null : structuredClone(this.current)
     this._isNew = isNew
     this._version = isNew ? 0 : input.version!
+  }
+
+  /** Runs a check of its schema: what fails is a programming error, `InvalidEntity`. */
+  private checked<T>(parse: () => T, entity: string, id: string, field?: string): T {
+    try {
+      return parse()
+    } catch (error) {
+      throw error instanceof ZodError ? new InvalidEntity(entity, id, error, field) : error
+    }
   }
 
   get isNew(): boolean {
@@ -84,7 +94,7 @@ export class Entity<TSchema extends EntitySchema> {
       if (key === 'id') continue
       const fieldSchema = this.schema.shape[key]
       if (!fieldSchema) throw new UnknownEntityField(key)
-      ;(fieldSchema as z.ZodType).parse(value)
+      this.checked(() => (fieldSchema as z.ZodType).parse(value), this.constructor.name, this.id, key)
       if (!Bun.deepEquals((this.current as Fields)[key], value, true)) {
         ;(this.current as Fields)[key] = value
         mutated = true

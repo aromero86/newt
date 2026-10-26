@@ -46,7 +46,10 @@ const base = new AppBase({ name: 'shop', store: await SqliteStore.open({ path: '
   `HttpRouter` (`<m>.routes.ts`), all under one prefix (`/api` by default). A
   route's path types its params (`/notes/:id` gives `request.params.id`). Whatever
   a route throws becomes a response: a domain error with its status and code, an
-  invalid input a 400, anything else a 500 that says nothing about the inside.
+  invalid input a 400 (a body that is not JSON, `malformed_body`, or one that fails
+  the use case's schema, `validation`), anything else a 500 that says nothing about
+  the inside. An entity that fails its own schema (`InvalidEntity`) is a
+  programming error, so a 500 too.
 - **Every route needs a session** unless it is registered with `{ public: true }`.
   The router asks its `Authenticator` who sent the request, and the route runs as
   that actor: any use case it reaches knows who is doing it through
@@ -261,7 +264,8 @@ export class Note extends Entity<typeof NoteSchema> {
   that changed, as they are now and as they were when it was read.
 - **It is validated twice, on purpose.** The use case validates what comes in (its
   input schema, lenient, a 400 for the client); the entity validates its state
-  (strict, on every change, and on what is read from the store). One rule, written
+  (strict, on every change, and on what is read from the store; failing it is a
+  programming error, `InvalidEntity`, a 500). One rule, written
   once: the input schema is derived from the entity's (`NoteSchema.pick(...)`).
 - **It has a `version`**: 0 until it is saved, then the one it is stored with.
   `fromDTO` gets it from the row (the constructor throws without it, since saving

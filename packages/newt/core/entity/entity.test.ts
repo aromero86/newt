@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Entity } from './entity'
 import type { EntityInput } from './entity-input'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
+import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { markPersisted } from './mark-persisted'
 import { takeEvents } from './take-events'
@@ -97,9 +98,14 @@ describe('change', () => {
     expect(() => thing.apply({ nmae: 'typo' } as never)).toThrow(/Unknown field 'nmae'/)
   })
 
-  test('a value the schema rejects throws', () => {
+  test('a value the schema rejects is a programming error, which says what and where', () => {
     const thing = existing()
-    expect(() => thing.apply({ name: 42 } as never)).toThrow()
+    expect(() => thing.apply({ name: 42 } as never)).toThrow(InvalidEntity)
+    expect(() => thing.apply({ name: 42 } as never)).toThrow(`Thing ${thing.id} does not pass its schema: name:`)
+  })
+
+  test('a stored row the schema rejects is one too', () => {
+    expect(() => Thing.fromDTO({ ...existing().toDTO(), name: 42, version: 1 } as never)).toThrow(InvalidEntity)
   })
 
   test('a deleted entity cannot change', () => {
