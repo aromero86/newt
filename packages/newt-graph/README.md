@@ -94,7 +94,7 @@ which or which events a use case tells, and nothing has a file and a line. Openi
 also needs each application's configuration and stores. So the graph is read from the
 code, and the running application checks it: newt-graph's own tests open cooper in
 memory and compare every queue and schedule it registers with what the code says
-(`test/cooper.test.ts`, *agrees with cooper running*). An application can do the same.
+(`test/example-app.test.ts`, *agrees with cooper running*). An application can do the same.
 
 ## The page
 
