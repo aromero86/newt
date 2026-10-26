@@ -343,7 +343,7 @@ import { z } from 'zod'
 export const ProductSchema = z.object({
   id: z.uuidv7(),
   name: z.string().trim().min(1).max(80),
-  priceCents: z.number().int().min(0),
+  priceCents: z.number().int().min(0).max(10_000_000),  // hasta 100 000 €
   brandId: z.string().nullable(),       // de otro módulo: solo su id
   categoryId: z.string().nullable(),
   archived: z.boolean(),
@@ -611,6 +611,7 @@ cómo una fila se convierte en entidad:
 // product.repository.ts
 import { TableRepository } from 'newt/repository'
 import type { ShopBase } from '../../shop-base'
+import { ProductNameTaken } from './errors/product-name-taken'
 import { Product, type ProductDTO } from './product'
 
 export type ProductRow = ProductDTO & { version: number }
@@ -628,10 +629,22 @@ export class Product_Repository
   protected toEntity(row: ProductRow): Product {
     return Product.fromDTO(row)
   }
+
+  /** Guarda solo si ningún otro producto tiene su nombre, sin mirar mayúsculas (capítulo 9.4). */
+  async persistWithNameFree(product: Product): Promise<void> {
+    const { name } = product.toDTO()
+    await this.save([product], each => this.write(each), {
+      guard: [`productName:${name.toLowerCase()}`],
+      after: async () => {
+        if (await this.count({ name: { ieq: name } }) > 1) throw new ProductNameTaken(name)
+      },
+    })
+  }
 }
 ```
 
-Con eso ya tienes `find`, `first`, `count`, `page` y `persist`. Las opciones de la
+Con eso ya tienes `find`, `first`, `count`, `page` y `persist`; `persistWithNameFree`
+es del producto, y se explica en el capítulo 9.4. Las opciones de la
 tabla se dicen **con las mismas palabras para cualquier store**: `types` avisa de los
 campos que algunos stores no guardan tal cual (SQLite guarda los booleanos como 0 y
 1), y `unique` dice qué campos no pueden repetirse. El store de ficheros lo comprueba
@@ -698,7 +711,7 @@ export class Product_Module extends Module {
     const product = Product.create({
       name, priceCents, brandId, categoryId,
     })
-    await this.repo.persist(product)
+    await this.repo.persistWithNameFree(product)
     return product.toDTO()
   }
 
@@ -709,7 +722,7 @@ export class Product_Module extends Module {
     if (changes.name !== undefined) await this.assertNameFree(changes.name, id)
     await this.assertReferences(changes)
     product.update(changes)
-    await this.repo.persist(product)
+    await this.repo.persistWithNameFree(product)
     return product.toDTO()
   }
 
@@ -739,6 +752,7 @@ export class Product_Module extends Module {
     )
   }
 
+  /** Para dar un error claro en el caso normal: el guardado lo vuelve a comprobar. */
   private async assertNameFree(name: string, exceptId?: string): Promise<void> {
     const taken = await this.repo.count({
       name: { ieq: name },
@@ -1349,11 +1363,14 @@ Lo mismo pasa con las altas. Si dos personas crean a la vez un producto con el m
 nombre, y la tabla dice que `name` es único, el guardado de una de las dos choca:
 un `ConcurrencyConflict`.
 
-Por eso en el catálogo hay dos defensas, y cada una tiene su papel:
+Por eso en el catálogo hay tres defensas, y cada una tiene su papel:
 
 - el `unique` de la tabla es la **garantía** cuando dos llegan a la vez, para el
-  valor exacto: `Arroz` y `ARROZ` a la vez pasarían las dos. Si eso importa, guarda
-  también el nombre normalizado (en minúsculas) y haz único ese;
+  valor exacto;
+- `persistWithNameFree` cubre el resto: `Arroz` y `ARROZ` a la vez pasarían las dos
+  por el `unique`. Vuelve a contar el nombre sin mirar mayúsculas **dentro del
+  guardado** (`after`), y guarda el nombre en minúsculas (`guard`) para que ningún
+  otro guardado de ese nombre se cuele en medio: lo veremos en el capítulo 10;
 - `assertNameFree` comprueba antes de guardar y da un **error claro**
   (`product.name_taken`). Como el caso de uso se repite tras el choque, también la
   que llegó segunda acaba recibiendo ese error, no el conflicto.
@@ -2541,7 +2558,7 @@ async create(input: ProductCreateDTO): Promise<ProductDTO> {
   await this.assertNameFree(name)
   await this.assertReferences({ brandId, categoryId })
   const product = Product.create({ name, priceCents, brandId, categoryId })
-  await this.repo.persist(product)
+  await this.repo.persistWithNameFree(product)
   return product.toDTO()
 }
 

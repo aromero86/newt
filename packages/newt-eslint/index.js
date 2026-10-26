@@ -1,4 +1,5 @@
 import tseslint from 'typescript-eslint'
+import { assertUsesTree, contextBoundaries } from './rules/context-boundaries.js'
 import { moduleAnatomy } from './rules/module-anatomy.js'
 import { moduleBoundaries } from './rules/module-boundaries.js'
 import { queueName } from './rules/queue-name.js'
@@ -7,6 +8,7 @@ import { queueName } from './rules/queue-name.js'
 export const plugin = {
   meta: { name: 'newt-eslint' },
   rules: {
+    'context-boundaries': contextBoundaries,
     'module-anatomy': moduleAnatomy,
     'module-boundaries': moduleBoundaries,
     'queue-name': queueName,
@@ -28,7 +30,9 @@ const MODULES = ['**/modules/*/**/*.ts']
  *   which event;
  * - nothing saved is left unawaited;
  * - with `contexts`, each context imports only the ones it says it uses, so they
- *   never form a cycle.
+ *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
+ *   one that names an unknown context or makes a cycle throws here, and a context
+ *   folder it does not list uses no other.
  *
  * ```js
  * // eslint.config.js
@@ -40,18 +44,11 @@ const MODULES = ['**/modules/*/**/*.ts']
  *   the folder of the contexts, and which ones each one uses
  */
 export function newt({ contexts } = {}) {
-  const contextRules = contexts ? Object.entries(contexts.uses).map(([name, uses]) => {
-    const others = Object.keys(contexts.uses).filter(other => other !== name && !uses.includes(other))
-    return {
-      files: [`${contexts.folder}/${name}/**/*.ts`],
-      rules: {
-        'no-restricted-imports': ['error', { patterns: others.length ? [{
-          regex: `^(\\.\\./)+(${others.join('|')})(/|$)`,
-          message: `${name} uses ${uses.length ? uses.join(', ') : 'no other context'}: contexts use only the ones they say, never in a cycle.`,
-        }] : [] }],
-      },
-    }
-  }) : []
+  if (contexts) assertUsesTree(contexts.uses)
+  const contextRules = contexts ? [{
+    files: [`${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`],
+    rules: { 'newt/context-boundaries': ['error', { folder: contexts.folder, uses: contexts.uses }] },
+  }] : []
 
   return tseslint.config(
     { ignores: ['**/dist/**', '**/node_modules/**'] },
@@ -69,7 +66,8 @@ export function newt({ contexts } = {}) {
         'newt/module-boundaries': 'error',
         'newt/queue-name': 'error',
         'no-restricted-syntax': ['error', {
-          selector: "CallExpression[callee.property.name='transaction']",
+          // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, `const { transaction } = store`.
+          selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",
           message: "A module writes through its repository's save (or saveRows), which runs the transaction, checks the write rule and publishes the events: never in a transaction of its own.",
         }],
       },

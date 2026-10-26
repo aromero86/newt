@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { MAX_LINES, MAX_QUANTITY } from './modules/order/order.schema'
+import { MAX_PRICE_CENTS } from './modules/product/product.schema'
 import { Shop_Context, type ShopConfig } from './shop.context'
 
 type Mail = { to: string, subject: string }
@@ -47,6 +49,15 @@ describe.each(stores)('the shop, on %s', (_, store) => {
 
     expect((await call('POST', '/products', { name: 'OLIVE OIL', priceCents: 1 })).status).toBe(409)
     expect((await call<{ items: { name: string }[] }>('GET', '/products')).body.items.map(item => item.name)).toEqual(['Olive oil'])
+  })
+
+  test('gives a name to one product only, whatever the case, when several ask for it at once', async () => {
+    const created = await Promise.all(['Rice', 'RICE', 'rice', 'RiCe'].map(name => call('POST', '/products', { name, priceCents: 1 })))
+    expect(created.map(each => each.status).sort()).toEqual([201, 409, 409, 409])
+
+    const [salt, pepper] = [await product('Salt'), await product('Pepper')]
+    const renamed = await Promise.all([[salt, 'Spice'], [pepper, 'SPICE']].map(([id, name]) => call('PATCH', `/products/${id}`, { name })))
+    expect(renamed.map(each => each.status).sort()).toEqual([200, 409])
   })
 
   test('takes an order at once, and confirms it in the background', async () => {
@@ -118,6 +129,19 @@ describe.each(stores)('the shop, on %s', (_, store) => {
 
     expect((await order('nope', 1)).body).toMatchObject({ code: 'reference_not_found' })
     expect((await order(oil, 1)).body).toMatchObject({ code: 'order.product_not_for_sale' })
+  })
+
+  test('refuses an order too big to price, as a mistake of the request', async () => {
+    const gold = await product('Gold', MAX_PRICE_CENTS)
+    const lines = (count: number, quantity = 1) => Array.from({ length: count }, () => ({ productId: gold, quantity }))
+    const place = (body: unknown) => call<{ totalCents: number }>('POST', '/orders', { customerEmail: 'ana@shop.test', ...body as object })
+
+    expect((await call('POST', '/products', { name: 'Platinum', priceCents: MAX_PRICE_CENTS + 1 })).status).toBe(400)
+    expect((await place({ lines: lines(1, MAX_QUANTITY + 1) })).status).toBe(400)
+    expect((await place({ lines: lines(MAX_LINES + 1) })).status).toBe(400)
+    const biggest = await place({ lines: lines(MAX_LINES, MAX_QUANTITY) })
+    expect(biggest.status).toBe(202)
+    expect(biggest.body.totalCents).toBe(MAX_LINES * MAX_QUANTITY * MAX_PRICE_CENTS)
   })
 
   test('shows each customer only their own orders, and nobody unsigned anything', async () => {

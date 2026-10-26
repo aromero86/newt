@@ -19,15 +19,24 @@ export default newt({
 
 A module is a folder in a `modules/` folder, and its context is the folder that holds
 `modules/`. That is how `src/contexts/shop/modules/order/` and `examples/despensa/modules/order/` are both found.
+A `modules/` at the project's root has the project itself as its context.
 
 | Rule | What it says |
 |---|---|
 | `newt/module-anatomy` | A module is made of the files every module has, named after it: `<m>.module.ts`, `<m>.ts`, `<m>.schema.ts`, `<m>.repository.ts`, `<m>.routes.ts`, `<m>.workers.ts`, `<m>.deps.ts`, `<m>-options.ts`, its tests, and the folders `events`, `errors`, `value-objects` and `services`. |
-| `newt/module-boundaries` | A module imports from another only its module, schema, events, errors and value objects: never its entity, repository, tables, routes or workers. |
-| `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<event>`: the module of the workers file, a use case its callback calls, and an event that ends with the name it is subscribed under (`events.confirmed` → `….confirmed`); the module that tells it is checked at startup, by the framework. |
+| `newt/module-boundaries` | A module imports from another only its module, schema, events, errors and value objects: never its entity, repository, tables, routes or workers, nor its folder (`../product`). |
+| `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, as the framework requires at startup: in any file of a module, the queue starts with that module, its callback calls that use case on the module itself (`this`, a name typed `<M>_Module`, or one named after it), and it ends with the event it is subscribed under (`events.confirmed` → `….confirmed`). A callback that is neither written there nor a function of the file (`orders.fulfil.bind(orders)`) is not looked into. |
+| `newt/context-boundaries` | With `contexts`: a context imports only the ones `uses` gives it. `uses` lists every context; one naming an unknown context, or a cycle, throws when the preset is built, and a context folder it does not list uses no other. |
 
-The preset also refuses `transaction(…)` inside a module (it writes through its
-repository's `save` or `saveRows`), and a promise left unawaited
+Both boundaries read where an import lands, however it is written: `import`,
+`export … from`, `import()`, `import x = require()` and `require()`; relative, with
+an extension (`./product.module.js`) or not, or an alias of the tsconfig's `paths`
+(which the rules read from the program typescript-eslint builds, as the preset does;
+without it, only relative imports are checked).
+
+The preset also refuses `transaction` inside a module, called or taken
+(`store.transaction(…)`, `store['transaction']`, `const { transaction } = store`): it
+writes through its repository's `save` or `saveRows`. And a promise left unawaited
 (`@typescript-eslint/no-floating-promises`, which needs a `tsconfig.json` that
 includes every file it lints).
 

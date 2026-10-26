@@ -1,4 +1,4 @@
-import { modulePlace, target } from '../paths.js'
+import { importsOf, modulePlace, resolved } from '../paths.js'
 
 /** What a module offers the others: its use cases' module, its contract, what it tells and how it fails. */
 const PUBLIC = /^(?:[^/]+\.module|[^/]+\.schema|events\/.+|errors\/.+|value-objects\/.+)$/
@@ -7,7 +7,9 @@ const PUBLIC = /^(?:[^/]+\.module|[^/]+\.schema|events\/.+|errors\/.+|value-obje
  * A module reaches another only through what that one offers: its module (to call
  * its use cases), its schema, its events, its errors and its value objects. Its
  * entity, repository, tables, routes and workers are its own: through them a module
- * would read or write another's data behind its back.
+ * would read or write another's data behind its back. Every way of naming a file is
+ * checked, relative or by an alias of the tsconfig's `paths`; the folder of a module
+ * (`../product`, its index) is no file it offers.
  */
 export const moduleBoundaries = {
   meta: {
@@ -21,16 +23,12 @@ export const moduleBoundaries = {
   create(context) {
     const place = modulePlace(context.filename, context.cwd)
     if (!place) return {}
-    const check = (node, specifier) => {
-      if (typeof specifier !== 'string' || !specifier.startsWith('.')) return
-      const imported = modulePlace(target(context.filename, specifier), context.cwd)
+    return importsOf((node, specifier) => {
+      const path = resolved(context, specifier)
+      if (!path) return
+      const imported = modulePlace(path, context.cwd) ?? modulePlace(`${path}/index`, context.cwd)
       if (!imported || (imported.context === place.context && imported.module === place.module)) return
-      if (!PUBLIC.test(imported.inside.replace(/\.tsx?$/, ''))) context.report({ node, messageId: 'private', data: { path: specifier, module: imported.module } })
-    }
-    return {
-      ImportDeclaration: node => check(node.source, node.source.value),
-      ExportNamedDeclaration: node => node.source && check(node.source, node.source.value),
-      ExportAllDeclaration: node => check(node.source, node.source.value),
-    }
+      if (!PUBLIC.test(imported.inside)) context.report({ node, messageId: 'private', data: { path: specifier, module: imported.module } })
+    })
   },
 }
