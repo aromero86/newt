@@ -1,7 +1,10 @@
+import { toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
+import { whereOf } from 'newt/kysely'
 import { TableRepository } from 'newt/repository'
+import { sql, type SqlBool } from 'kysely'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
-import { Card, MAX_CARDS, type CardDTO } from './card'
+import { Card, MAX_CARDS, type CardCountByBoard, type CardCountByWorkspace, type CardDTO } from './card'
 import { TooManyCards } from './errors/too-many-cards'
 
 export type CardRow = CardDTO & { version: number }
@@ -82,6 +85,59 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
         }
       },
     })
+  }
+
+  /**
+   * A page of the current workspace's cards that meet the criteria and have the text in
+   * their title or description, whatever its case: criteria have no "contains", so it
+   * is one query of Kysely, with the criteria in it (`whereOf` says them as the store's
+   * tables do), paged by id. `%` and `_` are only themselves: `!` escapes them.
+   */
+  async search(criteria: Criteria<CardDTO>, text: string | undefined, page: PageRequest): Promise<Page<Card>> {
+    const pattern = `%${(text ?? '').replace(/[!%_]/g, '!$&')}%`
+    const matching = this.base.db
+      .selectFrom('card')
+      .where('workspaceId', '=', currentWorkspaceId())
+      .where(whereOf(this.store, criteria))
+      .where(eb => eb.or([
+        sql<SqlBool>`lower(${eb.ref('title')}) like lower(${pattern}) escape '!'`,
+        sql<SqlBool>`lower(${eb.ref('description')}) like lower(${pattern}) escape '!'`,
+      ]))
+    const [rows, counted] = await Promise.all([
+      matching.selectAll().$if(page.cursor !== undefined, query => query.where('id', '>', page.cursor!)).orderBy('id').limit(page.size + 1).execute(),
+      matching.select(eb => eb.fn.countAll<number>().as('total')).executeTakeFirstOrThrow(),
+    ])
+    return toPage(rows.map(row => this.toEntity(row)), page.size, Number(counted.total))
+  }
+
+  /**
+   * How many cards each of these workspaces has, by one query that groups them.
+   * Across workspaces on purpose: for the staff's backoffice, which looks at
+   * all of them, never for a workspace's own work.
+   */
+  async countByWorkspace(workspaceIds: string[]): Promise<CardCountByWorkspace[]> {
+    if (workspaceIds.length === 0) return []
+    const rows = await this.base.db
+      .selectFrom('card')
+      .select(eb => ['workspaceId', eb.fn.countAll<number>().as('cards')])
+      // Criteria, as a table takes them, said in Kysely's query by `whereOf`.
+      .where(whereOf(this.store, { workspaceId: { in: workspaceIds } }))
+      .groupBy('workspaceId')
+      .execute()
+    const counts = new Map(rows.map(row => [row.workspaceId, Number(row.cards)]))
+    return workspaceIds.map(workspaceId => ({ workspaceId, cards: counts.get(workspaceId) ?? 0 }))
+  }
+
+  /** How many cards each board of the current workspace has: boards without any are not there. */
+  async countByBoard(): Promise<CardCountByBoard[]> {
+    const rows = await this.base.db
+      .selectFrom('card')
+      .select(eb => ['boardId', eb.fn.countAll<number>().as('cards')])
+      .where('workspaceId', '=', currentWorkspaceId())
+      .groupBy('boardId')
+      .orderBy('boardId')
+      .execute()
+    return rows.map(row => ({ boardId: row.boardId, cards: Number(row.cards) }))
   }
 
   /** Removes every card of a workspace, and its boards' counters, for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { openTestBoards, type TestBoards } from '../../testing/open-test-boards'
-import { MAX_CARDS, type CardCreateDTO } from './card.schema'
+import { MAX_CARDS, type CardCreateDTO, type CardDTO } from './card.schema'
 
 describe('card', () => {
   let t: TestBoards
@@ -309,6 +309,44 @@ describe('card', () => {
     await t.settled()
 
     expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
+  })
+
+  test('searches the workspace\'s cards by text, column and assignee, by pages', async () => {
+    await create('Write the plan', { description: 'Dates and PEOPLE' })
+    await create('Design the logo', { columnId: doing, assigneeId: 'bea' })
+    await create('Plan the party', { columnId: doing })
+    await create('100% done_ish')
+    const search = (input: object, size = 10) => inAcme(() => t.modules.card.search(input, { size }))
+    const titles = (page: { items: CardDTO[] }) => page.items.map(card => card.title)
+
+    expect(titles(await search({ text: 'PLAN' }))).toEqual(['Write the plan', 'Plan the party'])
+    expect(titles(await search({ text: 'people' }))).toEqual(['Write the plan'])
+    expect(titles(await search({ text: '%' }))).toEqual(['100% done_ish'])
+    expect(titles(await search({ text: 'plan', filter: { field: 'column', op: 'eq', value: doing } }))).toEqual(['Plan the party'])
+    expect(titles(await search({ filter: { or: [{ field: 'assignee', op: 'eq', value: 'bea' }, { field: 'number', op: 'eq', value: 4 }] } }))).toEqual(['Design the logo', '100% done_ish'])
+
+    const first = await search({}, 3)
+    expect(first).toMatchObject({ hasMore: true, total: 4 })
+    await expect(search({ filter: { field: 'title', op: 'eq', value: 'x' } })).rejects.toThrow()
+  })
+
+  test('finds a card by its title whatever the case of A to Z, and other letters as they are written', async () => {
+    await create('Ärger im Büro')
+
+    const found = await inAcme(() => t.modules.card.search({ text: 'ÄRGER IM' }, { size: 10 }))
+
+    expect(found.items.map(card => card.title)).toEqual(['Ärger im Büro'])
+  })
+
+  test('counts cards by workspace and by board, for the backoffice', async () => {
+    await create('Plan')
+    await create('Design')
+    const other = await inAcme(() => t.modules.board.create({ name: 'Other' }))
+    const column = await inAcme(() => t.modules.column.add(other.id, { name: 'To do' }))
+    await inAcme(() => t.modules.card.create(other.id, { columnId: column.id, title: 'Elsewhere' }))
+
+    expect(await t.modules.card.countByWorkspace(['acme', 'globex'])).toEqual([{ workspaceId: 'acme', cards: 3 }, { workspaceId: 'globex', cards: 0 }])
+    expect(await t.modules.card.countByBoard('acme')).toEqual([{ boardId, cards: 2 }, { boardId: other.id, cards: 1 }].sort((a, b) => a.boardId.localeCompare(b.boardId)))
   })
 
   test('a reaction that keeps failing dies after its attempts, is listed, and runs once retried', async () => {

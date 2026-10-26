@@ -1,3 +1,4 @@
+import { defineFilter } from 'newt/contract'
 import { z } from 'zod'
 import type { ActorVia } from '../../../../shared/actor'
 
@@ -37,11 +38,33 @@ export const CardMoveSchema = z.object({
 })
 export const CardAssignSchema = z.object({ assigneeId: z.string() })
 
+/** What a client may search cards by: these fields, these operators, nothing else. */
+export const CardFilter = defineFilter({
+  board: { field: 'boardId', value: z.string(), ops: ['eq', 'in'] },
+  column: { field: 'columnId', value: z.string(), ops: ['eq', 'in'] },
+  assignee: { field: 'assigneeId', value: z.string(), ops: ['eq', 'in'] },
+  number: { field: 'number', value: z.number().int(), ops: ['eq'] },
+}, { maxDepth: 2, maxConditions: 10 })
+
+/** A search: words its title or description has (whatever their case), and a filter on the fields above. */
+export const CardSearchSchema = z.object({
+  text: z.string().trim().max(100).optional(),
+  filter: CardFilter.schema.optional(),
+})
+
 export type CardDTO = z.infer<typeof CardSchema>
 export type CardCreateDTO = z.input<typeof CardCreateSchema>
 export type CardEditDTO = z.input<typeof CardEditSchema>
 export type CardMoveDTO = z.input<typeof CardMoveSchema>
 export type CardAssignDTO = z.input<typeof CardAssignSchema>
+/** A filter as a client sends it: groups of conditions on the fields of `CardFilter`. */
+export type CardFilterDTO = z.infer<typeof CardFilter.schema>
+export type CardSearchDTO = z.input<typeof CardSearchSchema>
+
+/** How many cards a workspace has, for whoever looks at many (the staff's backoffice). */
+export type CardCountByWorkspace = { workspaceId: string, cards: number }
+/** How many cards a board has. */
+export type CardCountByBoard = { boardId: string, cards: number }
 
 /**
  * Who does something to a card, as its events tell it: their user's id (`by`) and how

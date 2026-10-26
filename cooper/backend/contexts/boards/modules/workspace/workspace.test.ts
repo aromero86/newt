@@ -61,6 +61,7 @@ describe('workspace', () => {
     await t.settled()
 
     expect(await t.modules.board.listOf('acme', { size: 10 })).toMatchObject({ items: [], total: 0 })
+    expect(await t.modules.card.countByWorkspace(['acme'])).toEqual([{ workspaceId: 'acme', cards: 0 }])
   })
 
   test('gives the welcome board its columns and its card once, however many runs go at once', async () => {
@@ -109,6 +110,7 @@ describe('workspace', () => {
     await t.settled()
 
     expect(await t.modules.board.listOf('acme', { size: 10 })).toMatchObject({ items: [], total: 0 })
+    expect(await t.modules.card.countByWorkspace(['acme', 'globex'])).toEqual([{ workspaceId: 'acme', cards: 0 }, { workspaceId: 'globex', cards: 1 }])
     expect((await t.modules.board.listOf('globex', { size: 10 })).total).toBe(1)
 
     // Its work run again, as after a failure halfway: nothing left to remove, nothing fails.

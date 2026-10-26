@@ -5,6 +5,7 @@
     "": {
       "name": "newt-workspace",
       "dependencies": {
+        "kysely": "0.29.6",
         "newt": "workspace:*",
         "zod": "4.3.6",
       },

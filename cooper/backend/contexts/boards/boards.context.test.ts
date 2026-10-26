@@ -96,6 +96,17 @@ describe('boards, through its API', () => {
     expect(await call('DELETE', `/acme/columns/${done}`)).toMatchObject({ status: 409, body: { code: 'column.last' } })
   })
 
+  test('searches cards with a filter in the body, and refuses one it does not allow', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+    const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    for (const title of ['Plan the launch', 'Design', 'Plan the party']) await call('POST', `/acme/boards/${id}/cards`, { columnId: todo, title })
+
+    const found = await call<{ items: { title: string }[], total: number }>('POST', '/acme/cards/search?size=1', { text: 'plan', filter: { field: 'column', op: 'eq', value: todo } })
+    expect(found.body).toMatchObject({ items: [{ title: 'Plan the launch' }], total: 2, hasMore: true })
+
+    expect(await call('POST', '/acme/cards/search', { filter: { field: 'workspaceId', op: 'eq', value: 'globex' } })).toMatchObject({ status: 400, body: { code: 'validation' } })
+  })
+
   test('renames a board, archives it, and gives its name once', async () => {
     const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
 

@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
+import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { ColumnDTO } from '../column/column.schema'
@@ -7,9 +7,13 @@ import {
   CardAssignSchema,
   CardCreateSchema,
   CardEditSchema,
+  CardFilter,
   CardMoveSchema,
+  CardSearchSchema,
   MAX_CARDS,
   type CardAuthor,
+  type CardCountByBoard,
+  type CardCountByWorkspace,
   type CardCreateDTO,
   type CardDTO,
 } from './card'
@@ -74,7 +78,8 @@ export class Card_Module extends Module {
 
   /**
    * A board's cards, column by column and from the top: whole, since a board is read
-   * as one screen and holds at most `MAX_CARDS`.
+   * as one screen and holds at most `MAX_CARDS`. The list that grows without end, the
+   * search, comes by pages.
    */
   @UseCase()
   async listInBoard(boardId: string): Promise<CardDTO[]> {
@@ -91,6 +96,17 @@ export class Card_Module extends Module {
   @UseCase()
   async getByNumber(boardId: string, number: number): Promise<CardDTO> {
     return (await this.resolve(() => this.repo.find({ boardId, number }), () => new CardNotFound(`#${number}`))).toDTO()
+  }
+
+  /**
+   * A page of the workspace's cards that have the text and pass the filter: only the
+   * fields and operators `CardFilter` allows.
+   */
+  @UseCase()
+  async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
+    const { text, filter } = CardSearchSchema.parse(input)
+    const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
+    return mapPage(await this.repo.search(criteria, text, page), card => card.toDTO())
   }
 
   /**
@@ -263,6 +279,18 @@ export class Card_Module extends Module {
       for (const card of cards) card.unassign(BOARDS)
       await this.repo.persist(...cards)
     })
+  }
+
+  /** For other contexts (the staff's backoffice): how many cards each of these workspaces has. */
+  @UseCase()
+  async countByWorkspace(workspaceIds: string[]): Promise<CardCountByWorkspace[]> {
+    return this.repo.countByWorkspace([...new Set(workspaceIds)])
+  }
+
+  /** For other contexts: how many cards each board of a workspace has. */
+  @UseCase()
+  async countByBoard(workspaceId: string): Promise<CardCountByBoard[]> {
+    return runInWorkspace(workspaceId, () => this.repo.countByBoard())
   }
 
   /** A workspace was deleted in auth: its cards go. A step of that deletion, safe to run again. */
