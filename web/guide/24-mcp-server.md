@@ -209,8 +209,8 @@ authenticator says, and it is set as on any router, with `authenticateWith`:
 // …
 ```
 
-`bearerAuthenticator` from `newt/http` reads the token from `Authorization: Bearer
-<token>` (RFC 6750). A request without one is nobody's, and your `verify` is not
+`bearerAuthenticator` from `newt/http` reads the token from
+`Authorization: Bearer <token>` (RFC 6750). A request without one is nobody's, and your `verify` is not
 called. With one, `verify` gets the token and answers the actor, or `null` for a
 token that is not valid. That is all it does: what a token means is yours to say.
 

@@ -135,7 +135,7 @@ Comprueba, por orden:
 - ¿Le toca ya? Un job que falló espera su backoff (10 s, doblando, hasta 15 minutos)
   ([capítulo 12](./12-failures)).
 
-**"A handler of 'card.assigned' is named '<handler's module>.<use case it calls>.on.card.assigned', not '…'"**
+**`A handler of 'card.assigned' is named '<handler's module>.<use case it calls>.on.card.assigned', not '…'`**
 Al arrancar: la cola no termina con el evento al que está suscrita, o no tiene la forma
 `<módulo>.<caso de uso>.on.<módulo>.<evento>`. `newt/queue-name` lo detecta, y más, en el
 editor ([capítulo 11](./11-reacting), [apéndice B](./b-module-anatomy)).

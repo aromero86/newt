@@ -129,7 +129,7 @@ Check, in order:
 - Is it due? A job that failed waits its backoff (10 s, doubling, up to 15 minutes)
   ([chapter 12](./12-failures)).
 
-**"A handler of 'card.assigned' is named '<handler's module>.<use case it calls>.on.card.assigned', not '…'"**
+**`A handler of 'card.assigned' is named '<handler's module>.<use case it calls>.on.card.assigned', not '…'`**
 At startup: the queue does not end with the event it is subscribed to, or does not have
 the shape `<module>.<use case>.on.<module>.<event>`. `newt/queue-name` catches it, and
 more, in the editor ([chapter 11](./11-reacting), [appendix B](./b-module-anatomy)).

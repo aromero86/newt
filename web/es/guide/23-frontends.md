@@ -1027,7 +1027,7 @@ location: http://localhost:5171/oauth/authorize?response_type=code&client_id=coo
 ```
 
 Iniciar sesión va a la app de auth, y vuelve al servidor de Vite de boards. Abre
-http://localhost:5172 en un navegador e inicia sesión: boards te manda a la página de
+`http://localhost:5172` en un navegador e inicia sesión: boards te manda a la página de
 inicio de sesión de auth, donde puedes registrarte; auth responde enseguida a la petición
 de su propio producto (cooper no pide el consentimiento de nadie para iniciar sesión en
 cooper), y vuelves a estar en boards.

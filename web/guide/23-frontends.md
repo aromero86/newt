@@ -1027,7 +1027,7 @@ location: http://localhost:5171/oauth/authorize?response_type=code&client_id=coo
 ```
 
 Signing in goes to auth's app, and comes back to boards' Vite server. Open
-http://localhost:5172 in a browser and sign in: boards sends you to auth's sign-in
+`http://localhost:5172` in a browser and sign in: boards sends you to auth's sign-in
 page, where you can sign up; auth answers its own product's request at once (cooper
 asks nobody's consent to sign in to cooper), and you are back on boards.
 
