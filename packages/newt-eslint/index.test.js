@@ -82,6 +82,20 @@ describe('the preset of newt', () => {
     }
   })
 
+  test('lints only the files it is given, when given some', async () => {
+    const linter = new ESLint({ cwd: root, overrideConfigFile: true, overrideConfig: newt({ files: ['app/**/*.ts'], contexts: { folder: 'app/contexts', uses: { auth: [], ws: ['auth'] } } }) })
+    const lint = async (path, code) => {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await writeFile(join(root, path), code)
+      const [result] = await linter.lintFiles([join(root, path)])
+      return result?.messages.map(each => each.ruleId ?? each.message)
+    }
+
+    expect(await lint('app/contexts/ws/modules/order/helpers.ts', 'export const x = 1\n')).toEqual(['newt/module-anatomy'])
+    expect(await lint('app/contexts/auth/auth.context.ts', "import { x } from '../ws/ws.context'\nexport const y = x\n")).toEqual(['newt/context-boundaries'])
+    expect(await lint('other/modules/order/helpers.ts', 'export const x = 1\n')).toEqual([expect.stringContaining('no matching configuration')])
+  })
+
   test('finds the modules of an application without contexts the same way', async () => {
     expect(await complaints('shop/modules/order/helpers.ts', 'export const x = 1\n')).toEqual(['newt/module-anatomy'])
   })

@@ -14,6 +14,8 @@ import { newt } from 'newt-eslint'
 export default newt({
   // Optional: the folder of the contexts, and which ones each one uses.
   contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } },
+  // Optional: the files it lints; every .ts file by default.
+  files: ['src/**/*.ts'],
 })
 ```
 

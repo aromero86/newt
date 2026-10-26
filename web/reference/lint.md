@@ -10,8 +10,9 @@ bun add -d newt-eslint eslint
 ## The preset
 
 `newt(options)` gives the configuration: its rules, the TypeScript parser, and the
-files each rule looks at. The only option is `contexts`: the folder of the contexts,
-and which ones each one uses. For an application with two contexts in `src/contexts`,
+files each rule looks at. Its options are `contexts`, the folder of the contexts and
+which ones each one uses, and `files`, the globs of the files it lints (every `.ts`
+file by default). For an application with two contexts in `src/contexts`,
 `auth` and `shop` (which uses `auth`), its `eslint.config.js` could be this (a generic
 example; cooper's own is [below](#in-cooper)):
 
@@ -38,32 +39,22 @@ newt's preset, with its three contexts: `auth` uses none, `boards` uses `auth`, 
 // eslint.config.js
 import { newt } from 'newt-eslint'
 
-/**
- * newt's preset, kept to some folders: each of its `**` patterns is looked for in each
- * folder only, and the rest stays as it is (the contexts' folder is already inside).
- */
-function within(folders, configs) {
-  return configs.map(config => config.files
-    ? { ...config, files: config.files.flatMap(pattern => pattern.startsWith('**/') ? folders.map(folder => `${folder}/${pattern}`) : [pattern]) }
-    : config)
-}
-
 const BACKEND = newt({
+  files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
 export default [
   { ignores: ['packages/**', 'docs/**', 'web/**', '**/dist/**'] },
-  ...within(['cooper/backend', 'cooper/scripts'], BACKEND),
+  ...BACKEND,
   // …
 ]
 ```
 
-The preset's patterns start with `**/`, so they would reach every TypeScript file of
-the repository. `within` narrows them to the backend and its scripts, since the same
-file also lints cooper's frontends with rules of their own (left out here). An
-application that is only a backend needs none of this: `export default newt({ … })`
-is the whole file.
+By default the preset lints every TypeScript file of the repository. `files` keeps it
+to the backend and its scripts, since the same file also lints cooper's frontends with
+rules of their own (left out here). An application that is only a backend needs no
+`files`: `export default newt({ … })` is the whole file.
 
 Run it with `bun run lint` (`eslint`).
 
