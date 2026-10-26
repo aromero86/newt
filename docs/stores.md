@@ -115,7 +115,9 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
 - **Transactions run one at a time**, in the order they ask, on a connection that
   writes. Reads outside them go to a second connection, read only, which sees only
   what is committed (WAL). A `:memory:` store is a temporary file, removed on
-  `close`, so tests run with exactly the semantics of production.
+  `close`, so tests run with exactly the semantics of production. A transaction
+  SQLite rolls back on its own (`RAISE(ROLLBACK)` in a trigger, a full disk) fails
+  even if the code caught the error: nothing more runs in it, and nothing is stored.
 - **`store.connection`** is the handle for anything a table cannot say: a
   `bun:sqlite` database whose statements run on the right connection when they run
   (a statement prepared outside a transaction and run inside one reads what the
@@ -134,8 +136,12 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
   its column to name it back); `types` matters here: a boolean is kept as 0 or 1,
   JSON as text.
 - **Migrations are SQL**: pairs of `000NN_<name>_up.sql` and `000NN_<name>_down.sql`
-  in a folder, applied all or none. A file is run whole, so a trigger, with
-  semicolons in its body, goes in one. An entity's table has `id TEXT PRIMARY KEY` and
+  in a folder, applied all or none; two with the same number are refused. A file
+  runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
+  in its body, is one), and any statement that fails fails it. Migrations run with
+  foreign keys off, so a table rebuilt as SQLite documents it (create the new one,
+  copy, drop, rename) keeps the rows that point at it; one that leaves a row pointing
+  nowhere fails (`PRAGMA foreign_key_check`). An entity's table has `id TEXT PRIMARY KEY` and
   `version INTEGER NOT NULL`; a unique value is a unique index (partial,
   `WHERE deleted_at IS NULL`, when rows are deleted softly). The framework's own
   tables (`job`, `job_queue`) are migrated after the context's.

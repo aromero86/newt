@@ -1,8 +1,9 @@
 import type { Database as Sqlite } from 'bun:sqlite'
 import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { migrationName, type Migrations } from '../port-store'
 import type { MigrationFile } from './migration-file'
+import { splitStatements } from './split-statements'
 
 /** A migration as the database remembers it: applied, and when. */
 type MigrationRecord = { version: number, name: string, created_at: string }
@@ -26,29 +27,26 @@ export class MigrationRunner implements Migrations {
   async up(): Promise<string[]> {
     this.ensureMigrationsTable()
 
+    // Every script is read before the transaction opens: bun:sqlite's `transaction()`
+    // commits as soon as its callback returns, so the callback cannot await. Which are
+    // pending is read inside it, holding the write lock, so two processes opening the
+    // same database apply them once.
     const files = await this.migrationFiles()
-    this.verifyLastAppliedExists(files)
-
-    const appliedVersions = new Set(this.applied().map(record => record.version))
-    const pending = files.filter(file => !appliedVersions.has(file.version))
-    if (pending.length === 0) return []
-
-    // The SQL is read before the transaction opens: bun:sqlite's `transaction()`
-    // commits as soon as its callback returns, so the callback cannot await.
     const sqlByVersion = new Map<number, string>()
-    for (const migration of pending) {
+    for (const migration of files) {
       sqlByVersion.set(migration.version, await Bun.file(migration.upPath).text())
     }
 
-    const apply = this.sqlite.transaction(() => {
+    return this.inTransaction(() => {
+      this.verifyLastAppliedExists(files)
+      const appliedVersions = new Set(this.applied().map(record => record.version))
+      const pending = files.filter(file => !appliedVersions.has(file.version))
       for (const migration of pending) {
         this.runScript(sqlByVersion.get(migration.version)!)
         this.sqlite.run(`INSERT INTO ${this.table} (version, name) VALUES (?, ?)`, [migration.version, migration.name])
       }
+      return pending.map(migration => migrationName(migration.version, migration.name))
     })
-    apply()
-
-    return pending.map(migration => migrationName(migration.version, migration.name))
   }
 
   /** Reverts the last applied migration. */
@@ -62,22 +60,49 @@ export class MigrationRunner implements Migrations {
     if (!migration) throw new Error(`Migration file for ${last.version}_${last.name} not found`)
 
     const sql = await Bun.file(migration.downPath).text()
-    const revert = this.sqlite.transaction(() => {
+    this.inTransaction(() => {
       this.runScript(sql)
       this.sqlite.run(`DELETE FROM ${this.table} WHERE version = ?`, [migration.version])
     })
-    revert()
 
     return migrationName(migration.version, migration.name)
   }
 
   /**
-   * Runs a script whole, as SQLite reads it: a trigger's body has semicolons of its
-   * own. One with no statement (a down that has nothing to revert) does nothing.
+   * Runs `fn` in a transaction that takes the write lock at once, with foreign keys
+   * off: SQLite ignores turning them off inside a transaction, so a script that
+   * rebuilds a table the documented way (a new table, copy, drop, rename) would
+   * otherwise delete or refuse the rows that point at the old one. A database that
+   * keeps its foreign keys refuses a migration that leaves a row pointing nowhere.
+   */
+  private inTransaction<T>(fn: () => T): T {
+    const foreignKeys = this.sqlite.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get()?.foreign_keys === 1
+    this.sqlite.run('PRAGMA foreign_keys = OFF')
+    try {
+      return this.sqlite.transaction(() => {
+        const value = fn()
+        if (foreignKeys) this.verifyForeignKeys()
+        return value
+      }).immediate()
+    } finally {
+      if (foreignKeys) this.sqlite.run('PRAGMA foreign_keys = ON')
+    }
+  }
+
+  private verifyForeignKeys(): void {
+    const broken = this.sqlite.query<{ table: string, parent: string }, []>('PRAGMA foreign_key_check').all()
+    if (broken.length === 0) return
+    const pairs = [...new Set(broken.map(row => `${row.table} → ${row.parent}`))]
+    throw new Error(`The migration leaves rows pointing at rows that do not exist: ${pairs.join(', ')}`)
+  }
+
+  /**
+   * Runs a script one statement at a time, so one that fails fails the script (run
+   * whole, SQLite reports only the last one's error). A trigger, with semicolons in
+   * its body, is one statement; a script of comments alone runs nothing.
    */
   private runScript(sql: string): void {
-    const statements = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/;/g, '')
-    if (statements.trim()) this.sqlite.run(sql)
+    for (const statement of splitStatements(sql)) this.sqlite.run(statement)
   }
 
   async status(): Promise<{ applied: string[], pending: string[] }> {
@@ -130,6 +155,10 @@ export class MigrationRunner implements Migrations {
       const [, versionText, name, direction] = match as [string, string, string, string]
       const version = Number.parseInt(versionText, 10)
       const migration = byVersion.get(version) ?? { version, name }
+      if (migration.name !== name) {
+        // Two branches merged, each with a migration of its own under the same number.
+        throw new Error(`Migrations ${basename((migration.upPath ?? migration.downPath)!)} and ${fileName} share the version ${versionText}: renumber one`)
+      }
       byVersion.set(version, migration)
 
       if (direction === 'up') migration.upPath = join(folder, fileName)

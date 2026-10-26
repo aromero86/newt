@@ -191,6 +191,89 @@ describe('SqliteStore, further', () => {
     await store.close()
   })
 
+  test('a transaction SQLite rolled back on its own fails, and stores nothing, even if the error was caught', async () => {
+    const store = await open()
+    try {
+      await store.transaction(() => store.connection.run("CREATE TRIGGER no_x BEFORE INSERT ON thing WHEN NEW.name = 'x' BEGIN SELECT RAISE(ROLLBACK, 'no x'); END"))
+      const add = (id: string, name: string) => store.connection.run(`INSERT INTO thing (id, workspace_id, name, archived, rank, tags, created_at, updated_at, version) VALUES ('${id}', 'w', '${name}', 0, 0, '[]', '', '', 1)`)
+
+      const outcome = store.transaction(() => {
+        add('t1', 'a')
+        try { add('t2', 'x') } catch { /* handled, it thinks */ }
+        add('t3', 'c')
+      })
+
+      await expect(outcome).rejects.toThrow('rolled the transaction back')
+      expect(store.connection.prepare('SELECT id FROM thing').all()).toEqual([])
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('two statements prepared from the same SQL are two, as in bun:sqlite', async () => {
+    const store = await open()
+    try {
+      await store.transaction(() => {
+        for (const id of ['a', 'b', 'c']) store.connection.run(`INSERT INTO thing (id, workspace_id, name, archived, rank, tags, created_at, updated_at, version) VALUES ('${id}', 'w', '${id}', 0, 0, '[]', '', '', 1)`)
+      })
+      const sql = 'SELECT id FROM thing WHERE id >= ? ORDER BY id'
+      const outer = store.connection.prepare(sql).iterate('a') as IterableIterator<{ id: string }>
+      const first = outer.next().value
+      store.connection.prepare(sql).all('c')
+      const second = outer.next().value
+
+      expect([first?.id, second?.id]).toEqual(['a', 'b'])
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('a read left halfway does not hold its connection to the database as it was', async () => {
+    const store = await open()
+    const things = store.table<ThingRow>('thing', { types: { archived: 'boolean', tags: 'json' } })
+    const thing = (id: string) => ({ id, workspaceId: 'w', name: id, archived: false, rank: 0, note: null, tags: [], createdAt: '', updatedAt: '', deletedAt: null })
+    try {
+      await things.insert(thing('a'))
+      await things.insert(thing('b'))
+      for (const _ of store.connection.prepare('SELECT id FROM thing').iterate()) break
+
+      await things.insert(thing('c'))
+
+      expect(await things.count()).toBe(3)
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('two stores opening the same new database at once both start, and migrate it once', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'framework-sqlite-'))
+    folders.push(folder)
+    await Bun.write(join(folder, 'migrations/00001_thing_up.sql'), THING)
+    await Bun.write(join(folder, 'migrations/00001_thing_down.sql'), 'DROP TABLE thing')
+    const options = { path: join(folder, 'test.db'), migrations: join(folder, 'migrations') }
+
+    const stores = await Promise.all([SqliteStore.open(options), SqliteStore.open(options)])
+
+    expect(await stores[0].migrations.status()).toEqual({ applied: ['00001_thing'], pending: [] })
+    for (const store of stores) await store.close()
+  })
+
+  test('several processes opening the same new database at once all start', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'framework-sqlite-'))
+    folders.push(folder)
+    await Bun.write(join(folder, 'migrations/00001_thing_up.sql'), THING)
+    await Bun.write(join(folder, 'migrations/00001_thing_down.sql'), 'DROP TABLE thing')
+    const script = join(folder, 'open.ts')
+    await Bun.write(script, `import { SqliteStore } from ${JSON.stringify(join(import.meta.dir, 'sqlite-store'))}
+const store = await SqliteStore.open({ path: ${JSON.stringify(join(folder, 'test.db'))}, migrations: ${JSON.stringify(join(folder, 'migrations'))} })
+await store.close()`)
+
+    const processes = [1, 2, 3, 4, 5, 6].map(() => Bun.spawn(['bun', script], { stdout: 'ignore', stderr: 'pipe' }))
+    const failures = await Promise.all(processes.map(async each => await each.exited === 0 ? '' : await new Response(each.stderr).text()))
+
+    expect(failures.filter(Boolean)).toEqual([])
+  })
+
   test('a migration waits for the transactions in progress', async () => {
     const store = await open()
     const log: string[] = []
