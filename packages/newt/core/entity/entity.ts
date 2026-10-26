@@ -89,7 +89,7 @@ export class Entity<TSchema extends EntitySchema> {
 
   /** What it is as saved, and what it has to tell: its repository puts it back if the save rolls back. */
   [savedState](): SavedState {
-    return { version: this._version, isNew: this._isNew, initial: this.initial, events: this.domainEvents }
+    return { version: this._version, isNew: this._isNew, initial: this.initial, deletion: this.deletion, events: this.domainEvents }
   }
 
   /**
@@ -101,6 +101,7 @@ export class Entity<TSchema extends EntitySchema> {
     this._version = state.version
     this._isNew = state.isNew
     this.initial = state.initial as z.infer<TSchema> | null
+    this.deletion = state.deletion
     const since = this.domainEvents
     this.domainEvents = [...state.events.filter(event => !since.some(each => each.name === event.name)), ...since]
   }

@@ -212,6 +212,22 @@ describe('persist', () => {
     expect(thing.hasPendingChanges).toBe(true)
   })
 
+  test('inside a transaction that rolls back later, a deletion is left to save', async () => {
+    const { log, repo, store } = world()
+    const thing = Thing.fromRow(stored())
+    thing.remove()
+
+    await store.transaction(async () => {
+      await repo.persist(thing)
+      throw new Error('later step failed')
+    }).catch(() => {})
+    log.length = 0
+    await repo.persist(thing)
+
+    expect(thing.hasPendingChanges).toBe(false)
+    expect(log).toContain('delete t1@2')
+  })
+
   test('inside a transaction that rolls back later, a new one is new again, with what it had to tell', async () => {
     const { log, repo, store } = world()
     const thing = Thing.create('one')
