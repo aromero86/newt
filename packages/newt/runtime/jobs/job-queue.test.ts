@@ -379,6 +379,18 @@ describe('the worker', () => {
     expect(locks[0]).not.toBe(locks[1])
   })
 
+  test('starts and stops what runs alongside it: the schedules', async () => {
+    const log: string[] = []
+    const alongside = { start: () => void log.push('started'), stop: async () => void log.push('stopped') }
+    const queue = new JobQueue(new MemoryOutbox(), new Invocations(), { pollMs: 5 }, undefined, alongside)
+
+    queue.start()
+    queue.start()
+    await queue.stop()
+
+    expect(log).toEqual(['started', 'stopped'])
+  })
+
   test('woken, it looks at once instead of waiting for its poll; stopped, it waits for what runs', async () => {
     const { outbox, queue } = setup({ pollMs: 60_000 })
     queue.register(QUEUE, 'user.created', () => Bun.sleep(20))

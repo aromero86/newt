@@ -195,8 +195,9 @@ otra cosa; los tests le dan `:memory:`.
   ella; una que deja una fila apuntando a nada falla (`PRAGMA foreign_key_check`). La
   tabla de una entidad tiene `id TEXT PRIMARY KEY` y `version INTEGER NOT NULL`; un
   valor único es un índice único (parcial, `WHERE deleted_at IS NULL`, cuando las filas
-  se borran lógicamente). Las tablas propias del framework (`job`, `job_queue`) se
-  migran después de las del contexto.
+  se borran lógicamente). Las tablas propias del framework (`job`, `job_queue`, y
+  `schedule_tick`, el último tic de cada programación) se migran después de las del
+  contexto.
 
 ## Postgres y MySQL: `newt/adapter-postgres`, `newt/adapter-mysql`
 

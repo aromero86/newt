@@ -181,7 +181,8 @@ otherwise; the tests give `:memory:`.
   nowhere fails (`PRAGMA foreign_key_check`). An entity's table has `id TEXT PRIMARY KEY` and
   `version INTEGER NOT NULL`; a unique value is a unique index (partial,
   `WHERE deleted_at IS NULL`, when rows are deleted softly). The framework's own
-  tables (`job`, `job_queue`) are migrated after the context's.
+  tables (`job`, `job_queue`, and `schedule_tick`, the last tick of each schedule) are
+  migrated after the context's.
 
 ## Postgres and MySQL: `newt/adapter-postgres`, `newt/adapter-mysql`
 

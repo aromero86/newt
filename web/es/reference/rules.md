@@ -947,6 +947,18 @@ entero.
   pueden ejecutarse después de un despliegue con el código de entonces: un evento solo
   gana campos opcionales. Un cambio que rompe su forma viene con una migración que
   reescribe sus trabajos pendientes.
+- **Lo que toca a una hora es una programación** (`schedule`), un evento que el
+  contexto cuenta cuando lo dice una expresión cron (cinco campos, en UTC):
+  `base.schedules.define('report.nightly', '0 3 * * *')` da su emisor, que un módulo
+  ofrece como ofrece sus eventos, y los demás se suscriben a él como a cualquier
+  evento, con un `handler` (un trabajo del outbox, que se reintenta hasta que sale) o
+  `fire-and-forget`. El payload es `{ dueAt }`. Cada tic se cuenta una vez, por muchos
+  procesos que ejecuten el contexto: lo cuenta el primero que lo apunta en la tabla
+  `schedule_tick` del store, con los trabajos de sus handlers en la misma transacción.
+  Los tics perdidos mientras no corría ningún proceso se cuentan como uno, el último;
+  una programación que se ve por primera vez espera a su siguiente tic. Las
+  programaciones arrancan y paran con los trabajos del contexto; un test que ha movido
+  su reloj llama a `base.schedules.tick()`.
 
 ## Errores y lo que dicen
 

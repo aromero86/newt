@@ -68,6 +68,8 @@ export class JobQueue {
     options: Partial<JobQueueOptions> = {},
     /** What tells it the time: when a job is due, how long a lease and a backoff last. */
     private readonly clock: Clock = systemClock,
+    /** What starts and stops with it: the context's schedules. */
+    private readonly alongside?: { start(): void, stop(): Promise<void> },
   ) {
     // An option given as undefined takes its default, as one left out does.
     const given: Partial<JobQueueOptions> = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
@@ -104,17 +106,22 @@ export class JobQueue {
     return detached(() => currentClock.run(this.clock, () => inWorker.run(true, async () => fn())))
   }
 
-  /** Starts the worker: the server does; a script that wants its jobs run does too, and waits for `idle`. */
+  /**
+   * Starts the worker, and what runs alongside it (the context's schedules): the
+   * server does; a script that wants its jobs run does too, and waits for `idle`.
+   */
   start(): void {
     if (this.loop) return
     this.running = true
     this.loop = this.work()
+    this.alongside?.start()
   }
 
-  /** Stops claiming, and resolves once the jobs in progress finished. */
+  /** Stops claiming, and what runs alongside it, and resolves once the jobs in progress finished. */
   async stop(): Promise<void> {
     this.running = false
     this.signal?.()
+    await this.alongside?.stop()
     await this.loop
     await Promise.all(this.inFlight)
     this.loop = null

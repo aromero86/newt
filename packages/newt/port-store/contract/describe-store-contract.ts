@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConcurrencyConflict, Entity, type DomainEvent, type EntityInput } from '../../core'
+import { ConcurrencyConflict, Entity, type Clock, type DomainEvent, type EntityInput } from '../../core'
 import { Base } from '../../runtime'
 import { JobQueue } from '../../runtime/internal'
 import { TableRepository } from '../../repository'
@@ -1101,6 +1101,71 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
         await until(async () => (await store.outbox.queues()).length === 1)
         expect(await store.outbox.queues()).toEqual([{ name: 'thing.welcome.on.thing.added', event: 'thing.added', attempts: 3, lastSeenAt: expect.any(String) }])
+      })
+    })
+
+    describe('a schedule', () => {
+      /** A context on the store, as one process runs it, by a clock the test moves, with a schedule its handlers subscribe to. */
+      const process = (clock: Clock, heard: string[]) => {
+        const base = new Base({ name: 'test', store, clock })
+        const nightly = base.schedules.define('report.nightly', '0 3 * * *')
+        nightly.subscribe((tick, event) => { heard.push(`job ${tick.dueAt} ${event.name}`) }, { strategy: 'handler', queue: 'report.send.on.report.nightly' })
+        nightly.subscribe(tick => { heard.push(`memory ${tick.dueAt}`) }, { strategy: 'fire-and-forget' })
+        return base
+      }
+      const clockAt = (at: string) => {
+        let time = Date.parse(at)
+        return { clock: { now: () => new Date(time) }, set: (to: string) => { time = Date.parse(to) } }
+      }
+
+      test('tells each tick once its time comes, to a handler as a job and in memory; the first time, nothing of before', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        const base = process(clock, heard)
+
+        await base.schedules.tick()
+        set('2026-01-01T02:59:59.000Z')
+        await base.schedules.tick()
+        expect(await store.outbox.list()).toEqual([])
+
+        set('2026-01-01T03:00:30.000Z')
+        await base.schedules.tick()
+        await base.schedules.tick()
+        await base.jobs.idle()
+        await Bun.sleep(0)
+
+        expect(heard.sort()).toEqual(['job 2026-01-01T03:00:00.000Z report.nightly', 'memory 2026-01-01T03:00:00.000Z'])
+        expect(await store.outbox.list()).toEqual([expect.objectContaining({ queue: 'report.send.on.report.nightly', status: 'done' })])
+      })
+
+      test('tells each tick once, however many processes run the context at once', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        const processes = [process(clock, heard), process(clock, heard), process(clock, heard)]
+        await Promise.all(processes.map(each => each.schedules.tick()))
+
+        set('2026-01-01T03:00:00.000Z')
+        await Promise.all(processes.map(each => each.schedules.tick()))
+        set('2026-01-02T03:00:00.000Z')
+        await Promise.all(processes.map(each => each.schedules.tick()))
+        for (const each of processes) await each.jobs.idle()
+        await Bun.sleep(0)
+
+        expect(heard.filter(line => line.startsWith('job')).sort()).toEqual(['job 2026-01-01T03:00:00.000Z report.nightly', 'job 2026-01-02T03:00:00.000Z report.nightly'])
+        expect(heard.filter(line => line.startsWith('memory')).sort()).toEqual(['memory 2026-01-01T03:00:00.000Z', 'memory 2026-01-02T03:00:00.000Z'])
+      })
+
+      test('of the ticks missed while no process ran, tells only the last one, once', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        await process(clock, heard).schedules.tick()
+
+        set('2026-01-05T10:00:00.000Z')
+        const again = process(clock, heard)
+        await again.schedules.tick()
+        await again.jobs.idle()
+
+        expect(heard.filter(line => line.startsWith('job'))).toEqual(['job 2026-01-05T03:00:00.000Z report.nightly'])
       })
     })
   })

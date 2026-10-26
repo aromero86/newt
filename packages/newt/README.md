@@ -24,7 +24,7 @@ bun add newt zod
 | `newt/port-outbox` | The port of the jobs of `handler` subscriptions: `Outbox`, `Job`. |
 | `newt/port-analytics` | The port of an analytical database: `Analytics`. |
 | `newt/port-analytics/contract` | `describeAnalyticsContract`, and `MemoryAnalytics`: one in memory, for tests. |
-| `newt/runtime` | A context at runtime: `Base`, `BoundedContext`, and the worker of its jobs. |
+| `newt/runtime` | A context at runtime: `Base`, `BoundedContext`, the worker of its jobs, and its schedules. |
 | `newt/sql` | What every SQL store shares: its table, and the whole store on a database server. |
 | `newt/adapter-sqlite` | `SqliteStore`: SQLite on `bun:sqlite`, with SQL migrations. |
 | `newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
@@ -78,7 +78,7 @@ port-outbox/       the port of the jobs; knows nothing else
 port-analytics/    the port of analytics; knows nothing else (its contract/ knows it)
 port-store/        the port of a store; knows core, port-outbox (its contract/ knows repository and runtime)
 repository/        where a module reads and writes its entities; knows core, port-store
-runtime/           a context running: Base, the event bus, the job worker; knows core, port-store, port-outbox
+runtime/           a context running: Base, the event bus, the job worker, the schedules; knows core, port-store, port-outbox
 sql/               what SQL stores share; knows core, port-store, port-outbox
 adapter-sqlite/    an adapter; knows sql and what it builds on
 adapter-postgres/  an adapter; knows sql

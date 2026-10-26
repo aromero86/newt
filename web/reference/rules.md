@@ -908,6 +908,17 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 - **An event's shape only grows.** Its jobs keep it as it was published, and may run
   after a deploy with the code of then: an event only gains optional fields. A change
   that breaks its shape comes with a migration that rewrites its pending jobs.
+- **What is due at a time is a schedule**, an event the context tells as a cron
+  expression says (five fields, in UTC): `base.schedules.define('report.nightly',
+  '0 3 * * *')` gives its emitter, which a module offers as it offers its events, and
+  others subscribe to it as to any event, with a `handler` (a job of the outbox, tried
+  again until it succeeds) or `fire-and-forget`. The payload is `{ dueAt }`. Each tick
+  is told once, however many processes run the context: the first to record it in
+  the store's `schedule_tick` table, with the jobs of its handlers in the same
+  transaction, tells it. Ticks missed while no process ran are told as one, the last;
+  a schedule seen for the first time waits for its next tick. Schedules start and
+  stop with the context's jobs; a test that moved its clock calls
+  `base.schedules.tick()`.
 
 ## Errors and what they say
 
