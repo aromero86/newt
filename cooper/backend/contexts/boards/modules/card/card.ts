@@ -35,10 +35,18 @@ export class Card extends Entity<typeof CardSchema> {
     return new Card(dto, false)
   }
 
-  static create(input: CardOpening): Card {
+  /** Who created it: null for boards' own work (a workspace's welcome card). */
+  private by: string | null = null
+
+  static create(input: CardOpening, by: string | null): Card {
     const card = new Card(input, true)
-    card.trackEvent(new Card_Created(card.toDTO()))
+    card.by = by
+    card.trackEvent(new Card_Created({ ...card.toDTO(), by }))
     return card
+  }
+
+  get workspaceId(): string {
+    return this.data.workspaceId
   }
 
   get boardId(): string {
@@ -65,7 +73,7 @@ export class Card extends Entity<typeof CardSchema> {
   place(number: number, position: number): void {
     if (!this.isNew) throw new Error(`Card ${this.id} is placed once, as it is created`)
     this.change({ number, position })
-    this.trackEvent(new Card_Created(this.toDTO()))
+    this.trackEvent(new Card_Created({ ...this.toDTO(), by: this.by }))
   }
 
   edit(changes: { title?: string, description?: string }): void {
@@ -86,12 +94,12 @@ export class Card extends Entity<typeof CardSchema> {
     this.change({ position })
   }
 
-  /** To a member of its workspace: the module checked they are. Assigning it again to the same one changes nothing. */
-  assign(assigneeId: string): void {
+  /** To a member of its workspace, by someone: the module checked they are. Assigning it again to the same one changes nothing. */
+  assign(assigneeId: string, by: string): void {
     const previousAssigneeId = this.data.assigneeId
     if (assigneeId === previousAssigneeId) return
     this.change({ assigneeId })
-    this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId }))
+    this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId, by }))
   }
 
   unassign(): void {

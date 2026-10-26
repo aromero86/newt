@@ -20,9 +20,13 @@ export type TenantEvents = {
 /**
  * auth's modules, whose use cases boards' routes for workspaces, members and
  * invitations call: auth keeps all three, and boards' UI manages them through boards'
- * own origin. A route of boards calls them as any client would (ch. 23): what they
+ * own origin. A route of boards calls them as any client would: what they
  * write is auth's, and auth's own rules guard it. A use case of boards only reads
  * them, to put together what its screens show.
+ *
+ * Unlike what `member` and `card` ask of auth, this is not a port in boards' words:
+ * those routes are entry points into auth, taking and answering auth's own shapes,
+ * and a port would only repeat auth's API one to one.
  */
 export type WorkspaceAuth = {
   tenant: Tenant_Module

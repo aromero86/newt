@@ -1,7 +1,9 @@
 import { runAsActor } from 'newt/core'
 import { config } from '../../../config'
 import type { Mail } from '../../../shared/mail/mailer'
+import type { BoardsBase } from '../boards-base'
 import { Boards_Context } from '../boards.context'
+import type { CardRow } from '../modules/card/card.repository'
 import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
 
@@ -32,6 +34,13 @@ export async function openTestBoards() {
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>): Promise<T> {
       return runAsActor({ userId, via: 'web' }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+    },
+    /** Cards written as rows, past what any use case would let in: for a test of very many. */
+    async writeCards(rows: CardRow[]): Promise<void> {
+      const { store, db } = boards.base as BoardsBase
+      await store.transaction(async () => {
+        for (let i = 0; i < rows.length; i += 500) await db.insertInto('card').values(rows.slice(i, i + 500)).execute()
+      })
     },
     /** Until the background work is done: auth's events heard, and what they made boards tell. */
     async settled(): Promise<void> {

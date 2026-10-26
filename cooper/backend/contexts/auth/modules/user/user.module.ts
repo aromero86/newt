@@ -29,12 +29,10 @@ export class User_Module extends Module {
   /** A new account. `session.signUp` signs it in at once. */
   @UseCase()
   async signUp(input: UserSignUpDTO): Promise<UserDTO> {
-    const { email: typed, name, password } = UserSignUpSchema.parse(input)
-    const email = Email.from(typed)
-    // For a clear answer in the usual case: the save checks it again, where nothing slips in between.
-    if (await this.repo.count({ email }) > 0) throw new EmailTaken()
-
+    const { email, name, password } = UserSignUpSchema.parse(input)
     const user = User.signUp({ email, name, passwordHash: await Bun.password.hash(password) })
+    // For a clear answer in the usual case: the save checks it again, where nothing slips in between.
+    if (await this.repo.count({ email: user.email }) > 0) throw new EmailTaken()
     await this.repo.persistWithEmailFree(user)
     return user.contract()
   }

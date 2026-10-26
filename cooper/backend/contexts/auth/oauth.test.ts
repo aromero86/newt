@@ -183,18 +183,36 @@ describe('the OAuth server', () => {
     expect(await (await as(`/api/authorizations/${id}/approve`, { method: 'POST' })).json()).toMatchObject({ code: 'oauthGrant.not_open' })
   })
 
+  test('signs out of auth on the way back to a product, and to no other address', async () => {
+    const as = browser()
+    await as('/api/session/sign-up', { method: 'POST', json: { email: 'ana@cooper.test', name: 'Ana', password: 'a long password' } })
+    expect((await as('/api/session')).status).toBe(200)
+
+    const back = await as(`/oauth/logout?${new URLSearchParams({ redirect: `${config.auth.backofficePublicUrl}/workspaces` })}`)
+    expect(back.status).toBe(302)
+    expect(back.headers.get('location')).toBe(`${config.auth.backofficePublicUrl}/workspaces`)
+    expect((await as('/api/session')).status).toBe(401)
+
+    for (const redirect of ['https://evil.test/', 'javascript:alert(1)', '//evil.test', '']) {
+      expect((await as(`/oauth/logout?${new URLSearchParams({ redirect })}`)).headers.get('location')).toBe('/')
+    }
+  })
+
   test('signs the staff in to the backoffice, a confidential client, and nobody else', async () => {
     const redirectUri = `${config.auth.backofficePublicUrl}/api/session/callback`
     const { verifier, challenge } = pkce()
     const as = browser()
     const id = await authorize(as, { client_id: 'backoffice', redirect_uri: redirectUri, code_challenge: challenge })
-    expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ product: { id: 'backoffice', signUp: false }, firstParty: true })
+    expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ product: { id: 'backoffice', signUp: false }, firstParty: true, refused: null })
 
     const staff = await auth.modules.user.signUp({ email: 'staff@cooper.test', name: 'Staff', password: 'a long password' })
     await as('/api/session/sign-in', { method: 'POST', json: { email: 'staff@cooper.test', password: 'a long password' } })
+    // Signed in, the review says upfront what approving would answer.
+    expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ refused: { code: 'oauthGrant.no_access' } })
     expect(await (await as(`/api/authorizations/${id}/approve`, { method: 'POST' })).json()).toMatchObject({ code: 'oauthGrant.no_access' })
 
     await auth.modules.access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
+    expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ refused: null })
     const { redirectTo } = (await (await as(`/api/authorizations/${id}/approve`, { method: 'POST' })).json()) as { redirectTo: string }
     const code = new URL(redirectTo).searchParams.get('code')!
     const exchange = (secret: string) => token({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri }, { authorization: `Basic ${btoa(`backoffice:${secret}`)}` })

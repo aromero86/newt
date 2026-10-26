@@ -26,12 +26,13 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
    * Saves a board only if no other one of its workspace has its name, whatever the
    * case: counted again after writing it, in its transaction, guarding the name in
    * lower case, so no other save of that name slips in between. `Roadmap` and
-   * `ROADMAP` created at once cannot both have it (ch. 10).
+   * `ROADMAP` created at once cannot both have it. Only A to Z are folded, as `ieq`
+   * and the table's unique index compare: `Ärger` and `ärger` are two names.
    */
   async persistWithNameFree(board: Board): Promise<void> {
     const { workspaceId, name } = board
     await this.save([board], each => this.write(each), {
-      guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+      guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
       after: async () => {
         if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
       },

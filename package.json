@@ -9,7 +9,7 @@
     "typecheck": "bun check",
     "test": "bun test",
     "lint": "eslint",
-    "docs:dev": "vitepress dev web",
+    "docs:dev": "vitepress dev web --port 5180",
     "docs:build": "vitepress build web",
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",

@@ -1,6 +1,9 @@
 import { defineFilter } from 'newt/core'
 import { z } from 'zod'
 
+/** The most cards a board holds: a board is read whole, as one screen. */
+export const MAX_CARDS = 500
+
 /** A card of a board: something to do, in the column of its status. */
 export const CardSchema = z.object({
   id: z.uuidv7(),

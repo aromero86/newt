@@ -1,4 +1,4 @@
-import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 
@@ -7,14 +7,14 @@ import type { Card_Module } from './card.module'
  * run by a worker until it succeeds, and safe to run again.
  */
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
-  // An assignee hears of it once it is saved: a card created for someone, or given to them.
-  cards.events.created.subscribe(async card => {
-    if (card.assigneeId !== null) await cards.notifyAssignee(card)
+  // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
+  cards.events.created.subscribe(async ({ by, ...card }) => {
+    if (card.assigneeId !== null) await cards.notifyAssignee(card, by)
   }, {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
   })
-  cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.assigned',
   })
