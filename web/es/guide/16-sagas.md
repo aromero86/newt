@@ -68,21 +68,38 @@ Después la petición retira ella misma los accesos, en una segunda transacción
 qué no dejárselo también a un worker? Hazte la pregunta de la [consistencia
 eventual](./12-eventual-consistency): ¿lo necesita la persona ya? Aquí la respuesta es
 que sí, al revés: desde que el admin ve "borrado", nadie puede entrar en el workspace,
-tampoco su admin. boards deja entrar a alguien en un workspace preguntándole a auth
-por su acceso, así que los accesos tienen que haber desaparecido cuando la petición
-responde. Un caso de uso que escribe en otro módulo fuera de un worker lo dice con
-`writesTo`, y `retryOnConflict: false` evita que se repita ante un conflicto: la
+tampoco su admin, y no debe quedar ningún acceso a él. Así que los accesos se van en
+la petición, y el worker es solo el respaldo. Un caso de uso que escribe en otro
+módulo fuera de un worker lo dice con `writesTo`, y `retryOnConflict: false` evita que se repita ante un conflicto: la
 segunda ejecución encontraría el workspace ya borrado y respondería 404 a un borrado
 que sí funcionó.
 
-El segundo guardado puede fallar después de confirmarse el primero. Así que ese paso
-conserva también su worker, de respaldo. El evento dice lo que pone en marcha:
+El segundo guardado puede fallar después de confirmarse el primero, y entre los dos
+guardados, unos milisegundos, los accesos siguen ahí. Aun así no dejan
+entrar a nadie: boards deja entrar a alguien en un workspace solo si auth tiene un
+acceso suyo *y* el workspace sigue ahí ([varios contextos](./19-several-contexts)):
+
+```ts
+// cooper/backend/open-contexts.ts
+// A deleted tenant is not among them.
+const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
+// An access and a tenant still there: a deleted workspace's accesses go a moment
+// after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+const isMember = async (workspaceId: string, userId: string) => {
+  const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+  return granted !== null && alive
+}
+```
+
+Así que el paso conserva también su worker, de respaldo para un segundo guardado que
+falló. El evento dice lo que pone en marcha:
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-deleted.ts
 /**
- * A workspace was deleted: the start of a saga. auth takes every access to it away
- * and revokes its invitations; boards deletes its boards. Each from a worker.
+ * A workspace was deleted: the start of a saga. auth revokes its invitations, and
+ * takes every access to it away once more (`delete` already did, in the request);
+ * boards deletes its boards. Each from a worker.
  */
 export class Tenant_Deleted implements DomainEvent<TenantDTO> {
   static readonly eventName = 'tenant.deleted'
@@ -276,6 +293,7 @@ cae en un hueco, y esto es lo que hace cooper con él:
 | Qué pasa | Cómo acaba |
 |---|---|
 | Alguien lista sus workspaces justo después del borrado. | Su acceso se fue con la petición. Si ese segundo guardado hubiera fallado, el workspace ya no existe igualmente: `workspace.mine` (y el `tenant.listForUser` de auth) lo dejan fuera hasta que el worker retira el acceso. |
+| Un miembro abre un tablero, o crea una tarjeta, entre los dos guardados de la petición. | boards le pregunta a auth por el acceso y por el workspace: el workspace ya está borrado, así que no es miembro, y nada se crea después de `workspace.purge`. |
 | Alguien acepta una invitación al workspace antes de que corra `invitation.revokeForTenant`. | `invitation.accept` mira primero el workspace: uno borrado deja la invitación cerrada (`invitation.not_open`), y no se da ningún acceso. |
 | El job del email de una invitación se ejecuta después de borrar el workspace. | `invitation.send` no encuentra el workspace y hace return: no sale ningún email. |
 | El job del tablero de bienvenida (`workspace.prepare`) corre después de borrar el workspace, o mientras se borra. | Le pregunta a auth si el workspace existe: si no, no escribe nada; si se fue mientras corría, purga lo que escribió. |
@@ -299,14 +317,13 @@ async accept(token: string): Promise<InvitationDTO> {
 }
 ```
 
-::: warning Cuidado
-Queda un hueco, y es pequeño. El borrado y los accesos son dos guardados. Entre ellos,
-unos milisegundos, o más si el segundo falla y su worker aún no ha corrido, un miembro
-todavía tiene acceso, y boards le sigue dejando entrar (`member.enter` le pregunta a
-auth por el acceso, no por el workspace). Un tablero o una tarjeta creados en ese
-hueco, después de que corriera `workspace.purge`, se quedarían en boards. Para
-cerrarlo del todo, la comprobación que deja entrar en un workspace tendría que fallar
-también para un workspace borrado.
+::: tip Consejo
+La comprobación que deja entrar es donde se cierra el hueco entre dos guardados. Si
+boards preguntara solo por el acceso, un miembro aún podría entrar entre el borrado y
+los accesos (más tiempo, si el segundo guardado falló y su worker no ha corrido), y un
+tablero creado entonces, después de `workspace.purge`, se quedaría en boards para
+siempre. Preguntar también por el workspace cuesta una lectura más, y no deja ese
+hueco.
 :::
 
 ## Las cuatro reglas

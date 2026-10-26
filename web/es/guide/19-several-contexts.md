@@ -31,8 +31,9 @@ lo que necesita:
 // cooper/backend/open-contexts.ts
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  // …
-  const tracer = config.trace ? new ConsoleTracer() : undefined
+  // One tracer for every context: a use case that calls another context's shows that
+  // call inside it, since they run in one process.
+  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
@@ -54,21 +55,29 @@ misma función. No pueden equivocarse de orden.
 
 Cada contexto se abre con su base, pero todos reciben **el mismo tracer**. Con
 `COOPER_TRACE=1`, `openContexts` crea un `ConsoleTracer` y se lo pasa a los tres
-(`tracer` en el código de arriba). Los contextos corren en un mismo proceso, así que
+(`tracer` en el código de arriba); un test pasa el suyo con `options.tracer`. Los
+contextos corren en un mismo proceso, así que
 un tracer los ve a todos.
 
 Una traza es el caso de uso llamado desde fuera, con todos los casos de uso que llamó
 dentro de él, cada uno con el nombre de su contexto y lo que tardó. Un solo tracer da
 un solo árbol: cuando un caso de uso de backoffice pide a auth un usuario, el
-`user.get` de auth sale sangrado dentro de él, no como una traza aparte. El test del
-tracer enseña la forma de lo que escribe:
+`user.get` de auth sale sangrado dentro de él, no como una traza aparte. Un test abre
+los tres contextos con un tracer que guarda sus líneas, y le pregunta al backoffice
+quién es la persona del equipo que ha entrado: las llamadas a auth salen dentro de
+las del backoffice que las hicieron.
 
 ```ts
-// cooper/backend/shared/observability/console-tracer.test.ts
-expect(lines.map(line => line.replace(/\d+\.\d ms/, 'n ms'))).toEqual([
-  '[trace] backoffice workspace.get n ms',
-  '[trace]   backoffice staff.enter n ms (conflict.retry {"attempt":1})',
-  '[trace]   broken n ms (error: disk full)',
+// cooper/backend/open-contexts.test.ts
+const contexts = await openContexts(testConfig(), { tracer: new ConsoleTracer(line => lines.push(line)) })
+// …
+await runAsActor({ userId: sam.id, via: 'web' }, () => contexts.backoffice.modules.staff.me())
+expect(lines.map(line => line.replace(/ \d+\.\d ms$/, ''))).toEqual([
+  '[trace] backoffice staff.me',
+  '[trace]   backoffice staff.enter',
+  '[trace]     backoffice staff.isStaff',
+  '[trace]       auth access.check',
+  '[trace]   auth user.get',
 ])
 ```
 
@@ -133,28 +142,36 @@ datos de auth.
 
 `boardsOnAuth` conecta los puertos con auth. Es donde las palabras de boards se
 convierten en las de auth: un espacio es un tenant del producto `cooper`, y un
-miembro es alguien con acceso a él:
+miembro es alguien con acceso a él mientras siga ahí:
 
 ```ts
 // cooper/backend/open-contexts.ts
 /**
  * What `boards` asks of auth, wired to auth's use cases and events. A workspace is a
- * tenant of the product `cooper`, and its members are those with access to it.
+ * tenant of the product `cooper`, and its members are those with access to it while
+ * it is there.
  * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */
 function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'log'> {
   const { access, user, tenant, token, invitation } = auth.modules
+  // A deleted tenant is not among them.
+  const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
+  // An access and a tenant still there: a deleted workspace's accesses go a moment
+  // after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+  const isMember = async (workspaceId: string, userId: string) => {
+    const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+    return granted !== null && alive
+  }
   return {
     workspaces: {
-      isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
+      isMember,
       member: async (workspaceId, userId) => {
-        if (!await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) return null
+        if (!await isMember(workspaceId, userId)) return null
         const [found] = await user.getMany([userId])
         return found ? { id: found.id, name: found.name, email: found.email } : null
       },
-      // A deleted tenant is not among them.
-      exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
+      exists,
     },
     tenants: tenant.events,
     access: access.events,
@@ -166,7 +183,10 @@ function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'l
 Los emisores de eventos de auth encajan tal cual en los puertos: un puerto solo pide
 `subscribe`. Y cada respuesta del puerto `Workspaces` es una llamada a un caso de uso
 de auth: `exists`, que un worker pregunta antes de escribir en un espacio que quizá
-ya no está, es `tenant.getMany`, que deja fuera los tenants borrados.
+ya no está, es `tenant.getMany`, que deja fuera los tenants borrados. `isMember`
+pregunta a la vez a `access.check` y a `exists`: borrar un espacio guarda primero el
+tenant y retira sus accesos justo después, y entre medias nadie puede entrar en él
+([sagas](./16-sagas)).
 
 ## Llamar a otro contexto es llamar a una API externa
 

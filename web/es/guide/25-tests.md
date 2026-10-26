@@ -398,7 +398,7 @@ que ese proceso imprime:
 test('once set at startup, newt\'s errors and its API speak cooper\'s words', async () => {
   const script = `
     import { ConcurrencyConflict, ReferenceNotFound } from 'newt/core'
-    import { ApiRouteNotFound, toErrorResponse } from 'newt/http'
+    import { ApiRouteNotFound, NotSignedIn, toErrorResponse } from 'newt/http'
     import { setCooperMessages } from './cooper/backend/shared/messages'
 
     setCooperMessages()
@@ -406,6 +406,7 @@ test('once set at startup, newt\'s errors and its API speak cooper\'s words', as
     console.log(JSON.stringify({
       conflict: new ConcurrencyConflict().message,
       reference: new ReferenceNotFound('column', 'c1').message,
+      notSignedIn: new NotSignedIn().message,
       route: { status: response.status, body: await response.json() },
     }))
   `
@@ -415,6 +416,7 @@ test('once set at startup, newt\'s errors and its API speak cooper\'s words', as
   expect(JSON.parse(await new Response(child.stdout).text())).toEqual({
     conflict: 'Someone else changed this a moment ago. Reload it and try again.',
     reference: 'That column is not there any more (c1)',
+    notSignedIn: 'You are not signed in, or your session has ended: sign in to go on',
     route: { status: 404, body: { error: 'Cooper has nothing at GET /api/nothing', code: 'route_not_found' } },
   })
 })

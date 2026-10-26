@@ -18,7 +18,7 @@ orden.
 9. **Las dependencias entre módulos nunca forman un círculo.** Tampoco entre contextos.
 10. **Un módulo apunta a lo de otro solo por su id**, nunca por su entidad ni por su
     tabla.
-11. **Ninguna lista se devuelve entera**: se pagina.
+11. **Ninguna lista se devuelve entera salvo que una regla del dominio la acote (como mucho 10 columnas, 500 cards); las demás van por páginas.**
 
 ## Diseño
 
@@ -62,10 +62,11 @@ orden.
   repositorio. Un módulo nunca abre una transacción propia. ([6](./06-transactions))
 - Una regla sobre varias filas se comprueba en el `after` del guardado, y dice qué
   protege con `guard`. Sin él no compila. ([8](./08-rules-over-rows))
-- Un valor que todos cambian a la vez (un contador, un stock) choca consigo mismo si
-  cada cambio lo lee y lo guarda por su cuenta. Calcúlalo a partir de filas que solo se
-  añaden, o tómalo en el `before` del guardado, bajo un `guard`, para que los cambios se
-  turnen. ([9](./09-shared-counters))
+- Un valor que todos cambian a la vez (un contador, un stock) vive en una fila de su
+  propio módulo, nunca en una fila que escriben también otros guardados, y se toma en
+  el `before` del guardado, bajo un `guard`, para que los cambios se turnen: el
+  `card_counter` de las tarjetas, no el tablero. Solo cuando ni turnarse es bastante
+  rápido, añade filas en lugar de actualizar una. ([9](./09-shared-counters))
 
 ## Eventos y workers
 

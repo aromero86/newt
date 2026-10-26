@@ -146,7 +146,11 @@ export class Outbox_Module extends Module {
     return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
   }
 
-  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  /**
+   * Puts a dead job back to wait, as new: its worker runs it again at once, with all its
+   * attempts. A plain use case: it writes no module's rows through a repository, which
+   * is what the write rule watches, but the store's outbox, in one step.
+   */
   @UseCase()
   async retry(id: string): Promise<void> {
     if (await this.base.store.outbox.retry(id)) return
@@ -199,17 +203,21 @@ async dead(context: JobContext, page: PageRequest): Promise<Page<ContextJobDTO>>
 /**
  * A dead job of a context runs again: what a person of the staff asks for, at once,
  * once they fixed what killed it. The context's own use case puts it back; its
- * worker runs it.
+ * worker runs it. No `writesTo`, not even for the backoffice's own outbox: the
+ * write rule watches what repositories save, and a job put back is the store's
+ * outbox, written by `outbox.retry` in one step.
  */
-@UseCase({ writesTo: ['outbox'] })
+@UseCase()
 async retry(context: JobContext, id: string): Promise<void> {
   await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
 }
 ```
 
-`retry` writes to another module, `outbox`, from a request: it says so with
-`writesTo` ([modules that talk](./17-modules-talk)). A person of the staff asks for
-it and waits for the answer, so it cannot wait for a worker. Two routes, behind the
+`retry` calls each context's `outbox.retry` from a request, and declares no
+`writesTo`. The write rule ([modules that talk](./17-modules-talk)) watches the rows
+a use case saves through repositories, and putting a job back saves none: it is a
+single write to the store's outbox, the same table the job died in. A person of the
+staff asks for it and waits for the answer, so it cannot wait for a worker. Two routes, behind the
 staff's check, are the API the page calls:
 
 ```ts

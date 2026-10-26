@@ -12,10 +12,11 @@ bun add -d newt-eslint eslint
 
 `newt(options)` da la configuración: sus reglas, el parser de TypeScript y los
 ficheros que mira cada regla. La única opción es `contexts`: la carpeta de los
-contextos, y cuáles usa cada uno.
+contextos, y cuáles usa cada uno. Para una aplicación con dos contextos en
+`src/contexts`, `auth` y `shop` (que usa `auth`), su `eslint.config.js` podría ser este
+(un ejemplo genérico; el de cooper está [más abajo](#en-cooper)):
 
 ```js
-// eslint.config.js
 import { newt } from 'newt-eslint'
 
 export default newt({

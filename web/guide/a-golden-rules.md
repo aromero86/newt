@@ -18,7 +18,7 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
 9. **Dependencies between modules never form a cycle.** Nor between contexts.
 10. **A module points at another's things only by id**, never by its entity or its
     table.
-11. **No list is returned whole**: it comes by pages.
+11. **No list is returned whole unless a rule of the domain bounds it (at most 10 columns, 500 cards); every other list goes by pages.**
 
 ## Design
 
@@ -60,9 +60,10 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
   A module never opens a transaction of its own. ([6](./06-transactions))
 - A rule over several rows is checked in the save's `after`, and names what it
   guards with `guard`. It does not compile without it. ([8](./08-rules-over-rows))
-- A value everyone changes at once (a counter, a stock) collides with itself if each
-  change reads and saves it freely. Derive it from rows only ever added, or take it in
-  the save's `before`, under a `guard`, so the changes take turns.
+- A value everyone changes at once (a counter, a stock) lives in a row of its own
+  module, never in a row other saves write too, and is taken in the save's `before`,
+  under a `guard`, so the changes take turns: the cards' `card_counter`, not the
+  board. Only when even turns are too slow, add rows instead of updating one.
   ([9](./09-shared-counters))
 
 ## Events and workers

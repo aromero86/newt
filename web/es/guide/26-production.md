@@ -162,7 +162,7 @@ para todo el proceso:
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
-  not_signed_in: () => 'Your session has ended: sign in again to go on',
+  not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
   route_not_found: ({ method, path }) => `Cooper has nothing at ${method} ${path}`,
   internal: () => 'Something went wrong on our side. Try again in a moment.',
