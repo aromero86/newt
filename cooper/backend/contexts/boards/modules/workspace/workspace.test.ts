@@ -36,9 +36,9 @@ describe('workspace', () => {
 
   test('prepares a workspace once, however many times its work runs, and finishes one left halfway', async () => {
     t.auth.join('acme', 'ana')
-    // A first run that stopped halfway: the board and one column.
+    // A first run that stopped halfway: the board and one column, their names in another case.
     const board = await inAcme(() => t.modules.board.create({ name: 'welcome' }))
-    await inAcme(() => t.modules.column.add(board.id, { name: 'To do' }))
+    await inAcme(() => t.modules.column.add(board.id, { name: 'TO DO' }))
 
     await t.auth.createWorkspace('acme', 'ana')
     await t.settled()
@@ -47,7 +47,7 @@ describe('workspace', () => {
 
     expect(await welcome()).toEqual({
       boards: ['welcome'],
-      columns: [['To do', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
+      columns: [['TO DO', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
     })
   })
 

@@ -70,6 +70,16 @@ export function describeCardSearchContract(name: string, open: () => CardSearch 
       expect(await ids()).toEqual([])
     })
 
+    test('keeps the newer of two copies of a card, whichever is indexed last', async () => {
+      const card = cardOf({ title: 'Plan', updatedAt: '2026-01-01T10:00:00.000Z' })
+      const edited = { ...card, title: 'Design', updatedAt: '2026-01-01T10:00:01.000Z' }
+      await search.index(edited)
+      await search.index(card)
+
+      expect(await ids('plan')).toEqual([])
+      expect(await ids('design')).toEqual([card.id])
+    })
+
     test('forgets every card of a workspace, and only those', async () => {
       const theirs = cardOf({ title: 'Plan', workspaceId: 'globex' })
       await search.index(theirs)

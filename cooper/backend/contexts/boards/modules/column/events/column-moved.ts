@@ -1,4 +1,4 @@
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 /**
@@ -10,6 +10,6 @@ type ColumnMove = { dto: ColumnDTO, changes: Partial<ColumnDTO>, previous: Parti
 export class Column_Moved implements DomainEvent<ColumnMove> {
   static readonly eventName = 'column.moved'
   readonly name = Column_Moved.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: ColumnMove) {}
 }

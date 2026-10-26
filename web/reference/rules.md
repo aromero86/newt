@@ -702,6 +702,13 @@ Vernon's aggregates: never the other entity, never a join to its table.
 - When the referenced thing goes, the module that points at it follows its event, from
   a worker: a `handler` on `column.removed` calling `card.leaveRemovedColumn`, which
   finds the cards still in it when it runs.
+- The check ran before the save, so the thing may go in between, and its worker may run
+  before the save and find nothing. The module that points follows its own events too:
+  `card.created` and `card.moved` call `card.leaveRemovedColumn` with the card's
+  column, which looks whether it is still there. Each worker runs after its own save
+  and looks at the other's, so whichever runs last finds the card, in any order
+  (cooper's assignee is followed the same way: `card.unassignMember` on
+  `access.revoked`, `card.created` and `card.assigned`, asking whether they still belong).
 - Showing names, not ids, is the client's composition (it asks both modules), or a
   read model a worker keeps from the events.
 - A reference may point at something deleted for a moment, between the check and the
@@ -908,10 +915,12 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   export class Board_Updated implements DomainEvent<BoardChange> {
     static readonly eventName = 'board.updated'
     readonly name = Board_Updated.eventName
-    readonly occurredAt = new Date().toISOString()
+    readonly occurredAt = now().toISOString()
     constructor(readonly payload: BoardChange) {}
   }
   ```
+  `occurredAt` is `now()`, the time by the clock of the context at work, so a test
+  that moves the clock sees its events at that time.
 - Payloads: `created` and `deleted` carry the DTO; `updated` carries `{ dto, changes,
   previous }`: the whole DTO, the fields that changed, and what they were before. Each
   field's transition is `previous[field]` → `changes[field]`. An event of its own kind
@@ -941,7 +950,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 
     ```ts
     // cooper/backend/contexts/boards/modules/card/card.workers.ts
-    cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+    cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
       strategy: 'handler',
       queue: 'card.notifyAssignee.on.card.assigned',
     })
@@ -999,7 +1008,10 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   ```
 - **What cannot be taken back leaves from a worker, never from a use case**: an email
   is sent after the event of what it is about, so only for what was saved (cooper's
-  `card.notifyAssignee`, on `card.created` and `card.assigned`).
+  `card.notifyAssignee`, on `card.created` and `card.assigned`). Its job may run
+  twice, so it is sent with a key, the event's id, and sent once: cooper's `Mailer`
+  takes it in `Mail.key`, its console and test mailers skip a key they have seen,
+  and one of a real provider passes it as the provider's idempotency key.
 - **An event's shape only grows.** Its jobs keep it as it was published, and may run
   after a deploy with the code of then: an event only gains optional fields. A change
   that breaks its shape comes with a migration that rewrites its pending jobs.

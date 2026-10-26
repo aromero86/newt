@@ -91,7 +91,8 @@ describe('the web session of a context', () => {
     // It keeps no token: it gave them back once it knew who signed in.
     expect(await auth.base.store.table('token').count()).toBe(0)
 
-    // The code was spent: the same callback again opens nothing.
+    // The same callback again opens nothing: the sign-in it answered (its cookie) is over, so it
+    // is told expired before its code goes to auth (which refuses a spent one: oauth.test.ts).
     expect(new URL((await as(redirectTo)).headers.get('location')!, clientUrl('/')).searchParams.get('signInError')).toBe('session.sign_in_expired')
 
     // Signing out goes on to auth, which ends its own session too and sends the browser back.

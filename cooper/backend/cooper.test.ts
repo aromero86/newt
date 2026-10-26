@@ -9,6 +9,7 @@ import { config, type Config } from './config'
 import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /**
  * cooper end to end: auth, boards and backoffice open as the server opens them, on
@@ -30,8 +31,9 @@ let servers: Server<undefined>[]
 let mails: Mail[]
 
 beforeEach(async () => {
-  mails = []
-  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
   servers = [serve(contexts.auth.serving()), serve(contexts.boards.serving())]
 })
 

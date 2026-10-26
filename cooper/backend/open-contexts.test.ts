@@ -4,7 +4,7 @@ import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { cooperTracer, openContexts, stopContexts } from './open-contexts'
-import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
@@ -18,8 +18,9 @@ function testConfig(): Config {
 }
 
 test('opens the three contexts, serves each on its own port, and stops them', async () => {
-  const mails: Mail[] = []
-  const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  const mails = mailer.mails
+  const contexts = await openContexts(testConfig(), { mailer })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards', 'backoffice'])
 
   const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })

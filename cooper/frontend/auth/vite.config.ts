@@ -1,4 +1,4 @@
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // Signing in, signing up and granting access. Its context is the OAuth server: the
 // API, the authorization endpoints and their metadata.

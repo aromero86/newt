@@ -74,6 +74,29 @@ describe('column', () => {
     expect(await names()).toEqual(['0:Doing', '1:Done'])
   })
 
+  test('keeps a board\'s last column, where its cards go when another one is removed', async () => {
+    const [todo, doing] = [await add('To do'), await add('Doing')]
+
+    // Its last two removed at once: one of them is.
+    const removed = await Promise.allSettled([todo, doing].map(column => inAcme(() => t.modules.card.removeColumn(column.id))))
+
+    expect(removed.filter(each => each.status === 'fulfilled')).toHaveLength(1)
+    expect(removed.find(each => each.status === 'rejected')?.reason).toMatchObject({ code: 'column.last' })
+    const [last] = await inAcme(() => t.modules.column.list(boardId))
+    expect(await names()).toEqual([`0:${last!.name}`])
+    await expect(inAcme(() => t.modules.card.removeColumn(last!.id))).rejects.toMatchObject({ code: 'column.last' })
+  })
+
+  test('adds the columns a board is missing, by name whatever the case, and answers them in their order', async () => {
+    const todo = await add('TO DO')
+
+    const columns = await inAcme(() => t.modules.column.addMissing(boardId, ['Done', ' to do ', 'DONE', 'Doing']))
+
+    expect(columns.map(column => column.name)).toEqual(['Done', 'TO DO', 'Done', 'Doing'])
+    expect(columns[1]!.id).toBe(todo.id)
+    expect(await names()).toEqual(['0:TO DO', '1:Done', '2:Doing'])
+  })
+
   test('adds columns only to a board of the workspace', async () => {
     await expect(inAcme(() => t.modules.column.add('nope', { name: 'To do' }))).rejects.toMatchObject({ code: 'board.not_found' })
   })

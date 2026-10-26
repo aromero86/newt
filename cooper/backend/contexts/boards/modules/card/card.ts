@@ -99,7 +99,7 @@ export class Card extends Entity<typeof CardSchema> {
     const previousAssigneeId = this.data.assigneeId
     if (assigneeId === previousAssigneeId) return
     this.change({ assigneeId })
-    this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId, ...author }))
+    this.trackEvent(new Card_Assigned({ dto: { ...this.toDTO(), assigneeId }, previousAssigneeId, ...author }))
   }
 
   unassign(author: CardAuthor): void {

@@ -1,7 +1,7 @@
 import { runAsActor } from 'newt/core'
 import { config } from '../../../config'
 import type { ActorVia } from '../../../shared/actor'
-import type { Mail } from '../../../shared/mail/mailer'
+import { RecordingMailer } from '../../../shared/mail/recording-mailer'
 import type { BoardsBase } from '../boards-base'
 import { Boards_Context } from '../boards.context'
 import type { CardRow } from '../modules/card/card.repository'
@@ -10,13 +10,13 @@ import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
 
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth behind
- * its ports, its emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
- * authenticator, the web session's, is replaced).
+ * `boards` for a test: its database and its cards' search in memory, a fake auth
+ * behind its ports, its emails and its log's lines in lists, and who sends a request
+ * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
-  const mails: Mail[] = []
+  const mailer = new RecordingMailer()
   const lines: string[] = []
   const search = new MemoryCardSearch()
   const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
@@ -24,7 +24,7 @@ export async function openTestBoards() {
     tenants: auth.tenants,
     access: auth.access,
     auth: auth.modules,
-    mailer: { send: async mail => { mails.push(mail) } },
+    mailer,
     search,
     log: line => { lines.push(line) },
   })
@@ -36,7 +36,7 @@ export async function openTestBoards() {
     auth,
     boards,
     modules: boards.modules,
-    mails,
+    mails: mailer.mails,
     lines,
     search,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */

@@ -8,6 +8,8 @@
     "types": ["bun"],
     "moduleDetection": "force",
     "noEmit": true,
+    // A Vite config imports its neighbour as Node would load it: with its extension.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true
   },

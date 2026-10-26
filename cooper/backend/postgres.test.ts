@@ -13,8 +13,8 @@ import { connectStore } from './shared/open-store'
 
 /**
  * cooper on Postgres, when there is one to test against: `COOPER_TEST_POSTGRES_URL`,
- * an address on a server where it may make databases. Without it, these tests are
- * skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
+ * the address of a user with the right to create databases (`CREATE DATABASE`, a
+ * role with `CREATEDB`) on that server. Without it, these tests are skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
  * and made again: never one that matters.
  */
 const url = process.env.COOPER_TEST_POSTGRES_URL

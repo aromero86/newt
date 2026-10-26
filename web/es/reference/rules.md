@@ -732,6 +732,14 @@ su tabla.
   desde un worker: un `handler` de `column.removed` que llama a
   `card.leaveRemovedColumn`, que busca las tarjetas que siguen en ella cuando se
   ejecuta.
+- La comprobación se hizo antes del guardado, así que lo referenciado puede
+  desaparecer entre medias, y su worker ejecutarse antes del guardado y no encontrar
+  nada. El módulo que apunta sigue también sus propios eventos: `card.created` y
+  `card.moved` llaman a `card.leaveRemovedColumn` con la columna de la tarjeta, que
+  mira si sigue ahí. Cada worker se ejecuta tras su propio guardado y mira el del
+  otro, así que el que se ejecute el último encuentra la tarjeta, en cualquier orden
+  (el asignado de cooper se sigue igual: `card.unassignMember` en `access.revoked`,
+  `card.created` y `card.assigned`, preguntando si sigue perteneciendo).
 - Mostrar nombres, y no ids, es composición del cliente (pregunta a los dos módulos), o
   un modelo de lectura que un worker mantiene a partir de los eventos.
 - Una referencia puede apuntar un momento a algo borrado, entre la comprobación y el
@@ -946,10 +954,12 @@ entero.
   export class Board_Updated implements DomainEvent<BoardChange> {
     static readonly eventName = 'board.updated'
     readonly name = Board_Updated.eventName
-    readonly occurredAt = new Date().toISOString()
+    readonly occurredAt = now().toISOString()
     constructor(readonly payload: BoardChange) {}
   }
   ```
+  `occurredAt` es `now()`, la hora del reloj del contexto en curso, así que un test
+  que mueve el reloj ve sus eventos a esa hora.
 - Contenido: `created` y `deleted` llevan el DTO; `updated` lleva `{ dto, changes,
   previous }`: el DTO entero, los campos que cambiaron y lo que valían antes. La
   transición de cada campo es `previous[campo]` → `changes[campo]`. Un evento de un
@@ -981,7 +991,7 @@ entero.
 
     ```ts
     // cooper/backend/contexts/boards/modules/card/card.workers.ts
-    cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+    cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
       strategy: 'handler',
       queue: 'card.notifyAssignee.on.card.assigned',
     })
@@ -1043,7 +1053,10 @@ entero.
 - **Lo que no se puede deshacer sale de un worker, nunca de un caso de uso**: un email
   se envía después del evento de aquello de lo que trata, así que solo por lo que se
   ha guardado (el `card.notifyAssignee` de cooper, con `card.created` y
-  `card.assigned`).
+  `card.assigned`). Su trabajo puede ejecutarse dos veces, así que se envía con una
+  clave, el id del evento, y se envía una vez: el `Mailer` de cooper la recibe en
+  `Mail.key`, sus mailers de consola y de test se saltan una clave ya vista, y uno de
+  un proveedor real la pasa como la clave de idempotencia del proveedor.
 - **La forma de un evento solo crece.** Sus trabajos lo guardan tal como se publicó, y
   pueden ejecutarse después de un despliegue con el código de entonces: un evento solo
   gana campos opcionales. Un cambio que rompe su forma viene con una migración que

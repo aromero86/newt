@@ -31,6 +31,9 @@ const publicUrls = {
 /**
  * `COOPER_<APP>_CLIENT_SECRET`: the secret each web app proves itself with at auth's
  * token endpoint, as an OAuth confidential client. `auth` knows both; each app its own.
+ * Each is kept under the id of the product it signs people in to, its client_id, as
+ * auth looks it up; its variable is named after the app, as the people deploying it
+ * know it: boards' is `COOPER_BOARDS_CLIENT_SECRET`, for the product `cooper`.
  */
 const clientSecrets = {
   cooper: env.COOPER_BOARDS_CLIENT_SECRET ?? 'cooper-dev-boards-client-secret',
@@ -106,6 +109,12 @@ export const config = {
    * those it calls, in its context or another, and how long each took.
    */
   trace: env.COOPER_TRACE === '1',
+  /**
+   * `COOPER_DRAIN_MS`: how long each server goes on answering once told to stop, its
+   * health a 503 meanwhile, so whoever balances the load sends it nothing new: 2
+   * seconds. Only the backend's process drains: a test stops its servers at once.
+   */
+  drainMs: Number(env.COOPER_DRAIN_MS ?? 2000),
   /**
    * `COOPER_OTLP_URL`: an OpenTelemetry collector (OTLP over HTTP,
    * `http://localhost:4318`) the traces go to instead, as service `cooper`.

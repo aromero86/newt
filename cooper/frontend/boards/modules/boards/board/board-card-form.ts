@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-// The backend's card schema brings newt's filters along with it, so the forms repeat
-// its limits; the backend checks them again.
+// The forms say the limits of the backend's card schema (`CardSchema`) in their
+// own words, for the person typing; the backend checks them again.
 
 /** A card's title and description, as someone types them. */
 export const CardFormSchema = z.object({

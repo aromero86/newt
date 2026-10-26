@@ -3,6 +3,7 @@ import { runAsActor } from 'newt/core'
 import { serve } from 'newt/http'
 import { config } from '../../config'
 import type { Mail } from '../../shared/mail/mailer'
+import { RecordingMailer } from '../../shared/mail/recording-mailer'
 import { Auth_Context } from './auth.context'
 import type { UserDTO } from './modules/user/user.schema'
 
@@ -12,9 +13,11 @@ let mails: Mail[]
 let time: number
 
 beforeEach(async () => {
-  mails = []
-  time = Date.now()
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  // Set before auth opens: its schedules' first look, as it starts, is at noon of this day.
+  time = Date.parse('2027-03-15T12:00:00Z')
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer }, { now: () => new Date(time) })
   auth.start()
 })
 
@@ -39,6 +42,16 @@ describe('accounts', () => {
     await expect(signUp('Other Ana', 'ANA@cooper.test')).rejects.toMatchObject({ code: 'user.email_taken' })
     const atOnce = await Promise.allSettled([signUp('Bob', 'bob@cooper.test'), signUp('Bob', 'BOB@cooper.test')])
     expect(atOnce.map(each => each.status).sort()).toEqual(['fulfilled', 'rejected'])
+  })
+
+  test('tells someone signed up at the time by auth\'s clock', async () => {
+    const told: string[] = []
+    modules().user.events.signedUp.subscribe((_, event) => { told.push(event.occurredAt) }, { strategy: 'fire-and-forget' })
+    time = Date.parse('2027-04-01T08:30:00Z')
+
+    await signUp('Ana')
+
+    expect(told).toEqual(['2027-04-01T08:30:00.000Z'])
   })
 
   test('checks a password, and says nothing about which emails have an account', async () => {
@@ -69,9 +82,9 @@ describe('accounts', () => {
 
   test('removes the expired sessions every night at three, by auth\'s clock', async () => {
     const sessions = () => auth.base.store.table('session').count({})
-    time = Date.parse('2027-03-15T12:00:00Z')
-    // The first look at a schedule tells nothing of before: its next tick is tonight's.
-    await auth.base.schedules.tick()
+    // Its own loop stopped, once its first look, as auth started, is done: the test ticks
+    // by hand. That first look told nothing of before: the next tick is tonight's.
+    await auth.base.schedules.stop()
     await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
     time += config.auth.sessionDays * DAY_MS
     await modules().session.signIn({ email: 'ana@cooper.test', password: 'a long password' })
@@ -90,7 +103,7 @@ describe('accounts', () => {
     expect(all.items.map(user => user.name)).toEqual(['Bob', 'Ana'])
     const found = await modules().user.list({ field: 'email', op: 'ieq', value: 'BOB@cooper.test' }, page)
     expect(found.items.map(user => user.name)).toEqual(['Bob'])
-    expect(() => modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).toThrow()
+    await expect(modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).rejects.toMatchObject({ name: 'ZodError' })
   })
 
   test('signs up, in and out through its API, the session in a cookie only auth reads', async () => {

@@ -2,6 +2,7 @@ import { TableRepository } from 'newt/repository'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Column, MAX_COLUMNS, type ColumnDTO } from './column'
+import { LastColumn } from './errors/last-column'
 import { TooManyColumns } from './errors/too-many-columns'
 
 export type ColumnRow = ColumnDTO & { version: number }
@@ -43,7 +44,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
 
   /**
    * Saves new columns at the end of their board, as `persistAdded` does, where none
-   * of the board's other columns has their names: checked again after writing them,
+   * of the board's other columns has their names, whatever the case: checked again after writing them,
    * guarding the board's columns. A save that finds one already there (another run
    * of the same work added it meanwhile) is a conflict, and the use case runs again,
    * finding it.
@@ -58,7 +59,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
       after: async () => {
         if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
         for (const column of columns) {
-          if (await this.count({ boardId, name: column.name }) > 1) this.conflict()
+          if (await this.count({ boardId, name: { ieq: column.name } }) > 1) this.conflict()
         }
       },
     })
@@ -69,13 +70,15 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
    * one moved, and the one removed. Each was read at a version, so a column moved by
    * someone else meanwhile makes it a conflict, and the use case runs again with what
    * there is now. One added meanwhile has no version here: the order is checked
-   * whole after writing, guarding the board's columns, so it is a conflict too.
+   * whole after writing, guarding the board's columns, so it is a conflict too. And
+   * the board keeps one column at least: two of its last two removed at once, one is.
    */
   async persistOrder(columns: Column[], boardId: string): Promise<void> {
     await this.save(columns, each => this.write(each), {
       guard: [`columns:${boardId}`],
       after: async () => {
         const positions = (await this.ofBoard(boardId)).map(each => each.position)
+        if (positions.length === 0) throw new LastColumn(boardId)
         if (positions.some((position, index) => position !== index)) this.conflict()
       },
     })

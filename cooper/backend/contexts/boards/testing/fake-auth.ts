@@ -1,5 +1,6 @@
 import { SqliteStore } from 'newt/adapter-sqlite'
-import { Email, eventsOf, type DomainEvent } from 'newt/core'
+import { Email } from 'newt/contract'
+import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { Boards_Auth } from '../initialize-modules'
 import type { AccessEvents } from '../modules/card/card.deps'
@@ -10,14 +11,14 @@ import type { TenantEvents } from '../modules/workspace/workspace.deps'
 class Tenant_Created implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.created'
   readonly name = Tenant_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
 class Tenant_Deleted implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.deleted'
   readonly name = Tenant_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
@@ -26,7 +27,7 @@ type Access = { userId: string, productId: string, tenantId: string | null }
 class Access_Revoked implements DomainEvent<Access> {
   static readonly eventName = 'access.revoked'
   readonly name = Access_Revoked.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: Access) {}
 }
 
