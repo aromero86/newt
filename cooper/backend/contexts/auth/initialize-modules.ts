@@ -36,7 +36,7 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
     },
     {
       id: PRODUCTS.backoffice,
-      name: 'Cooper backoffice',
+      name: 'Cooper Backoffice',
       publicUrl: config.backofficePublicUrl,
       signUp: false,
       access: 'granted',

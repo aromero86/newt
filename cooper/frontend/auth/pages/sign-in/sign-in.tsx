@@ -51,7 +51,7 @@ function SignInWrapped() {
 
   return (
     <>
-      <PageHeader title="Sign in to Cooper" description={review ? `to continue to ${review.product.name}` : 'One account for every Cooper app.'} />
+      <PageHeader title={`Sign in to ${review?.product.name ?? 'Cooper'}`} description="With your Cooper account: one for every Cooper app." />
       <form onSubmit={onSubmit} noValidate>
         <Card footer={<Button type="submit" block loading={submitting}>Sign in</Button>}>
           <Stack gap={4}>
