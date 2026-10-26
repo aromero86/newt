@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { openTestBoards, type TestBoards } from '../../testing/open-test-boards'
 import { MAX_CARDS, type CardCreateDTO } from './card.schema'
 
@@ -27,6 +27,27 @@ describe('card', () => {
     const cards = await inAcme(() => t.modules.card.listInBoard(boardId))
     const of = (columnId: string) => cards.filter(card => card.columnId === columnId).map(card => `#${card.number}@${card.position}`)
     return { todo: of(todo), doing: of(doing), done: of(done) }
+  }
+  /** Where a card is now, and its assignee. */
+  const card = (id: string) => inAcme(() => t.modules.card.get(id))
+  /** The board's first column, where the cards of a removed one go. */
+  const firstColumn = async () => (await inAcme(() => t.modules.column.list(boardId)))[0]!.id
+  /**
+   * The next call of a use case waits until `release`: before it runs, or after it
+   * read what it answers. A use case paused between its check and its save, or
+   * another one's, for something else to happen in between.
+   */
+  function hold<M extends object>(module: M, useCase: keyof M & string, at: 'before' | 'after') {
+    const original = (module[useCase] as (...args: unknown[]) => Promise<unknown>).bind(module)
+    const { promise: reached, resolve: reach } = Promise.withResolvers<void>()
+    const { promise: released, resolve: release } = Promise.withResolvers<void>()
+    spyOn(module, useCase as never).mockImplementationOnce((async (...args: unknown[]) => {
+      if (at === 'before') { reach(); await released }
+      const answer = await original(...args)
+      if (at === 'after') { reach(); await released }
+      return answer
+    }) as never)
+    return { reached, release }
   }
 
   test('numbers a board\'s cards #1, #2… and puts each new one at the bottom of its column', async () => {
@@ -114,6 +135,120 @@ describe('card', () => {
     await expect(create('Lost', { columnId: elsewhere.id })).rejects.toMatchObject({ code: 'card.column_not_in_board' })
   })
 
+  test('takes a card moved into a column being removed to the first column, when the column\'s worker runs first', async () => {
+    const plan = await create('Plan')
+    // The move checked the column is there, and waits to save.
+    const checked = hold(t.modules.column, 'list', 'after')
+    const moving = inAcme(() => t.modules.card.move(plan.id, { columnId: done }))
+    await checked.reached
+
+    await inAcme(() => t.modules.card.removeColumn(done))
+    // Its worker finds no card in it yet.
+    await t.settled()
+    checked.release()
+    await moving
+    expect((await card(plan.id)).columnId).toBe(done)
+
+    // The card's worker, after its save, finds its column gone.
+    await t.settled()
+    expect((await card(plan.id)).columnId).toBe(await firstColumn())
+  })
+
+  test('takes a card moved into a column being removed to the first column, when the card\'s worker runs first', async () => {
+    const plan = await create('Plan')
+    // The removal found the column empty, and waits to save.
+    const counted = hold(t.modules.column, 'remove', 'before')
+    const removing = inAcme(() => t.modules.card.removeColumn(done))
+    await counted.reached
+
+    await inAcme(() => t.modules.card.move(plan.id, { columnId: done }))
+    // The card's worker finds its column still there.
+    await t.settled()
+    counted.release()
+    await removing
+    expect((await card(plan.id)).columnId).toBe(done)
+
+    // The column's worker, after its save, finds the card in it.
+    await t.settled()
+    expect((await card(plan.id)).columnId).toBe(await firstColumn())
+  })
+
+  test('takes a card created in a column being removed to the first column', async () => {
+    const checked = hold(t.modules.column, 'list', 'after')
+    const creating = create('Plan', { columnId: done })
+    await checked.reached
+    await inAcme(() => t.modules.card.removeColumn(done))
+    await t.settled()
+    checked.release()
+    const plan = await creating
+
+    await t.settled()
+
+    expect((await card(plan.id)).columnId).toBe(await firstColumn())
+  })
+
+  test('leaves unassigned a card given to someone as they leave the workspace, when auth\'s worker runs first', async () => {
+    const plan = await create('Plan')
+    // The assignment checked bea belongs, and waits to save.
+    const checked = hold(t.modules.member, 'isMember', 'after')
+    const assigning = inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
+    await checked.reached
+
+    await t.auth.revoke('acme', 'bea')
+    // auth's worker finds no card of hers yet.
+    await t.settled()
+    checked.release()
+    await assigning
+    expect((await card(plan.id)).assigneeId).toBe('bea')
+
+    // The card's worker, after its save, finds she has left.
+    await t.settled()
+    expect((await card(plan.id)).assigneeId).toBeNull()
+    expect(t.mails).toEqual([])
+  })
+
+  test('leaves unassigned a card given to someone as they leave the workspace, when the card\'s worker runs first', async () => {
+    const plan = await create('Plan')
+    const checked = hold(t.modules.member, 'isMember', 'after')
+    const assigning = inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
+    await checked.reached
+    // She has left, and auth's worker has not run yet.
+    await t.auth.revoke('acme', 'bea')
+    checked.release()
+    await assigning
+
+    // The card's worker, after its save, finds she has left; auth's, after, finds nothing more.
+    await t.boards.base.jobs.idle()
+    expect((await card(plan.id)).assigneeId).toBeNull()
+    await t.settled()
+    expect((await card(plan.id)).assigneeId).toBeNull()
+    expect(t.mails).toEqual([])
+  })
+
+  test('leaves unassigned a card created for someone as they leave the workspace', async () => {
+    const checked = hold(t.modules.member, 'isMember', 'after')
+    const creating = create('Plan', { assigneeId: 'bea' })
+    await checked.reached
+    await t.auth.revoke('acme', 'bea')
+    await t.settled()
+    checked.release()
+    const plan = await creating
+
+    await t.settled()
+
+    expect((await card(plan.id)).assigneeId).toBeNull()
+  })
+
+  test('keeps the cards of someone let in again before auth\'s worker ran', async () => {
+    const plan = await create('Plan', { assigneeId: 'bea' })
+    await t.auth.revoke('acme', 'bea')
+    t.auth.join('acme', 'bea')
+
+    await t.settled()
+
+    expect((await card(plan.id)).assigneeId).toBe('bea')
+  })
+
   test('edits a card\'s title and description', async () => {
     const plan = await create('Plan')
 
@@ -174,6 +309,17 @@ describe('card', () => {
     await t.settled()
 
     expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
+  })
+
+  test('takes a card left in a removed column to the first one of its board, a moment later', async () => {
+    await create('Already there', { columnId: doing })
+    await create('Plan')
+
+    // As if a card were moved into it while it was being removed: the column goes with a card in it.
+    await inAcme(() => t.modules.column.remove(todo))
+    await t.settled()
+
+    expect(await columns()).toEqual({ todo: [], doing: ['#1@0', '#2@1'], done: [] })
   })
 
   test('a reaction that keeps failing dies after its attempts, is listed, and runs once retried', async () => {

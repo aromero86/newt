@@ -51,6 +51,15 @@ describe('activity', () => {
     expect(rest.hasMore).toBe(false)
   })
 
+  test('credits nobody for what boards does on its own, from a worker', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan', assigneeId: 'bea' }))
+    await t.auth.revoke('acme', 'bea')
+    await t.settled()
+
+    const [latest] = (await activityOf(card.id)).items
+    expect(latest).toMatchObject({ kind: 'unassigned', actorId: null, via: null, detail: { previousAssigneeId: 'bea' } })
+  })
+
   test('records each event once, however many times its job runs', async () => {
     const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
     await t.settled()

@@ -1,6 +1,7 @@
 import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
+import type { ColumnDTO } from '../column/column.schema'
 import {
   Card,
   CardAssignSchema,
@@ -27,6 +28,9 @@ import { Card_Deleted } from './events/card-deleted'
 import { Card_Edited } from './events/card-edited'
 import { Card_Moved } from './events/card-moved'
 import { Card_Unassigned } from './events/card-unassigned'
+
+/** Boards' own work, from a worker: no one did it. */
+const BOARDS: CardAuthor = { by: null, via: null }
 
 /** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
 function actingAuthor(): CardAuthor & { by: string } {
@@ -168,7 +172,8 @@ export class Card_Module extends Module {
    * module cannot ask them without the two needing each other. So this use
    * case asks, and has the column module remove it: a write to another module outside
    * a worker, said where it is seen. It is the only write it makes, so a failure leaves
-   * nothing halfway.
+   * nothing halfway; a card moved into the column at that very moment is taken to
+   * another one by `leaveRemovedColumn`.
    */
   @UseCase({ writesTo: ['column'] })
   async removeColumn(columnId: string): Promise<void> {
@@ -176,6 +181,30 @@ export class Card_Module extends Module {
     const cards = await this.repo.count({ columnId })
     if (cards > 0) throw new ColumnNotEmpty(columnId, cards)
     await this.deps.column.remove(column.id)
+  }
+
+  /**
+   * A column may be gone: any card still in it goes to the bottom of the board's first
+   * column. What a worker calls when a column is removed, and when a card is created
+   * in one or moved to one: the card checked its column before its save, and the
+   * column may have gone in between, its own worker finding no card yet. Each runs after
+   * its own save and looks at the other's, so whichever runs last finds the card.
+   * Safe to run again: a column still there, or with no card in it, is left as it is.
+   */
+  @UseCase()
+  async leaveRemovedColumn(column: Pick<ColumnDTO, 'id' | 'boardId' | 'workspaceId'>): Promise<void> {
+    await runInWorkspace(column.workspaceId, async () => {
+      const left = await this.repo.inColumn(column.id)
+      if (left.length === 0) return
+      const columns = await this.deps.column.list(column.boardId)
+      if (columns.some(each => each.id === column.id)) return
+      const [first] = columns
+      // Never none: a board keeps one column at least (`column.remove`).
+      if (!first) return
+      const bottom = await this.repo.count({ columnId: first.id })
+      left.forEach((card, index) => card.moveTo(first.id, bottom + index, BOARDS))
+      await this.repo.persistOrder(left, [column.id, first.id])
+    })
   }
 
   /**
@@ -200,6 +229,25 @@ export class Card_Module extends Module {
       subject: `#${card.number} ${card.title} is yours`,
       text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
       key: `card.notifyAssignee:${eventId}`,
+    })
+  }
+
+  /**
+   * Someone may have lost their access to a workspace: if they do not belong to it,
+   * its cards they had are left without an assignee. What a worker calls when auth
+   * takes their access away, and when a card is given to someone (created for them,
+   * or assigned): they were checked before its save, and may have left in between,
+   * auth's worker finding no card of theirs yet. Each runs after its own save and
+   * looks at the other's, so whichever runs last finds the card. Asked again here,
+   * someone let in again since keeps their cards. Safe to run again.
+   */
+  @UseCase()
+  async unassignMember(workspaceId: string, userId: string): Promise<void> {
+    if (await this.deps.member.find(workspaceId, userId)) return
+    await runInWorkspace(workspaceId, async () => {
+      const cards = await this.repo.find({ assigneeId: userId })
+      for (const card of cards) card.unassign(BOARDS)
+      await this.repo.persist(...cards)
     })
   }
 

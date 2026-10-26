@@ -18,6 +18,7 @@ auth.join('globex', 'bea')
 // For now each card's move is a line on the console (chapter 28 writes it only while tracing).
 const boards = await Boards_Context.open(config.boards, {
   workspaces: auth.workspaces,
+  access: auth.access,
   mailer: new ConsoleMailer(config.mail.from),
   log: line => console.log(line),
 })

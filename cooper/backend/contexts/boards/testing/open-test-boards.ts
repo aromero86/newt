@@ -16,6 +16,7 @@ export async function openTestBoards() {
   const lines: string[] = []
   const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
+    access: auth.access,
     mailer,
     log: line => { lines.push(line) },
   })
@@ -33,12 +34,14 @@ export async function openTestBoards() {
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
       return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
-    /** Until the background work is done: what boards' events made it do. */
+    /** Until the background work is done: auth's events heard, and what they made boards tell. */
     async settled(): Promise<void> {
+      await auth.idle()
       await boards.base.jobs.idle()
     },
     async close(): Promise<void> {
       await boards.stop()
+      await auth.close()
     },
   }
 }

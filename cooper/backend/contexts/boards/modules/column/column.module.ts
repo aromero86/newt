@@ -95,8 +95,9 @@ export class Column_Module extends Module {
   /**
    * Removes a column, and the ones to its right move one place left. Whether it is
    * empty is not known here, where cards are not: `card.removeColumn` asks the cards
-   * first, and is what the API calls. A board keeps one column at least: its last one
-   * is not removed.
+   * first, and is what the API calls. A card left in it anyway (moved in at that very
+   * moment) is taken to another column by a worker of the cards, so a board keeps one
+   * column at least: its last one is not removed.
    */
   @UseCase()
   async remove(id: string): Promise<void> {
