@@ -7,6 +7,9 @@ const fromRoot = (path: string) => (isAbsolute(path) || path === ':memory:' ? pa
 
 const env = process.env
 
+/** `COOPER_SESSION_DAYS`: how long a browser session lasts without signing in again, in every context. */
+const sessionDays = Number(env.COOPER_SESSION_DAYS ?? 30)
+
 /**
  * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. In development it is
  * its frontend's Vite server, which sends the API's addresses on to the context's port;
@@ -14,6 +17,7 @@ const env = process.env
  */
 const publicUrls = {
   boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
+  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? 'http://localhost:5173',
 }
 
 /**
@@ -25,6 +29,17 @@ export const config = {
   /** `COOPER_MAIL_FROM`: who the emails come from, whichever context sends them. */
   mail: {
     from: env.COOPER_MAIL_FROM ?? 'cooper <no-reply@cooper.local>',
+  },
+  /** Who someone is: accounts, and who is signed in, for every app of cooper. */
+  auth: {
+    /** `COOPER_AUTH_PORT`: where it listens. */
+    port: Number(env.COOPER_AUTH_PORT ?? 3001),
+    /** `COOPER_AUTH_DATABASE`: its database, a SQLite file. */
+    database: fromRoot(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
+    /** Where the other contexts are opened: the apps that sign people in through it. */
+    boardsPublicUrl: publicUrls.boards,
+    backofficePublicUrl: publicUrls.backoffice,
+    sessionDays,
   },
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {

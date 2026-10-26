@@ -1,35 +1,19 @@
-// bun cooper/backend/index.ts: cooper's backend. For now one context, boards, served on its port.
-import { serve } from 'newt/http'
+// bun cooper/backend/index.ts: cooper's backend. Every context in one process, each one
+// served on its own port, with the worker of its jobs running, until SIGINT or SIGTERM.
+import { runContexts } from 'newt/application'
 import { config } from './config'
-import { Boards_Context } from './contexts/boards/boards.context'
-import { MemoryCardSearch } from './contexts/boards/search/memory-card-search'
-import { FakeAuth } from './contexts/boards/testing/fake-auth'
-import { ConsoleMailer } from './shared/mail/console-mailer'
+import { openContexts } from './open-contexts'
 import { setCooperMessages } from './shared/messages'
 
 // newt's own messages, in cooper's words, for the whole process: before anything answers.
 setCooperMessages()
+const contexts = await openContexts(config)
 
-// For now auth is a fake one, in memory: ana and carl are in acme, bea in globex (chapter 17 brings the real one).
-const auth = await FakeAuth.open()
-auth.join('acme', 'ana')
-auth.join('acme', 'carl')
-auth.join('globex', 'bea')
-
-// For now each card's move is a line on the console (chapter 28 writes it only while tracing).
-const boards = await Boards_Context.open(config.boards, {
-  workspaces: auth.workspaces,
-  tenants: auth.tenants,
-  access: auth.access,
-  mailer: new ConsoleMailer(config.mail.from),
-  search: new MemoryCardSearch(),
-  log: line => console.log(line),
-})
-// For now, who sends a request says who they are in an `x-user` header (chapter 22 signs them in).
-boards.base.http.authenticateWith(async request => {
+// For now, who sends a request to boards says who they are in an `x-user` header (chapter 22 signs them in).
+contexts.boards.base.http.authenticateWith(async request => {
   const userId = request.headers.get('x-user')
   return userId ? { userId, via: 'web' as const } : null
 })
-boards.start()
-const server = serve(boards.serving())
-console.log(`boards listening on ${server.url}`)
+
+const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })))
+for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)

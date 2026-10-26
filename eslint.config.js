@@ -5,7 +5,7 @@ import { newt } from 'newt-eslint'
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts'],
-  contexts: { folder: 'cooper/backend/contexts', uses: { boards: [] } },
+  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: [] } },
 })
 
 export default [

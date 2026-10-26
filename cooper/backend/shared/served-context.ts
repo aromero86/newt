@@ -17,7 +17,7 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
     super(name, base)
   }
 
-  /** How it is served (`serve`): its modules' API and its health. */
+  /** How it is served (`runContexts`, `serve`): its modules' API and its health. */
   serving(): ServeOptions {
     return { port: this.served.port, router: this.base.http, health: true }
   }

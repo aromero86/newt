@@ -14,12 +14,16 @@ In backend/contexts/, each with a database of its own. Which contexts each one u
 is said in the root's eslint.config.js, and the lint keeps it.
 
 - boards: the boards of each workspace, their columns and cards. Uses none.
+- auth: people, the workspaces (its tenants) and who may enter each, and how people
+  sign in. Uses none.
 
 ## Conventions
 
 - Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
   its routes on `base.http`, in its `<m>.routes.ts`.
 - boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
+- auth's repositories say `scope: 'none'`: people, sessions and tenants span
+  workspaces, so its use cases ask who may see what.
 
 ## Commands
 

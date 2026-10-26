@@ -50,7 +50,7 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   // auth tells every access it takes away, to any product: only a workspace's is boards'.
   // A card checks its assignee before its save, so they may leave in between: a card
   // created for someone, or given to them, looks again once saved, the same way.
-  // For now the product is named here: auth's WORKSPACES_PRODUCT (chapter 17) takes its place.
+  // For now the product is named here: auth's WORKSPACES_PRODUCT (chapter 20) takes its place.
   deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',
