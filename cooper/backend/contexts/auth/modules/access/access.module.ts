@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, DuplicateValue, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { Access, AccessAdmitSchema, AccessGrantSchema, type AccessAdmitDTO, type AccessDTO, type AccessGrantDTO } from './access'
 import type { Access_Deps } from './access.deps'
@@ -120,8 +120,9 @@ export class Access_Module extends Module {
       await this.repo.persistKeepingOneAdmin(access)
     } catch (error) {
       // Given by another save at the same time (a tenant's admin, by the request that
-      // made it and by its worker): given once, and this one gives what is there.
-      const given = error instanceof ConcurrencyConflict ? await this.repo.first({ userId, productId, tenantId }) : undefined
+      // made it and by its worker): given once, and this one gives what is there. Run
+      // again, it would find it; but `tenant.create`, which calls it, never runs again.
+      const given = error instanceof DuplicateValue ? await this.repo.first({ userId, productId, tenantId }) : undefined
       if (!given) throw error
       return given.toDTO()
     }

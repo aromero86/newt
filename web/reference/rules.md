@@ -648,12 +648,16 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   transaction, and their `fire-and-forget` handlers run after it commits.
 - It writes only what changed, and only if each stored entity is still the version it
   was read as: otherwise it throws `ConcurrencyConflict` (409) and writes nothing. A
-  new one that collides with a key or a unique value throws it too.
+  row that takes a key or a unique value another one has throws `DuplicateValue`, a
+  `ConcurrencyConflict` of its own (`duplicate_value`), with the `fields` it took
+  when the store can tell (SQLite, Postgres and files can; MySQL cannot).
 - **A use case runs again on a `ConcurrencyConflict`**, up to three more times,
   reloading and applying the change to what is stored now: a use case loads, changes
   and saves, and what cannot be undone leaves from a worker. Only the first use case of
   a chain runs again, with all it calls; one called by another lets the conflict
-  through to it. One that does something before saving that must not happen twice (a
+  through to it. A `DuplicateValue` runs it again only once: the value stays taken,
+  and running again lets the use case's own check (an email taken) find it and answer
+  with its own error. One that does something before saving that must not happen twice (a
   call to another context that already saved) says `@UseCase({ retryOnConflict: false
   })`, with the reason beside it: then nothing in its chain runs again, not even its
   callers.
@@ -916,6 +920,7 @@ export class BoardNotFound extends NotFoundError {
 | `ForbiddenError` | 403 | whoever asks may not do this |
 | `ConflictError` | 409 | the current state does not allow it |
 | `ConcurrencyConflict` | 409 | someone saved it since it was read |
+| `DuplicateValue` | 409 | another one took a value no two share first |
 
 All of them extend `DomainError` (`status`, `code`, `message`). A domain error is an
 answer, not a failure: it does not mark its use case's span as failed.
@@ -929,6 +934,7 @@ does it in `index.ts`, before it opens anything:
 // cooper/backend/shared/messages.ts
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  duplicate_value: () => 'That is already taken: pick another one',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
   not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
@@ -946,7 +952,7 @@ Being the whole process's, it is tested in a process of its own (cooper's
 `messages.test.ts` runs it with `Bun.spawn`): set in a test, it would change what
 every other test in that process reads.
 
-Its codes are `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
+Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
 `validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
 `filter_too_many_conditions` and `internal`.

@@ -11,7 +11,7 @@ import type { StoredRow } from './stored-row'
 export interface Table<Row extends StoredRow> {
   find(criteria?: Criteria<Row>, options?: FindOptions<Row>): Promise<Row[]>
   count(criteria?: Criteria<Row>): Promise<number>
-  /** Stores it with version 1; `ConcurrencyConflict` if its id or a unique value is taken. */
+  /** Stores it with version 1; `DuplicateValue` if its id or a unique value is taken. */
   insert(row: NewRow<Row>): Promise<void>
   /** Changes a row still at `version`, one version on; `ConcurrencyConflict` otherwise. */
   update(id: string, version: number, changes: Partial<NewRow<Row>>): Promise<void>

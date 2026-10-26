@@ -5,6 +5,8 @@
  */
 export type Messages = {
   concurrency_conflict: () => string
+  /** A value no two rows share that another one took first: `fields` names it, when the store can tell. */
+  duplicate_value: (params: { fields: string[] }) => string
   reference_not_found: (params: { resource: string, id: string }) => string
   not_signed_in: () => string
   invalid_email: (params: { email: string }) => string

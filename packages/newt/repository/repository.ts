@@ -25,7 +25,7 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * written, keeps its version, and tells nothing (a change undone is no change: an
    * event always comes with a change). Every stored one changed or deleted must still
    * be the version it was read as, and a new one must not collide with a key or
-   * unique value: `ConcurrencyConflict` otherwise. Each is marked saved once written
+   * unique value: `ConcurrencyConflict` otherwise (`DuplicateValue`, for a value taken). Each is marked saved once written
    * (in `after` it already is), and put back as it was if the transaction rolls back.
    *
    * `before` writes what must go first (the rows they replace); `after` writes what

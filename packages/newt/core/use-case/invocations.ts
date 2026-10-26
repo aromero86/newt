@@ -1,5 +1,6 @@
 import { ConcurrencyConflict } from '../errors/concurrency-conflict'
 import { DomainError } from '../errors/domain-error'
+import { DuplicateValue } from '../errors/duplicate-value'
 import { NoopTracer } from '../observability/noop-tracer'
 import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
@@ -9,6 +10,8 @@ import type { WriteRule } from './write-rule'
 
 /** How many more times the first use case of a chain runs after a conflict (unless one in it says `retryOnConflict: false`). */
 const RETRIES = 3
+/** How many of those after a value taken (`DuplicateValue`). */
+const DUPLICATE_RETRIES = 1
 
 /**
  * Every call to a use case: an invocation, one span of the trace it is part of. A
@@ -72,11 +75,13 @@ export class Invocations {
   private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry?: { allowed: boolean }): Promise<T> {
     return this.tracer.startActiveSpan(name, attributes, async span => {
       try {
-        for (let attempt = 0; ; attempt++) {
+        for (let attempt = 0, duplicates = 0; ; attempt++) {
           try {
             return await fn()
           } catch (error) {
             if (!retry?.allowed || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
+            // A value taken stays taken: one run more, where the use case's own check finds it and says so.
+            if (error instanceof DuplicateValue && duplicates++ === DUPLICATE_RETRIES) throw error
             span.addEvent('conflict.retry', { attempt: attempt + 1 })
             await Bun.sleep(Math.random() * 10 * (attempt + 1))
           }

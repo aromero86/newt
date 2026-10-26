@@ -4,6 +4,7 @@ import type { Messages } from './messages'
 export const currentMessages: { value: Messages } = {
   value: {
     concurrency_conflict: () => 'Someone changed it in the meantime. Try again.',
+    duplicate_value: ({ fields }) => (fields.length ? `There is already one with this ${fields.join(' and ')}` : 'There is already one like it'),
     reference_not_found: ({ resource, id }) => `The ${resource} ${id} does not exist`,
     not_signed_in: () => 'Sign in to continue',
     invalid_email: ({ email }) => `'${email}' is not a valid email`,

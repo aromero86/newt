@@ -8,7 +8,7 @@ const root = join(import.meta.dir, '../../..')
 // test in this one reads newt's own.
 test('once set at startup, newt\'s errors and its API speak cooper\'s words', async () => {
   const script = `
-    import { ConcurrencyConflict, ReferenceNotFound } from 'newt/core'
+    import { ConcurrencyConflict, DuplicateValue, ReferenceNotFound } from 'newt/core'
     import { ApiRouteNotFound, NotSignedIn, toErrorResponse } from 'newt/http'
     import { setCooperMessages } from './cooper/backend/shared/messages'
 
@@ -16,6 +16,7 @@ test('once set at startup, newt\'s errors and its API speak cooper\'s words', as
     const response = toErrorResponse(new ApiRouteNotFound('GET', '/api/nothing'))
     console.log(JSON.stringify({
       conflict: new ConcurrencyConflict().message,
+      duplicate: new DuplicateValue(['name']).message,
       reference: new ReferenceNotFound('column', 'c1').message,
       notSignedIn: new NotSignedIn().message,
       route: { status: response.status, body: await response.json() },
@@ -26,6 +27,7 @@ test('once set at startup, newt\'s errors and its API speak cooper\'s words', as
 
   expect(JSON.parse(await new Response(child.stdout).text())).toEqual({
     conflict: 'Someone else changed this a moment ago. Reload it and try again.',
+    duplicate: 'That is already taken: pick another one',
     reference: 'That column is not there any more (c1)',
     notSignedIn: 'You are not signed in, or your session has ended: sign in to go on',
     route: { status: 404, body: { error: 'Cooper has nothing at GET /api/nothing', code: 'route_not_found' } },

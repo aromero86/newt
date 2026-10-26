@@ -2,7 +2,7 @@ import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConcurrencyConflict } from '../core'
+import { DuplicateValue } from '../core'
 import { describeStoreContract, type ThingRow } from '../port-store/contract'
 import { SqliteStore } from './sqlite-store'
 
@@ -109,13 +109,27 @@ describe('SqliteStore, further', () => {
     }
   })
 
-  test('a collision raised by its own SQL inside a transaction is a ConcurrencyConflict', async () => {
+  test('a collision raised by its own SQL inside a transaction is a DuplicateValue', async () => {
     const store = await open()
     try {
       const add = () => store.connection.run("INSERT INTO thing (id, workspace_id, name, archived, rank, tags, created_at, updated_at, version) VALUES ('t1', 'w', 'a', 0, 0, '[]', '', '', 1)")
       await store.transaction(add)
 
-      await expect(store.transaction(add)).rejects.toThrow(ConcurrencyConflict)
+      await expect(store.transaction(add)).rejects.toThrow(DuplicateValue)
+    } finally {
+      await store.close()
+    }
+  })
+
+  test('a value taken through a table names its fields, as the table calls them', async () => {
+    const store = await open()
+    try {
+      const things = store.table<ThingRow>('thing', { types: { archived: 'boolean', tags: 'json' } })
+      const row = { id: 't1', workspaceId: 'w', name: 'a', archived: false, rank: 0, note: null, tags: [], createdAt: '', updatedAt: '', deletedAt: null }
+      await things.insert(row)
+
+      expect(await things.insert({ ...row, id: 't2' }).catch(error => (error as DuplicateValue).fields)).toEqual(['name'])
+      expect(await things.insert({ ...row, name: 'b' }).catch(error => (error as DuplicateValue).fields)).toEqual(['id'])
     } finally {
       await store.close()
     }

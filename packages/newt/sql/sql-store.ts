@@ -1,7 +1,7 @@
 import { SQL, type ReservedSQL } from 'bun'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { join } from 'node:path'
-import { ConcurrencyConflict } from '../core'
+import { ConcurrencyConflict, DuplicateValue } from '../core'
 import { TransactionScope, type Migrations, type Store, type StoredRow, type TableOptions } from '../port-store'
 import type { SqlExecutor } from './sql-executor'
 import { SqlMigrationRunner } from './sql-migration-runner'
@@ -112,7 +112,7 @@ export class SqlStore implements Store {
         },
       })
     } catch (error) {
-      throw this.dialect.isCollision(error) || this.dialect.isConflict(error) ? new ConcurrencyConflict() : error
+      throw this.dialect.isCollision(error) ? new DuplicateValue() : this.dialect.isConflict(error) ? new ConcurrencyConflict() : error
     }
   }
 

@@ -673,12 +673,16 @@ entero.
   después de confirmarla.
 - Escribe solo lo que ha cambiado, y solo si cada entidad guardada sigue en la versión
   con la que se leyó: si no, lanza `ConcurrencyConflict` (409) y no escribe nada. Una
-  nueva que choca con una clave o un valor único también lo lanza.
+  fila que toma una clave o un valor único que ya tiene otra lanza `DuplicateValue`, un
+  `ConcurrencyConflict` propio (`duplicate_value`), con los `fields` que tomó cuando
+  el almacén lo sabe (SQLite, Postgres y ficheros lo saben; MySQL no).
 - **Un caso de uso se repite ante un `ConcurrencyConflict`**, hasta tres veces más,
   volviendo a cargar y aplicando el cambio a lo que hay guardado ahora: un caso de uso
   carga, cambia y guarda, y lo que no se puede deshacer sale de un worker. Solo se
   repite el primer caso de uso de una cadena, con todo lo que llama; uno llamado por
-  otro deja pasar el conflicto hasta él. Uno que hace algo antes de guardar que no
+  otro deja pasar el conflicto hasta él. Un `DuplicateValue` lo repite solo una vez:
+  el valor sigue cogido, y repetirlo deja que la comprobación propia del caso de uso
+  (un email ya usado) lo encuentre y responda con su propio error. Uno que hace algo antes de guardar que no
   puede pasar dos veces (una llamada a otro contexto que ya ha guardado) dice
   `@UseCase({ retryOnConflict: false })`, con el motivo al lado: entonces nada de su
   cadena se repite, ni siquiera quienes lo llamaron.
@@ -952,6 +956,7 @@ export class BoardNotFound extends NotFoundError {
 | `ForbiddenError` | 403 | quien lo pide no puede hacerlo |
 | `ConflictError` | 409 | el estado actual no lo permite |
 | `ConcurrencyConflict` | 409 | alguien lo guardó después de leerlo |
+| `DuplicateValue` | 409 | otra fila tomó antes un valor que no comparten dos |
 
 Todos extienden `DomainError` (`status`, `code`, `message`). Un error de dominio es una
 respuesta, no un fallo: no marca como fallido el span de su caso de uso.
@@ -965,6 +970,7 @@ quedan. cooper lo hace en `index.ts`, antes de abrir nada:
 // cooper/backend/shared/messages.ts
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  duplicate_value: () => 'That is already taken: pick another one',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
   not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
@@ -982,7 +988,7 @@ Como es de todo el proceso, se prueba en un proceso propio (el `messages.test.ts
 cooper lo ejecuta con `Bun.spawn`): fijado en un test, cambiaría lo que leen todos los
 demás tests de ese proceso.
 
-Sus códigos son `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
+Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
 `validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
 `filter_too_many_conditions` e `internal`.

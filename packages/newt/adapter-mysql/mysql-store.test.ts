@@ -3,7 +3,7 @@ import { SQL } from 'bun'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConcurrencyConflict } from '../core'
+import { ConcurrencyConflict, DuplicateValue } from '../core'
 import { describeStoreContract } from '../port-store/contract'
 import { MySqlStore } from './mysql-store'
 
@@ -81,13 +81,13 @@ if (url) {
       }
     })
 
-    test('a collision raised by its own SQL inside a transaction is a ConcurrencyConflict', async () => {
+    test('a collision raised by its own SQL inside a transaction is a DuplicateValue', async () => {
       const store = await open()
       try {
         const add = () => store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
         await store.transaction(add)
 
-        await expect(store.transaction(add)).rejects.toThrow(ConcurrencyConflict)
+        await expect(store.transaction(add)).rejects.toThrow(DuplicateValue)
       } finally {
         await store.close()
       }

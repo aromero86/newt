@@ -1,4 +1,4 @@
-import { compare, ConcurrencyConflict, matches, type Criteria } from '../core'
+import { compare, ConcurrencyConflict, DuplicateValue, matches, type Criteria } from '../core'
 import type { FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
 import type { FileCollection } from './file-collection'
 import type { FileRecord } from './file-record'
@@ -34,7 +34,7 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
   insert(row: NewRow<Row>): Promise<void> {
     return this.inTurn(async () => {
       const stored: FileRecord = { ...defined(row), id: row.id, version: 1 }
-      if (await this.records.get(stored.id)) throw new ConcurrencyConflict()
+      if (await this.records.get(stored.id)) throw new DuplicateValue(['id'])
       await this.assertUnique(stored)
       await this.records.put(stored)
     })
@@ -85,7 +85,7 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
     if (sets.length === 0) return
     const others = (await this.records.all()).filter(other => other.id !== row.id && !isDeleted(other))
     for (const fields of sets) {
-      if (others.some(other => fields.every(field => other[field] === row[field]))) throw new ConcurrencyConflict()
+      if (others.some(other => fields.every(field => other[field] === row[field]))) throw new DuplicateValue(fields)
     }
   }
 }

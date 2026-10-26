@@ -17,6 +17,8 @@ export type SqlDialect = {
   boolean(value: boolean): unknown
   /** A write refused because a key or a unique value was taken. */
   isCollision(error: unknown): boolean
+  /** The columns such a write collided on, where its error names them; none otherwise. */
+  collidingColumns?(error: unknown): string[]
   /**
    * Whether null sorts above every value (Postgres): ordering then puts it first going
    * up, as the other stores do, on a column that may hold null (one that cannot is

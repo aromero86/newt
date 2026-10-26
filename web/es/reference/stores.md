@@ -43,7 +43,8 @@ interface Store {
   bloqueo en la base de datos por cada clave.
 - **Las lecturas fuera de una transacción solo ven lo confirmado.**
 - **Una fila guardada conserva su versión**: una escritura que encuentra otra, o una
-  fila nueva cuyo id o valor único ya está cogido, lanza `ConcurrencyConflict`.
+  fila nueva cuyo id o valor único ya está cogido, lanza `ConcurrencyConflict`: por un
+  valor cogido, `DuplicateValue`, que nombra los `fields` cuando el almacén lo sabe.
 - `afterCommit` ejecuta una función cuando se confirma la transacción en curso; al
   momento fuera de una; nunca si se deshace. Así los eventos llegan a sus handlers
   `fire-and-forget` solo por lo que se ha guardado. `afterRollback` ejecuta una si se
@@ -254,7 +255,7 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
   (`CREATE INDEX … (assignee_id NULLS FIRST)`); una `NOT NULL` (una clave primaria) se
   ordena sin más. Una sentencia que falla dentro de una transacción la estropea en
   Postgres, así que una escritura que puede chocar se ejecuta bajo un *savepoint*: un
-  choque es un `ConcurrencyConflict` y la transacción sigue; una transacción
+  choque es un `DuplicateValue` y la transacción sigue; una transacción
   estropeada por una sentencia propia que falló se deshace, y falla, al ir a
   confirmarse.
 - **MySQL** (8.4): `id VARCHAR(36) PRIMARY KEY`; las columnas de texto mejor con

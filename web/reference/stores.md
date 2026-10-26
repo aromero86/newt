@@ -39,7 +39,8 @@ interface Store {
   already; Postgres and MySQL take a lock in the database for each key.
 - **Reads outside a transaction see only what is committed.**
 - **A stored row keeps its version**: a write that finds another, or a new row
-  whose id or unique value is taken, throws `ConcurrencyConflict`.
+  whose id or unique value is taken, throws `ConcurrencyConflict`: for a value taken,
+  `DuplicateValue`, which names the `fields` when the store can tell.
 - `afterCommit` runs a function once the transaction in progress commits; at once
   outside one; never if it rolls back. It is how events reach their `fire-and-forget`
   handlers only for what was saved. `afterRollback` runs one if it rolls back, the
@@ -234,7 +235,7 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
   the same (`CREATE INDEX … (assignee_id NULLS FIRST)`); a `NOT NULL` one (a primary key) is
   ordered plainly. A
   statement that fails inside a transaction spoils it in Postgres, so a write that
-  may collide runs under a savepoint: a collision is a `ConcurrencyConflict` and the
+  may collide runs under a savepoint: a collision is a `DuplicateValue` and the
   transaction goes on; a transaction spoiled by a statement of one's own that failed
   is rolled back, and fails, when it would commit.
 - **MySQL** (8.4): `id VARCHAR(36) PRIMARY KEY`; text columns are best

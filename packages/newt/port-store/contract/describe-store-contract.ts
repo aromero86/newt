@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConcurrencyConflict, Entity, type DomainEvent, type EntityInput } from '../../core'
+import { ConcurrencyConflict, DuplicateValue, Entity, type DomainEvent, type EntityInput } from '../../core'
 import { Base } from '../../runtime'
 import { JobQueue } from '../../runtime/internal'
 import { TableRepository } from '../../repository'
@@ -89,7 +89,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
           things.insert(thing({ name: 'bea' })),
         ]))
 
-        expect(outcomes.map(outcome => outcome.status === 'fulfilled' ? 'ok' : outcome.reason instanceof ConcurrencyConflict ? 'conflict' : String(outcome.reason))).toEqual(['ok', 'conflict', 'ok'])
+        expect(outcomes.map(outcome => outcome.status === 'fulfilled' ? 'ok' : outcome.reason instanceof DuplicateValue ? 'duplicate' : String(outcome.reason))).toEqual(['ok', 'duplicate', 'ok'])
         expect(await names()).toEqual(['ana', 'bea', 'taken'])
       })
 
@@ -306,15 +306,21 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await names()).toEqual(['theirs'])
       })
 
-      test('refuses a row whose id or unique value is taken', async () => {
+      test('refuses a row whose id or unique value is taken: a DuplicateValue, which names it if it can tell', async () => {
         const row = thing({ name: 'ana' })
         await things.insert(row)
-
-        await expect(things.insert({ ...thing(), id: row.id })).rejects.toBeInstanceOf(ConcurrencyConflict)
-        await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(ConcurrencyConflict)
         const other = thing({ name: 'bea' })
         await things.insert(other)
-        await expect(things.update(other.id, 1, { name: 'ana' })).rejects.toBeInstanceOf(ConcurrencyConflict)
+        const refusal = (write: Promise<void>) => write.then(() => { throw new Error('written') }, (error: unknown) => error)
+
+        const id = await refusal(things.insert({ ...thing(), id: row.id }))
+        const name = await refusal(things.insert(thing({ name: 'ana' })))
+        const renamed = await refusal(things.update(other.id, 1, { name: 'ana' }))
+
+        for (const error of [id, name, renamed]) expect(error).toBeInstanceOf(DuplicateValue)
+        expect([[], ['id']]).toContainEqual((id as DuplicateValue).fields)
+        for (const error of [name, renamed]) expect([[], ['name']]).toContainEqual((error as DuplicateValue).fields)
+        expect((name as DuplicateValue).code).toBe('duplicate_value')
       })
 
       test('frees a unique value once its row is deleted softly', async () => {
@@ -330,7 +336,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         await things.insert(thing({ name: 'ana' }))
 
         await store.transaction(async () => {
-          await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(ConcurrencyConflict)
+          await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(DuplicateValue)
           await things.insert(thing({ name: 'bea' }))
         })
         expect(await names()).toEqual(['ana', 'bea'])

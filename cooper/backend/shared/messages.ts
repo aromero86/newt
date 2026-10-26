@@ -8,6 +8,7 @@ import { setMessages, type Messages } from 'newt/core'
  */
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  duplicate_value: () => 'That is already taken: pick another one',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
   not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',

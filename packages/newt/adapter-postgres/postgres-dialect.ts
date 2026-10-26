@@ -36,6 +36,11 @@ export const postgresDialect: SqlServerDialect = {
     WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped`,
   // unique_violation
   isCollision: error => errorCode(error) === '23505',
+  // Its detail names them (`Key (name, "boardId")=(…) already exists.`), unless the index is on an expression.
+  collidingColumns: error => {
+    const key = /^Key \((.+?)\)=/.exec(String((error as { detail?: unknown } | null)?.detail ?? ''))?.[1]
+    return !key || key.includes('(') ? [] : key.split(', ').map(column => column.replace(/^"(.*)"$/, '$1').replaceAll('""', '"'))
+  },
   // serialization_failure, deadlock_detected
   isConflict: error => ['40001', '40P01'].includes(errorCode(error)),
   changed: result => Number((result as { count?: number }).count ?? 0),
