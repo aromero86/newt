@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { contextsFromEslint } from '../src/config'
 import { analyze } from '../src/extract/analyze'
@@ -7,14 +8,17 @@ import { chainOf, GraphIndex } from '../src/page/client/graph-index'
 
 // cooper, the example application, read as `bun run cooper:graph` reads it: from the
 // repository's root, its contexts' uses from its eslint.config.js.
+// A checkout of the tutorial at a chapter before cooper is whole (its backoffice's metrics
+// come last) has no cooper to read: these tests wait for it.
 const repo = join(import.meta.dir, '..', '..', '..')
-const eslint = await contextsFromEslint(repo)
-const graph = analyze({ root: join(repo, 'cooper', 'backend'), base: repo, uses: eslint?.uses })
-const index = new GraphIndex(graph)
+const whole = existsSync(join(repo, 'cooper', 'backend', 'contexts', 'backoffice', 'modules', 'metric'))
+const eslint = whole ? await contextsFromEslint(repo) : undefined
+const graph = whole ? analyze({ root: join(repo, 'cooper', 'backend'), base: repo, uses: eslint?.uses }) : undefined as unknown as Graph
+const index = whole ? new GraphIndex(graph) : undefined as unknown as GraphIndex
 
 const has = (g: Graph, kind: string, from: string, to: string) => g.edges.some(edge => edge.kind === kind && edge.from === from && edge.to === to)
 
-describe('cooper', () => {
+describe.skipIf(!whole)('cooper', () => {
   test('has its three contexts, with the uses newt-eslint declares', () => {
     expect(graph.contexts.map(({ id, uses }) => ({ id, uses }))).toEqual([
       { id: 'auth', uses: [] },
