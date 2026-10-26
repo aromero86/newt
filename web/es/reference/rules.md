@@ -123,8 +123,8 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   se ejecuta como un actor de la misma forma, con `runAsActor`.
 
   ```ts
-  // cooper/backend/shared/served-context.ts
-  base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
+  // cooper/backend/contexts/boards/modules/workspace/workspace.routes.ts
+  base.http.get('/invitations/:token', async request => { … }, { public: true })
   ```
 
   ```ts
@@ -147,6 +147,9 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   request) => … }`, como hacen los endpoints de OAuth. `serve({ port, router, routes,
   frontend })` sirve las rutas del router, las que se le dan en `routes` (las
   `routes()` de otro router) y un frontend compilado para cualquier otra dirección.
+  Con `health: true` responde a `GET /api/health` sin sesión, con un 503 en cuanto
+  se está parando (durante `drainMs` antes de cerrar, para que un balanceador de
+  carga no le envíe nada nuevo).
 
 ## Quién y dónde: el actor y otros ámbitos
 

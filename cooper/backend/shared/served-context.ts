@@ -13,13 +13,12 @@ export type ServedContextConfig = {
 /**
  * A context of cooper's: its own server, on its own port and, in production, its own
  * domain, so its sessions (cookies) are its own too. It answers `GET /api/health`
- * without a session, for whoever watches it is up.
+ * without a session, for whoever watches it is up (`serve`'s `health`).
  */
 export abstract class ServedContext extends BoundedContext<CooperBase> {
 
   protected constructor(name: string, base: CooperBase, private readonly served: ServedContextConfig) {
     super(name, base)
-    base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
   }
 
   /** What its server answers besides its modules' API: an MCP entry, a `/.well-known` document. */
@@ -29,6 +28,6 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
 
   /** Its server: its modules' API, what it adds, and its frontend for any other address. */
   serve(): Server<undefined> {
-    return serve({ port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder })
+    return serve({ port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true })
   }
 }

@@ -118,8 +118,8 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   Any other entry point (a CLI, a script) runs as an actor the same way, with `runAsActor`.
 
   ```ts
-  // cooper/backend/shared/served-context.ts
-  base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
+  // cooper/backend/contexts/boards/modules/workspace/workspace.routes.ts
+  base.http.get('/invitations/:token', async request => { … }, { public: true })
   ```
 
   ```ts
@@ -140,7 +140,9 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   a route may answer its errors its own way, `{ onError: (error, request) => … }`, as
   OAuth's endpoints do. `serve({ port, router, routes, frontend })` serves the
   router's routes, the ones given in `routes` (another router's `routes()`), and a
-  built frontend for every other address.
+  built frontend for every other address. With `health: true` it answers `GET
+  /api/health` without a session, a 503 once it is stopping (for `drainMs` before it
+  closes, so a load balancer sends it nothing new).
 
 ## Who and where: the actor and other scopes
 

@@ -28,7 +28,7 @@ test('opens the three contexts, serves each on its own port, and stops them', as
     for (const [index, context] of contexts.all.entries()) {
       const response = await fetch(new URL('/api/health', servers[index]!.url))
       expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({ status: 'ok', context: context.name })
+      expect(await response.json()).toEqual({ status: 'ok' })
     }
     // The API's own addresses are never the frontend's.
     expect((await fetch(new URL('/api/nothing', servers[0]!.url))).status).toBe(404)
