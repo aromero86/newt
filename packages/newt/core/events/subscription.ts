@@ -1,8 +1,10 @@
+import type { Json } from './json'
+
 /**
- * How a module reacts to an event (`emitter.subscribe`): its strategy, and what that
- * strategy takes.
+ * How a module reacts to an event (`emitter.subscribe`): its strategy, what that
+ * strategy takes, and which of its events it takes (`when`).
  */
-export type Subscription =
+export type Subscription<TPayload extends Json = Json, TSeen extends TPayload = TPayload> = (
   | {
       /**
        * In memory, after each commit that tells it: lost if it fails or the process
@@ -26,3 +28,13 @@ export type Subscription =
       /** How many times it runs before its job is dead: 5 by default. */
       attempts?: number
     }
+) & {
+  /**
+   * Which of its events it takes: the others are skipped before anything is written,
+   * so a `handler` leaves no job for one it ignores. It runs in the transaction of the
+   * save that tells the event, so it only looks at the payload. A type guard, its
+   * parameter typed, narrows what the handler gets:
+   * `when: (access: Access): access is WorkspaceAccess => …`.
+   */
+  when?: ((payload: TPayload) => payload is TSeen) | ((payload: TPayload) => boolean)
+}

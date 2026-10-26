@@ -4,5 +4,6 @@
 export type { Outbox } from './outbox'
 export type { Job } from './job'
 export type { JobClosing } from './job-closing'
+export type { JobQuery } from './job-query'
 export type { JobQueueRegistration } from './job-queue-registration'
 export { isSameClaim } from './is-same-claim'

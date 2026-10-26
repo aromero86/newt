@@ -11,8 +11,9 @@ bun add -d newt-eslint eslint
 ## El preset
 
 `newt(options)` da la configuración: sus reglas, el parser de TypeScript y los
-ficheros que mira cada regla. La única opción es `contexts`: la carpeta de los
-contextos, y cuáles usa cada uno. Para una aplicación con dos contextos en
+ficheros que mira cada regla. Sus opciones son `contexts`, la carpeta de los contextos
+y cuáles usa cada uno, y `files`, los globs de los ficheros que revisa (todos los
+`.ts` por defecto). Para una aplicación con dos contextos en
 `src/contexts`, `auth` y `shop` (que usa `auth`), su `eslint.config.js` podría ser este
 (un ejemplo genérico; el de cooper está [más abajo](#en-cooper)):
 
@@ -39,32 +40,22 @@ preset de newt, con sus tres contextos: `auth` no usa ninguno, `boards` usa `aut
 // eslint.config.js
 import { newt } from 'newt-eslint'
 
-/**
- * newt's preset, kept to some folders: each of its `**` patterns is looked for in each
- * folder only, and the rest stays as it is (the contexts' folder is already inside).
- */
-function within(folders, configs) {
-  return configs.map(config => config.files
-    ? { ...config, files: config.files.flatMap(pattern => pattern.startsWith('**/') ? folders.map(folder => `${folder}/${pattern}`) : [pattern]) }
-    : config)
-}
-
 const BACKEND = newt({
+  files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
 export default [
   { ignores: ['packages/**', 'docs/**', 'web/**', '**/dist/**'] },
-  ...within(['cooper/backend', 'cooper/scripts'], BACKEND),
+  ...BACKEND,
   // …
 ]
 ```
 
-Los patrones del preset empiezan por `**/`, así que llegarían a todos los ficheros
-TypeScript del repositorio. `within` los limita al backend y sus scripts, porque el
-mismo fichero también revisa los frontends de cooper con reglas propias (que aquí se
-omiten). Una aplicación que solo es un backend no necesita nada de esto:
-`export default newt({ … })` es el fichero entero.
+Por defecto el preset revisa todos los ficheros TypeScript del repositorio. `files` lo
+limita al backend y sus scripts, porque el mismo fichero también revisa los frontends
+de cooper con reglas propias (que aquí se omiten). Una aplicación que solo es un
+backend no necesita `files`: `export default newt({ … })` es el fichero entero.
 
 Se ejecuta con `bun run lint` (`eslint`).
 
@@ -74,7 +65,7 @@ Se ejecuta con `bun run lint` (`eslint`).
 |---|---|
 | `newt/module-anatomy` | Un módulo está hecho de los ficheros que tiene todo módulo, con su nombre: `<m>.module.ts`, `<m>.ts`, `<m>.schema.ts`, `<m>.repository.ts`, `<m>.routes.ts`, `<m>.workers.ts`, `<m>.deps.ts`, `<m>-options.ts`, sus tests, y las carpetas `events`, `errors`, `value-objects` y `services`. El fichero de un evento es `<m>-<evento>.ts`. |
 | `newt/module-boundaries` | Un módulo importa de otro solo su módulo, su esquema, sus eventos, sus errores y sus value objects: nunca su entidad, su repositorio, sus tablas, sus rutas ni sus workers, ni su carpeta (`../board`). |
-| `newt/queue-name` | La cola de un handler es `<módulo>.<caso de uso>.on.<módulo>.<evento>`, como exige el framework al arrancar: en cualquier fichero de un módulo, la cola empieza por ese módulo, su callback llama a ese caso de uso del propio módulo (`this`, un nombre con tipo `<M>_Module`, o uno con su nombre o su plural en inglés, `cards` para `card`, también como `this.cards` salvo que la clase dé otro tipo a ese campo), y termina en el evento al que se suscribe (`events.assigned` → `….assigned`). Un callback que no está escrito ahí ni es una función del fichero (`cards.notifyAssignee.bind(cards)`) no se revisa. |
+| `newt/queue-name` | La cola de un handler es `<módulo>.<caso de uso>.on.<módulo>.<evento>`, como exige el framework al arrancar: en cualquier fichero de un módulo, la cola empieza por ese módulo, su callback llama a ese caso de uso del propio módulo (`this`, o un objeto que TypeScript dice que es un `<M>_Module`: `deps.cards`, con su nombre pero de otro tipo, no lo es; uno de ningún tipo que conozca, `any`, no se juzga; sin el programa que construye typescript-eslint, como hace el preset, un nombre con tipo `<M>_Module`, o uno con su nombre o su plural en inglés, `cards` para `card`, también como `this.cards` salvo que la clase dé otro tipo a ese campo), y termina en el evento al que se suscribe (`events.assigned` → `….assigned`). Un callback que no está escrito ahí ni es una función del fichero (`cards.notifyAssignee.bind(cards)`) no se revisa. |
 | `newt/context-boundaries` | Con `contexts`: un contexto importa solo los que le da `uses`. `uses` enumera todos los contextos; uno que nombra un contexto desconocido, o un círculo, lanza un error al construir el preset, y una carpeta de contexto que no aparece no usa ningún otro. |
 
 En cooper, `queue-name` lee así `card.workers.ts`: el fichero es del módulo `card`, el

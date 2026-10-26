@@ -27,7 +27,11 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   construye su `Base` sobre él. `Base` da a cada módulo el store, las `invocations` de
   sus casos de uso, el `bus` de eventos, el `publisher` en el que publican sus
   repositorios y los `jobs` de sus suscripciones `handler`. Sus opciones son `name`,
-  `store` y, si hacen falta, un `tracer`, la configuración de `jobs` y la `writeRule`.
+  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule` y
+  un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
+  tocan sus trabajos y sus esperas entre reintentos, y `now()` en sus casos de uso y sus
+  handlers (la hora real por defecto; un test mueve el suyo,
+  `{ now: () => new Date(time) }`, en vez de esperar).
 - **Una aplicación da más a sus módulos extendiendo `Base`**: un router HTTP, un
   mailer, un constructor de consultas sobre la conexión del store.
 
@@ -367,7 +371,10 @@ puede repetir sin efecto (es idempotente), así que el flujo siempre converge.
 El framework lo vigila mientras se ejecuta: que un caso de uso del módulo B guarde
 cuando lo ha llamado un caso de uso del módulo A fuera de un worker es un error (por
 defecto) o un aviso (`writeRule: 'warn'` en la `Base` de un contexto, mientras una
-aplicación se adapta a la regla; `'off'` no comprueba nada). Llegar al repositorio de
+aplicación se adapta a la regla; `'off'` no comprueba nada). Un test o un script que
+hace a mano lo que haría un worker lo ejecuta como uno:
+`base.jobs.runAsWorker(() => workspaces.prepare(id))`, sin actor ni ámbito salvo los
+que ponga él. Llegar al repositorio de
 B desde A, saltándose sus casos de uso, es lo que `newt-eslint` rechaza. Una excepción
 justificada se dice donde se vea, con el motivo al lado:
 
@@ -956,17 +963,19 @@ entero.
       queue: 'card.leaveRemovedColumn.on.column.removed',
     })
 
-    deps.access.revoked.subscribe(async access => {
-      if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-    }, {
+    deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
       strategy: 'handler',
       queue: 'card.unassignMember.on.access.revoked',
+      when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
     })
     ```
 
     El callback solo llama a un caso de uso del módulo que reacciona, con lo que toma
-    del evento; una condición sobre el evento (un acceso a un espacio de trabajo, no al
-    backoffice) puede decidir si lo llama o no, nunca lógica de negocio. Renombrar la
+    del evento. Qué eventos toma (un acceso a un espacio de trabajo, no al backoffice)
+    lo dice `when`, nunca lógica de negocio: mira el payload en la transacción del
+    guardado que cuenta el evento, antes de escribir ningún trabajo, así que un evento
+    que no toma no deja trabajo. Un type guard, con su parámetro tipado, estrecha lo que
+    recibe el callback. `fire-and-forget` también acepta `when`. Renombrar la
     cola deja los trabajos pendientes con el nombre antiguo; el worker lo comprueba al
     arrancar y cada minuto después, y avisa una vez de una cola con trabajos que ningún
     worker atiende desde hace cinco minutos (unos minutos después de un despliegue,
@@ -992,6 +1001,17 @@ entero.
   módulo, que es el único sitio desde el que puede escribir en otro módulo (ver
   [Cómo hablan los módulos](#como-hablan-los-modulos)). Puede ejecutarse más de una
   vez: es idempotente.
+- Un handler recibe el payload y lo demás que se sabe del evento:
+  `subscribe((payload, event) => …)`, siendo `event` su `id`, su `name` y su
+  `occurredAt`. El publicador da a cada evento su id, el mismo para cada uno de sus
+  handlers y cada ejecución de sus trabajos: aquello en lo que se apoya un handler que
+  debe hacer algo una sola vez por evento (el registro de actividad de cooper lo toma
+  como id de cada entrada).
+
+  ```ts
+  // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  ```
 - **Lo que no se puede deshacer sale de un worker, nunca de un caso de uso**: un email
   se envía después del evento de aquello de lo que trata, así que solo por lo que se
   ha guardado (el `card.notifyAssignee` de cooper, con `card.created` y
@@ -1000,6 +1020,18 @@ entero.
   pueden ejecutarse después de un despliegue con el código de entonces: un evento solo
   gana campos opcionales. Un cambio que rompe su forma viene con una migración que
   reescribe sus trabajos pendientes.
+- **Lo que toca a una hora es una programación** (`schedule`), un evento que el
+  contexto cuenta cuando lo dice una expresión cron (cinco campos, en UTC):
+  `base.schedules.define('report.nightly', '0 3 * * *')` da su emisor, que un módulo
+  ofrece como ofrece sus eventos, y los demás se suscriben a él como a cualquier
+  evento, con un `handler` (un trabajo del outbox, que se reintenta hasta que sale) o
+  `fire-and-forget`. El payload es `{ dueAt }`. Cada tic se cuenta una vez, por muchos
+  procesos que ejecuten el contexto: lo cuenta el primero que lo apunta en la tabla
+  `schedule_tick` del store, con los trabajos de sus handlers en la misma transacción.
+  Los tics perdidos mientras no corría ningún proceso se cuentan como uno, el último;
+  una programación que se ve por primera vez espera a su siguiente tic. Las
+  programaciones arrancan y paran con los trabajos del contexto; un test que ha movido
+  su reloj llama a `base.schedules.tick()`.
 
 ## Errores y lo que dicen
 

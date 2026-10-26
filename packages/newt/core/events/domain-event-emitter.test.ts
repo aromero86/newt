@@ -2,11 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import type { DomainEvent } from './domain-event'
 import type { EventBus } from './event-bus'
 import type { EventHandler } from './event-handler'
+import type { EventSource } from './event-source'
 import type { SubscribeOptions } from './subscribe-options'
 import { eventsOf } from './events-of'
 
 class Confirmed implements DomainEvent<{ id: string }> {
   static readonly eventName = 'order.confirmed'
+  readonly id = 'e1'
   readonly name = Confirmed.eventName
   readonly occurredAt = ''
   constructor(readonly payload: { id: string }) {}
@@ -14,6 +16,7 @@ class Confirmed implements DomainEvent<{ id: string }> {
 
 class Placed implements DomainEvent<{ id: string }> {
   static readonly eventName = 'order.placed'
+  readonly id = 'e1'
   readonly name = Placed.eventName
   readonly occurredAt = ''
   constructor(readonly payload: { id: string }) {}
@@ -63,11 +66,79 @@ describe('DomainEventEmitter.subscribe', () => {
     expect(seen).toEqual([{ id: 'o1' }])
   })
 
+  test("hands every handler the event's id, name and time beside its payload, whatever the strategy", async () => {
+    const { bus, subscriptions } = recordingBus()
+    const { placed } = eventsOf(bus, { placed: Placed })
+    const seen: unknown[] = []
+
+    placed.subscribe((_, meta) => seen.push(meta), { strategy: 'fire-and-forget' })
+    placed.subscribe((_, meta) => seen.push(meta), { strategy: 'handler', queue: 'notification.orderPlaced.on.order.placed' })
+    for (const { handler } of subscriptions) await handler({ id: 'e7', name: 'order.placed', payload: { id: 'o1' }, occurredAt: '2026-01-01T00:00:00.000Z' })
+
+    expect(seen).toEqual([
+      { id: 'e7', name: 'order.placed', occurredAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'e7', name: 'order.placed', occurredAt: '2026-01-01T00:00:00.000Z' },
+    ])
+  })
+
   test("refuses a queue that does not say who reacts with what to this event", () => {
     const { placed } = eventsOf(recordingBus().bus, { placed: Placed })
 
     expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.orderPlaced.on.order.confirmed' })).toThrow('<module>.<use case>.on.order.placed')
     expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.order.placed.on.order.placed' })).toThrow()
+  })
+
+  test('refuses the queue the worker would refuse: a module or use case in upper case', () => {
+    const { placed } = eventsOf(recordingBus().bus, { placed: Placed })
+
+    expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'Notification.orderPlaced.on.order.placed' })).toThrow()
+    expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.OrderPlaced.on.order.placed' })).toThrow()
+  })
+})
+
+describe('DomainEventEmitter.subscribe, when', () => {
+  test('a fire-and-forget subscription skips the events it does not take', async () => {
+    const { bus, subscriptions } = recordingBus()
+    const seen: unknown[] = []
+
+    eventsOf(bus, { placed: Placed }).placed.subscribe(order => seen.push(order.id), { strategy: 'fire-and-forget', when: order => order.id !== 'o2' })
+    for (const id of ['o1', 'o2', 'o3']) await subscriptions[0]!.handler(new Placed({ id }))
+
+    expect(seen).toEqual(['o1', 'o3'])
+  })
+
+  test("a handler's is handed to the bus, which writes no job for the events it does not take", () => {
+    const { bus, subscriptions } = recordingBus()
+    const { placed } = eventsOf(bus, { placed: Placed })
+
+    placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.orderPlaced.on.order.placed', when: order => order.id !== 'o2' })
+    placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.remind.on.order.placed' })
+    const [taking, all] = subscriptions.map(each => each.options as Extract<SubscribeOptions, { mode: 'handler' }>)
+
+    expect([taking!.when?.(new Placed({ id: 'o1' })), taking!.when?.(new Placed({ id: 'o2' }))]).toEqual([true, false])
+    expect(all!.when).toBeUndefined()
+  })
+
+  test('a type guard narrows what the handler gets', async () => {
+    type Line = { sku: string, giftNote: string | null }
+    class Added implements DomainEvent<Line> {
+      static readonly eventName = 'cart.added'
+      readonly id = 'e1'
+      readonly name = Added.eventName
+      readonly occurredAt = ''
+      constructor(readonly payload: Line) {}
+    }
+    const { bus, subscriptions } = recordingBus()
+    const notes: string[] = []
+
+    eventsOf(bus, { added: Added }).added.subscribe(line => notes.push(line.giftNote.toUpperCase()), {
+      strategy: 'fire-and-forget',
+      when: (line: Line): line is Line & { giftNote: string } => line.giftNote !== null,
+    })
+    await subscriptions[0]!.handler(new Added({ sku: 'a', giftNote: null }))
+    await subscriptions[0]!.handler(new Added({ sku: 'b', giftNote: 'enjoy' }))
+
+    expect(notes).toEqual(['ENJOY'])
   })
 })
 
@@ -122,6 +193,20 @@ describe('a payload', () => {
     }
 
     expect(eventsOf(recordingBus().bus, { due: DueOn }).due.name).toBe(Due.eventName)
+  })
+})
+
+describe('an EventSource', () => {
+  test('is what a dependency needs of an emitter: an emitter fits it, and so does a stand-in', () => {
+    const { bus, subscriptions } = recordingBus()
+    const placed: EventSource<{ id: string }> = eventsOf(bus, { placed: Placed }).placed
+    const standIn: EventSource<{ id: string }> = { subscribe: () => () => {} }
+    // @ts-expect-error another payload is another source
+    const other: EventSource<{ number: number }> = placed
+
+    placed.subscribe(() => {}, { strategy: 'fire-and-forget' })
+    expect(subscriptions).toHaveLength(1)
+    expect([standIn, other]).toHaveLength(2)
   })
 })
 

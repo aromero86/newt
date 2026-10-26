@@ -26,6 +26,11 @@ export { NoActor } from './context/errors/no-actor'
 export { defineScope } from './scope/define-scope'
 export type { Scope } from './scope/scope'
 
+// What time it is
+export type { Clock } from './clock/clock'
+export { systemClock } from './clock/system-clock'
+export { now } from './clock/now'
+
 // Errors, and what they say
 export { DomainError } from './errors/domain-error'
 export type { ErrorBody } from './errors/error-body'
@@ -45,10 +50,12 @@ export type { DomainEvent } from './events/domain-event'
 export type { Json } from './events/json'
 export type { DomainEventClass } from './events/domain-event-class'
 export { DomainEventEmitter } from './events/domain-event-emitter'
+export type { EventSource } from './events/event-source'
 export type { Subscription } from './events/subscription'
 export { eventsOf, type EmittersOf } from './events/events-of'
 export type { EventBus } from './events/event-bus'
 export type { EventHandler } from './events/event-handler'
+export type { EventMeta } from './events/event-meta'
 export type { EventPublisher } from './events/event-publisher'
 export type { SubscribeOptions } from './events/subscribe-options'
 

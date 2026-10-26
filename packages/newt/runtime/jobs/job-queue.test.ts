@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { currentActor, defineScope, runAsActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
+import { currentActor, defineScope, now, runAsActor, type Clock, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
 import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
@@ -23,8 +23,7 @@ class MemoryOutbox implements Outbox {
     this.jobs.push(...jobs.map(job => ({ ...job })))
   }
 
-  async claim(queues: string[], limit: number, worker: string, leaseUntil: string) {
-    const now = new Date().toISOString()
+  async claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()) {
     const ready = this.jobs.filter(job => queues.includes(job.queue) && (
       (job.status === 'pending' && job.runAfter <= now) || (job.status === 'running' && (job.lockedUntil ?? '') < now)
     )).slice(0, limit)
@@ -59,6 +58,10 @@ class MemoryOutbox implements Outbox {
     return this.jobs
   }
 
+  async get(id: string) {
+    return this.jobs.find(job => job.id === id)
+  }
+
   async retry() {
     return false
   }
@@ -90,9 +93,9 @@ const QUEUE = 'mail.sendWelcome.on.user.created'
 
 const created = (id = 'u1'): DomainEvent => ({ name: 'user.created', payload: { id }, occurredAt: '' })
 
-function setup(options: Partial<JobQueueOptions> = {}, tracer?: Tracer) {
+function setup(options: Partial<JobQueueOptions> = {}, tracer?: Tracer, clock?: Clock) {
   const outbox = new MemoryOutbox()
-  const queue = new JobQueue(outbox, new Invocations(tracer), { pollMs: 10, ...options })
+  const queue = new JobQueue(outbox, new Invocations(tracer), { pollMs: 10, ...options }, clock)
   return { outbox, queue }
 }
 
@@ -148,7 +151,21 @@ describe('enqueue', () => {
     await queue.enqueue(created())
 
     expect(outbox.jobs.map(job => job.queue).sort()).toEqual(['audit.record.on.user.*', QUEUE])
-    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: null, event: JSON.stringify(created()) })
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: null })
+    // The event as it was told, with one id for all of its jobs.
+    const [first, second] = outbox.jobs.map(job => JSON.parse(job.event) as DomainEvent)
+    expect(first).toEqual({ ...created(), id: expect.any(String) })
+    expect(second!.id).toBe(first!.id!)
+  })
+
+  test('writes no job for an event a handler does not take', async () => {
+    const { outbox, queue } = setup()
+    queue.register(QUEUE, 'user.created', () => {}, undefined, event => (event.payload as { id: string }).id !== 'u2')
+
+    await queue.enqueue(created('u1'))
+    await queue.enqueue(created('u2'))
+
+    expect(outbox.jobs.map(job => JSON.parse(job.event).payload)).toEqual([{ id: 'u1' }])
   })
 
   test('writes nothing when no handler is concerned', async () => {
@@ -198,6 +215,30 @@ describe('a job', () => {
     await queue.idle()
     expect(msFromNow(outbox.job(QUEUE).runAfter)).toBeGreaterThan(1_400)
     expect(msFromNow(outbox.job(QUEUE).runAfter)).toBeLessThanOrEqual(1_500)
+  })
+
+  test('runs by its clock: due, retried and run again once it moves, with no wait', async () => {
+    let time = Date.parse('2026-01-01T00:00:00.000Z')
+    const clock: Clock = { now: () => new Date(time) }
+    const { outbox, queue } = setup({ backoffMs: 60_000 }, undefined, clock)
+    const times: string[] = []
+    queue.register(QUEUE, 'user.created', () => {
+      times.push(now().toISOString())
+      if (times.length === 1) throw new Error('smtp down')
+    })
+    await queue.enqueue(created())
+    expect(outbox.job(QUEUE)).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', runAfter: '2026-01-01T00:00:00.000Z' })
+
+    await queue.idle()
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', runAfter: '2026-01-01T00:01:00.000Z' })
+    time += 59_000
+    await queue.idle()
+    expect(times).toHaveLength(1)
+    time += 1_000
+    await queue.idle()
+
+    expect(outbox.job(QUEUE)).toMatchObject({ status: 'done', attempts: 2 })
+    expect(times).toEqual(['2026-01-01T00:00:00.000Z', '2026-01-01T00:01:00.000Z'])
   })
 
   test('is dead once it failed as many times as its handler allows', async () => {
@@ -338,6 +379,18 @@ describe('the worker', () => {
     expect(locks[0]).not.toBe(locks[1])
   })
 
+  test('starts and stops what runs alongside it: the schedules', async () => {
+    const log: string[] = []
+    const alongside = { start: () => void log.push('started'), stop: async () => void log.push('stopped') }
+    const queue = new JobQueue(new MemoryOutbox(), new Invocations(), { pollMs: 5 }, undefined, alongside)
+
+    queue.start()
+    queue.start()
+    await queue.stop()
+
+    expect(log).toEqual(['started', 'stopped'])
+  })
+
   test('woken, it looks at once instead of waiting for its poll; stopped, it waits for what runs', async () => {
     const { outbox, queue } = setup({ pollMs: 60_000 })
     queue.register(QUEUE, 'user.created', () => Bun.sleep(20))
@@ -371,6 +424,24 @@ describe('the worker', () => {
     await queue.stop()
 
     expect(outbox.registered).toEqual([[{ name: QUEUE, event: 'user.created', attempts: 3 }]])
+  })
+
+  test('looks for queues nobody serves as often as it says its own are alive, or as often as it is told', async () => {
+    const checks = async (options: Partial<JobQueueOptions>) => {
+      const { outbox, queue } = setup({ pollMs: 2, ...options })
+      let read = 0
+      outbox.queues = async () => (read++, [])
+      queue.register(QUEUE, 'user.created', () => {})
+      queue.start()
+      await Bun.sleep(60)
+      await queue.stop()
+      return { read, seen: outbox.registered.length }
+    }
+
+    expect(await checks({ seenEveryMs: 60_000 })).toEqual({ read: 1, seen: 1 })
+    const often = await checks({ seenEveryMs: 60_000, orphansCheckEveryMs: 5 })
+    expect(often.seen).toBe(1)
+    expect(often.read).toBeGreaterThan(2)
   })
 
   test('purges the jobs done before their keep, at most once an hour', async () => {
@@ -440,6 +511,23 @@ describe('the worker', () => {
     await queue.stop()
 
     expect(warnings).toHaveLength(2)
+  })
+
+  test('runAsWorker runs code as a job runs: in a worker, with no actor, handing back what it gives', async () => {
+    const { queue } = setup()
+    const invocations = new Invocations(undefined, {}, 'error')
+    const write = () => invocations.run('order.place', () => invocations.run('stock.reserve', async () => invocations.checkWrite()))
+    await expect(write()).rejects.toThrow('outside a worker')
+
+    const seen = await runAsActor({ userId: 'ana' }, () => queue.runAsWorker(async () => {
+      await write()
+      let actor = 'none'
+      try { actor = currentActor().userId } catch { /* nobody */ }
+      return [inWorker.find(), actor]
+    }))
+
+    expect(seen).toEqual([true, 'none'])
+    expect(inWorker.find()).toBeUndefined()
   })
 
   test('runs a job with no actor, even when whoever waits for it has one', async () => {

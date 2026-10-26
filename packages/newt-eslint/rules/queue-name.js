@@ -58,14 +58,35 @@ export const queueName = {
     const module = camelCase(place.module)
     const type = `${module[0].toUpperCase()}${module.slice(1)}_Module`
 
-    /** The names a module goes by without a type: its own, and its English plurals (`order`, `orders`; `category`, `categories`; `box`, `boxes`). */
+    /** The names a module goes by without a program to tell its type: its own, and its English plurals (`order`, `orders`; `category`, `categories`; `box`, `boxes`). */
     const names = new Set([module, `${module}s`])
     if (/[^aeiou]y$/.test(module)) names.add(`${module.slice(0, -1)}ies`)
     if (/(s|x|z|ch|sh)$/.test(module)) names.add(`${module}es`)
 
-    /** That `object` is the module: `this` in its own file, or a name of its type (`orders: Order_Module`, `m.Order_Module`), or named after it when it has no type (`orders`, `this.orders`). */
+    /**
+     * With the program typescript-eslint builds (as the preset does), what TypeScript
+     * says of `object`: whether it is of the module's class; an object it knows no type
+     * of (`any`) is not judged, and counts. Without a program, `undefined`.
+     */
+    const services = context.sourceCode.parserServices
+    const checker = services?.program?.getTypeChecker()
+    const typed = (object) => {
+      if (!checker) return undefined
+      const found = checker.getTypeAtLocation(services.esTreeNodeToTSNodeMap.get(object))
+      if (['any', 'unknown'].includes(checker.typeToString(found))) return true
+      return (found.getSymbol() ?? found.aliasSymbol)?.getName() === type
+    }
+
+    /**
+     * That `object` is the module: `this` in its own file, or of its type: by what
+     * TypeScript says, with a program; without one, by its annotation (`orders:
+     * Order_Module`, `m.Order_Module`), or by its name when it has none (`orders`,
+     * `this.orders`).
+     */
     const isModule = (object) => {
       if (object.type === 'ThisExpression') return true
+      const byType = typed(object)
+      if (byType !== undefined) return byType
       if (object.type === 'MemberExpression') {
         if (object.computed || object.property.type !== 'Identifier') return false
         const annotation = object.object.type === 'ThisExpression' ? fieldType(object, object.property.name) : undefined

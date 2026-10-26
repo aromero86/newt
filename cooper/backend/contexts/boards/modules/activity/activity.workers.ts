@@ -9,12 +9,12 @@ import type { Activity_Options } from './activity-options'
  */
 export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
   const { events } = deps.card
-  events.created.subscribe(card => activity.recordCreated(card), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
-  events.edited.subscribe(edit => activity.recordEdited(edit), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
-  events.moved.subscribe(move => activity.recordMoved(move), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
-  events.assigned.subscribe(assignment => activity.recordAssigned(assignment), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
-  events.unassigned.subscribe(unassignment => activity.recordUnassigned(unassignment), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
-  events.deleted.subscribe(card => activity.recordDeleted(card), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  events.edited.subscribe((edit, event) => activity.recordEdited(edit, event), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
+  events.moved.subscribe((move, event) => activity.recordMoved(move, event), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
+  events.assigned.subscribe((assignment, event) => activity.recordAssigned(assignment, event), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
+  events.unassigned.subscribe((unassignment, event) => activity.recordUnassigned(unassignment, event), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
+  events.deleted.subscribe((card, event) => activity.recordDeleted(card, event), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
 
   // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
   deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {

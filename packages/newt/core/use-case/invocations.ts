@@ -1,3 +1,5 @@
+import type { Clock } from '../clock/clock'
+import { currentClock } from '../clock/current-clock'
 import { ConcurrencyConflict } from '../errors/concurrency-conflict'
 import { DomainError } from '../errors/domain-error'
 import { DuplicateValue } from '../errors/duplicate-value'
@@ -30,6 +32,8 @@ export class Invocations {
     private readonly tracer?: Tracer,
     private readonly attributes: SpanAttributes = {},
     private readonly writeRule: WriteRule = 'error',
+    /** The context's clock, which its use cases tell the time by (`now`): the real one if none. */
+    private readonly clock?: Clock,
   ) {}
 
   run<T>(name: string, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {
@@ -48,7 +52,8 @@ export class Invocations {
     // One that must not run twice says so for the whole chain, whatever context it is of.
     const retry = chain?.retry ?? { allowed: true }
     if (options?.retryOnConflict === false) retry.allowed = false
-    return invocationChain.run({ root, current: link, retry }, () => this.traced(name, attributes, fn, chain ? undefined : retry))
+    const invoke = () => invocationChain.run({ root, current: link, retry }, () => this.traced(name, attributes, fn, chain ? undefined : retry))
+    return this.clock ? currentClock.run(this.clock, invoke) : invoke()
   }
 
   /**

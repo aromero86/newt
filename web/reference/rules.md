@@ -26,7 +26,10 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   `Base` on it. `Base` gives every module the store, the `invocations` of its use
   cases, the event `bus`, the `publisher` its repositories publish to, and the `jobs`
   of its `handler` subscriptions. Its options are `name`, `store`, and optionally a
-  `tracer`, the `jobs` settings and the `writeRule`.
+  `tracer`, the `jobs` settings, the `writeRule` and a `clock`: what its entities'
+  `createdAt` and `updatedAt`, its jobs' due times and backoffs, and `now()` in its
+  use cases and handlers go by (the real time by default; a test moves its own,
+  `{ now: () => new Date(time) }`, instead of waiting).
 - **An application gives its modules more by extending `Base`**: an HTTP router, a
   mailer, a query builder on the store's connection.
 
@@ -356,7 +359,9 @@ always converges.
 The framework checks it as it runs: a use case of module B that saves, called under a
 use case of module A outside a worker, is an error (the default), or a warning
 (`writeRule: 'warn'` in a context's `Base`, while an application moves to the rule;
-`'off'` checks nothing). Reaching B's repository from A, past its use cases, is what
+`'off'` checks nothing). A test or a script that does by hand what a worker would
+runs it as one: `base.jobs.runAsWorker(() => workspaces.prepare(id))`, with no actor
+nor scope but the ones it sets. Reaching B's repository from A, past its use cases, is what
 `newt-eslint` refuses. An exception that is justified is said where it is seen, with
 the reason beside it:
 
@@ -921,17 +926,19 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
       queue: 'card.leaveRemovedColumn.on.column.removed',
     })
 
-    deps.access.revoked.subscribe(async access => {
-      if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-    }, {
+    deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
       strategy: 'handler',
       queue: 'card.unassignMember.on.access.revoked',
+      when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
     })
     ```
 
     The callback only calls one use case of the module that reacts, with what it takes
-    from the event; a condition on the event (an access to a workspace, not to the
-    backoffice) may decide whether it calls it at all, never business logic. Renaming
+    from the event. Which events it takes at all (an access to a workspace, not to the
+    backoffice) is `when`'s, never business logic: it looks at the payload in the
+    transaction of the save that tells the event, before any job is written, so an
+    event it does not take leaves no job. A type guard, its parameter typed, narrows
+    what the callback gets. `fire-and-forget` takes `when` too. Renaming
     the queue leaves the pending jobs under the old name; the worker checks at start
     and every minute after, and warns once about a queue with jobs that no worker has
     served for five minutes (a few minutes after a deploy, since the old process served
@@ -955,12 +962,33 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   `runInWorkspace`). It calls a use case of its own module, which is the only place it
   may write to another module (see [How modules talk](#how-modules-talk)). It may run
   more than once: it is idempotent.
+- A handler gets the payload, and what else is known of the event:
+  `subscribe((payload, event) => …)`, `event` being its `id`, `name` and
+  `occurredAt`. The publisher gives every event its id, the same for each of its
+  handlers and each run of their jobs: what a handler that must do something once
+  per event keys on (cooper's activity log takes it as each entry's id).
+
+  ```ts
+  // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  ```
 - **What cannot be taken back leaves from a worker, never from a use case**: an email
   is sent after the event of what it is about, so only for what was saved (cooper's
   `card.notifyAssignee`, on `card.created` and `card.assigned`).
 - **An event's shape only grows.** Its jobs keep it as it was published, and may run
   after a deploy with the code of then: an event only gains optional fields. A change
   that breaks its shape comes with a migration that rewrites its pending jobs.
+- **What is due at a time is a schedule**, an event the context tells as a cron
+  expression says (five fields, in UTC): `base.schedules.define('report.nightly',
+  '0 3 * * *')` gives its emitter, which a module offers as it offers its events, and
+  others subscribe to it as to any event, with a `handler` (a job of the outbox, tried
+  again until it succeeds) or `fire-and-forget`. The payload is `{ dueAt }`. Each tick
+  is told once, however many processes run the context: the first to record it in
+  the store's `schedule_tick` table, with the jobs of its handlers in the same
+  transaction, tells it. Ticks missed while no process ran are told as one, the last;
+  a schedule seen for the first time waits for its next tick. Schedules start and
+  stop with the context's jobs; a test that moved its clock calls
+  `base.schedules.tick()`.
 
 ## Errors and what they say
 

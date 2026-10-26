@@ -1,5 +1,5 @@
 import type { SQLQueryBindings } from 'bun:sqlite'
-import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../port-outbox'
+import type { Job, JobClosing, JobQuery, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqliteStore } from './sqlite-store'
 
 type JobRow = {
@@ -33,8 +33,7 @@ export class SqliteOutbox implements Outbox {
   }
 
   /** One statement, so no other worker can claim the same job. */
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]> {
-    const now = new Date().toISOString()
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now = new Date().toISOString()): Promise<Job[]> {
     return this.store.transaction(() => {
       const rows = this.store.connection.query(`
         UPDATE job SET status = 'running', locked_by = ?, locked_until = ?, attempts = attempts + 1, updated_at = ?
@@ -89,8 +88,19 @@ export class SqliteOutbox implements Outbox {
     })
   }
 
-  async list(): Promise<Job[]> {
-    return (this.store.connection.query(`SELECT ${COLUMNS} FROM job ORDER BY created_at, id`).all() as JobRow[]).map(toJob)
+  async list({ status, after, limit }: JobQuery = {}): Promise<Job[]> {
+    const where = [
+      ...(status === undefined ? [] : ['status = $status']),
+      ...(after === undefined ? [] : ['(created_at, id) > (SELECT created_at, id FROM job WHERE id = $after)']),
+    ]
+    const sql = `SELECT ${COLUMNS} FROM job${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at, id${limit === undefined ? '' : ' LIMIT $limit'}`
+    const params = { ...(status === undefined ? {} : { $status: status }), ...(after === undefined ? {} : { $after: after }), ...(limit === undefined ? {} : { $limit: limit }) }
+    return (this.store.connection.query(sql).all(params) as JobRow[]).map(toJob)
+  }
+
+  async get(id: string): Promise<Job | undefined> {
+    const row = this.store.connection.query(`SELECT ${COLUMNS} FROM job WHERE id = ?`).get(id) as JobRow | null
+    return row ? toJob(row) : undefined
   }
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {

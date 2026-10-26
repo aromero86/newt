@@ -5,17 +5,8 @@ import { newt } from 'newt-eslint'
 // frontends the rules of a UI built from one library. The framework's own code is not
 // an application, so it is left out.
 
-/**
- * newt's preset, kept to some folders: each of its `**` patterns is looked for in each
- * folder only, and the rest stays as it is (the contexts' folder is already inside).
- */
-function within(folders, configs) {
-  return configs.map(config => config.files
-    ? { ...config, files: config.files.flatMap(pattern => pattern.startsWith('**/') ? folders.map(folder => `${folder}/${pattern}`) : [pattern]) }
-    : config)
-}
-
 const BACKEND = newt({
+  files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
@@ -49,7 +40,7 @@ const API_BACKEND_IMPORTS = {
 
 export default [
   { ignores: ['packages/**', 'web/**', '**/dist/**'] },
-  ...within(['cooper/backend', 'cooper/scripts'], BACKEND),
+  ...BACKEND,
   {
     files: FRONTEND,
     languageOptions: { parser: tseslint.parser },

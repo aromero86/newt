@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConcurrencyConflict, DuplicateValue, Entity, type DomainEvent, type EntityInput } from '../../core'
+import { ConcurrencyConflict, DuplicateValue, Entity, type Clock, type DomainEvent, type EntityInput } from '../../core'
 import { Base } from '../../runtime'
 import { JobQueue } from '../../runtime/internal'
 import { TableRepository } from '../../repository'
@@ -866,6 +866,16 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())).map(each => each.id)).toEqual(['later'])
       })
 
+      test('claims what is due as of the time it is given: the worker clock', async () => {
+        await store.outbox.add([{ ...job('a.b.on.c'), id: 'soon', runAfter: at(60_000) }])
+
+        expect(await store.outbox.claim(['a.b.on.c'], 1, 'w1', at(120_000), at(59_000))).toEqual([])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w1', at(120_000), at(60_000))).map(each => each.id)).toEqual(['soon'])
+        // Its lease runs out as of the time given, too.
+        expect(await store.outbox.claim(['a.b.on.c'], 1, 'w2', at(180_000), at(119_000))).toEqual([])
+        expect((await store.outbox.claim(['a.b.on.c'], 1, 'w2', at(180_000), at(121_000))).map(each => each.lockedBy)).toEqual(['w2'])
+      })
+
       test('two claims at once never take the same job', async () => {
         await store.outbox.add([{ ...job('a.b.on.c'), id: 'one' }, { ...job('a.b.on.c'), id: 'two' }])
 
@@ -971,6 +981,34 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         await store.outbox.add([{ ...job('a.b.on.c'), id: 'a', createdAt: at(-1_000) }, { ...job('a.b.on.c'), id: 'b', createdAt: at(-2_000) }])
 
         expect((await store.outbox.list()).map(each => each.id)).toEqual(['b', 'a'])
+      })
+
+      test('lists the jobs of one status, a page at a time, after the last job of the page before', async () => {
+        const created = at(-10_000)
+        await store.outbox.add([
+          { ...job('a.b.on.c'), id: 'j2', createdAt: created },
+          { ...job('a.b.on.c'), id: 'j1', createdAt: created },
+          { ...job('a.b.on.c'), id: 'j3', createdAt: at(-5_000) },
+          { ...job('a.b.on.c'), id: 'j0', createdAt: at(-20_000), status: 'dead' },
+          { ...job('a.b.on.c'), id: 'j4', createdAt: at(-1_000) },
+        ])
+        const ids = async (query: Parameters<typeof store.outbox.list>[0]) => (await store.outbox.list(query)).map(each => each.id)
+
+        expect(await ids({ status: 'pending', limit: 2 })).toEqual(['j1', 'j2'])
+        expect(await ids({ status: 'pending', limit: 2, after: 'j2' })).toEqual(['j3', 'j4'])
+        expect(await ids({ status: 'pending', after: 'j4' })).toEqual([])
+        expect(await ids({ after: 'j0', limit: 1 })).toEqual(['j1'])
+        expect(await ids({ status: 'dead' })).toEqual(['j0'])
+        expect(await ids({ status: 'done' })).toEqual([])
+        expect(await ids({ limit: 0 })).toEqual([])
+      })
+
+      test('gets one job by its id, and none for an id it does not keep', async () => {
+        const kept = job('a.b.on.c')
+        await store.outbox.add([kept, job('a.b.on.c')])
+
+        expect(await store.outbox.get(kept.id)).toEqual(kept)
+        expect(await store.outbox.get('none')).toBeUndefined()
       })
     })
 
@@ -1113,6 +1151,71 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
         await until(async () => (await store.outbox.queues()).length === 1)
         expect(await store.outbox.queues()).toEqual([{ name: 'thing.welcome.on.thing.added', event: 'thing.added', attempts: 3, lastSeenAt: expect.any(String) }])
+      })
+    })
+
+    describe('a schedule', () => {
+      /** A context on the store, as one process runs it, by a clock the test moves, with a schedule its handlers subscribe to. */
+      const process = (clock: Clock, heard: string[]) => {
+        const base = new Base({ name: 'test', store, clock })
+        const nightly = base.schedules.define('report.nightly', '0 3 * * *')
+        nightly.subscribe((tick, event) => { heard.push(`job ${tick.dueAt} ${event.name}`) }, { strategy: 'handler', queue: 'report.send.on.report.nightly' })
+        nightly.subscribe(tick => { heard.push(`memory ${tick.dueAt}`) }, { strategy: 'fire-and-forget' })
+        return base
+      }
+      const clockAt = (at: string) => {
+        let time = Date.parse(at)
+        return { clock: { now: () => new Date(time) }, set: (to: string) => { time = Date.parse(to) } }
+      }
+
+      test('tells each tick once its time comes, to a handler as a job and in memory; the first time, nothing of before', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        const base = process(clock, heard)
+
+        await base.schedules.tick()
+        set('2026-01-01T02:59:59.000Z')
+        await base.schedules.tick()
+        expect(await store.outbox.list()).toEqual([])
+
+        set('2026-01-01T03:00:30.000Z')
+        await base.schedules.tick()
+        await base.schedules.tick()
+        await base.jobs.idle()
+        await Bun.sleep(0)
+
+        expect(heard.sort()).toEqual(['job 2026-01-01T03:00:00.000Z report.nightly', 'memory 2026-01-01T03:00:00.000Z'])
+        expect(await store.outbox.list()).toEqual([expect.objectContaining({ queue: 'report.send.on.report.nightly', status: 'done' })])
+      })
+
+      test('tells each tick once, however many processes run the context at once', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        const processes = [process(clock, heard), process(clock, heard), process(clock, heard)]
+        await Promise.all(processes.map(each => each.schedules.tick()))
+
+        set('2026-01-01T03:00:00.000Z')
+        await Promise.all(processes.map(each => each.schedules.tick()))
+        set('2026-01-02T03:00:00.000Z')
+        await Promise.all(processes.map(each => each.schedules.tick()))
+        for (const each of processes) await each.jobs.idle()
+        await Bun.sleep(0)
+
+        expect(heard.filter(line => line.startsWith('job')).sort()).toEqual(['job 2026-01-01T03:00:00.000Z report.nightly', 'job 2026-01-02T03:00:00.000Z report.nightly'])
+        expect(heard.filter(line => line.startsWith('memory')).sort()).toEqual(['memory 2026-01-01T03:00:00.000Z', 'memory 2026-01-02T03:00:00.000Z'])
+      })
+
+      test('of the ticks missed while no process ran, tells only the last one, once', async () => {
+        const { clock, set } = clockAt('2026-01-01T02:59:00.000Z')
+        const heard: string[] = []
+        await process(clock, heard).schedules.tick()
+
+        set('2026-01-05T10:00:00.000Z')
+        const again = process(clock, heard)
+        await again.schedules.tick()
+        await again.jobs.idle()
+
+        expect(heard.filter(line => line.startsWith('job'))).toEqual(['job 2026-01-05T03:00:00.000Z report.nightly'])
       })
     })
   })

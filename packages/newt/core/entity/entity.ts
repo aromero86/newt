@@ -1,4 +1,5 @@
 import { ZodError, type z } from 'zod'
+import { now as clockNow } from '../clock/now'
 import type { DomainEvent } from '../events/domain-event'
 import { DeletedEntityNotChangeable } from './errors/deleted-entity-not-changeable'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
@@ -76,7 +77,7 @@ export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema =
     this.current = this.checked(() => schema.parse(data), new.target.name, id) as z.infer<TSchema>
 
     if (isNew) {
-      const now = new Date().toISOString()
+      const now = clockNow().toISOString()
       ;(this.current as Fields).createdAt = now
       ;(this.current as Fields).updatedAt = now
     }
@@ -185,7 +186,7 @@ export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema =
       }
     }
     if (mutated) {
-      ;(this.current as Fields).updatedAt = new Date().toISOString()
+      ;(this.current as Fields).updatedAt = clockNow().toISOString()
       this.changed = true
     }
   }

@@ -1,10 +1,10 @@
+import type { DomainEvent } from './domain-event'
 import type { DomainEventClass } from './domain-event-class'
 import type { EventBus } from './event-bus'
+import type { EventMeta } from './event-meta'
+import { eventOfQueue } from './event-of-queue'
 import type { Json } from './json'
 import type { Subscription } from './subscription'
-
-/** `<module>.<use case>.on.`, then the event's own name. */
-const QUEUE = /^[A-Za-z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*\.on\./
 
 /**
  * One kind of event a module tells. Others react to it by subscribing, always saying
@@ -29,15 +29,19 @@ export class DomainEventEmitter<TPayload extends Json> {
     return this.eventClass.eventName
   }
 
-  /** Runs `handler` after each commit that tells the event, as `subscription` says. */
-  subscribe(handler: (payload: TPayload) => unknown, subscription: Subscription): () => void {
-    const run = async (payload: TPayload) => { await handler(payload) }
-    if (subscription.strategy === 'fire-and-forget') return this.bus.subscribe(this.name, event => run(event.payload as TPayload))
+  /**
+   * Runs `handler` after each commit that tells the event, as `subscription` says, with
+   * its payload and what else it knows of it (`meta`): its id, its name, when it happened.
+   */
+  subscribe<TSeen extends TPayload = TPayload>(handler: (payload: TSeen, meta: EventMeta) => unknown, subscription: Subscription<TPayload, TSeen>): () => void {
+    const run = async ({ id, name, payload, occurredAt }: DomainEvent & { id: string }) => { await handler(payload as TSeen, { id, name, occurredAt }) }
+    const takes = (event: DomainEvent) => subscription.when?.(event.payload as TPayload) ?? true
+    if (subscription.strategy === 'fire-and-forget') return this.bus.subscribe(this.name, event => (takes(event) ? run(event) : undefined))
 
     const { queue, attempts } = subscription
-    if (!QUEUE.test(queue) || !queue.endsWith(`.on.${this.name}`)) {
+    if (eventOfQueue(queue) !== this.name) {
       throw new Error(`A handler's queue is '<module>.<use case>.on.${this.name}': '${queue}' is not`)
     }
-    return this.bus.subscribe(this.name, event => run(event.payload as TPayload), { mode: 'handler', name: queue, attempts })
+    return this.bus.subscribe(this.name, run, { mode: 'handler', name: queue, attempts, when: subscription.when && takes })
   }
 }

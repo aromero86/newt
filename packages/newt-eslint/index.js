@@ -16,7 +16,7 @@ export const plugin = {
 }
 
 /** Where a module's files are: anything under a `modules/<module>/` folder. */
-const MODULES = ['**/modules/*/**/*.ts']
+const MODULES = '**/modules/*/**/*.ts'
 
 /**
  * The lint of an application built with newt. A module is a folder in a context's
@@ -32,7 +32,9 @@ const MODULES = ['**/modules/*/**/*.ts']
  * - with `contexts`, each context imports only the ones it says it uses, so they
  *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
  *   one that names an unknown context or makes a cycle throws here, and a context
- *   folder it does not list uses no other.
+ *   folder it does not list uses no other;
+ * - with `files`, the globs of the files it lints, it lints only those: every `.ts`
+ *   file by default.
  *
  * ```js
  * // eslint.config.js
@@ -40,27 +42,28 @@ const MODULES = ['**/modules/*/**/*.ts']
  * export default newt({ contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
  * ```
  *
- * @param {{ contexts?: { folder: string, uses: Record<string, string[]> } }} [options]
- *   the folder of the contexts, and which ones each one uses
+ * @param {{ files?: string[], contexts?: { folder: string, uses: Record<string, string[]> } }} [options]
+ *   the files it lints, the folder of the contexts, and which ones each one uses
  */
-export function newt({ contexts } = {}) {
+export function newt({ files = ['**/*.ts'], contexts } = {}) {
   if (contexts) assertUsesTree(contexts.uses)
   const contextRules = contexts ? [{
-    files: [`${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`],
+    files: files.map(pattern => [pattern, `${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`]),
     rules: { 'newt/context-boundaries': ['error', { folder: contexts.folder, uses: contexts.uses }] },
   }] : []
 
   return tseslint.config(
     { ignores: ['**/dist/**', '**/node_modules/**'] },
     {
-      files: ['**/*.ts'],
+      files,
       languageOptions: { parser: tseslint.parser, parserOptions: { projectService: true } },
       plugins: { newt: plugin, '@typescript-eslint': tseslint.plugin },
       rules: { '@typescript-eslint/no-floating-promises': 'error' },
     },
     ...contextRules,
     {
-      files: MODULES,
+      // A module's file among those it lints: an inner list is every pattern of it at once.
+      files: files.map(pattern => [pattern, MODULES]),
       rules: {
         'newt/module-anatomy': 'error',
         'newt/module-boundaries': 'error',

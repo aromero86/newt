@@ -47,6 +47,22 @@ describe('the preset of newt', () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => { const { transaction } = store; transaction(() => {}) }\n')).toEqual(['no-restricted-syntax'])
   })
 
+  test("judges a handler's callback by the types TypeScript gives, not by names", async () => {
+    const workers = (calls) => [
+      'class Order_Module { events = { placed: { subscribe: (fn: (o: { id: string }) => unknown, s: object) => fn } }; fulfil(id: string) { return id } }',
+      'type Order_Deps = { orders: { fulfil(id: string): void } }',
+      `export function register(orders: Order_Module, deps: Order_Deps, untyped: any) {`,
+      `  orders.events.placed.subscribe(o => ${calls}, { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })`,
+      '}',
+    ].join('\n')
+
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('orders.fulfil(o.id)'))).toEqual([])
+    // Named after the module, but not of its type: not the module.
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('deps.orders.fulfil(o.id)'))).toEqual(['newt/queue-name'])
+    // Of no type TypeScript knows: not judged.
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('untyped.fulfil(o.id)'))).toEqual([])
+  })
+
   test('refuses a promise left unawaited', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.module.ts', 'async function save() {}\nexport function create() { save() }\n')).toEqual(['@typescript-eslint/no-floating-promises'])
   })
@@ -64,6 +80,20 @@ describe('the preset of newt', () => {
     } finally {
       await rm(outer, { recursive: true, force: true })
     }
+  })
+
+  test('lints only the files it is given, when given some', async () => {
+    const linter = new ESLint({ cwd: root, overrideConfigFile: true, overrideConfig: newt({ files: ['app/**/*.ts'], contexts: { folder: 'app/contexts', uses: { auth: [], ws: ['auth'] } } }) })
+    const lint = async (path, code) => {
+      await mkdir(dirname(join(root, path)), { recursive: true })
+      await writeFile(join(root, path), code)
+      const [result] = await linter.lintFiles([join(root, path)])
+      return result?.messages.map(each => each.ruleId ?? each.message)
+    }
+
+    expect(await lint('app/contexts/ws/modules/order/helpers.ts', 'export const x = 1\n')).toEqual(['newt/module-anatomy'])
+    expect(await lint('app/contexts/auth/auth.context.ts', "import { x } from '../ws/ws.context'\nexport const y = x\n")).toEqual(['newt/context-boundaries'])
+    expect(await lint('other/modules/order/helpers.ts', 'export const x = 1\n')).toEqual([expect.stringContaining('no matching configuration')])
   })
 
   test('finds the modules of an application without contexts the same way', async () => {

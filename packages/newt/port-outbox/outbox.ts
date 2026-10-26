@@ -1,5 +1,6 @@
 import type { Job } from './job'
 import type { JobClosing } from './job-closing'
+import type { JobQuery } from './job-query'
 import type { JobQueueRegistration } from './job-queue-registration'
 
 /**
@@ -15,8 +16,9 @@ export interface Outbox {
    * same ones: pending and due, or running with their lease run out. Each claim counts
    * one more attempt, and is locked by `worker`: a name no claim used before (the
    * worker's, and which of its claims), since it fences the claim with `attempts`.
+   * Due and run out are as of `now`, the worker's time: the real one if not given.
    */
-  claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]>
+  claim(queues: string[], limit: number, worker: string, leaseUntil: string, now?: string): Promise<Job[]>
   /** Moves the lease of a claim on, if it is still the claim it was. */
   renew(claimed: Job, leaseUntil: string): Promise<void>
   /** Ends a claim, if it is still the claim it was. */
@@ -31,8 +33,13 @@ export interface Outbox {
   seen(queues: JobQueueRegistration[]): Promise<void>
   /** Forgets the jobs done before `before`: they are only history. */
   purge(before: string): Promise<void>
-  /** Every job it keeps, oldest first: for whoever looks after them (an admin page, a test). */
-  list(): Promise<Job[]>
+  /**
+   * The jobs it keeps, oldest first (by `createdAt`, then `id`), all of them or those
+   * `query` says: for whoever looks after them (an admin page, a test).
+   */
+  list(query?: JobQuery): Promise<Job[]>
+  /** One job, by its id; none if it is not kept. */
+  get(id: string): Promise<Job | undefined>
   /**
    * How many jobs of each queue are still to run (pending or running), for the
    * queues that have any: what the worker looks at every minute, so it reads no job

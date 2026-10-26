@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DomainEvent, EventBus, EventHandler } from '../../core'
 import { eventNameMatches } from './event-name-matches'
+import { withId } from './with-id'
 
 /**
  * No context at all: this module's, taken as it loads, before any request or script
@@ -16,12 +17,13 @@ export class InMemoryEventBus implements EventBus {
   private subscriptions: { pattern: string; handler: EventHandler }[] = []
 
   publish(event: DomainEvent): void {
+    const told = withId(event)
     for (const sub of this.subscriptions) {
       if (!eventNameMatches(sub.pattern, event.name)) {
         continue
       }
       Promise.resolve()
-        .then(() => detached(() => sub.handler(event)))
+        .then(() => detached(() => sub.handler(told)))
         .catch(err => console.error(`[EventBus] handler error for '${event.name}':`, err))
     }
   }
