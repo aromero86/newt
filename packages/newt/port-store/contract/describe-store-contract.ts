@@ -214,7 +214,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
             })
           }
         }
-        const repo = new Things(base, things)
+        const repo = new Things(base, things, { scope: 'none' })
 
         const settled = await Promise.allSettled([repo.persistAlone(Thing.create('ana')), repo.persistAlone(Thing.create('bea'))])
 
@@ -516,7 +516,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         }
       }
 
-      const repository = () => new Things(new Base({ name: 'test', store }), things, { softDelete: true })
+      const repository = () => new Things(new Base({ name: 'test', store }), things, { softDelete: true, scope: 'none' })
 
       test('pages newest first when told, the cursor going back', async () => {
         const repo = repository()
@@ -680,7 +680,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
       test('publishes what they tell with the save, and nothing when it rolls back', async () => {
         const base = new Base({ name: 'test', store })
-        const repo = new Things(base, things, { softDelete: true })
+        const repo = new Things(base, things, { softDelete: true, scope: 'none' })
         const heard: string[] = []
         base.bus.subscribe('thing.created', event => { heard.push((event.payload as { name: string }).name) })
 

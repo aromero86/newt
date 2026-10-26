@@ -7,7 +7,8 @@ export type TokenRow = TokenEntityDTO & { version: number }
 export class Token_Repository extends TableRepository<Token, TokenRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<TokenRow>('token'))
+    // No scope: a token is a person's, found by its hash, in no tenant.
+    super(base, base.store.table<TokenRow>('token'), { scope: 'none' })
   }
 
   protected toEntity(row: TokenRow): Token {

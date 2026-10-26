@@ -12,7 +12,7 @@ import type { TableRepositoryOptions } from './table-repository-options'
  * ```ts
  * class Brand_Repository extends TableRepository<Brand, BrandRow> {
  *   constructor(base: Base) {
- *     super(base, base.store.table('brand', { types: { archived: 'boolean' } }), { softDelete: true })
+ *     super(base, base.store.table('brand', { types: { archived: 'boolean' } }), { softDelete: true, scope: 'none' })
  *   }
  *   protected toEntity(row: BrandRow) {
  *     return Brand.fromDTO(row)
@@ -31,7 +31,7 @@ export abstract class TableRepository<
   B extends RepositoryBase = RepositoryBase,
 > extends Repository<E, B> {
 
-  constructor(base: B, protected readonly table: Table<Row>, private readonly options: TableRepositoryOptions<Row> = {}) {
+  constructor(base: B, protected readonly table: Table<Row>, private readonly options: TableRepositoryOptions<Row>) {
     super(base)
   }
 
@@ -118,14 +118,14 @@ export abstract class TableRepository<
 
   private visible(criteria: Criteria<Row>): Criteria<Row> {
     const { softDelete, scope } = this.options
-    const scoped = scope ? allOf(criteria, { [scope.field]: scope.current() } as Criteria<Row>) : criteria
+    const scoped = scope !== 'none' ? allOf(criteria, { [scope.field]: scope.current() } as Criteria<Row>) : criteria
     return softDelete ? allOf(scoped, { deletedAt: null } as unknown as Criteria<Row>) : scoped
   }
 
   /** One of its scope, stored there too: a row of another scope is never written, even through an entity moved out of it. */
   private assertInScope(entity: E): void {
     const { scope } = this.options
-    if (!scope) return
+    if (scope === 'none') return
     const value = (entity[storedFields]() as Record<string, unknown>)[scope.field]
     const stored = entity.isNew ? value : (entity[savedState]().initial as Record<string, unknown>)[scope.field]
     for (const each of [value, stored]) {

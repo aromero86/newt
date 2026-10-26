@@ -81,7 +81,7 @@ afterEach(() => store.close())
 
 function open(guardRule?: GuardRule) {
   const base = new Base({ name: 'test', store, guardRule })
-  return new Columns(base, store.table<ColumnRow>('column'))
+  return new Columns(base, store.table<ColumnRow>('column'), { scope: 'none' })
 }
 
 const saved = () => store.table('column').count()

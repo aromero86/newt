@@ -298,8 +298,20 @@ super(base, base.store.table<BoardRow>('board', { unique: [['workspaceId', 'name
 
 `find`, `first`, `count` y `page` ven solo las filas del espacio de trabajo actual;
 guardar una entidad de otro, o una que estaba guardada en otro, lanza un error; fuera
-de un ámbito `current()` lanza un error, así que un worker entra antes en él. Lo que
-mira a través de los espacios de trabajo a propósito usa el método protegido
+de un ámbito `current()` lanza un error, así que un worker entra antes en él.
+
+**Todo `TableRepository` dice su ámbito**: `scope` es obligatorio, así que quitarlo
+no es omitirlo (eso no compila) sino escribir `scope: 'none'`, con el motivo al lado.
+Es lo que dicen los repositorios de auth, porque las personas, sus sesiones y tokens,
+los clientes de OAuth y los propios tenants no pertenecen a ningún tenant:
+
+```ts
+// cooper/backend/contexts/auth/modules/user/user.repository.ts
+// No scope: people belong to no tenant; they are in many.
+super(base, base.store.table<UserRow>('user'), { scope: 'none' })
+```
+
+Lo que mira a través de los espacios de trabajo a propósito usa el método protegido
 `findInEveryScope`, detrás de un método cuyo nombre lo dice, al que no llega ninguna
 ruta de la gente del propio espacio:
 

@@ -285,7 +285,20 @@ super(base, base.store.table<BoardRow>('board', { unique: [['workspaceId', 'name
 
 `find`, `first`, `count` and `page` see only the current workspace's rows; saving an
 entity of another one, or one stored in another, throws; outside a scope `current()`
-throws, so a worker enters it first. What looks across workspaces on purpose uses the
+throws, so a worker enters it first.
+
+**Every `TableRepository` says its scope**: `scope` is required, so dropping it is
+not leaving it out (which does not compile) but writing `scope: 'none'`, with the
+reason beside it. That is what auth's repositories say, since people, their sessions
+and tokens, OAuth's clients and the tenants themselves belong to no tenant:
+
+```ts
+// cooper/backend/contexts/auth/modules/user/user.repository.ts
+// No scope: people belong to no tenant; they are in many.
+super(base, base.store.table<UserRow>('user'), { scope: 'none' })
+```
+
+What looks across workspaces on purpose uses the
 protected `findInEveryScope`, behind a method whose name says so, reached by no route
 of the workspace's own people:
 

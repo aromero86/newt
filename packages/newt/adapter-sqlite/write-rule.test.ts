@@ -76,7 +76,7 @@ afterEach(() => store.close())
 
 function open(writeRule: WriteRule) {
   const base = new Base({ name: 'test', store, writeRule })
-  const log = new Log(base, new Notes(base, store.table<NoteRow>('note')))
+  const log = new Log(base, new Notes(base, store.table<NoteRow>('note'), { scope: 'none' }))
   return { base, log, diary: new Diary(base, log) }
 }
 
@@ -98,7 +98,7 @@ describe('the write rule', () => {
   test("lets a use case call another context's, as an outside API", async () => {
     const shop = new Base({ name: 'shop', store, writeRule: 'error' })
     const other = new Base({ name: 'other', store, writeRule: 'error' })
-    const log = new Log(other, new Notes(other, store.table<NoteRow>('note')))
+    const log = new Log(other, new Notes(other, store.table<NoteRow>('note'), { scope: 'none' }))
     const diary = new Diary(shop, log)
 
     await diary.writeBoth('theirs')
@@ -108,7 +108,7 @@ describe('the write rule', () => {
   test('still holds inside the context that was called', async () => {
     const shop = new Base({ name: 'shop', store, writeRule: 'error' })
     const other = new Base({ name: 'other', store, writeRule: 'error' })
-    const otherDiary = new Diary(other, new Log(other, new Notes(other, store.table<NoteRow>('note'))))
+    const otherDiary = new Diary(other, new Log(other, new Notes(other, store.table<NoteRow>('note'), { scope: 'none' })))
     class Caller extends Module {
       constructor() { super('caller', shop.invocations) }
       @UseCase()
@@ -120,7 +120,7 @@ describe('the write rule', () => {
 
   test('is an error by default', async () => {
     const base = new Base({ name: 'test', store })
-    const diary = new Diary(base, new Log(base, new Notes(base, store.table<NoteRow>('note'))))
+    const diary = new Diary(base, new Log(base, new Notes(base, store.table<NoteRow>('note'), { scope: 'none' })))
 
     await expect(diary.writeBoth('theirs')).rejects.toThrow('outside a worker')
   })
@@ -196,7 +196,7 @@ class Journal extends Module {
 describe('the write rule, for one transaction', () => {
   function openJournal(writeRule: WriteRule) {
     const { base, log } = open(writeRule)
-    return { base, journal: new Journal(base, new Notes(base, store.table<NoteRow>('note')), log) }
+    return { base, journal: new Journal(base, new Notes(base, store.table<NoteRow>('note'), { scope: 'none' }), log) }
   }
 
   test('lets a worker save one module after another, each in its own', async () => {
