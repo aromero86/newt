@@ -6,7 +6,7 @@ import type { Member_Deps } from './member.deps'
 import type { MemberDTO } from './member.schema'
 
 /**
- * Who belongs to each workspace, as `boards` asks it: the module that knows (ch. 7.4),
+ * Who belongs to each workspace, as `boards` asks it: the module that knows,
  * asked every time, never written in the actor. It keeps nothing: auth keeps the
  * workspaces and their members, and answers through the `Workspaces` port.
  */
@@ -35,6 +35,12 @@ export class Member_Module extends Module {
   @UseCase()
   async isMember(userId: string): Promise<boolean> {
     return this.deps.workspaces.isMember(currentWorkspaceId(), userId)
+  }
+
+  /** Whether a workspace is still there: what a worker that writes in one asks first. */
+  @UseCase()
+  async exists(workspaceId: string): Promise<boolean> {
+    return this.deps.workspaces.exists(workspaceId)
   }
 
   /** Someone of a workspace, or null if they do not belong to it (any more): what a worker, outside any scope, asks. */

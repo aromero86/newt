@@ -98,7 +98,7 @@ export class Board_Module extends Module {
 
   /**
    * A workspace was deleted in auth: its boards go, archived ones too. A step of that
-   * deletion (ch. 18): a worker calls it, as many times as it takes, and the second
+   * deletion: a worker calls it, as many times as it takes, and the second
    * time finds nothing to remove.
    */
   @UseCase()

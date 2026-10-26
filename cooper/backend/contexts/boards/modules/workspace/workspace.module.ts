@@ -76,28 +76,30 @@ export class Workspace_Module extends Module {
    * A new workspace gets its welcome board: "Welcome", with To do, Doing and Done, and
    * a first card. A worker calls it once auth created the workspace (eventual
    * consistency: for a moment, the workspace has no board), and it writes in three
-   * modules, which only a worker may (ch. 19): if it fails halfway, its job runs it
-   * again. Each step looks for what an earlier run did first, so a second run only
-   * finishes what the first left (ch. 15), and adds nothing to a finished one.
+   * modules, which only a worker may: if it fails halfway, its job runs it again.
+   * Each step looks for what an earlier run did first, so a second run only finishes
+   * what the first left, and adds nothing to a finished one; two runs at once add
+   * each column and the card once, since their saves look again.
+   *
+   * A workspace auth deleted meanwhile gets nothing: its job may run late, after the
+   * workspace's purge. One deleted while it runs has what it wrote purged again.
    */
   @UseCase()
   async prepare(workspaceId: string): Promise<void> {
+    if (!await this.deps.member.exists(workspaceId)) return
     await runInWorkspace(workspaceId, async () => {
       const board = await this.deps.board.findByName(WELCOME_BOARD.name)
         ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-      const columns = await this.deps.column.list(board.id)
-      for (const name of WELCOME_BOARD.columns) {
-        if (!columns.some(column => column.name === name)) columns.push(await this.deps.column.add(board.id, { name }))
-      }
-      if ((await this.deps.card.listInBoard(board.id)).length > 0) return
+      const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
       const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
-      await this.deps.card.create(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
+      await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
     })
+    if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
   }
 
   /**
    * auth deleted a workspace: its cards, columns and boards go, in that order. boards'
-   * step of that deletion (ch. 18): it cannot be undone, nor needs to be; a worker
+   * step of that deletion: it cannot be undone, nor needs to be; a worker
    * runs it until it completes, and each part removes what is left, so running it
    * again after a failure halfway converges on a workspace with nothing.
    */

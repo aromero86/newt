@@ -1,4 +1,4 @@
-import { eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { ColumnDTO } from '../column/column.schema'
@@ -10,6 +10,7 @@ import {
   CardFilter,
   CardMoveSchema,
   CardSearchSchema,
+  MAX_CARDS,
   type CardAssignDTO,
   type CardCountByBoard,
   type CardCountByWorkspace,
@@ -28,6 +29,7 @@ import { AssigneeNotMember } from './errors/assignee-not-member'
 import { CardNotFound } from './errors/card-not-found'
 import { ColumnNotEmpty } from './errors/column-not-empty'
 import { ColumnNotInBoard } from './errors/column-not-in-board'
+import { TooManyCards } from './errors/too-many-cards'
 import { Card_Assigned } from './events/card-assigned'
 import { Card_Created } from './events/card-created'
 import { Card_Deleted } from './events/card-deleted'
@@ -70,7 +72,8 @@ export class Card_Module extends Module {
 
   /**
    * A board's cards, column by column and from the top: whole, since a board is read
-   * as one screen. The list that grows without end, the search, comes by pages.
+   * as one screen and holds at most `MAX_CARDS`. The list that grows without end, the
+   * search, comes by pages.
    */
   @UseCase()
   async listInBoard(boardId: string): Promise<CardDTO[]> {
@@ -105,25 +108,29 @@ export class Card_Module extends Module {
     }
   }
 
-  /** A new card at the bottom of a column of the board, with the board's next number. */
+  /**
+   * A new card at the bottom of a column of the board, with the board's next number:
+   * a board holds at most `MAX_CARDS`.
+   */
   @UseCase()
   async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
-    const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
-    const board = await this.deps.board.get(boardId)
-    await this.assertColumnOf(boardId, columnId)
-    if (assigneeId !== null) await this.assertMember(assigneeId)
-    const card = Card.create({
-      workspaceId: board.workspaceId,
-      boardId,
-      columnId,
-      // What they look to be now; the save reads them again, where nothing slips in.
-      number: await this.repo.nextNumber(boardId),
-      position: await this.repo.count({ columnId }),
-      title,
-      description,
-      assigneeId,
-    })
+    const card = await this.newCard(boardId, input, currentActor().userId)
+    // For a clear answer in the usual case: the save counts again, where nothing slips in.
+    if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
     await this.repo.persistNew(card)
+    return card.toDTO()
+  }
+
+  /**
+   * A board's first card, unless it has one already (null then): what a worker
+   * preparing a board calls, as many times as it takes. Runs at once create it once:
+   * the save counts the board's cards again.
+   */
+  @UseCase()
+  async createFirst(boardId: string, input: CardCreateDTO): Promise<CardDTO | null> {
+    if (await this.repo.count({ boardId }) > 0) return null
+    const card = await this.newCard(boardId, input, null)
+    await this.repo.persistNew(card, { first: true })
     return card.toDTO()
   }
 
@@ -165,7 +172,7 @@ export class Card_Module extends Module {
     const { assigneeId } = CardAssignSchema.parse(input)
     const card = await this.load(id)
     await this.assertMember(assigneeId)
-    card.assign(assigneeId)
+    card.assign(assigneeId, currentActor().userId)
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -191,7 +198,7 @@ export class Card_Module extends Module {
   /**
    * Removes a column of a board, only if no card is in it. The cards answer, since a
    * card points at its column and a column knows nothing of the cards: the column
-   * module cannot ask them without the two needing each other (ch. 19). So this use
+   * module cannot ask them without the two needing each other. So this use
    * case asks, and has the column module remove it: a write to another module outside
    * a worker, said where it is seen. It is the only write it makes, so a failure leaves
    * nothing halfway; a card moved into the column at that very moment is taken to
@@ -207,7 +214,7 @@ export class Card_Module extends Module {
 
   /**
    * A column was removed: any card still in it goes to the bottom of the board's
-   * first column. What a worker calls (ch. 20.3); the second time, there are none.
+   * first column. What a worker calls; the second time, there are none.
    */
   @UseCase()
   async leaveRemovedColumn(column: ColumnDTO): Promise<void> {
@@ -224,18 +231,20 @@ export class Card_Module extends Module {
 
   /**
    * Tells the assignee of a card they have it, by email: from a worker, once the
-   * assignment is saved, since an email cannot be taken back (ch. 16). Run late, it
+   * assignment is saved, since an email cannot be taken back. Run late, it
    * reads the card again: if it is gone, or has another assignee by then, there is
-   * nothing to tell (that assignment tells its own).
+   * nothing to tell (that assignment tells its own). Nor is anyone told of a card
+   * they gave themselves (`by`, who created or assigned it).
    */
   @UseCase()
-  async notifyAssignee(card: CardDTO): Promise<void> {
-    if (card.assigneeId === null) return
+  async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+    if (card.assigneeId === null || card.assigneeId === by) return
     const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
     if (current?.assigneeId !== card.assigneeId) return
     const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
     if (!member) return
-    const link = new URL(`/workspaces/${card.workspaceId}/boards/${card.boardId}?card=${card.number}`, this.options.publicUrl)
+    // Where boards' UI opens the card: on its board's screen, by its id.
+    const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
     await this.options.mailer.send({
       to: member.email,
       subject: `#${card.number} ${card.title} is yours`,
@@ -268,10 +277,29 @@ export class Card_Module extends Module {
     return runInWorkspace(workspaceId, () => this.repo.countByBoard())
   }
 
-  /** A workspace was deleted in auth: its cards go. A step of that deletion, safe to run again (ch. 18). */
+  /** A workspace was deleted in auth: its cards go. A step of that deletion, safe to run again. */
   @UseCase()
   async purgeWorkspace(workspaceId: string): Promise<void> {
     await this.repo.purgeWorkspace(workspaceId)
+  }
+
+  /** A new card of a board, checked: its column is the board's, its assignee a member. */
+  private async newCard(boardId: string, input: CardCreateDTO, by: string | null): Promise<Card> {
+    const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
+    const board = await this.deps.board.get(boardId)
+    await this.assertColumnOf(boardId, columnId)
+    if (assigneeId !== null) await this.assertMember(assigneeId)
+    return Card.create({
+      workspaceId: board.workspaceId,
+      boardId,
+      columnId,
+      // What they look to be now; the save reads them again, where nothing slips in.
+      number: await this.repo.nextNumber(boardId),
+      position: await this.repo.count({ columnId }),
+      title,
+      description,
+      assigneeId,
+    }, by)
   }
 
   private load(id: string): Promise<Card> {
@@ -284,7 +312,7 @@ export class Card_Module extends Module {
     if (!columns.some(column => column.id === columnId)) throw new ColumnNotInBoard(columnId, boardId)
   }
 
-  /** The assignee belongs to the workspace now: asked to auth, through the member module, every time (ch. 20). */
+  /** The assignee belongs to the workspace now: asked to auth, through the member module, every time. */
   private async assertMember(userId: string): Promise<void> {
     if (!await this.deps.member.isMember(userId)) throw new AssigneeNotMember(userId)
   }

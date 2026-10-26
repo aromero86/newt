@@ -29,6 +29,10 @@ export class Column extends Entity<typeof ColumnSchema> {
     return this.data.boardId
   }
 
+  get name(): string {
+    return this.data.name
+  }
+
   get position(): number {
     return this.data.position
   }

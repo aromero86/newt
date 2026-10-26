@@ -52,6 +52,13 @@ describe('board', () => {
     expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(1)
   })
 
+  test('folds only A to Z when comparing names: letters beyond them are told apart by their case', async () => {
+    await Promise.all([create('Ärger'), create('ärger')])
+
+    await expect(create('äRGER')).rejects.toMatchObject({ code: 'board.name_taken' })
+    expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(2)
+  })
+
   test('archives a board: out of every list, and its name free again', async () => {
     const roadmap = await create('Roadmap')
 

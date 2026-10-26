@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { openTestBoards, type TestBoards } from '../../testing/open-test-boards'
-import type { CardCreateDTO, CardDTO } from './card.schema'
+import { MAX_CARDS, type CardCreateDTO, type CardDTO } from './card.schema'
 
 describe('card', () => {
   let t: TestBoards
@@ -44,6 +44,11 @@ describe('card', () => {
     const sorted = (values: number[]) => values.toSorted((a, b) => a - b)
     expect(sorted(created.map(card => card.number))).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
     expect(sorted(created.map(card => card.position))).toEqual(Array.from({ length: 20 }, (_, i) => i))
+
+    // The last one deleted, its number stays taken: five more at once get #21 to #25.
+    await inAcme(() => t.modules.card.delete(created.find(card => card.number === 20)!.id))
+    const more = await Promise.all(Array.from({ length: 5 }, (_, i) => create(`More ${i}`)))
+    expect(sorted(more.map(card => card.number))).toEqual([21, 22, 23, 24, 25])
   })
 
   test('never gives a deleted card\'s number again, and closes the gap it leaves', async () => {
@@ -53,6 +58,25 @@ describe('card', () => {
     await create('Ship')
 
     expect(await columns()).toEqual({ todo: ['#1@0', '#3@1', '#4@2'], doing: [], done: [] })
+  })
+
+  test('never gives the number of the last card again, once it is deleted', async () => {
+    const [, , build] = [await create('Plan'), await create('Design'), await create('Build')]
+
+    await inAcme(() => t.modules.card.delete(build.id))
+    await create('Ship')
+
+    expect(await columns()).toEqual({ todo: ['#1@0', '#2@1', '#4@2'], doing: [], done: [] })
+  })
+
+  test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
+    await Promise.all(Array.from({ length: MAX_CARDS - 3 }, (_, i) => create(`Task ${i}`)))
+
+    const created = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => create(`More ${i}`)))
+
+    expect(created.filter(each => each.status === 'fulfilled')).toHaveLength(3)
+    for (const each of created.filter(each => each.status === 'rejected')) expect(each.reason).toMatchObject({ code: 'card.too_many' })
+    expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
   })
 
   test('moves a card to another column, or within its own, and the others make room', async () => {
@@ -107,7 +131,8 @@ describe('card', () => {
     expect(t.mails).toEqual([])
     await t.settled()
     expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#1 Plan is yours']])
-    expect(t.mails[0]!.text).toContain(`/workspaces/acme/boards/${boardId}?card=1`)
+    // The link opens the card on its board, in boards' UI.
+    expect(t.mails[0]!.text).toBe(['Hi bea,', '', 'Card #1, "Plan", is assigned to you.', '', new URL(`/w/acme/boards/${boardId}?card=${plan.id}`, t.boards.config.publicUrl).toString()].join('\n'))
 
     // Assigning it again to the same one changes nothing, and tells nothing.
     await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
@@ -124,6 +149,18 @@ describe('card', () => {
     await t.settled()
 
     expect(t.mails.map(mail => mail.subject)).toEqual(['#1 Plan is yours'])
+  })
+
+  test('tells nobody of a card they created for themselves, or took', async () => {
+    await create('Plan', { assigneeId: 'ana' })
+    const design = await create('Design')
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
+    // Given to someone else, they hear of it.
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+
+    await t.settled()
+
+    expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
   })
 
   test('searches the workspace\'s cards by text, column and assignee, by pages', async () => {
@@ -144,6 +181,33 @@ describe('card', () => {
     expect(first).toMatchObject({ hasMore: true, total: 4 })
     await expect(search({ filter: { field: 'title', op: 'eq', value: 'x' } })).rejects.toThrow()
   })
+
+  test('finds a card by the text of its title as it is written, letters beyond A to Z too', async () => {
+    await create('Ärger im Büro')
+
+    const found = await inAcme(() => t.modules.card.search({ text: 'ÄRGER IM' }, { size: 10 }))
+
+    expect(found.items.map(card => card.title)).toEqual(['Ärger im Büro'])
+  })
+
+  test('searches by pages however many cards match, more than a query takes parameters (SQLite in Bun takes 250,000)', async () => {
+    // Written as rows, past what any use case would let in: 250,001 cards of 501 boards.
+    const now = new Date().toISOString()
+    const rows = Array.from({ length: 250_001 }, (_, i) => ({
+      id: Bun.randomUUIDv7(), workspaceId: 'acme', boardId: `board-${Math.floor(i / 500)}`, columnId: todo, number: i % 500 + 1,
+      title: `Task ${i}`, description: '', assigneeId: i % 2 === 0 ? 'bea' : null, position: i % 500, createdAt: now, updatedAt: now, version: 1,
+    }))
+    await t.writeCards(rows)
+    const search = (input: object, cursor?: string) => inAcme(() => t.modules.card.search(input, { size: 2, cursor }))
+
+    const first = await search({ text: 'TASK' })
+    expect(first).toMatchObject({ hasMore: true, total: 250_001 })
+    expect(first.items.map(card => card.title)).toEqual(['Task 0', 'Task 1'])
+    expect((await search({ text: 'task' }, first.items[1]!.id)).items.map(card => card.title)).toEqual(['Task 2', 'Task 3'])
+    expect(await search({ text: 'task', filter: { field: 'assignee', op: 'eq', value: 'bea' } })).toMatchObject({ total: 125_001 })
+    // `!`, `%` and `_` are only themselves.
+    expect(await search({ text: '5!%' })).toMatchObject({ total: 0 })
+  }, 30_000)
 
   test('counts cards by workspace and by board, for the backoffice', async () => {
     await create('Plan')
