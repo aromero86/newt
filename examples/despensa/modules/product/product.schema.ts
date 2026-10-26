@@ -1,11 +1,13 @@
 import { defineFilter } from 'newt/core'
 import { z } from 'zod'
 
+export const MAX_PRICE_CENTS = 10_000_000
+
 export const ProductSchema = z.object({
   id: z.uuidv7(),
   name: z.string().trim().min(1).max(80),
-  /** What it costs, in cents: 1,25 € is 125. */
-  priceCents: z.number().int().min(0),
+  /** What it costs, in cents: 1,25 € is 125. Up to 100 000 €, so an order's total is always a safe integer. */
+  priceCents: z.number().int().min(0).max(MAX_PRICE_CENTS),
   /** Who makes it, by id: the brand is another module's. */
   brandId: z.string().nullable(),
   /** Which family it belongs to, by id. */

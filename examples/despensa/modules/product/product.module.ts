@@ -83,7 +83,7 @@ export class Product_Module extends Module {
     await this.assertNameFree(name)
     await this.assertReferences({ brandId, categoryId })
     const product = Product.create({ name, priceCents, brandId, categoryId })
-    await this.repo.persist(product)
+    await this.repo.persistWithNameFree(product)
     return product.toDTO()
   }
 
@@ -94,7 +94,7 @@ export class Product_Module extends Module {
     if (changes.name !== undefined) await this.assertNameFree(changes.name, id)
     await this.assertReferences(changes)
     product.update(changes)
-    await this.repo.persist(product)
+    await this.repo.persistWithNameFree(product)
     return product.toDTO()
   }
 
@@ -118,7 +118,7 @@ export class Product_Module extends Module {
     return this.resolve(() => this.repo.find({ id }), () => new ProductNotFound(id))
   }
 
-  /** A clear answer in the usual case; the table's unique name settles two at once. */
+  /** For a clear answer in the usual case: the save checks it again, where nothing can slip in between. */
   private async assertNameFree(name: string, exceptId?: string): Promise<void> {
     if (await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } }) > 0) throw new ProductNameTaken(name)
   }

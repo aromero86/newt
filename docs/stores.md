@@ -76,6 +76,9 @@ same in every store:
 - `ne` means "different, a missing value included" (SQL's `IS DISTINCT FROM`, not
   `<>`): `{ ne: 'x' }` also matches the rows with no value;
 - a `null` in an `in` list does match `null`;
+- a server takes only so many values in one query (about 65 535 parameters on
+  Postgres and MySQL): an `in` list that comes from a request is capped by its
+  schema (`.max(500)`), or a long one fails as a 500;
 - an operator left `undefined` is no condition;
 - `ieq` ignores the case of A to Z only, on every store: `Ñ` and `ñ` differ.
   Keep a lower-cased column for a search that must fold every letter.
