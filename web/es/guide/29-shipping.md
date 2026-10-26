@@ -363,6 +363,25 @@ bun run lint       # newt's lint (eslint.config.js)
 ```
 ````
 
+## Verlo entero
+
+cooper ha crecido hasta tres contextos, 25 módulos y 145 casos de uso. La última línea
+del `package.json` de este capítulo los dibuja:
+
+```json
+    "cooper:graph": "newt-graph --root cooper/backend"
+```
+
+```sh
+bun run cooper:graph
+```
+
+newt-graph lee el código de cooper y abre una página en `http://localhost:4747` con sus
+contextos, módulos, casos de uso y eventos. Elige `card.create` y pulsa `e`: verás el
+historial de la tarjeta, su índice, el correo al asignado y la métrica del backoffice
+ejecutarse uno tras otro, cada uno en el worker que lo ejecuta, como los construyeron los
+capítulos 11 a 26. El [apéndice G](./g-command-line) tiene sus teclas y sus límites.
+
 ## Las reglas, una vez más
 
 Lo que enseñaron los capítulos, en el orden en que lo fuiste viendo. El apéndice

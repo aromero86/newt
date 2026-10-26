@@ -32,8 +32,8 @@ cooper/backend/
 
 ## Un proyecto TypeScript para el backend
 
-El repositorio se compone de proyectos TypeScript. En `tutorial/00` hay uno, el de
-newt. El backend de cooper tiene el suyo: TypeScript plano para Bun, estricto, sin el
+El repositorio se compone de proyectos TypeScript. En `tutorial/00` hay dos, el de
+newt y el de newt-graph. El backend de cooper tiene el suyo: TypeScript plano para Bun, estricto, sin el
 DOM. Crea `tsconfig.backend.json` en la raíz:
 
 ```json
@@ -60,13 +60,14 @@ Y haz que el `tsconfig.json` de la raíz lo referencie, junto al de newt:
 
 ```json
 {
-  // The whole repository, as its projects: the framework (newt) and what runs on the
-  // server (cooper's backend). `bunx tsc -b` follows the references. newt is not among
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph) and what runs on the
+  // server (cooper's backend). `bun check` follows the references. newt is not among
   // any paths: it is a workspace package, reached through its `exports` as any
   // application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
+    { "path": "./tsconfig.newt-graph.json" },
     { "path": "./tsconfig.backend.json" }
   ]
 }

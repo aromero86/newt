@@ -722,13 +722,14 @@ y refiérelo desde el `tsconfig.json` de la raíz:
 
 ```json
 {
-  // The whole repository, as its projects: the framework (newt), what runs on the
-  // server (cooper's backend), and the tools around them (scripts). `bunx tsc -b`
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph), what runs on the
+  // server (cooper's backend), and the tools around them (scripts). `bun check`
   // follows the references. newt is not among any paths: it is a workspace package,
   // reached through its `exports` as any application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
+    { "path": "./tsconfig.newt-graph.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.node.json" }
   ]

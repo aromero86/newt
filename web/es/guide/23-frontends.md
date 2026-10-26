@@ -817,7 +817,7 @@ imports (en `bun test`) con el archivo de la raíz:
 
 ```json
 {
-  // The whole repository, as four projects: the framework (newt), what runs on the
+  // The whole repository, as five projects: the framework (newt), its graph (newt-graph), what runs on the
   // server (cooper's backend), what runs in the browser (cooper's frontends and their
   // libraries), and the tools around them (scripts, Vite's configs). `bun check` follows the references.
   // The paths are here too because Bun resolves imports with this file. newt is not among
@@ -832,6 +832,7 @@ imports (en `bun test`) con el archivo de la raíz:
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
+    { "path": "./tsconfig.newt-graph.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }
