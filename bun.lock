@@ -6,6 +6,7 @@
       "name": "newt-workspace",
       "dependencies": {
         "newt": "workspace:*",
+        "zod": "4.3.6",
       },
       "devDependencies": {
         "@types/bun": "1.4.4",
