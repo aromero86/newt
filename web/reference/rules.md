@@ -158,7 +158,10 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   document) are a router of their own at the root, `new HttpRouter({ prefix: '' })`,
   which takes only its paths and leaves the rest to the frontend. A router, a group or
   a route may answer its errors its own way, `{ onError: (error, request) => … }`, as
-  OAuth's endpoints do. `serve({ port, router, routes, frontend })` serves the
+  OAuth's endpoints do. A method a path does not have is that path's error too: its
+  405 answers through the `onError` of the first route registered on the path
+  (whatever its method; the router's when that route has none of its own), with
+  `Allow` and, on a path with `cors`, its CORS headers. `serve({ port, router, routes, frontend })` serves the
   router's routes, the ones given in `routes` (another router's `routes()`), and a
   built frontend for every other address. With `health: true` it answers `GET
   /api/health` without a session, a 503 once it is stopping (for `drainMs` before it
@@ -1065,7 +1068,8 @@ Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, 
 
 An OAuth endpoint answers in OAuth's format instead, `{ error, error_description }`:
 `toOauthErrorResponse(error, fallback, codes)` from `newt/http` maps each domain error
-code to an OAuth one, as each OAuth route's `onError`.
+code to an OAuth one, as each OAuth route's `onError`. A method the endpoint does not
+have is a 405 with `invalid_request`, whatever the fallback.
 
 ## Value objects
 

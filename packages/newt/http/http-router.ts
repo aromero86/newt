@@ -97,6 +97,8 @@ export class HttpRouter {
    * the frontend's. A method a path does not have is a
    * 405 that lists the ones it has in `Allow`; `OPTIONS` too, unless a route of the
    * path takes calls from other origins (`cors`): then it answers their preflight.
+   * A 405 is the path's error, so it answers through its first route's `onError`
+   * (the first registered on it, whatever the method): an OAuth path in OAuth's format.
    */
   routes(): Bun.Serve.Routes<undefined, string> {
     const routes: Record<string, Record<string, Answer> | Answer> = {}
@@ -105,9 +107,11 @@ export class HttpRouter {
       const methods = METHODS.filter(method => byMethod.has(method))
       // The path's, for its preflight and its 405s: the first of its routes that has one.
       const cors = [...byMethod.values()].find(each => each.options.cors)?.options.cors
+      // Its 405s' format: its first route's (they are kept in the order they were registered).
+      const onError = [...byMethod.values()][0]!.options.onError
       const notAllowed = withCors(handle(request => {
         throw new MethodNotAllowed(request.method, path)
-      }, this.defaults.onError), cors)
+      }, onError), cors)
       const answerNotAllowed = async (request: BunRequest) => {
         const response = await notAllowed(request)
         response.headers.set('allow', methods.join(', '))
