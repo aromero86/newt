@@ -1,5 +1,9 @@
 import { Entity, type EntityInput } from 'newt/core'
 import { ColumnSchema, type ColumnDTO } from './column.schema'
+import { Column_Added } from './events/column-added'
+import { Column_Moved } from './events/column-moved'
+import { Column_Removed } from './events/column-removed'
+import { Column_Renamed } from './events/column-renamed'
 
 export * from './column.schema'
 
@@ -16,7 +20,9 @@ export class Column extends Entity<typeof ColumnSchema> {
 
   /** A new one, at the end of its board: `position` is where the end looked to be, and its save places it for sure. */
   static add(input: { workspaceId: string, boardId: string, name: string, position: number }): Column {
-    return new Column(input, true)
+    const column = new Column(input, true)
+    column.trackEvent(new Column_Added(column.toDTO()))
+    return column
   }
 
   get boardId(): string {
@@ -35,15 +41,20 @@ export class Column extends Entity<typeof ColumnSchema> {
   place(position: number): void {
     if (!this.isNew) throw new Error(`Column ${this.id} is placed once, as it is added`)
     this.change({ position })
+    this.trackEvent(new Column_Added(this.toDTO()))
   }
 
   rename(name: string): void {
     this.change({ name })
+    const diff = this.getChanges()
+    if (diff) this.trackEvent(new Column_Renamed({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
   }
 
   /** Someone moved it: where it goes. */
   moveTo(position: number): void {
     this.change({ position })
+    const diff = this.getChanges()
+    if (diff) this.trackEvent(new Column_Moved({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
   }
 
   /** Another one moved, or left: this one takes the place left to it, and tells nothing. */
@@ -53,5 +64,6 @@ export class Column extends Entity<typeof ColumnSchema> {
 
   remove(): void {
     this.markAsDeleted()
+    this.trackEvent(new Column_Removed(this.toDTO()))
   }
 }

@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import {
   Card,
@@ -7,6 +7,7 @@ import {
   CardEditSchema,
   CardMoveSchema,
   MAX_CARDS,
+  type CardAuthor,
   type CardDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
@@ -17,6 +18,18 @@ import { CardNotFound } from './errors/card-not-found'
 import { ColumnNotEmpty } from './errors/column-not-empty'
 import { ColumnNotInBoard } from './errors/column-not-in-board'
 import { TooManyCards } from './errors/too-many-cards'
+import { Card_Assigned } from './events/card-assigned'
+import { Card_Created } from './events/card-created'
+import { Card_Deleted } from './events/card-deleted'
+import { Card_Edited } from './events/card-edited'
+import { Card_Moved } from './events/card-moved'
+import { Card_Unassigned } from './events/card-unassigned'
+
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
 
 /**
  * The cards of each board: what there is to do, in the column of its status, and
@@ -31,12 +44,22 @@ export class Card_Module extends Module {
     return module
   }
 
+  readonly events
+
   private constructor(
     base: BoardsBase,
     private readonly repo: Card_Repository,
     private readonly deps: Card_Deps,
   ) {
     super('card', base.invocations)
+    this.events = eventsOf(base.bus, {
+      created: Card_Created,
+      edited: Card_Edited,
+      moved: Card_Moved,
+      assigned: Card_Assigned,
+      unassigned: Card_Unassigned,
+      deleted: Card_Deleted,
+    })
   }
 
   /**
@@ -66,7 +89,7 @@ export class Card_Module extends Module {
    */
   @UseCase()
   async create(boardId: string, input: unknown): Promise<CardDTO> {
-    const card = await this.newCard(boardId, input)
+    const card = await this.newCard(boardId, input, actingAuthor())
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
     if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
     await this.repo.persistNew(card)
@@ -77,7 +100,7 @@ export class Card_Module extends Module {
   async edit(id: string, input: unknown): Promise<CardDTO> {
     const changes = CardEditSchema.parse(input)
     const card = await this.load(id)
-    card.edit(changes)
+    card.edit(changes, actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -100,7 +123,7 @@ export class Card_Module extends Module {
     const at = Math.min(position ?? target.length, target.length)
     target.splice(at, 0, card)
     if (target !== left) left.forEach((each, index) => each.reposition(index))
-    target.forEach((each, index) => each === card ? card.moveTo(columnId, index) : each.reposition(index))
+    target.forEach((each, index) => each === card ? card.moveTo(columnId, index, actingAuthor()) : each.reposition(index))
     await this.repo.persistOrder(target === left ? target : [...left, ...target], [from, columnId])
     return card.toDTO()
   }
@@ -111,7 +134,7 @@ export class Card_Module extends Module {
     const { assigneeId } = CardAssignSchema.parse(input)
     const card = await this.load(id)
     await this.assertMember(assigneeId)
-    card.assign(assigneeId)
+    card.assign(assigneeId, actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -119,7 +142,7 @@ export class Card_Module extends Module {
   @UseCase()
   async unassign(id: string): Promise<CardDTO> {
     const card = await this.load(id)
-    card.unassign()
+    card.unassign(actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -130,7 +153,7 @@ export class Card_Module extends Module {
     const card = await this.load(id)
     const others = (await this.repo.inColumn(card.columnId)).filter(each => each.id !== id)
     others.forEach((each, index) => each.reposition(index))
-    card.delete()
+    card.delete(actingAuthor())
     await this.repo.persistOrder([card, ...others], [card.columnId])
   }
 
@@ -151,7 +174,7 @@ export class Card_Module extends Module {
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
-  private async newCard(boardId: string, input: unknown): Promise<Card> {
+  private async newCard(boardId: string, input: unknown, author: CardAuthor): Promise<Card> {
     const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
     const board = await this.deps.board.get(boardId)
     await this.assertColumnOf(boardId, columnId)
@@ -166,7 +189,7 @@ export class Card_Module extends Module {
       title,
       description,
       assigneeId,
-    })
+    }, author)
   }
 
   private load(id: string): Promise<Card> {

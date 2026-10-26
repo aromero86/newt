@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { eventsOf, Module, UseCase } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import {
@@ -15,6 +15,10 @@ import { registerColumnRoutes } from './column.routes'
 import { ColumnNotFound } from './errors/column-not-found'
 import { LastColumn } from './errors/last-column'
 import { TooManyColumns } from './errors/too-many-columns'
+import { Column_Added } from './events/column-added'
+import { Column_Moved } from './events/column-moved'
+import { Column_Removed } from './events/column-removed'
+import { Column_Renamed } from './events/column-renamed'
 
 /**
  * The columns of each board: the statuses its cards go through, in order. It knows
@@ -28,8 +32,11 @@ export class Column_Module extends Module {
     return module
   }
 
+  readonly events
+
   private constructor(base: BoardsBase, private readonly repo: Column_Repository, private readonly deps: Column_Deps) {
     super('column', base.invocations)
+    this.events = eventsOf(base.bus, { added: Column_Added, renamed: Column_Renamed, moved: Column_Moved, removed: Column_Removed })
   }
 
   /**

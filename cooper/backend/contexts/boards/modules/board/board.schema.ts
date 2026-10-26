@@ -5,6 +5,7 @@ export const BoardSchema = z.object({
   id: z.uuidv7(),
   /** The workspace it is in: an auth tenant, by id. */
   workspaceId: z.string(),
+  /** Its workspace's once, whatever its case. */
   name: BoardName.schema,
   description: z.string().max(500),
   createdAt: z.string().default(''),

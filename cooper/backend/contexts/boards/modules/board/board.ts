@@ -1,5 +1,8 @@
 import { Entity, type EntityInput } from 'newt/core'
 import { BoardSchema, type BoardDTO } from './board.schema'
+import { Board_Archived } from './events/board-archived'
+import { Board_Created } from './events/board-created'
+import { Board_Updated } from './events/board-updated'
 import { BoardName } from './value-objects/board-name'
 
 export * from './board.schema'
@@ -17,7 +20,9 @@ export class Board extends Entity<typeof BoardSchema> {
 
   /** A new one, in its workspace: the name as someone typed it becomes a `BoardName`. */
   static create(input: { workspaceId: string, name: string, description: string }): Board {
-    return new Board({ ...input, name: BoardName.from(input.name) }, true)
+    const board = new Board({ ...input, name: BoardName.from(input.name) }, true)
+    board.trackEvent(new Board_Created(board.toDTO()))
+    return board
   }
 
   get workspaceId(): string {
@@ -33,10 +38,13 @@ export class Board extends Entity<typeof BoardSchema> {
       ...(changes.name === undefined ? {} : { name: BoardName.from(changes.name) }),
       ...(changes.description === undefined ? {} : { description: changes.description }),
     })
+    const diff = this.getChanges()
+    if (diff) this.trackEvent(new Board_Updated({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
   }
 
   /** Out of every list, its name free again; its row stays, with what points at it. */
   archive(): void {
     this.markAsDeleted()
+    this.trackEvent(new Board_Archived(this.toDTO()))
   }
 }

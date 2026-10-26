@@ -13,7 +13,8 @@ const auth = await FakeAuth.open()
 auth.join('acme', 'ana')
 auth.join('globex', 'bea')
 
-const boards = await Boards_Context.open(config.boards, { workspaces: auth.workspaces })
+// For now each card's move is a line on the console (chapter 28 writes it only while tracing).
+const boards = await Boards_Context.open(config.boards, { workspaces: auth.workspaces, log: line => console.log(line) })
 // For now, who sends a request says who they are in an `x-user` header (chapter 22 signs them in).
 boards.base.http.authenticateWith(async request => {
   const userId = request.headers.get('x-user')

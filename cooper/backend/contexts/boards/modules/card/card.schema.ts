@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ActorVia } from '../../../../shared/actor'
 
 /** The most cards a board holds: a board is read whole, as one screen. */
 export const MAX_CARDS = 500
@@ -41,3 +42,11 @@ export type CardCreateDTO = z.input<typeof CardCreateSchema>
 export type CardEditDTO = z.input<typeof CardEditSchema>
 export type CardMoveDTO = z.input<typeof CardMoveSchema>
 export type CardAssignDTO = z.input<typeof CardAssignSchema>
+
+/**
+ * Who does something to a card, as its events tell it: their user's id (`by`) and how
+ * they came in (`via`, the web or MCP). Both null for boards' own work, which a worker
+ * does with no one behind it: a workspace's welcome card, the cards a
+ * removed column or a member who left leaves behind.
+ */
+export type CardAuthor = { by: string | null, via: ActorVia | null }

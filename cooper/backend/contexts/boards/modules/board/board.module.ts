@@ -1,4 +1,4 @@
-import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import {
@@ -12,6 +12,9 @@ import { Board_Repository } from './board.repository'
 import { registerBoardRoutes } from './board.routes'
 import { BoardNameTaken } from './errors/board-name-taken'
 import { BoardNotFound } from './errors/board-not-found'
+import { Board_Archived } from './events/board-archived'
+import { Board_Created } from './events/board-created'
+import { Board_Updated } from './events/board-updated'
 import { BoardName } from './value-objects/board-name'
 
 /**
@@ -27,8 +30,11 @@ export class Board_Module extends Module {
     return module
   }
 
+  readonly events
+
   private constructor(base: BoardsBase, private readonly repo: Board_Repository) {
     super('board', base.invocations)
+    this.events = eventsOf(base.bus, { created: Board_Created, updated: Board_Updated, archived: Board_Archived })
   }
 
   /** A page of the workspace's boards, the newest first. */
