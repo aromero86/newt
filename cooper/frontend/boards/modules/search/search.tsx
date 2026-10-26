@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { SearchIcon, SquareKanbanIcon } from 'lucide-react'
 import { Alert } from '@cooper/ui/components/alert'
 import { Avatar } from '@cooper/ui/components/avatar'
@@ -17,11 +17,15 @@ import { Provide } from '@cooper/core/injector/provide'
 import { useService } from '@cooper/core/injector/use-service'
 import { useValue } from '@cooper/core/store/use-value'
 import { WorkspaceService } from '../workspace/workspace.service'
-import { SearchService } from './search.service'
+import { SearchService, type SearchCriteria } from './search.service'
 
 /** What the filters say for "any": Radix's select takes no empty value. */
 const ANY = 'any'
 const orAny = (value: string) => (value === ANY ? '' : value)
+
+/** Each criterion's name in the address: `?q=login&board=…&column=…&assignee=…`. */
+const PARAMS = { text: 'q', boardId: 'board', columnId: 'column', assigneeId: 'assignee' } as const satisfies Record<keyof SearchCriteria, string>
+const KEYS = Object.keys(PARAMS) as (keyof SearchCriteria)[]
 
 /** With its own SearchService: whoever renders it needs nothing else. */
 export function Search() {
@@ -36,7 +40,9 @@ export function Search() {
 function SearchWrapped() {
   const workspaceId = useParams().workspaceId!
   const service = useService(SearchService)
-  const criteria = useValue(service.criteria)
+  // The criteria live in the address: a reload, a shared link or going back keeps them.
+  const [params, setParams] = useSearchParams()
+  const criteria = Object.fromEntries(KEYS.map(key => [key, params.get(PARAMS[key]) ?? ''])) as SearchCriteria
   const boards = useValue(service.boards)
   const columns = useValue(service.columns)
   const items = useValue(service.results.items)
@@ -49,15 +55,27 @@ function SearchWrapped() {
   const members = useValue(useService(WorkspaceService).members)
   const membersById = useValue(useService(WorkspaceService).byId)
   // What is being typed, until it is searched for.
-  const [text, setText] = useState('')
+  const [text, setText] = useState(criteria.text)
 
   useEffect(() => {
     void service.load(workspaceId)
   }, [service, workspaceId])
 
+  const { text: searched, boardId, columnId, assigneeId } = criteria
+  useEffect(() => {
+    void service.search({ text: searched, boardId, columnId, assigneeId })
+    setText(searched)
+  }, [service, workspaceId, searched, boardId, columnId, assigneeId])
+
+  /** Searches again with these criteria changed, through the address. */
+  function change(next: Partial<SearchCriteria>) {
+    const merged = { ...criteria, ...next }
+    setParams(new URLSearchParams(KEYS.flatMap(key => (merged[key].trim() ? [[PARAMS[key], merged[key].trim()]] : []))), { replace: true })
+  }
+
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void service.search({ text })
+    change({ text })
   }
 
   const boardNames = new Map(boards.map(board => [board.id, board.name]))
@@ -78,7 +96,7 @@ function SearchWrapped() {
               label="Board"
               value={criteria.boardId || ANY}
               options={[{ value: ANY, label: 'Any board' }, ...boards.map(board => ({ value: board.id, label: board.name }))]}
-              onValueChange={value => void service.search({ boardId: orAny(value) })}
+              onValueChange={value => change({ boardId: orAny(value), columnId: '' })}
             />
             <Select
               size="compact"
@@ -86,14 +104,14 @@ function SearchWrapped() {
               disabled={!criteria.boardId}
               value={criteria.columnId || ANY}
               options={[{ value: ANY, label: criteria.boardId ? 'Any column' : 'Choose a board for its columns' }, ...columns.map(column => ({ value: column.id, label: column.name }))]}
-              onValueChange={value => void service.search({ columnId: orAny(value) })}
+              onValueChange={value => change({ columnId: orAny(value) })}
             />
             <Select
               size="compact"
               label="Assignee"
               value={criteria.assigneeId || ANY}
               options={[{ value: ANY, label: 'Anyone' }, ...members.map(member => ({ value: member.id, label: member.name }))]}
-              onValueChange={value => void service.search({ assigneeId: orAny(value) })}
+              onValueChange={value => change({ assigneeId: orAny(value) })}
             />
           </Inline>
         </Stack>

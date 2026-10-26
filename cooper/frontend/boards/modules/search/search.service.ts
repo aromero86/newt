@@ -34,24 +34,24 @@ export class SearchService {
   private readonly store = new Store<SearchState>({ criteria: { text: '', boardId: '', columnId: '', assigneeId: '' }, boards: [], columns: [] })
   private workspaceId = ''
 
-  readonly criteria = this.store.select('criteria')
   readonly boards = this.store.select('boards')
   readonly columns = this.store.select('columns')
   readonly results = new ListStore<CardDTO>(page => this.cardApi.search(this.workspaceId, this.input(), page))
 
-  /** Starts with every card of the workspace, and the boards to narrow it to. */
+  /** The boards to narrow the search to: once per workspace. The search itself starts with `search`. */
   async load(workspaceId: string): Promise<void> {
     this.workspaceId = workspaceId
     this.store.reset()
-    await Promise.all([this.loadBoards(), this.results.loadFirstPage()])
+    await this.loadBoards()
   }
 
-  async search(change: Partial<SearchCriteria>): Promise<void> {
-    const boardChanged = change.boardId !== undefined && change.boardId !== this.store.value.criteria.boardId
-    this.store.update(state => ({
-      criteria: { ...state.criteria, ...change, ...(boardChanged ? { columnId: '' } : {}) },
-      ...(boardChanged ? { columns: [] } : {}),
-    }))
+  /**
+   * The cards that meet these criteria, all of them given: the page keeps them in its
+   * address. Another board brings its columns.
+   */
+  async search(criteria: SearchCriteria): Promise<void> {
+    const boardChanged = criteria.boardId !== this.store.value.criteria.boardId
+    this.store.patch({ criteria, ...(boardChanged ? { columns: [] } : {}) })
     await Promise.all([boardChanged ? this.loadColumns() : Promise.resolve(), this.results.loadFirstPage()])
   }
 
