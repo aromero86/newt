@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm, stat, unlink, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ConcurrencyConflict } from '../core'
 import { lock } from './lock'
 
 let folder: string
@@ -21,7 +22,7 @@ async function stillWaiting(taking: Promise<unknown>): Promise<boolean> {
 
 describe('lock', () => {
   test('releasing lets go only of its own taking', async () => {
-    const release = await lock(path)
+    const { release } = await lock(path)
     await Bun.write(path, 'someone-else')
 
     await release()
@@ -36,7 +37,7 @@ describe('lock', () => {
     expect(await stillWaiting(taking)).toBe(true)
     await unlink(path)
 
-    await (await taking)()
+    await (await taking).release()
   })
 
   test('a process it may not signal is alive all the same', async () => {
@@ -46,7 +47,7 @@ describe('lock', () => {
     expect(await stillWaiting(taking)).toBe(true)
     await unlink(path)
 
-    await (await taking)()
+    await (await taking).release()
   })
 
   test('a lock naming nobody is left behind only once it is older than a second', async () => {
@@ -57,19 +58,19 @@ describe('lock', () => {
     const old = new Date(Date.now() - 5_000)
     await utimes(path, old, old)
 
-    const release = await taking
+    const { release } = await taking
     expect(await Bun.file(path).text()).toStartWith(`${process.pid}:`)
     await release()
   })
 
   test('two takings of one process wait for each other: a lock with its id is not its own', async () => {
-    const release = await lock(path)
+    const { release } = await lock(path)
 
     const taking = lock(path)
     expect(await stillWaiting(taking)).toBe(true)
     await release()
 
-    await (await taking)()
+    await (await taking).release()
   })
 
   test('a lock not touched for 5 s is left behind, even when the process it names is alive', async () => {
@@ -78,20 +79,56 @@ describe('lock', () => {
     const old = new Date(Date.now() - 6_000)
     await utimes(path, old, old)
 
-    const release = await lock(path)
+    const { release } = await lock(path)
 
     expect(await Bun.file(path).text()).toStartWith(`${process.pid}:`)
     await release()
   })
 
   test('its holder keeps it touched', async () => {
-    const release = await lock(path)
+    const { release } = await lock(path)
     const old = new Date(Date.now() - 60_000)
     await utimes(path, old, old)
 
     await Bun.sleep(1_200)
 
     expect(Date.now() - (await stat(path)).mtimeMs).toBeLessThan(1_000)
+    await release()
+  })
+
+  test('fenced runs what it is given while the lock is its own, and touches it', async () => {
+    const { fenced, release } = await lock(path)
+    const old = new Date(Date.now() - 60_000)
+    await utimes(path, old, old)
+
+    expect(fenced(() => 'ran')).toBe('ran')
+
+    expect(Date.now() - (await stat(path)).mtimeMs).toBeLessThan(1_000)
+    await release()
+  })
+
+  test('fenced runs nothing once the lock was taken over: a ConcurrencyConflict', async () => {
+    const { fenced, release } = await lock(path)
+    await unlink(path)
+    await Bun.write(path, `${process.pid}:another-taking`)
+    let ran = false
+
+    expect(() => fenced(() => { ran = true })).toThrow(ConcurrencyConflict)
+
+    expect(ran).toBe(false)
+    expect(await Bun.file(path).text()).toBe(`${process.pid}:another-taking`)
+    await release()
+  })
+
+  test('fenced runs nothing while another process is taking it over (holding its guard)', async () => {
+    const { fenced, release } = await lock(path)
+    const token = await Bun.file(path).text()
+    const guard = `${path}.${Bun.hash(token).toString(36)}.guard`
+    await Bun.write(guard, '1')
+
+    expect(() => fenced(() => {})).toThrow(ConcurrencyConflict)
+
+    await unlink(guard)
     await release()
   })
 
@@ -103,7 +140,7 @@ describe('lock', () => {
     const script = `
       const { lock } = await import(${JSON.stringify(join(import.meta.dir, 'lock.ts'))})
       while (Date.now() < ${start}) await Bun.sleep(0)
-      const release = await lock(${JSON.stringify(path)})
+      const { release } = await lock(${JSON.stringify(path)})
       const now = Number(await Bun.file(${JSON.stringify(counter)}).text())
       await Bun.sleep(30)
       await Bun.write(${JSON.stringify(counter)}, String(now + 1))

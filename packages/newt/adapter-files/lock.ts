@@ -1,4 +1,6 @@
+import { closeSync, openSync, readFileSync, unlinkSync, utimesSync, writeSync } from 'node:fs'
 import { open, stat, utimes } from 'node:fs/promises'
+import { ConcurrencyConflict } from '../core'
 import { isMissing } from './is-missing'
 import { readIfAny } from './read-if-any'
 import { removeIfAny } from './remove-if-any'
@@ -31,10 +33,15 @@ const GUARD_STALE_MS = 5_000
  * meanwhile, so no new lock can take its place before it goes: two holders never
  * both get it.
  *
+ * A holder whose process stops for 5 s (a long synchronous step, a GC pause, SIGSTOP,
+ * a suspended machine) cannot touch it, and may find it taken over when it goes on.
+ * So what it writes goes through `fenced`, which checks it still holds the lock
+ * before writing: see there.
+ *
  * Every process sharing the folder must see the others' ids: one host, one process
  * namespace.
  */
-export async function lock(path: string): Promise<() => Promise<void>> {
+export async function lock(path: string): Promise<Lock> {
   const token = `${process.pid}:${Bun.randomUUIDv7()}`
   const deadline = Date.now() + LOCK_TIMEOUT_MS
   for (;;) {
@@ -49,16 +56,80 @@ export async function lock(path: string): Promise<() => Promise<void>> {
   }
 }
 
-/** Keeps the lock touched while held, and gives back what lets go of it. */
-function held(path: string, token: string): () => Promise<void> {
+/** A lock taken: what writes holding it, and what lets go of it. */
+export type Lock = {
+  /**
+   * Runs `fn`, which must be synchronous, only if the lock is still this one's, and
+   * throws a `ConcurrencyConflict` otherwise (it was taken over while its holder was
+   * stopped). It holds the guard of its token meanwhile, so no one can take it over
+   * between the check and `fn`, and touches it. What is left: a process stopped for
+   * 5 s inside `fn` itself, holding that guard (taken as left by a crash).
+   */
+  fenced<T>(fn: () => T): T
+  release(): Promise<void>
+}
+
+/** Keeps the lock touched while held. */
+function held(path: string, token: string): Lock {
   const heartbeat = setInterval(() => {
     const now = new Date()
     utimes(path, now, now).catch(() => {})
   }, HEARTBEAT_MS)
   heartbeat.unref()
-  return async () => {
-    clearInterval(heartbeat)
-    await removeIfStill(path, token)
+  return {
+    fenced: fn => {
+      const guard = guardOf(path, token)
+      if (!createSync(guard)) throw new ConcurrencyConflict()
+      try {
+        if (readSync(path) !== token) throw new ConcurrencyConflict()
+        const now = new Date()
+        utimesSync(path, now, now)
+        return fn()
+      } finally {
+        removeIfAnySync(guard)
+      }
+    },
+    release: async () => {
+      clearInterval(heartbeat)
+      await removeIfStill(path, token)
+    },
+  }
+}
+
+/** The guard of a token: whoever holds it is the only one that may remove a lock holding that token. */
+function guardOf(path: string, token: string): string {
+  return `${path}.${Bun.hash(token).toString(36)}.guard`
+}
+
+function createSync(path: string): boolean {
+  try {
+    const file = openSync(path, 'wx')
+    try {
+      writeSync(file, `${process.pid}`)
+    } finally {
+      closeSync(file)
+    }
+    return true
+  } catch (error) {
+    if ((error as { code?: string }).code === 'EEXIST') return false
+    throw error
+  }
+}
+
+function removeIfAnySync(path: string): void {
+  try {
+    unlinkSync(path)
+  } catch (error) {
+    if (!isMissing(error)) throw error
+  }
+}
+
+function readSync(path: string): string | undefined {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch (error) {
+    if (isMissing(error)) return undefined
+    throw error
   }
 }
 
@@ -89,7 +160,7 @@ async function isLeft(path: string, seen: string): Promise<boolean> {
  * for the same guard, so between the check and the removal it stays as it was.
  */
 async function removeIfStill(path: string, seen: string): Promise<void> {
-  const guard = `${path}.${Bun.hash(seen).toString(36)}.guard`
+  const guard = guardOf(path, seen)
   if (!await create(guard, `${process.pid}`)) {
     // Someone else is removing it; a guard left by a crash halfway goes, to try again.
     if (await isOlderThan(guard, GUARD_STALE_MS)) await removeIfAny(guard)

@@ -270,7 +270,15 @@ const store = await FileStore.open({ folder: 'data/notes', migrations: [/* FileM
   and taken over, when the process it names is not alive, or when it has not been
   touched for 5 s whatever it names (a restart gave its process id to another
   process). The processes must see each other's ids: one host, one process
-  namespace, not two containers.
+  namespace, not two containers. A holder whose process stops for 5 s (a long
+  synchronous step, a GC pause, SIGSTOP, a suspended machine) is taken over like
+  that too, so every file a commit writes, the journal first, is renamed into place
+  only after checking, at once, that the lock still holds its own token: a
+  transaction taken over before its journal is in fails with a
+  `ConcurrencyConflict` and writes nothing (a use case runs again); one taken over
+  after it leaves its records to the new holder, which finishes the journal first.
+  A transaction that only read fails the same way: what it read may mix two. What
+  is left is a process stopped for 5 s right inside that check and rename.
 - **Once the journal is on the disk the transaction is committed**, even if writing
   the records fails: the next one to take the lock writes them. Until then every
   call fails, saying why: what it read would miss that transaction. Mend what the
