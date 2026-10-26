@@ -19,9 +19,9 @@ function testConfig(authPort: number, boardsPort: number): Config {
   const [authUrl, boardsUrl] = [`http://localhost:${authPort}`, `http://localhost:${boardsPort}`]
   return {
     ...config,
-    auth: { ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
-    boards: { ...config.boards, dbPath: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0, authPublicUrl: authUrl },
+    auth: { ...config.auth, database: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
+    boards: { ...config.boards, database: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0, authPublicUrl: authUrl },
   }
 }
 
@@ -238,6 +238,8 @@ describe('the MCP server', () => {
       expect(card.number).toBe(2)
       expect(await use(client, 'move_card', { workspaceId: acme.id, cardId: card.id, columnId: doing.id })).toMatchObject({ columnId: doing.id, position: 0 })
       expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: bob.id })).toMatchObject({ assignee: { id: bob.id, name: 'Bob' } })
+      // The search finds the card as it is now once boards' worker has indexed it.
+      await settled()
       expect(await use(client, 'search_cards', { workspaceId: acme.id, text: 'mcp', assigneeId: bob.id })).toMatchObject({ items: [{ id: card.id }], total: 1 })
       expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: null })).toMatchObject({ assignee: null })
 

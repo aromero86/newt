@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Email, Entity, SecretToken, type EntityInput } from 'newt/core'
+import { Email, Entity, now, SecretToken, type EntityInput } from 'newt/core'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'
@@ -29,7 +29,7 @@ export class Invitation extends Entity<typeof InvitationEntitySchema, typeof Inv
   /** A new one, pending for some days: the email as someone typed it becomes an `Email`. */
   static create(input: { tenantId: string, email: string, invitedBy: string, days: number }): Invitation {
     const { days, ...rest } = input
-    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+    const expiresAt = new Date(now().getTime() + days * 24 * 60 * 60_000).toISOString()
     const invitation = new Invitation({ ...rest, email: Email.from(rest.email), status: 'pending', acceptedBy: null, expiresAt, tokenHash: null }, true)
     invitation.trackEvent(new Invitation_Created(invitation.toDTO()))
     return invitation
@@ -56,8 +56,8 @@ export class Invitation extends Entity<typeof InvitationEntitySchema, typeof Inv
   }
 
   /** Pending and not expired: it can still be accepted. */
-  isOpen(now = new Date()): boolean {
-    return this.data.status === 'pending' && new Date(this.data.expiresAt) > now
+  isOpen(at = now()): boolean {
+    return this.data.status === 'pending' && new Date(this.data.expiresAt) > at
   }
 
   /**

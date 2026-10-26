@@ -2,10 +2,10 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
 import { describeAnalyticsContract } from 'newt/port-analytics/contract'
-import { SqliteAnalytics } from './sqlite-analytics'
+import { SqlAnalytics } from './sql-analytics'
 
 /** A store of its own, in memory, with the analytics table and nothing else. */
-const openStore = () => SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations') })
+const openStore = () => SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations/sqlite') })
 
 const stores: SqliteStore[] = []
 
@@ -13,18 +13,18 @@ afterEach(async () => {
   await Promise.all(stores.splice(0).map(store => store.close()))
 })
 
-async function open(): Promise<SqliteAnalytics> {
+async function open(): Promise<SqlAnalytics> {
   const store = await openStore()
   stores.push(store)
-  return new SqliteAnalytics(store)
+  return new SqlAnalytics(store)
 }
 
-describeAnalyticsContract('SqliteAnalytics', {
+describeAnalyticsContract('SqlAnalytics', {
   open,
   rows: (analytics, dataset) => analytics.rows(dataset),
 })
 
-describe('SqliteAnalytics', () => {
+describe('SqlAnalytics', () => {
   test('counts a dataset, and its rows by the value of a field, from one on', async () => {
     const analytics = await open()
     await analytics.append('card_created', [

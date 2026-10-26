@@ -54,6 +54,25 @@ describe('boards, through its API', () => {
     expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)
   })
 
+  test('creates a card once for a submit sent twice with the same Idempotency-Key', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+    const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    const submit = (key: string) => fetch(new URL(`/api/workspaces/acme/boards/${id}/cards`, server.url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-user': 'ana', 'idempotency-key': key },
+      body: JSON.stringify({ columnId: todo, title: 'Plan' }),
+    })
+
+    const first = await submit('submit-1')
+    const again = await submit('submit-1')
+    expect([first.status, again.status, again.headers.get('idempotent-replayed')]).toEqual([201, 201, 'true'])
+    expect(await again.json()).toEqual(await first.json())
+    expect((await call<unknown[]>('GET', `/acme/boards/${id}/cards`)).body).toHaveLength(1)
+
+    expect((await submit('submit-2')).status).toBe(201)
+    expect((await call<unknown[]>('GET', `/acme/boards/${id}/cards`)).body).toHaveLength(2)
+  })
+
   test('removes a column only when it is empty', async () => {
     const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
     const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
@@ -69,6 +88,7 @@ describe('boards, through its API', () => {
     const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
     const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
     for (const title of ['Plan the launch', 'Design', 'Plan the party']) await call('POST', `/acme/boards/${id}/cards`, { columnId: todo, title })
+    await t.settled()
 
     const found = await call<{ items: { title: string }[], total: number }>('POST', '/acme/cards/search?size=1', { text: 'plan', filter: { field: 'column', op: 'eq', value: todo } })
     expect(found.body).toMatchObject({ items: [{ title: 'Plan the launch' }], total: 2, hasMore: true })

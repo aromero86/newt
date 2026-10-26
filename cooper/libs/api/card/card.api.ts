@@ -31,9 +31,13 @@ export class CardApi extends Requester {
     return this.post<Page<CardDTO>>(`/${workspaceId}/cards/search${query.size ? `?${query}` : ''}`, input)
   }
 
-  /** A new card at the bottom of a column, with the board's next number. */
-  create(workspaceId: string, boardId: string, input: CardCreateDTO) {
-    return this.post<CardDTO>(`/${workspaceId}/boards/${boardId}/cards`, input)
+  /**
+   * A new card at the bottom of a column, with the board's next number. Each submit
+   * has an `Idempotency-Key` of its own: the same request sent again with it (its
+   * answer lost on the way) gets the card it made the first time, not a second one.
+   */
+  create(workspaceId: string, boardId: string, input: CardCreateDTO, idempotencyKey: string = crypto.randomUUID()) {
+    return this.post<CardDTO>(`/${workspaceId}/boards/${boardId}/cards`, input, { 'idempotency-key': idempotencyKey })
   }
 
   edit(workspaceId: string, cardId: string, input: CardEditDTO) {

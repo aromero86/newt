@@ -5,6 +5,13 @@ const root = join(import.meta.dir, '../..')
 /** A path from the environment: relative ones are relative to the repository root. */
 const fromRoot = (path: string) => (isAbsolute(path) || path === ':memory:' ? path : join(root, path))
 
+/**
+ * A context's database from the environment: a Postgres address
+ * (`postgres://user:password@host:5432/db`) as it is, or a SQLite file, relative to
+ * the repository root.
+ */
+const database = (value: string) => (/^postgres(ql)?:\/\//.test(value) ? value : fromRoot(value))
+
 const env = process.env
 
 /** `COOPER_SESSION_DAYS`: how long a browser session lasts without signing in again, in every context. */
@@ -44,8 +51,8 @@ export const config = {
   auth: {
     /** `COOPER_AUTH_PORT`: where it listens. */
     port: Number(env.COOPER_AUTH_PORT ?? 3001),
-    /** `COOPER_AUTH_DB_PATH`: its database file. */
-    dbPath: fromRoot(env.COOPER_AUTH_DB_PATH ?? 'data/cooper-auth.db'),
+    /** `COOPER_AUTH_DATABASE`: its database, a SQLite file or a Postgres address. */
+    database: database(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
     publicUrl: publicUrls.auth,
     /** Where the other contexts are opened: the apps that sign people in through it. */
     boardsPublicUrl: publicUrls.boards,
@@ -68,8 +75,8 @@ export const config = {
   boards: {
     /** `COOPER_BOARDS_PORT`: where it listens. */
     port: Number(env.COOPER_BOARDS_PORT ?? 3002),
-    /** `COOPER_BOARDS_DB_PATH`: its database file. */
-    dbPath: fromRoot(env.COOPER_BOARDS_DB_PATH ?? 'data/cooper-boards.db'),
+    /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file or a Postgres address. */
+    database: database(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
     /** Where its people sign in. */
     authPublicUrl: publicUrls.auth,
@@ -83,8 +90,8 @@ export const config = {
   backoffice: {
     /** `COOPER_BACKOFFICE_PORT`: where it listens. */
     port: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
-    /** `COOPER_BACKOFFICE_DB_PATH`: its database file. */
-    dbPath: fromRoot(env.COOPER_BACKOFFICE_DB_PATH ?? 'data/cooper-backoffice.db'),
+    /** `COOPER_BACKOFFICE_DATABASE`: its database, a SQLite file or a Postgres address. */
+    database: database(env.COOPER_BACKOFFICE_DATABASE ?? 'data/cooper-backoffice.db'),
     publicUrl: publicUrls.backoffice,
     /** Where the staff sign in. */
     authPublicUrl: publicUrls.auth,
@@ -99,6 +106,11 @@ export const config = {
    * those it calls, in its context or another, and how long each took.
    */
   trace: env.COOPER_TRACE === '1',
+  /**
+   * `COOPER_OTLP_URL`: an OpenTelemetry collector (OTLP over HTTP,
+   * `http://localhost:4318`) the traces go to instead, as service `cooper`.
+   */
+  otlpUrl: env.COOPER_OTLP_URL,
 }
 
 export type Config = typeof config

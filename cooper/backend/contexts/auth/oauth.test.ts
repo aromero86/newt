@@ -12,7 +12,7 @@ let url: string
 beforeEach(async () => {
   const port = freePort()
   url = `http://localhost:${port}`
-  auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
   server = serve(auth.serving())
   auth.start()
 })

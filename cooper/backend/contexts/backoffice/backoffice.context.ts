@@ -1,6 +1,7 @@
 import { join } from 'node:path'
-import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Clock } from 'newt/core'
 import { CooperBase } from '../../shared/cooper-base'
+import { openStore } from '../../shared/open-store'
 import { ServedContext } from '../../shared/served-context'
 import type { Backoffice_Config } from './backoffice-config'
 import { initializeModules, type Backoffice_ModuleDeps, type Backoffice_Modules } from './initialize-modules'
@@ -16,10 +17,10 @@ export class Backoffice_Context extends ServedContext {
     super('backoffice', base, config)
   }
 
-  /** Opened after `auth` and `boards`, which it uses. */
-  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps): Promise<Backoffice_Context> {
-    const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new CooperBase({ name: 'backoffice', store })
+  /** Opened after `auth` and `boards`, which it uses; on the real time, unless a test gives it a `clock`. */
+  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, clock?: Clock): Promise<Backoffice_Context> {
+    const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
+    const base = new CooperBase({ name: 'backoffice', store, clock })
     return new Backoffice_Context(base, initializeModules(base, config, deps), config)
   }
 }

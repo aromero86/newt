@@ -1,4 +1,4 @@
-import { SqliteAnalytics } from '../../shared/analytics/sqlite-analytics'
+import { SqlAnalytics } from '../../shared/analytics/sql-analytics'
 import type { CooperBase } from '../../shared/cooper-base'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
@@ -49,7 +49,7 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
   const user = User_Module.initialize(base, { staff, user: auth.user, access: auth.access, tenant: auth.tenant }, { workspacesProduct: WORKSPACES_PRODUCT })
   const workspace = Workspace_Module.initialize(base, { staff, tenant: auth.tenant, access: auth.access, user: auth.user, board: boards.board, card: boards.card })
   const metric = Metric_Module.initialize(base, { staff, card: boards.card, tenant: auth.tenant, user: auth.user }, {
-    analytics: new SqliteAnalytics(base.store),
+    analytics: new SqlAnalytics(base.store),
     days: METRIC_DAYS,
   })
   const outbox = Outbox_Module.initialize(base)

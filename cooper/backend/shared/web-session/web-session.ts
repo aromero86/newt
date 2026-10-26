@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
 
 const WebSessionSchema = z.object({
   id: z.uuidv7(),
@@ -30,7 +30,7 @@ export class WebSession extends Entity<typeof WebSessionSchema> {
 
   static open(userId: string, days: number): { session: WebSession, token: SecretToken } {
     const token = SecretToken.generate()
-    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+    const expiresAt = new Date(now().getTime() + days * 24 * 60 * 60_000).toISOString()
     return { session: new WebSession({ userId, tokenHash: SecretToken.hash(token), expiresAt }, true), token }
   }
 
@@ -38,8 +38,8 @@ export class WebSession extends Entity<typeof WebSessionSchema> {
     return this.data.userId
   }
 
-  isExpired(now = new Date()): boolean {
-    return new Date(this.data.expiresAt) <= now
+  isExpired(at = now()): boolean {
+    return new Date(this.data.expiresAt) <= at
   }
 
   /** Signed out, or expired: its row goes. */

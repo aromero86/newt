@@ -1,7 +1,6 @@
-import { toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
+import { toPage, type Page, type PageRequest } from 'newt/core'
 import { whereOf } from 'newt/kysely'
 import { TableRepository } from 'newt/repository'
-import { sql, type SqlBool } from 'kysely'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Card, MAX_CARDS, type CardCountByBoard, type CardCountByWorkspace, type CardDTO } from './card'
@@ -88,32 +87,13 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
   }
 
   /**
-   * A page of the current workspace's cards that meet the criteria and, if `text` is
-   * given, have it in their title or description, whatever its case: one query of
-   * Kysely, since criteria have no "contains", with the criteria in it too (`whereOf`
-   * says them as the store's tables do), and paged by id as `page` pages (the cursor
-   * is the last id of the page before). Nothing is read whole, however many cards match.
-   *
-   * What is portable to SQLite, Postgres and MySQL: `lower` on both sides of `like`,
-   * so each database folds the column and the text alike (SQLite only A to Z; Postgres
-   * and MySQL other letters too), and `!` as the escape character of `like`, which
-   * none of them reads specially in a string (a backslash is one in MySQL's).
+   * A page of the cards of every workspace, by id: for indexing them all again, never
+   * for a workspace's own work.
    */
-  async search(criteria: Criteria<CardRow>, text: string | undefined, page: PageRequest): Promise<Page<Card>> {
-    const pattern = text ? `%${text.replace(/[!%_]/g, '!$&')}%` : undefined
-    const matching = this.base.db
-      .selectFrom('card')
-      .where('workspaceId', '=', currentWorkspaceId())
-      .where(whereOf(this.store, criteria))
-      .$if(pattern !== undefined, query => query.where(eb => eb.or([
-        sql<SqlBool>`lower(${eb.ref('title')}) like lower(${pattern}) escape '!'`,
-        sql<SqlBool>`lower(${eb.ref('description')}) like lower(${pattern}) escape '!'`,
-      ])))
-    const [rows, counted] = await Promise.all([
-      matching.selectAll().$if(page.cursor !== undefined, query => query.where('id', '>', page.cursor!)).orderBy('id').limit(page.size + 1).execute(),
-      matching.select(eb => eb.fn.countAll<number>().as('total')).executeTakeFirstOrThrow(),
-    ])
-    return toPage(rows.map(row => this.toEntity(row)), page.size, Number(counted.total))
+  async pageInEveryScope(page: PageRequest): Promise<Page<Card>> {
+    const after = page.cursor === undefined ? {} : { id: { gt: page.cursor } }
+    const [cards, total] = await Promise.all([this.findInEveryScope(after, { limit: page.size + 1 }), this.table.count({})])
+    return toPage(cards, page.size, total)
   }
 
   /**
@@ -126,7 +106,8 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
     const rows = await this.base.db
       .selectFrom('card')
       .select(eb => ['workspaceId', eb.fn.countAll<number>().as('cards')])
-      .where('workspaceId', 'in', workspaceIds)
+      // Criteria, as a table takes them, said in Kysely's query by `whereOf`.
+      .where(whereOf(this.store, { workspaceId: { in: workspaceIds } }))
       .groupBy('workspaceId')
       .execute()
     const counts = new Map(rows.map(row => [row.workspaceId, Number(row.cards)]))

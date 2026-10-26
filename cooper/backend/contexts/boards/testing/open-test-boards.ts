@@ -5,24 +5,27 @@ import type { Mail } from '../../../shared/mail/mailer'
 import type { BoardsBase } from '../boards-base'
 import { Boards_Context } from '../boards.context'
 import type { CardRow } from '../modules/card/card.repository'
+import { MemoryCardSearch } from '../search/memory-card-search'
 import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
 
 /**
- * `boards` for a test: its database in memory, a fake auth behind its ports, its
- * emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
+ * `boards` for a test: its database and its cards' search in memory, a fake auth behind
+ * its ports, its emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
  * authenticator, the web session's, is replaced).
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
   const mails: Mail[] = []
   const lines: string[] = []
-  const boards = await Boards_Context.open({ ...config.boards, dbPath: ':memory:', port: 0 }, {
+  const search = new MemoryCardSearch()
+  const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
     auth: auth.modules,
     mailer: { send: async mail => { mails.push(mail) } },
+    search,
     log: line => { lines.push(line) },
   })
   boards.base.http.authenticateWith(async request => {
@@ -35,11 +38,12 @@ export async function openTestBoards() {
     modules: boards.modules,
     mails,
     lines,
+    search,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
       return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
-    /** Cards written as rows, past what any use case would let in: for a test of very many. */
+    /** Cards written as rows, past what any use case would let in and its events: for a test of very many. */
     async writeCards(rows: CardRow[]): Promise<void> {
       const { store, db } = boards.base as BoardsBase
       await store.transaction(async () => {

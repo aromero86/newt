@@ -1,6 +1,6 @@
 import { runAsActor } from 'newt/core'
 import { config, type Config } from '../../../config'
-import { openContexts, stopContexts } from '../../../open-contexts'
+import { openContexts, stopContexts, type OpenContextsOptions } from '../../../open-contexts'
 import { PRODUCTS } from '../../auth/modules/product/product.schema'
 import type { UserDTO } from '../../auth/modules/user/user.schema'
 import { runInWorkspace } from '../../boards/workspace-scope'
@@ -9,9 +9,9 @@ import { runInWorkspace } from '../../boards/workspace-scope'
 function testConfig(): Config {
   return {
     ...config,
-    auth: { ...config.auth, dbPath: ':memory:', port: 0 },
-    boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0 },
+    auth: { ...config.auth, database: ':memory:', port: 0 },
+    boards: { ...config.boards, database: ':memory:', port: 0 },
+    backoffice: { ...config.backoffice, database: ':memory:', port: 0 },
     trace: false,
   }
 }
@@ -19,10 +19,11 @@ function testConfig(): Config {
 /**
  * The backoffice for a test, with the real auth and boards it reads, as the server
  * opens them: every database in memory, the emails in a list. The data is made
- * through auth's and boards' own use cases, as anyone would.
+ * through auth's and boards' own use cases, as anyone would. A test that moves the
+ * time gives every context its `clock`.
  */
-export async function openTestBackoffice() {
-  const contexts = await openContexts(testConfig(), { mailer: { send: async () => {} } })
+export async function openTestBackoffice(options: Pick<OpenContextsOptions, 'clock'> = {}) {
+  const contexts = await openContexts(testConfig(), { mailer: { send: async () => {} }, ...options })
   const { auth, boards, backoffice } = contexts
 
   /** An account, as someone signs up in auth. */
