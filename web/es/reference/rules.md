@@ -102,7 +102,18 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   como `application/json` (o `…+json`); cualquier otro `Content-Type` es un 415,
   `unsupported_media_type`, de modo que un formulario enviado desde otra web nunca
   llega a una ruta. Una dirección bajo el prefijo sin ruta es un 404, y un método que
-  la dirección no tiene, un 405.
+  la dirección no tiene, un 405, `OPTIONS` también.
+- **Las páginas de otros orígenes llaman solo a las rutas que lo dicen**: `{ cors }`,
+  opción de una ruta, de un grupo o del router entero (`new HttpRouter({ cors })`),
+  nombra los orígenes (`'*'` o una lista), las cabeceras que pueden enviar y las que
+  pueden leer. Sus direcciones responden a la comprobación previa (`OPTIONS`) y lo
+  dicen en cada respuesta, también en los errores. Nunca con cookies: quién llama va
+  en un token bearer.
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/token/token.routes.ts
+  base.oauth.post('/oauth/token', async request => { … }, { public: true, cors: OPEN_TO_BROWSERS })
+  ```
 - **Toda ruta necesita una sesión**, salvo que se registre con `{ public: true }`. El
   router pregunta a su `Authenticator` quién ha enviado la petición, y la ruta se
   ejecuta como ese actor: cualquier caso de uso al que llegue sabe quién lo hace con
