@@ -21,22 +21,74 @@ un nombre, el momento en que ocurrió y un payload:
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-assigned.ts
 import type { DomainEvent } from 'newt/core'
-import type { CardDTO } from '../card.schema'
+import type { CardAuthor, CardDTO } from '../card.schema'
+import { cardEventStamp, type CardEventStamp } from './card-event-stamp'
 
-/** The card, now assigned to `dto.assigneeId`, and who had it before, if anyone. */
-type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null }
+/** The card, now assigned to `dto.assigneeId`, who had it before, if anyone, and who assigned it. */
+type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null } & CardAuthor & { by: string }
 
-export class Card_Assigned implements DomainEvent<CardAssignment> {
+export class Card_Assigned implements DomainEvent<CardAssignment & CardEventStamp> {
   static readonly eventName = 'card.assigned'
   readonly name = Card_Assigned.eventName
   readonly occurredAt = new Date().toISOString()
-  constructor(readonly payload: CardAssignment) {}
+  readonly payload: CardAssignment & CardEventStamp
+  constructor(assignment: CardAssignment) {
+    this.payload = { ...assignment, ...cardEventStamp() }
+  }
 }
 ```
 
 El nombre es `<módulo>.<qué pasó>`. El payload son datos planos (DTOs, textos,
 números), nunca una entidad: se escribe en la base de datos y se lee más tarde, quizá
 con otra versión del código.
+
+## Lo que lleva cualquier evento de una tarjeta
+
+Fíjate en lo que lleva el payload de una tarjeta además de la tarjeta. Dos cosas, las
+mismas en sus seis eventos.
+
+Quién lo hizo. `by` es el id del usuario y `via` cómo entró: por la web, o con un
+asistente de IA a través del [servidor MCP](./21-mcp-server). Los dos son `null` cuando
+lo hizo boards por su cuenta, desde un worker, sin nadie detrás:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.schema.ts
+/**
+ * Who does something to a card, as its events tell it: their user's id (`by`) and how
+ * they came in (`via`, the web or MCP). Both null for boards' own work, which a worker
+ * does with no one behind it (ch. 13.5): a workspace's welcome card, the cards a
+ * removed column or a member who left leaves behind.
+ */
+export type CardAuthor = { by: string | null, via: ActorVia | null }
+```
+
+Detrás de una asignación siempre hay alguien, así que `Card_Assigned` lo estrecha a
+`{ by: string }`.
+
+El id y la hora del propio evento. Quien escucha solo ve el payload, nunca el objeto
+evento que lo envuelve, así que lo que necesite saber del evento en sí tiene que ir
+dentro:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/events/card-event-stamp.ts
+/**
+ * What every event of a card carries besides what happened: its own id and when it
+ * was told. A handler sees only the payload, so whoever reacts once per event (the
+ * activity log) keys on this id.
+ */
+export type CardEventStamp = { eventId: string, at: string }
+
+export function cardEventStamp(): CardEventStamp {
+  return { eventId: Bun.randomUUIDv7(), at: new Date().toISOString() }
+}
+```
+
+Por qué el autor va en el evento y no se lee después: un worker que reacciona corre
+[sin actor](./11-reacting#un-worker-llama-a-un-caso-de-uso). Quién movió la tarjeta
+solo se sabe ahora, mientras corre el caso de uso. Si quien escucha lo va a necesitar,
+lo tiene que llevar el evento. El `eventId` es lo que le permite a quien escucha
+[hacer su trabajo una sola vez](./13-repeatable-workers), corra su job las veces que
+corra.
 
 ## Lo cuenta la entidad
 
@@ -45,25 +97,67 @@ Lo viste en [tu primer módulo](./03-first-module): la entidad apunta sus evento
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-/** To a member of its workspace: the module checked they are. Assigning it again to the same one changes nothing. */
-assign(assigneeId: string): void {
+/** To a member of its workspace, by someone: the module checked they are. Assigning it again to the same one changes nothing. */
+assign(assigneeId: string, author: CardAuthor & { by: string }): void {
   const previousAssigneeId = this.data.assigneeId
   if (assigneeId === previousAssigneeId) return
   this.change({ assigneeId })
-  this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId }))
+  this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId, ...author }))
 }
 
-unassign(): void {
+unassign(author: CardAuthor): void {
   const previousAssigneeId = this.data.assigneeId
   if (previousAssigneeId === null) return
   this.change({ assigneeId: null })
-  this.trackEvent(new Card_Unassigned({ dto: this.toDTO(), previousAssigneeId }))
+  this.trackEvent(new Card_Unassigned({ dto: this.toDTO(), previousAssigneeId, ...author }))
 }
 ```
 
 Fíjate en los `return` del principio. Asignar una tarjeta a quien ya la tiene no
 cambia nada, así que no cuenta nada. Quien escucha nunca recibe un evento de un cambio
 que no ocurrió.
+
+La entidad no sabe quién actúa: se lo dice el módulo. Un caso de uso al que llama una
+ruta o una herramienta MCP le pasa la persona que actúa ahora; uno al que llama un
+worker le pasa `BOARDS`, nadie:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.module.ts
+/** Boards' own work, from a worker: no one did it. */
+const BOARDS: CardAuthor = { by: null, via: null }
+
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
+
+// …
+@UseCase()
+async assign(id: string, input: CardAssignDTO): Promise<CardDTO> {
+  const { assigneeId } = CardAssignSchema.parse(input)
+  const card = await this.load(id)
+  await this.assertMember(assigneeId)
+  card.assign(assigneeId, actingAuthor())
+  await this.repo.persist(card)
+  return card.toDTO()
+}
+```
+
+`via` no es un campo de newt. El actor de newt sabe una cosa, su usuario; cooper añade
+cómo entró, una vez, para todos sus programas:
+
+```ts
+// cooper/backend/shared/actor.ts
+export type ActorVia = 'web' | 'mcp'
+
+// …
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
 
 ## Cuándo se publica
 
@@ -126,9 +220,10 @@ le da el número y la posición que le tocan de verdad, dentro del guardado (mir
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-static create(input: CardOpening): Card {
+static create(input: CardOpening, author: CardAuthor): Card {
   const card = new Card(input, true)
-  card.trackEvent(new Card_Created(card.toDTO()))
+  card.author = author
+  card.trackEvent(new Card_Created({ ...card.toDTO(), ...author }))
   return card
 }
 
@@ -136,7 +231,7 @@ static create(input: CardOpening): Card {
 place(number: number, position: number): void {
   if (!this.isNew) throw new Error(`Card ${this.id} is placed once, as it is created`)
   this.change({ number, position })
-  this.trackEvent(new Card_Created(this.toDTO()))
+  this.trackEvent(new Card_Created({ ...this.toDTO(), ...this.author! }))
 }
 ```
 
@@ -146,7 +241,7 @@ El guardado publica un `card.created`, no dos, porque:
 > guardado. Uno nuevo de la misma clase sustituye al anterior.
 
 El último se construye con la entidad tal como está ahora, así que lo cuenta todo:
-aquí, la tarjeta con su número de verdad. Esta es la regla entera, en la `Entity` de
+aquí, la tarjeta con su número de verdad, y un `eventId` nuevo. Esta es la regla entera, en la `Entity` de
 newt:
 
 ```ts
@@ -168,23 +263,24 @@ más, porque a quien lo escucha casi siempre le importa qué cambió. Mira `edit
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-edit(changes: { title?: string, description?: string }): void {
+edit(changes: { title?: string, description?: string }, author: CardAuthor): void {
   this.change(changes)
   const diff = this.getChanges()
-  if (diff) this.trackEvent(new Card_Edited({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
+  if (diff) this.trackEvent(new Card_Edited({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()!, ...author }))
 }
 
-/** Someone moved it: to this column, at this position. */
-moveTo(columnId: string, position: number): void {
+/** Someone moved it, or boards did (its column was removed): to this column, at this position. */
+moveTo(columnId: string, position: number, author: CardAuthor): void {
   this.change({ columnId, position })
   const diff = this.getChanges()
-  if (diff) this.trackEvent(new Card_Moved({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
+  if (diff) this.trackEvent(new Card_Moved({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()!, ...author }))
 }
 ```
 
 - `dto`: la tarjeta como queda, entera.
 - `changes`: los campos que cambiaron desde que se cargó.
 - `previous`: lo que valían antes.
+- `by` y `via`, `eventId` y `at`, como cualquier evento de una tarjeta.
 
 Quien guarde un historial de movimientos puede escribir "de Doing a Done" sin leer
 nada más. Y otra vez el `if (diff)`: guardar el mismo título no cuenta nada.
@@ -231,7 +327,8 @@ private constructor(
 ```
 
 Desde fuera se leen como lo que son: `card.events.assigned`. Y vienen tipados: quien
-se suscribe a `card.events.assigned` recibe un `{ dto, previousAssigneeId }`.
+se suscribe a `card.events.assigned` recibe un
+`{ dto, previousAssigneeId, by, via, eventId, at }`.
 
 auth hace lo mismo, y sus eventos son los que escuchan los otros contextos:
 
@@ -284,5 +381,7 @@ expect(t.mails).toHaveLength(1)
 - El repositorio lo publica con el guardado: solo existe si la transacción se confirma.
 - Como mucho un evento de cada clase por guardado: el último sustituye a los demás.
 - Un evento de cambio lleva `dto`, `changes` y `previous`.
+- Lo que quien escucha va a necesitar y solo sabe el momento va en el payload: quién
+  actuó (`by`, `via`), y el id y la hora del propio evento.
 - Un módulo ofrece sus eventos con `eventsOf`, bajo `events`. En cuanto alguien los
   escucha, son un contrato.

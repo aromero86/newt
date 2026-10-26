@@ -119,10 +119,154 @@ retry(id: string): Promise<boolean>
 list(): Promise<Job[]>
 ```
 
-Cada job dice su `queue`, su `status` (`pending`, `running`, `done` o `dead`), cuántos
-`attempts` lleva, su `lastError` y el `event` al que reacciona, como JSON. Llegas a
-ellos por la base de un contexto: `auth.base.store.outbox`. Los tests de boards usan
-`list` para comprobar que todos los jobs terminaron:
+Cada job dice su `queue`, su `status` (`pending`, `running`, `done` o `dead`),
+cuántos `attempts` hizo, su `lastError` y el `event` al que reacciona, como JSON.
+
+### Un módulo sobre el outbox de cada contexto
+
+El outbox es del store de un contexto, y ningún otro contexto mete la mano en ese
+store. Así que cooper pone encima un módulo pequeño, compartido por todos los
+contextos: cada contexto inicializa el suyo, sobre su propio outbox, y lo ofrece como
+cualquier otro módulo.
+
+```ts
+// cooper/backend/shared/outbox/outbox.module.ts
+export class Outbox_Module extends Module {
+
+  static initialize(base: CooperBase): Outbox_Module {
+    return new Outbox_Module(base)
+  }
+
+  // …
+  @UseCase()
+  async dead(page: PageRequest): Promise<Page<DeadJobDTO>> {
+    const dead = (await this.base.store.outbox.list())
+      .filter(job => job.status === 'dead')
+      .toSorted((a, b) => (a.id < b.id ? 1 : -1))
+    const after = page.cursor ? dead.filter(job => job.id < page.cursor!) : dead
+    return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
+  }
+
+  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  @UseCase()
+  async retry(id: string): Promise<void> {
+    if (await this.base.store.outbox.retry(id)) return
+    const job = (await this.base.store.outbox.list()).find(each => each.id === id)
+    throw job ? new JobNotDead(id, job.status) : new JobNotFound(id)
+  }
+}
+```
+
+Un job muerto deja fuera el payload de su evento: el equipo ve la cola, el nombre del
+evento, los intentos y el último error. Con eso sabe qué falló, y no ve más de lo que
+necesita.
+
+```ts
+// cooper/backend/shared/outbox/outbox.schema.ts
+export type DeadJobDTO = {
+  id: string
+  queue: string
+  /** The event's name: `card.assigned`. */
+  event: string
+  attempts: number
+  lastError: string | null
+  createdAt: string
+  /** When it died. */
+  updatedAt: string
+}
+```
+
+### La página Jobs del equipo
+
+El backoffice del equipo tiene una página Jobs: una pestaña por contexto, los jobs
+muertos de cada uno con su error, y un botón para reintentar uno. Su módulo `job` le
+pregunta al módulo de outbox de cada contexto, a través de sus casos de uso, nunca de
+su base ni de su store:
+
+```ts
+// cooper/backend/contexts/backoffice/initialize-modules.ts
+const job = Job_Module.initialize(base, { staff, outboxes: { auth: auth.outbox, boards: boards.outbox, backoffice: outbox } })
+```
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.module.ts
+/** A page of a context's dead jobs, the newest first. */
+@UseCase()
+async dead(context: JobContext, page: PageRequest): Promise<Page<ContextJobDTO>> {
+  const name = JobContextSchema.parse(context)
+  const found = await this.deps.outboxes[name].dead(page)
+  return { ...found, items: found.items.map(job => ({ ...job, context: name })) }
+}
+
+/**
+ * A dead job of a context runs again: what a person of the staff asks for, at once,
+ * once they fixed what killed it. The context's own use case puts it back; its
+ * worker runs it.
+ */
+@UseCase({ writesTo: ['outbox'] })
+async retry(context: JobContext, id: string): Promise<void> {
+  await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
+}
+```
+
+`retry` escribe en otro módulo, `outbox`, desde una petición: lo dice con `writesTo`
+([módulos que hablan](./17-modules-talk)). Lo pide una persona del equipo, que espera
+la respuesta, así que no puede esperar a un worker. Dos rutas, tras la comprobación
+del equipo, son la API a la que llama la página:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.routes.ts
+// `/jobs/boards`: boards' dead jobs. A context that is not one is a 400.
+routes.get('/jobs/:context', async request =>
+  Response.json(await jobs.dead(request.params.context as JobContext, pageRequestFrom(request))))
+
+routes.post('/jobs/:context/:jobId/retry', async request => {
+  await jobs.retry(request.params.context as JobContext, request.params.jobId)
+  return new Response(null, { status: 204 })
+})
+```
+
+```http
+GET /api/jobs/boards
+POST /api/jobs/boards/<id del job>/retry
+```
+
+El ciclo entero está en un test: una reacción falla mientras "el servidor de correo
+está caído", muere en su único intento, aparece en la lista de boards con su error,
+se reintenta cuando el servidor vuelve, y acaba `done`. Un job hecho no se puede
+reintentar:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.test.ts
+let down = true
+t.boards.modules.card.events.created.subscribe(() => {
+  if (down) throw new Error('the mail server is down')
+// eslint-disable-next-line newt/queue-name
+}, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
+await t.board(sam, tenant.id, 'Roadmap', ['One'])
+await t.settled()
+
+const dead = await t.as(sam, () => t.modules.job.dead('boards', { size: 10 }))
+expect(dead.items).toEqual([expect.objectContaining({
+  context: 'boards',
+  queue: 'test.tellSomeone.on.card.created',
+  event: 'card.created',
+  attempts: 1,
+  lastError: expect.stringContaining('the mail server is down'),
+})])
+// …
+down = false
+await t.as(sam, () => t.modules.job.retry('boards', dead.items[0]!.id))
+await t.settled()
+
+expect((await t.as(sam, () => t.modules.job.dead('boards', { size: 10 }))).total).toBe(0)
+// …
+// Done is done: it is not run again.
+await expect(t.as(sam, () => t.modules.job.retry('boards', dead.items[0]!.id))).rejects.toMatchObject({ code: 'outbox.job_not_dead', status: 409 })
+```
+
+Los tests también leen el outbox directamente, para comprobar que todos los jobs
+terminaron. El auth falso de boards entrega sus jobs:
 
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
@@ -134,20 +278,15 @@ jobs() {
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.test.ts
-expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done'])
+// Each deletion is heard twice: the workspace's purge, and its activity's.
+expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'done'])
 ```
 
 Un job muerto no es una línea más de log. Significa algo concreto: una reacción que
 no ocurrió. Un tablero de bienvenida que no se creó, un email que no salió, un
 workspace cuyos tableros no se borraron. La salida es siempre la misma: busca en
-`lastError` qué lo mató, arregla la causa y llama a `retry(id)`. El job se ejecuta
-otra vez desde cero, y es seguro porque es [idempotente](./13-repeatable-workers).
-
-::: tip Consejo
-cooper aún no tiene una pantalla para los jobs muertos. En una aplicación tuya, la
-consola del equipo es un buen sitio para ella: una lista de los jobs muertos de cada
-contexto, con su error y un botón que llama a `retry`.
-:::
+`lastError` qué lo mató, arregla la causa y reinténtalo. El job se ejecuta otra vez
+desde cero, y es seguro porque es [idempotente](./13-repeatable-workers).
 
 ## La forma de un evento solo crece
 
@@ -158,8 +297,9 @@ entender eventos escritos por el código viejo:
 > La forma de un evento solo crece: puedes añadirle campos opcionales, pero nunca
 > quitar uno, renombrarlo ni cambiar lo que significa.
 
-`card.assigned` lleva `{ dto, previousAssigneeId }`. Puedes añadir un campo, si el
-código que lo lee aguanta que falte. No puedes renombrar `previousAssigneeId`: los
+`card.assigned` lleva `{ dto, previousAssigneeId, by, via, eventId, at }`. Puedes
+añadir un campo, si el código que lo lee aguanta que falte: un job guardado antes del
+despliegue no lo tiene. No puedes renombrar `previousAssigneeId`: los
 jobs pendientes en el momento del despliegue llevarían el nombre viejo. Si de verdad
 necesitas romper la forma, el mismo despliegue trae una migración que reescribe los
 jobs pendientes de ese evento.
@@ -212,7 +352,9 @@ no.
   ejecuta. Los jobs de un worker muerto los recoge otro un minuto después.
 - Un job sin intentos queda muerto, con su último error. Los muertos se quedan hasta
   que alguien arregla la causa y llama a `outbox.retry(id)`.
-- Un job muerto es una reacción que no ocurrió. Vigílalos.
+- Un job muerto es una reacción que no ocurrió. Dale a quien lleva la aplicación un
+  sitio donde verlos y reintentarlos: en cooper, la página Jobs del backoffice, sobre
+  un módulo de outbox por contexto.
 - La forma de un evento solo crece: los jobs pendientes llevan la vieja.
 - Haz return ante un "no" de negocio; lanza el error ante un fallo, y deja que newt
   lo reintente.

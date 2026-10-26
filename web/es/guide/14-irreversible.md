@@ -24,13 +24,14 @@ el worker llama a `notifyAssignee`, que envía el email:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 @UseCase()
-async notifyAssignee(card: CardDTO): Promise<void> {
-  if (card.assigneeId === null) return
+async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+  if (card.assigneeId === null || card.assigneeId === by) return
   const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
   if (current?.assigneeId !== card.assigneeId) return
   const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
   if (!member) return
-  const link = new URL(`/workspaces/${card.workspaceId}/boards/${card.boardId}?card=${card.number}`, this.options.publicUrl)
+  // Where boards' UI opens the card: on its board's screen, by its id.
+  const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
   await this.options.mailer.send({
     to: member.email,
     subject: `#${card.number} ${card.title} is yours`,
@@ -38,6 +39,12 @@ async notifyAssignee(card: CardDTO): Promise<void> {
   })
 }
 ```
+
+Dos detalles mejoran el email. El enlace abre la tarjeta donde la abre la interfaz de
+boards: `/w/<workspace>/boards/<tablero>?card=<id de la tarjeta>`. Un enlace en un
+email se envía una vez y ya no se puede corregir, así que apunta a algo estable, el id
+de la tarjeta. Y nadie recibe aviso de una tarjeta que se dio a sí mismo: el evento
+lleva `by`, y el worker se salta el email cuando la persona asignada es quien actuó.
 
 El caso de uso `assign` no sabe nada de emails. El worker que lo envía no sabe nada de
 asignar. Y el mailer llega como opción del módulo: la consola en desarrollo, una lista
@@ -62,22 +69,36 @@ enlace. Quien tenga el enlace puede aceptar la invitación (tras entrar con el e
 invitado).
 
 El admin invita; `invitation.create` comprueba y guarda la invitación, y responde. No
-envía nada:
+envía nada. Primero construye la entidad, y `Invitation.create` convierte el email tal
+como lo escribió alguien en un `Email` (sin espacios, en minúsculas): a partir de ahí
+el caso de uso compara `invitation.email`, nunca lo que llegó.
 
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/invitation.module.ts
 /** The workspace's admin invites an email, which is not a member nor invited already. Its email leaves from a worker. */
 @UseCase()
 async create(tenantId: string, input: InvitationCreateDTO): Promise<InvitationDTO> {
-  const email = Email.from(InvitationCreateSchema.parse(input).email)
-  await this.assertAdmin(tenantId)
-  const invited = await this.deps.user.findByEmail(email)
-  const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
-  if (member || await this.repo.count({ tenantId, email, status: 'pending' }) > 0) throw new AlreadyInvited(email)
-
+  const { email } = InvitationCreateSchema.parse(input)
   const invitation = Invitation.create({ tenantId, email, invitedBy: currentActor().userId, days: this.options.days })
+  await this.assertAdmin(tenantId)
+  const invited = await this.deps.user.findByEmail(invitation.email)
+  const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
+  if (member || await this.repo.count({ tenantId, email: invitation.email, status: 'pending' }) > 0) throw new AlreadyInvited(invitation.email)
+
   await this.repo.persist(invitation)
   return invitation.contract()
+}
+```
+
+```ts
+// cooper/backend/contexts/auth/modules/invitation/invitation.ts
+/** A new one, pending for some days: the email as someone typed it becomes an `Email`. */
+static create(input: { tenantId: string, email: string, invitedBy: string, days: number }): Invitation {
+  const { days, ...rest } = input
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+  const invitation = new Invitation({ ...rest, email: Email.from(rest.email), status: 'pending', acceptedBy: null, expiresAt, tokenHash: null }, true)
+  invitation.trackEvent(new Invitation_Created(invitation.contract()))
+  return invitation
 }
 ```
 

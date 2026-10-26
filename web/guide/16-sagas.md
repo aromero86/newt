@@ -1,10 +1,10 @@
 # Failing halfway: deleting a workspace
 
 Deleting a workspace touches everything. In auth: the workspace, its members'
-accesses, its pending invitations. In boards: every board, column and card it has.
-Two contexts, two databases. No transaction can hold all of it, and any step can
-fail. This chapter shows how cooper deletes a workspace so that, whatever fails and
-wherever, it always ends deleted.
+accesses, its pending invitations. In boards: every board, column and card it has,
+and each card's activity. Two contexts, two databases. No transaction can hold all of
+it, and any step can fail. This chapter shows how cooper deletes a workspace so that,
+whatever fails and wherever, it always ends deleted.
 
 ## Several transactions, gaps between them
 
@@ -14,20 +14,20 @@ Deleting a workspace is a flow of steps, each in its own transaction:
 2. auth takes away every access to it.
 3. auth revokes its pending invitations.
 4. boards removes its cards, columns and boards.
+5. boards removes its cards' activity.
 
 Between any two steps, the server can stop, a step can fail, a conflict can come.
-For a while the data does not add up: a deleted workspace whose members still have
-access, or whose boards are still there. You cannot put the steps in one transaction:
-they are in two databases, and even within one, it would tie the modules together
-([modules that talk](./17-modules-talk)). What you do is make sure the flow always
-reaches its end.
+For a while the data does not add up: a deleted workspace whose boards are still
+there, or whose invitations are still pending. You cannot put the steps in one
+transaction: they are in two databases, and even within one, it would tie the modules
+together ([modules that talk](./17-modules-talk)). What you do is make sure the flow
+always reaches its end.
 
 A flow of steps across modules, each in its own transaction, is a **saga**.
 
-## The first step: the request
+## The first two steps: the request
 
-The request does only the first step. The admin deletes the workspace through
-boards' route, which calls auth's use case:
+The admin deletes the workspace through boards' route, which calls auth's use case:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.routes.ts
@@ -37,23 +37,45 @@ workspace.delete('', async request => {
 })
 ```
 
+The request does the first step, and the second one right after it:
+
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
 /**
  * Only its admin deletes it. The rest follows from `tenant.deleted`, each part from
- * a worker: its accesses and invitations here, its boards in boards.
+ * a worker: its invitations here, its boards in boards, its accesses once more.
+ * Its accesses also go at once, after it: it writes to `access` without being a
+ * worker, on purpose, so that nobody enters it from the moment it answers. Should
+ * that second save fail, its worker takes them away. It never runs again on a
+ * conflict: it would find the workspace deleted already.
  */
-@UseCase()
+@UseCase({ writesTo: ['access'], retryOnConflict: false })
 async delete(tenantId: string): Promise<void> {
   await this.assertAdmin(tenantId)
   const tenant = await this.load(tenantId)
   tenant.delete()
   await this.repo.persist(tenant)
+  await this.deps.access.revokeTenant(tenantId)
 }
 ```
 
 The workspace is deleted softly: its row stays, marked, and no use case finds it any
-more. The event says what it starts:
+more. That save tells `tenant.deleted`, and with it go the jobs of every step that
+follows.
+
+Then the request takes the accesses away itself, in a second transaction. Why not
+leave that to a worker too? Ask the question of [eventual
+consistency](./12-eventual-consistency): does the person need it now? Here the answer
+is yes, the other way round: from the moment the admin sees "deleted", nobody may
+enter the workspace, its admin neither. boards lets someone into a workspace by
+asking auth for their access, so the accesses have to be gone when the request
+answers. A use case that writes to another module outside a worker says so with
+`writesTo`, and `retryOnConflict: false` stops it from running again on a conflict:
+the second run would find the workspace deleted and answer 404 to a deletion that
+worked.
+
+The second save can still fail after the first one committed. So that step keeps its
+worker too, as a fallback. The event says what it starts:
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-deleted.ts
@@ -67,12 +89,9 @@ export class Tenant_Deleted implements DomainEvent<TenantDTO> {
 }
 ```
 
-The request writes in one module, the tenant's, and answers `204`. Everything else
-starts from that event.
-
 ## The other steps: workers
 
-Three modules subscribe to `tenant.deleted`. Their three jobs are saved in the same
+Four modules subscribe to `tenant.deleted`. Their four jobs are saved in the same
 transaction as the deletion, in auth's store:
 
 ```ts
@@ -102,13 +121,26 @@ deps.tenants.deleted.subscribe(tenant => workspace.purge(tenant.id), {
 })
 ```
 
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+// auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
+deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+  strategy: 'handler',
+  queue: 'activity.purgeWorkspace.on.tenant.deleted',
+})
+```
+
 Each one calls a use case that is safe to run again.
 
-In auth, the accesses go:
+In auth, the accesses go once more. Usually the request took them all and this run
+finds none; it matters when the request stopped before its second save:
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
-/** A deleted workspace's accesses go: a step of its deletion, from a worker. Safe to run again. */
+/**
+ * A deleted workspace's accesses go: a step of its deletion, from a worker, in case
+ * `delete` stopped halfway or someone entered it meanwhile. Safe to run again.
+ */
 @UseCase()
 async removeAccesses(tenantId: string): Promise<void> {
   await this.deps.access.revokeTenant(tenantId)
@@ -118,8 +150,8 @@ async removeAccesses(tenantId: string): Promise<void> {
 ```ts
 // cooper/backend/contexts/auth/modules/access/access.module.ts
 /**
- * A tenant is gone: nobody enters it any more, its admin neither. What a worker
- * calls, a step of the tenant's deletion; safe to run again.
+ * A tenant is gone: nobody enters it any more, its admin neither. What its deletion
+ * calls, and its worker after it; safe to run again.
  */
 @UseCase()
 async revokeTenant(tenantId: string): Promise<void> {
@@ -129,7 +161,7 @@ async revokeTenant(tenantId: string): Promise<void> {
 }
 ```
 
-And so do the pending invitations:
+The pending invitations are revoked:
 
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/invitation.module.ts
@@ -148,7 +180,7 @@ In boards, everything of the workspace goes, children first:
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
 /**
  * auth deleted a workspace: its cards, columns and boards go, in that order. boards'
- * step of that deletion (ch. 18): it cannot be undone, nor needs to be; a worker
+ * step of that deletion: it cannot be undone, nor needs to be; a worker
  * runs it until it completes, and each part removes what is left, so running it
  * again after a failure halfway converges on a workspace with nothing.
  */
@@ -162,17 +194,19 @@ async purge(workspaceId: string): Promise<void> {
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
-/** Removes every card of a workspace for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
+/** Removes every card of a workspace, and its boards' counters, for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
 async purgeWorkspace(workspaceId: string): Promise<void> {
   await this.saveRows(async () => {
     await this.base.db.deleteFrom('card').where('workspaceId', '=', workspaceId).execute()
+    await this.base.db.deleteFrom('card_counter').where('workspaceId', '=', workspaceId).execute()
   })
 }
 ```
 
 These rows go for good, with `saveRows`: they tell nothing. Nobody needs a
 `card.deleted` for each card of a workspace that no longer exists. The workspace is
-named, not taken from the scope: nobody is in it any more.
+named, not taken from the scope: nobody is in it any more. The activity log goes the
+same way, in its own step.
 
 And one step leads to another. Each access revoked tells `access.revoked`, and boards
 reacts to it as it does when someone leaves a workspace: `card.unassignMember` runs
@@ -180,9 +214,11 @@ for each member. Here it usually finds nothing, because the cards are gone or ab
 go. Whichever runs first, the end is the same.
 
 ```text
-tenant.delete (request) ── tenant.deleted ─┬─▶ tenant.removeAccesses ── access.revoked (each) ──▶ card.unassignMember
-                                           ├─▶ invitation.revokeForTenant
-                                           └─▶ workspace.purge (boards: cards, columns, boards)
+tenant.delete (request) ─┬─ saves the deletion ── tenant.deleted ─┬─▶ tenant.removeAccesses (fallback)
+                         │                                         ├─▶ invitation.revokeForTenant
+                         │                                         ├─▶ workspace.purge (boards: cards, columns, boards)
+                         │                                         └─▶ activity.purgeWorkspace (boards)
+                         └─ access.revokeTenant ── access.revoked (each) ──▶ card.unassignMember
 ```
 
 ## Converging: repeating until done
@@ -203,14 +239,15 @@ the work again always leads to the same end. It works because of two things at o
 - **The work is repeated until it is done.** Each step is a job, saved with the
   deletion, and retried when it fails ([when something fails](./15-failures)).
 
-Take either away and the flow can stay halfway forever. A step done from the request
-would be lost if it failed, because nothing runs it again. A step that is not safe to
+Take either away and the flow can stay halfway forever. A step done only from the
+request would be lost if it failed, because nothing runs it again. That is why the
+accesses, taken in the request, still have their worker. A step that is not safe to
 repeat would break on its retry.
 
 And if the attempts run out? The job dies, and that means something concrete: **a
 flow stuck halfway**, a deleted workspace whose boards are still in boards. That is
 why `workspace.purge` gets 10 attempts, and why someone has to watch dead jobs, fix
-the cause and call `outbox.retry(id)`.
+the cause and retry them, from the backoffice's Jobs page.
 
 ## Compensations: when another path stops the flow
 
@@ -230,23 +267,42 @@ order's id, for instance).
 
 ## The races
 
-While a saga runs, requests keep coming. Each case below is a request that lands in a
-gap, and what cooper does about it:
+While a saga runs, requests and other jobs keep coming. Each case below lands in a
+gap, and this is what cooper does about it:
 
 | What happens | How it ends |
 |---|---|
-| Someone lists their workspaces after the deletion, before their access is removed. | The access still points at the workspace, but the workspace is gone: `workspace.mine` (and auth's `tenant.listForUser`) leave it out. |
+| Someone lists their workspaces right after the deletion. | Their access went with the request. Should that second save have failed, the workspace is gone anyway: `workspace.mine` (and auth's `tenant.listForUser`) leave it out until the worker takes the access. |
+| Someone accepts an invitation to the workspace before `invitation.revokeForTenant` runs. | `invitation.accept` checks the workspace first: a deleted one makes the invitation not open (`invitation.not_open`), and no access is given. |
 | An invitation's email job runs after the workspace was deleted. | `invitation.send` finds no workspace and returns: no email leaves. |
+| The welcome board's job (`workspace.prepare`) runs after the workspace was deleted, or while it is. | It asks auth whether the workspace exists: if not, it writes nothing; if it went while it ran, it purges what it wrote. |
 | `card.unassignMember` runs before or after `workspace.purge`. | Before: it unassigns cards that are then removed. After: it finds no card. Either way the cards are gone. |
 | The admin deletes the workspace twice (a retried request, two tabs). | The second time, the workspace is not found: `tenant.delete` answers 404, and no second saga starts. |
 
+The invitation row is a check made at the right place. Revoking the invitations is a
+worker's step, so for a moment a deleted workspace still has pending ones. Instead of
+hoping nobody accepts one in that moment, `accept` asks for the workspace:
+
+```ts
+// cooper/backend/contexts/auth/modules/invitation/invitation.module.ts
+@UseCase({ writesTo: ['access'] })
+async accept(token: string): Promise<InvitationDTO> {
+  const invitation = await this.byToken(token)
+  // Its workspace deleted, it is not open any more, whatever its worker did yet.
+  const [tenant] = await this.deps.tenant.getMany([invitation.tenantId])
+  if (!invitation.isOpen() || !tenant) throw new InvitationNotOpen()
+  // …
+}
+```
+
 ::: warning
-There is a window cooper leaves open. Until `tenant.removeAccesses` runs, a member
-still has an access, so boards still lets them in (`member.enter` asks auth for the
-access, not for the workspace). A board or card created in that window, after
-`workspace.purge` ran, would stay in boards. The window is short, a few milliseconds
-in normal operation, but a saga's steps run in any order. To close it, the check that
-lets someone in has to fail for a deleted workspace too.
+One gap is left, and it is small. The deletion and the accesses are two saves. Between
+them, a few milliseconds, or longer if the second one fails and its worker has not
+run yet, a member still has an access, and boards still lets them in
+(`member.enter` asks auth for the access, not for the workspace). A board or card
+created in that gap, after `workspace.purge` ran, would stay in boards. To close it
+for good, the check that lets someone into a workspace would have to fail for a
+deleted workspace too.
 :::
 
 ## The four rules
@@ -255,8 +311,9 @@ When a flow crosses modules or contexts:
 
 1. **Each step can be repeated without harm.** It writes a result, or finds by a
    reference what an earlier run did.
-2. **The steps go forward from workers**, which repeat them until they are done. From
-   a request, a failure halfway would stay halfway.
+2. **The steps go forward from workers**, which repeat them until they are done. A
+   step the person needs at once may run in the request too, but keeps its worker: from
+   a request alone, a failure halfway would stay halfway.
 3. **If another path can stop the flow, each step has its compensation**: another
    step, from a worker, on the event that stops it. It can be repeated, and it can
    run even if the step it undoes never happened.
@@ -284,23 +341,42 @@ test('removes all a workspace has once auth deletes it, and nothing of any other
   // Its work run again, as after a failure halfway: nothing left to remove, nothing fails.
   await t.auth.deleteWorkspace('acme')
   await t.settled()
-  expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done'])
+  // Each deletion is heard twice: the workspace's purge, and its activity's.
+  expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'done'])
   expect((await t.modules.board.listOf('globex', { size: 10 })).total).toBe(1)
 })
 ```
 
-auth's tests check its side: no access left, every member told, and nobody sees the
-workspace any more:
+auth's tests check its side. With its worker stopped, nobody is let in the moment
+the deletion answers, and an invitation cannot be accepted:
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
-await as(ana, () => modules().tenant.delete(acme.id))
-await expect(modules().tenant.get(acme.id)).rejects.toMatchObject({ code: 'tenant.not_found' })
-await settled()
+test('lets nobody in once deleted, before its workers run', async () => {
+  const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+  const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+  await as(ana, () => modules().access.grant({ userId: bob.id, productId: 'cooper', tenantId: acme.id }))
+  await settled()
+  await auth.base.jobs.stop()
 
-expect((await modules().access.listForTenant(acme.id, page)).total).toBe(0)
-expect(told.sort()).toEqual([ana.id, bob.id].sort())
-expect((await modules().tenant.listForUser(ana.id, page)).items).toEqual([])
+  await as(ana, () => modules().tenant.delete(acme.id))
+  expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+  expect(await modules().access.check(ana.id, 'cooper', acme.id)).toBeNull()
+  // …
+})
+```
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+test('cannot be accepted once their workspace is deleted, before its workers run', async () => {
+  // …
+  await auth.base.jobs.stop()
+
+  await as(ana, () => modules().tenant.delete(acme.id))
+  await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  await settled()
+  expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+})
 ```
 
 And cooper's end-to-end test does it all through HTTP, with both contexts:
@@ -319,9 +395,11 @@ expect((await call(bob.as, 'GET', `/workspaces/${acme.id}/boards`)).status).toBe
 ## In short
 
 - A flow across modules or contexts is a saga: steps, each in its own transaction.
-- The request does the first step and tells an event; workers do the rest.
+- The request does the first step and tells an event; workers do the rest. A step
+  the person needs at once can run in the request too, with a worker behind it.
 - It converges when each step is safe to repeat and is repeated until done.
 - What only goes forward needs no compensation; what another path can stop needs one
   for each step.
-- Look for the races: a request can land in any gap between two steps.
+- Look for the races: a request or a late job can land in any gap between two steps.
+  Close them with a check where it matters, not with hope.
 - A dead job is a flow stuck halfway.
