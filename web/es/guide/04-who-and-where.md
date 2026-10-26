@@ -1,0 +1,890 @@
+# Quién y dónde
+
+Hasta ahora, cualquiera que envíe una cabecera `x-user` ve todos los tableros. cooper
+es un SaaS: un tablero pertenece a un **espacio de trabajo** (*workspace*), y solo las
+personas de ese espacio pueden llegar a él. Cada petición tiene que responder dos
+preguntas antes de que se ejecute ningún caso de uso:
+
+- **¿Quién actúa?** El actor: la persona como la que se ejecuta la petición, y cómo
+  ha entrado.
+- **¿Dónde?** El espacio de trabajo del que trata la petición: un ámbito (*scope*) en
+  el que leen y escriben todos los repositorios de `boards`.
+
+Y una tercera, que se pregunta cada vez y no se guarda en ningún sitio: **¿puede?** ¿Es
+esta persona miembro de ese espacio?
+
+En este capítulo los tableros pasan a `/api/workspaces/:workspaceId/…`. Un miembro
+entra; cualquier otro recibe un 404, como si el espacio no existiera. A qué espacio
+pertenece cada persona es asunto de `auth`, y todavía no hay `auth` (llega en el
+capítulo 17). Así que `boards` pregunta a través de un **puerto** propio, y por ahora
+lo responde un falso.
+
+Hacemos esto antes de pasar a SQLite (capítulo 5) a propósito: el tablero gana un
+campo, y con ficheros eso no necesita ninguna migración.
+
+## El actor: quién, y cómo ha entrado
+
+newt sabe una sola cosa del actor: su `userId`. Una aplicación que necesita más
+**amplía** la interfaz `Actor` de newt, una vez, en un fichero que cargan todos los
+programas. cooper añade cómo ha entrado alguien: por sus aplicaciones web, o por un
+asistente de IA a través de MCP (capítulo 24).
+
+```ts
+// cooper/backend/shared/actor.ts
+import 'newt/core'
+
+/**
+ * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
+ * through boards' MCP server, with an access token.
+ */
+export type ActorVia = 'web' | 'mcp'
+
+// newt knows one thing of the actor, its user. cooper adds how they came in, once,
+// here: every program loads it through `CooperBase`. Required, so every place that
+// says who acts says it too (`authenticateWith`, `runAsActor`): who someone is, never
+// what they may do.
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+El campo es **obligatorio**. A partir de ahora, todo sitio que diga quién actúa tiene
+que decir también `via`, o no compila: el autenticador, y `runAsActor` en tests y
+scripts. El compilador te encuentra cada uno de ellos.
+
+Limita el actor a quién es alguien y cómo ha entrado. No pongas nunca en él lo que
+puede hacer (sus espacios de trabajo, un rol): un permiso retirado seguiría estando en
+cada actor ya creado. Lo que alguien puede hacer se pregunta cada vez, al módulo que
+lo sabe.
+
+Carga el fichero desde `CooperBase`, para que lo tenga cada contexto. Añade una línea
+a los imports:
+
+```ts
+// cooper/backend/shared/cooper-base.ts
+import type { FileStore } from 'newt/adapter-files'
+import { Base } from 'newt/runtime'
+import { HttpRouter } from 'newt/http'
+import './actor'
+// …
+```
+
+Cualquier caso de uso, por profundo que esté, lee el actor con `currentActor()` de
+`newt/core`. Fuera de un actor lanza `NoActor`, que responde 401. newt tiene también
+`findCurrentActor()`, que devuelve `undefined` en vez de lanzar: para algo que puede
+hacer cualquiera, donde una persona con sesión ve más. `boards` no lo necesita; cooper
+lo usa en el capítulo 21.
+
+## Un puerto: lo que boards le pide a auth
+
+`boards` tiene que saber si alguien pertenece a un espacio de trabajo. La respuesta
+vive en otro contexto. Un módulo de `boards` no debe importar el código de `auth`, así
+que dice lo que necesita **con sus propias palabras**, como un tipo, y quien abre el
+contexto le da una implementación. Eso es un puerto.
+
+El módulo `member` es su dueño. Su fichero `.deps.ts` dice lo que recibe el módulo:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.deps.ts
+/**
+ * What `boards` needs to know of the workspaces, and asks whoever keeps them (auth's
+ * tenants and access): a port, in boards' own words, so this module depends on no
+ * module of auth. The context is handed one when it opens; a test, a fake.
+ */
+export type Workspaces = {
+  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
+  isMember(workspaceId: string, userId: string): Promise<boolean>
+}
+
+export interface Member_Deps {
+  workspaces: Workspaces
+}
+```
+
+Por ahora tiene un método. Capítulos posteriores añaden más (quién es un miembro, si
+existe un espacio de trabajo).
+
+`boards` tiene también una imagen de un miembro: quién es y adónde escribirle. El
+falso de más abajo los construye, y capítulos posteriores los muestran:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.schema.ts
+import { Email } from 'newt/contract'
+import { z } from 'zod'
+
+/** Someone who belongs to a workspace, as `boards` sees them: who they are, and where to write to them. auth keeps them. */
+export const MemberSchema = z.object({
+  /** Their user's id, in auth. */
+  id: z.string(),
+  name: z.string(),
+  email: Email.schema,
+})
+
+export type MemberDTO = z.infer<typeof MemberSchema>
+```
+
+Quien no es miembro recibe un 404, no un 403. Lo privado no admite que existe: un 403
+le diría a un extraño que el espacio `acme` está ahí.
+
+```ts
+// cooper/backend/contexts/boards/modules/member/errors/workspace-not-found.ts
+import { NotFoundError } from 'newt/core'
+
+/** A workspace the person does not belong to, or that does not exist: to them, the same thing. */
+export class WorkspaceNotFound extends NotFoundError {
+  readonly code = 'workspace.not_found'
+  constructor(id: string) {
+    super(`There is no workspace ${id}`)
+  }
+}
+```
+
+## El ámbito del espacio de trabajo
+
+El actor viaja con el trabajo: nunca pasas el id del usuario de mano en mano. El
+espacio de trabajo debería viajar igual. newt te da `defineScope` para cualquier valor
+así. Un ámbito tiene `run(value, fn)`, que ejecuta `fn` dentro de él; `current()`, que
+devuelve el valor o lanza fuera de él (con el error que des en `missing`); y `find()`,
+que devuelve `undefined` en vez de lanzar.
+
+```ts
+// cooper/backend/contexts/boards/workspace-scope.ts
+import { defineScope } from 'newt/core'
+import type { Member_Module } from './modules/member/member.module'
+
+/** The workspace the work in progress is about: an auth tenant, by its id. */
+export type WorkspaceScope = {
+  workspaceId: string
+}
+
+/**
+ * The workspace scope. A request under `/api/workspaces/:workspaceId` enters it once
+ * its person is checked to belong (`workspaceRoutes`), and so does an MCP tool
+ * (`inWorkspace`); a worker or a script, which knows its workspace already, enters it
+ * with `runInWorkspace`. Every repository of `boards` sees only its rows.
+ */
+export const workspaceScope = defineScope<WorkspaceScope>('workspace', {
+  missing: () => new Error('No workspace here: a route under /workspaces/:workspaceId, inWorkspace or runInWorkspace enters one'),
+})
+
+/** The id of the workspace the work in progress is about; throws outside one. */
+export function currentWorkspaceId(): string {
+  return workspaceScope.current().workspaceId
+}
+
+/** Runs in a workspace without checking who may: for workers and scripts, which already know. */
+export function runInWorkspace<T>(workspaceId: string, fn: () => T): T {
+  return workspaceScope.run({ workspaceId }, fn)
+}
+
+/** Runs in a workspace once the person signed in is checked to belong to it (404 otherwise): for the MCP tools. */
+export async function inWorkspace<T>(members: Member_Module, workspaceId: string, fn: () => Promise<T>): Promise<T> {
+  return workspaceScope.run(await members.enter(workspaceId), fn)
+}
+```
+
+Hay dos formas de entrar. `inWorkspace` comprueba que la persona con sesión pertenece
+al espacio; `runInWorkspace` no comprueba nada, para workers y scripts que ya saben de
+qué espacio trata su trabajo.
+
+La comprobación en sí es un caso de uso de `member`. Pregunta al puerto, cada vez, con
+el id del actor, y devuelve el ámbito en el que entrar:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.module.ts
+import { currentActor, Module, UseCase } from 'newt/core'
+import type { BoardsBase } from '../../boards-base'
+import type { WorkspaceScope } from '../../workspace-scope'
+import { WorkspaceNotFound } from './errors/workspace-not-found'
+import type { Member_Deps } from './member.deps'
+
+/**
+ * Who belongs to each workspace, as `boards` asks it: the module that knows,
+ * asked every time, never written in the actor. It keeps nothing: auth keeps the
+ * workspaces and their members, and answers through the `Workspaces` port.
+ */
+export class Member_Module extends Module {
+
+  static initialize(base: BoardsBase, deps: Member_Deps): Member_Module {
+    return new Member_Module(base, deps)
+  }
+
+  private constructor(base: BoardsBase, private readonly deps: Member_Deps) {
+    super('member', base.invocations)
+  }
+
+  /**
+   * The workspace scope for the signed-in person, if they belong to it: what a route
+   * under `/workspaces/:workspaceId` runs in. To anyone else it does not exist (404,
+   * not 403: a private thing does not own up to existing).
+   */
+  @UseCase()
+  async enter(workspaceId: string): Promise<WorkspaceScope> {
+    if (!await this.deps.workspaces.isMember(workspaceId, currentActor().userId)) throw new WorkspaceNotFound(workspaceId)
+    return { workspaceId }
+  }
+}
+```
+
+`member` no tiene repositorio ni tabla: no guarda nada. Es el único sitio de `boards`
+que sabe cómo se pregunta la pertenencia.
+
+## Rutas bajo un espacio de trabajo: un grupo con un middleware
+
+Toda ruta de un espacio de trabajo tiene que entrar en su ámbito, y ninguna puede
+olvidar la comprobación de pertenencia. En vez de llamar a `inWorkspace` en cada ruta,
+las registras en un **grupo**. `http.group(prefix, middleware)` devuelve un router para
+las rutas bajo `prefix`. Su middleware se ejecuta alrededor de cada una, después de
+comprobar la sesión: puede responder él, o seguir con `next()`, aquí dentro del ámbito
+del espacio de trabajo. Los parámetros de una ruta son los de su grupo y los suyos.
+
+```ts
+// cooper/backend/contexts/boards/workspace-routes.ts
+import type { BoardsBase } from './boards-base'
+import type { Member_Module } from './modules/member/member.module'
+import { workspaceScope } from './workspace-scope'
+
+/**
+ * The routes about one workspace, under `/api/workspaces/:workspaceId`: each one runs
+ * in that workspace once `member.enter` has checked the signed-in person belongs to it
+ * (404 for anyone else), so no use case below has to, nor can forget to. Every module
+ * of `boards` registers its routes on it.
+ */
+export function workspaceRoutes(base: BoardsBase, members: Member_Module) {
+  return base.http.group('/workspaces/:workspaceId', async (request, next) =>
+    workspaceScope.run(await members.enter(request.params.workspaceId), next))
+}
+```
+
+Si `enter` lanza `WorkspaceNotFound`, la ruta no llega a ejecutarse, y el router
+responde el 404 como responde cualquier error de dominio.
+
+## Un tablero pertenece a un espacio de trabajo
+
+El tablero gana un `workspaceId`. Añádelo al esquema, después de `id`:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.schema.ts
+export const BoardSchema = z.object({
+  id: z.uuidv7(),
+  /** The workspace it is in: an auth tenant, by id. */
+  workspaceId: z.string(),
+  name: BoardName.schema,
+// …
+```
+
+Es un id y nada más: el espacio de trabajo es de otro contexto, así que el tablero
+apunta a él y nunca lo contiene.
+
+La entidad lo recibe cuando se crea, y lo muestra. Sustituye `create` y añade el
+getter antes de `name`:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.ts
+  /** A new one, in its workspace: the name as someone typed it becomes a `BoardName`. */
+  static create(input: { workspaceId: string, name: string, description: string }): Board {
+    return new Board({ ...input, name: BoardName.from(input.name) }, true)
+  }
+
+  get workspaceId(): string {
+    return this.data.workspaceId
+  }
+// …
+```
+
+### El ámbito del repositorio
+
+Ahora, lo importante. Un repositorio cuyas filas pertenecen a un espacio de trabajo lo
+dice **una vez**, con la opción `scope` de `TableRepository`: el campo que guarda el
+espacio de trabajo, y una función que da el actual.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.repository.ts
+import { TableRepository } from 'newt/repository'
+import type { BoardsBase } from '../../boards-base'
+import { currentWorkspaceId } from '../../workspace-scope'
+import { Board, type BoardDTO } from './board'
+
+/** Its row: the board, its version, and when it was archived (soft deleted). */
+export type BoardRow = BoardDTO & { version: number, deletedAt: string | null }
+
+export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBase> {
+
+  constructor(base: BoardsBase) {
+    super(base, base.store.table<BoardRow>('board'), {
+      // Archiving stamps `deletedAt`: an archived board is in no list.
+      softDelete: true,
+      // Every find, count and page sees the current workspace's boards only.
+      scope: { field: 'workspaceId', current: currentWorkspaceId },
+    })
+  }
+
+  protected toEntity(row: BoardRow): Board {
+    return Board.fromDTO(row)
+  }
+
+  /**
+   * The boards created last, in every workspace: for the staff, who look across them
+   * on purpose. Archived ones stay out.
+   */
+  recentInEveryScope(limit: number): Promise<Board[]> {
+    return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
+  }
+}
+```
+
+Lo que garantiza `scope`:
+
+- `find`, `first`, `count` y `page` ven solo las filas del espacio de trabajo actual.
+  Ninguna consulta del módulo puede olvidar el filtro.
+- Guardar una entidad de otro espacio de trabajo, o una guardada en otro, lanza un
+  error.
+- Fuera de un espacio de trabajo, `currentWorkspaceId()` lanza, así que un worker o un
+  script tiene que entrar primero en uno.
+
+Así, `board.get(id)` con el id de un tablero de otro espacio de trabajo no encuentra
+nada: un `board.not_found`, la misma respuesta que para un id que no existe.
+
+A veces mirar a través de los espacios de trabajo es justo lo que se quiere: el
+backoffice del personal de cooper (capítulo 25) muestra los últimos tableros creados,
+estén donde estén. Eso pasa por el método protegido `findInEveryScope`, detrás de un
+método cuyo nombre lo dice, `recentInEveryScope`. Una revisión encuentra cada uno de
+esos sitios por su nombre.
+
+### El módulo
+
+`board` necesita ahora a `member`, para construir sus rutas del espacio de trabajo.
+Un módulo dice lo que recibe de otros módulos en su `.deps.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.deps.ts
+import type { Member_Module } from '../member/member.module'
+
+export interface Board_Deps {
+  /** Who may enter each workspace: its routes run in the workspace scope it gives. */
+  member: Member_Module
+}
+```
+
+En `board.module.ts`, importa los helpers del espacio de trabajo y las deps:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import type { BoardsBase } from '../../boards-base'
+import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
+// …
+import type { Board_Deps } from './board.deps'
+import { Board_Repository } from './board.repository'
+// …
+```
+
+Después, `initialize` recibe las deps y se las pasa a las rutas, y el comentario de la
+clase dice dónde se ejecutan sus casos de uso:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+/**
+ * The boards of each workspace. Every use case works in the current workspace (the
+ * scope its route, worker or script entered): the repository sees no other. Those
+ * another context calls name their workspace instead, and enter it.
+ */
+export class Board_Module extends Module {
+
+  static initialize(base: BoardsBase, deps: Board_Deps): Board_Module {
+    const module = new Board_Module(base, new Board_Repository(base))
+    registerBoardRoutes(base, module, deps)
+    return module
+  }
+// …
+```
+
+`list`, `get`, `update` y `archive` no cambian en absoluto: el ámbito del repositorio
+hace el trabajo. Solo su comentario dice ahora "the workspace's":
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+  /** A page of the workspace's boards, the newest first. */
+  @UseCase()
+  async list(page: PageRequest): Promise<Page<BoardDTO>> {
+    return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
+  }
+
+  /** For other contexts (the backoffice): a page of a workspace's boards, the newest first. */
+  @UseCase()
+  async listOf(workspaceId: string, page: PageRequest): Promise<Page<BoardDTO>> {
+    return runInWorkspace(workspaceId, () => this.list(page))
+  }
+
+  /**
+   * For the staff's backoffice: the boards created last, whatever their workspace. It
+   * reads every workspace on purpose, so it does not run in one: no person of a
+   * workspace reaches it (no route of boards calls it), and its repository says so by
+   * name (`findInEveryScope`), where a review sees it.
+   */
+  @UseCase()
+  async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+    const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+    return boards.map(board => board.toDTO())
+  }
+// …
+```
+
+Los dos casos de uso nuevos, `listOf` y `recentInEveryWorkspace`, son para otros
+contextos, que no tienen un ámbito de espacio de trabajo propio: `listOf` nombra su
+espacio de trabajo y entra en él, `recentInEveryWorkspace` mira en todos. Ninguna ruta
+de `boards` llama a ninguno de los dos.
+
+`create` marca el tablero nuevo con el espacio de trabajo actual. El cliente nunca lo
+envía: viene de la URL, comprobada por el middleware.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+  @UseCase()
+  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+    const { name, description } = BoardCreateSchema.parse(input)
+    const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
+    await this.repo.persist(board)
+    return board.toDTO()
+  }
+// …
+```
+
+### Las rutas
+
+Las rutas pasan de `base.http` al grupo del espacio de trabajo. Sus rutas siguen
+siendo `/boards…`; el grupo pone delante `/workspaces/:workspaceId`.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.routes.ts
+import { pageRequestFrom } from 'newt/http'
+import type { BoardsBase } from '../../boards-base'
+import { workspaceRoutes } from '../../workspace-routes'
+import type { BoardCreateDTO, BoardUpdateDTO } from './board'
+import type { Board_Deps } from './board.deps'
+import type { Board_Module } from './board.module'
+
+export function registerBoardRoutes(base: BoardsBase, boards: Board_Module, deps: Board_Deps): void {
+  const workspace = workspaceRoutes(base, deps.member)
+
+  workspace.get('/boards', async request => Response.json(await boards.list(pageRequestFrom(request))))
+
+  workspace.post('/boards', async request => {
+    const input = await request.json() as BoardCreateDTO
+    return Response.json(await boards.create(input), { status: 201 })
+  })
+
+  workspace.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
+
+  workspace.patch('/boards/:boardId', async request => {
+    const input = await request.json() as BoardUpdateDTO
+    return Response.json(await boards.update(request.params.boardId, input))
+  })
+
+  workspace.post('/boards/:boardId/archive', async request => {
+    await boards.archive(request.params.boardId)
+    return new Response(null, { status: 204 })
+  })
+}
+```
+
+## Cablear el contexto
+
+`initializeModules` recibe ahora lo que los módulos necesitan de fuera del contexto:
+el puerto. `member` va primero, porque `board` lo usa.
+
+```ts
+// cooper/backend/contexts/boards/initialize-modules.ts
+import type { Boards_Config } from './boards-config'
+import type { BoardsBase } from './boards-base'
+import { Board_Module } from './modules/board/board.module'
+import type { Workspaces } from './modules/member/member.deps'
+import { Member_Module } from './modules/member/member.module'
+
+/**
+ * What `boards`' modules are given besides its base: what they need of auth, as ports
+ * of their own (who belongs to each workspace). Whoever opens the context wires them.
+ */
+export type Boards_ModuleDeps = {
+  workspaces: Workspaces
+}
+
+/** Every module of `boards`, each one after the modules it uses. */
+export function initializeModules(base: BoardsBase, config: Boards_Config, deps: Boards_ModuleDeps) {
+  const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
+  const board = Board_Module.initialize(base, { member })
+  return { member, board }
+}
+
+export type Boards_Modules = ReturnType<typeof initializeModules>
+```
+
+`Boards_Context.open` recibe esas deps y las pasa:
+
+```ts
+// cooper/backend/contexts/boards/boards.context.ts
+import { FileStore } from 'newt/adapter-files'
+import { ServedContext } from '../../shared/served-context'
+import { BoardsBase } from './boards-base'
+import type { Boards_Config } from './boards-config'
+import { initializeModules, type Boards_ModuleDeps, type Boards_Modules } from './initialize-modules'
+
+/**
+ * The SaaS: each workspace's boards, their columns and cards. Its people belong to
+ * workspaces that `auth` keeps: `boards` asks it through ports it is handed when it opens.
+ */
+export class Boards_Context extends ServedContext {
+
+  private constructor(base: BoardsBase, readonly modules: Boards_Modules, readonly config: Boards_Config) {
+    super('boards', base, config)
+  }
+
+  static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+    const store = await FileStore.open({ folder: config.folder })
+    const base = new BoardsBase({ name: 'boards', store })
+    const modules = initializeModules(base, config, deps)
+    return new Boards_Context(base, modules, config)
+  }
+}
+```
+
+## Un auth falso
+
+Hasta el capítulo 17 no hay un `auth` que responda al puerto. Lo hace uno falso, en
+memoria. Vive en la carpeta `testing` de `boards`, y crece capítulo a capítulo según
+`boards` le pide más a `auth`:
+
+```ts
+// cooper/backend/contexts/boards/testing/fake-auth.ts
+import { Email } from 'newt/core'
+import type { Workspaces } from '../modules/member/member.deps'
+import type { MemberDTO } from '../modules/member/member.schema'
+
+/**
+ * auth, as `boards` needs it before there is one: who belongs to each workspace,
+ * kept in memory.
+ */
+export class FakeAuth {
+
+  private readonly members = new Map<string, Map<string, MemberDTO>>()
+
+  /** The port of who belongs to each workspace. */
+  readonly workspaces: Workspaces = {
+    isMember: async (workspaceId, userId) => this.members.get(workspaceId)?.has(userId) ?? false,
+  }
+
+  private constructor() {}
+
+  static async open(): Promise<FakeAuth> {
+    return new FakeAuth()
+  }
+
+  /** Someone joins a workspace: `<userId>@cooper.test`, named after their id. */
+  join(workspaceId: string, userId: string): MemberDTO {
+    const member = { id: userId, name: userId, email: Email.from(`${userId}@cooper.test`) }
+    const members = this.members.get(workspaceId) ?? new Map<string, MemberDTO>()
+    members.set(userId, member)
+    this.members.set(workspaceId, members)
+    return member
+  }
+}
+```
+
+Un espacio de trabajo aquí es cualquier id al que alguien se ha unido. Todavía no hay
+"crear un espacio de trabajo": eso también es de `auth`.
+
+### Tests: quién, y dónde
+
+`openTestBoards` abre `boards` con un `FakeAuth` detrás de su puerto, lo devuelve para
+que un test pueda decir quién pertenece a dónde, y gana `as(userId, workspaceId, fn)`:
+ejecuta `fn` como esa persona, en ese espacio de trabajo, tras la misma comprobación de
+pertenencia que hace una ruta. `runAsActor` (de `newt/core`) ejecuta una función como
+un actor, igual que el router ejecuta una ruta; fíjate en el `via` que ahora tiene que
+dar.
+
+```ts
+// cooper/backend/contexts/boards/testing/open-test-boards.ts
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { runAsActor } from 'newt/core'
+import { config } from '../../../config'
+import type { ActorVia } from '../../../shared/actor'
+import { Boards_Context } from '../boards.context'
+import { inWorkspace } from '../workspace-scope'
+import { FakeAuth } from './fake-auth'
+
+/**
+ * `boards` for a test: its files in a folder of its own, removed as it closes, a fake
+ * auth behind its ports, and who sends a request told by an `x-user` header.
+ */
+export async function openTestBoards() {
+  const auth = await FakeAuth.open()
+  const folder = await mkdtemp(join(tmpdir(), 'cooper-boards-'))
+  const boards = await Boards_Context.open({ ...config.boards, folder, port: 0 }, {
+    workspaces: auth.workspaces,
+  })
+  boards.base.http.authenticateWith(async request => {
+    const userId = request.headers.get('x-user')
+    return userId ? { userId, via: 'web' as const } : null
+  })
+  return {
+    auth,
+    boards,
+    modules: boards.modules,
+    folder,
+    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
+    as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
+      return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+    },
+    async close(): Promise<void> {
+      await boards.stop()
+      await rm(folder, { recursive: true, force: true })
+    },
+  }
+}
+
+export type TestBoards = Awaited<ReturnType<typeof openTestBoards>>
+```
+
+Los tests del módulo ejecutan ahora cada llamada como Ana, en `acme`. Bea está en
+`globex`, y el último test comprueba que no ve nada de `acme`: ni un tablero por su id
+(`board.not_found`), ni la lista (`workspace.not_found`). `listOf`, a la que llama otro
+contexto, no necesita ningún actor.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.test.ts
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { openTestBoards, type TestBoards } from '../../testing/open-test-boards'
+
+describe('board', () => {
+  let t: TestBoards
+
+  beforeEach(async () => {
+    t = await openTestBoards()
+    t.auth.join('acme', 'ana')
+    t.auth.join('globex', 'bea')
+  })
+
+  afterEach(() => t.close())
+
+  const inAcme = <T>(fn: () => Promise<T>) => t.as('ana', 'acme', fn)
+  const create = (name: string) => inAcme(() => t.modules.board.create({ name }))
+
+  test('lists a workspace\'s boards by pages, the newest first', async () => {
+    for (const name of ['Roadmap', 'Bugs', 'Launch']) await create(name)
+
+    const first = await inAcme(() => t.modules.board.list({ size: 2 }))
+    expect(first.items.map(board => String(board.name))).toEqual(['Launch', 'Bugs'])
+    expect(first).toMatchObject({ hasMore: true, total: 3 })
+
+    const next = await inAcme(() => t.modules.board.list({ size: 2, cursor: first.items[1]!.id }))
+    expect(next.items.map(board => String(board.name))).toEqual(['Roadmap'])
+    expect(next.hasMore).toBe(false)
+  })
+
+  test('keeps a name as a board\'s name: trimmed, one space between words, 1 to 60 characters', async () => {
+    expect(String((await create('  Road   map ')).name)).toBe('Road map')
+    await expect(create('   ')).rejects.toMatchObject({ code: 'board.invalid_name' })
+    await expect(create('x'.repeat(61))).rejects.toMatchObject({ code: 'board.invalid_name' })
+  })
+
+  test('renames a board, describes it, or both', async () => {
+    const bugs = await create('Bugs')
+
+    expect(await inAcme(() => t.modules.board.update(bugs.id, { description: 'What is broken' }))).toMatchObject({ name: 'Bugs', description: 'What is broken' })
+    expect(String((await inAcme(() => t.modules.board.update(bugs.id, { name: ' Known  bugs ' }))).name)).toBe('Known bugs')
+  })
+
+  test('archives a board: out of every list', async () => {
+    const roadmap = await create('Roadmap')
+
+    await inAcme(() => t.modules.board.archive(roadmap.id))
+
+    await expect(inAcme(() => t.modules.board.get(roadmap.id))).rejects.toMatchObject({ code: 'board.not_found' })
+    expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+  })
+
+  test('shows a workspace\'s boards to its members only, and nobody else\'s', async () => {
+    const roadmap = await create('Roadmap')
+
+    await expect(t.as('bea', 'globex', () => t.modules.board.get(roadmap.id))).rejects.toMatchObject({ code: 'board.not_found' })
+    await expect(t.as('bea', 'acme', () => t.modules.board.list({ size: 10 }))).rejects.toMatchObject({ code: 'workspace.not_found' })
+    expect((await t.modules.board.listOf('acme', { size: 10 })).items.map(board => board.id)).toEqual([roadmap.id])
+  })
+})
+```
+
+El test HTTP pasa a `/api/workspaces/…`. Su helper `call` pone `/workspaces` delante de
+cada ruta, y cada test nombra su espacio de trabajo:
+
+```ts
+// cooper/backend/contexts/boards/boards.context.test.ts
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { Server } from 'bun'
+import { join } from 'node:path'
+import { serve } from 'newt/http'
+import { openTestBoards, type TestBoards } from './testing/open-test-boards'
+
+describe('boards, through its API', () => {
+  let t: TestBoards
+  let server: Server<undefined>
+
+  beforeEach(async () => {
+    t = await openTestBoards()
+    t.auth.join('acme', 'ana')
+    t.auth.join('globex', 'bea')
+    server = serve(t.boards.serving())
+  })
+
+  afterEach(async () => {
+    await server.stop()
+    await t.close()
+  })
+
+  const call = async <T = Record<string, unknown>>(method: string, path: string, body?: unknown, user: string | null = 'ana') => {
+    const headers: Record<string, string> = { 'content-type': 'application/json' }
+    if (user) headers['x-user'] = user
+    const response = await fetch(new URL(`/api/workspaces${path}`, server.url), { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+    return { status: response.status, body: (response.status === 204 ? null : await response.json()) as T }
+  }
+
+  test('answers its health without a session', async () => {
+    const response = await fetch(new URL('/api/health', server.url))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'ok' })
+  })
+
+  test('lets only a workspace\'s members in, and tells nobody else it exists', async () => {
+    expect((await call('GET', '/acme/boards', undefined, null)).status).toBe(401)
+    expect(await call('GET', '/acme/boards', undefined, 'bea')).toMatchObject({ status: 404, body: { code: 'workspace.not_found' } })
+    expect(await call('GET', '/acme/boards')).toMatchObject({ status: 200, body: { items: [], total: 0 } })
+  })
+
+  test('keeps a board as a file of its own, and gives it back', async () => {
+    const board = await call<{ id: string, name: string }>('POST', '/acme/boards', { name: 'Roadmap' })
+    expect(board).toMatchObject({ status: 201, body: { name: 'Roadmap', description: '' } })
+    const id = board.body.id
+
+    expect(await Bun.file(join(t.folder, 'board', `${id}.json`)).json()).toMatchObject({ id, name: 'Roadmap', version: 1 })
+    expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
+    expect((await call('GET', `/acme/boards/${id}`)).body).toMatchObject({ id, name: 'Plans' })
+    expect((await call('POST', `/acme/boards/${id}/archive`)).status).toBe(204)
+    expect((await call('GET', `/acme/boards/${id}`)).body).toMatchObject({ code: 'board.not_found' })
+  })
+
+  test('shows a board to its workspace only', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+
+    expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)
+  })
+
+  test('lists boards by pages: ?size= and ?cursor=', async () => {
+    for (const name of ['Roadmap', 'Bugs', 'Launch']) await call('POST', '/acme/boards', { name })
+
+    const first = await call<{ items: { id: string, name: string }[] }>('GET', '/acme/boards?size=2')
+    expect(first.body).toMatchObject({ items: [{ name: 'Launch' }, { name: 'Bugs' }], hasMore: true, total: 3 })
+    expect((await call('GET', `/acme/boards?size=2&cursor=${first.body.items[1]!.id}`)).body).toMatchObject({ items: [{ name: 'Roadmap' }], hasMore: false })
+  })
+
+  test('answers what went wrong as { error, code }, with the status its error says', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+
+    expect(await call('GET', `/acme/boards/${Bun.randomUUIDv7()}`)).toMatchObject({ status: 404, body: { code: 'board.not_found' } })
+    expect(await call('POST', '/acme/boards', { name: ' ' })).toMatchObject({ status: 400, body: { code: 'board.invalid_name' } })
+    expect(await call('PATCH', `/acme/boards/${id}`, { description: 'x'.repeat(501) })).toMatchObject({ status: 400, body: { code: 'validation', issues: [{ path: ['description'] }] } })
+    expect(await call('GET', '/acme/nothing/here')).toMatchObject({ status: 404, body: { code: 'route_not_found' } })
+
+    const malformed = await fetch(new URL('/api/workspaces/acme/boards', server.url), { method: 'POST', headers: { 'content-type': 'application/json', 'x-user': 'ana' }, body: '{ "name": ' })
+    expect([malformed.status, (await malformed.json() as { code: string }).code]).toEqual([400, 'malformed_body'])
+  })
+})
+```
+
+## El servidor de desarrollo
+
+`index.ts` abre también un `FakeAuth`, con Ana en `acme` y Bea en `globex`, y su
+autenticador dice `via: 'web'`. Sustituye las líneas desde la llamada a
+`setCooperMessages()` hasta `boards.start()`, y añade el import:
+
+```ts
+// cooper/backend/index.ts
+import { Boards_Context } from './contexts/boards/boards.context'
+import { FakeAuth } from './contexts/boards/testing/fake-auth'
+import { setCooperMessages } from './shared/messages'
+
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
+
+// For now auth is a fake one, in memory: ana is in acme, bea in globex (chapter 17 brings the real one).
+const auth = await FakeAuth.open()
+auth.join('acme', 'ana')
+auth.join('globex', 'bea')
+
+const boards = await Boards_Context.open(config.boards, { workspaces: auth.workspaces })
+// For now, who sends a request says who they are in an `x-user` header (chapter 22 signs them in).
+boards.base.http.authenticateWith(async request => {
+  const userId = request.headers.get('x-user')
+  return userId ? { userId, via: 'web' as const } : null
+})
+// …
+```
+
+Un programa que no es un test e importa de `testing/` es un apaño provisional, y lo
+dice en su comentario: el capítulo 20 lo quita.
+
+## Compruébalo
+
+```sh
+bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+```
+
+Los tableros que creaste en capítulos anteriores no tienen espacio de trabajo, así que
+ningún espacio los lista. Borra `data/boards` si quieres empezar de cero. Luego
+arranca el servidor:
+
+```sh
+bun cooper/backend/index.ts
+```
+
+En otra terminal, Ana crea un tablero en `acme` y lo lista:
+
+```sh
+curl -X POST -H 'x-user: ana' -H 'content-type: application/json' -d '{"name":"Roadmap"}' localhost:3002/api/workspaces/acme/boards
+# {"id":"01a1…","workspaceId":"acme","name":"Roadmap","description":"","createdAt":"…","updatedAt":"…"}
+curl -H 'x-user: ana' localhost:3002/api/workspaces/acme/boards
+# {"items":[{"id":"01a1…","workspaceId":"acme","name":"Roadmap",…}],"hasMore":false,"total":1}
+```
+
+Bea no está en `acme`. Para ella no existe:
+
+```sh
+curl -H 'x-user: bea' localhost:3002/api/workspaces/acme/boards
+# {"error":"There is no workspace acme","code":"workspace.not_found"}
+```
+
+Y sin `x-user` no hay nadie a quien comprobar:
+
+```sh
+curl localhost:3002/api/workspaces/acme/boards
+# {"error":"You are not signed in, or your session has ended: sign in to go on","code":"not_signed_in"}
+```
+
+## Qué recordar
+
+- **Quién** es el actor: `currentActor()`, nunca un id de usuario pasado a mano.
+  Amplíalo con `declare module 'newt/core'` para quién es alguien y cómo ha entrado,
+  nunca para lo que puede hacer.
+- **Si puede** se pregunta cada vez, al módulo que lo sabe (`member.enter`), y un
+  extraño recibe un 404, no un 403.
+- **Dónde** es un ámbito (`defineScope`), en el que entra una sola vez el middleware de
+  un grupo. Un repositorio con `scope` ve solo las filas del espacio de trabajo actual,
+  así que ninguna consulta puede olvidar el filtro; mirar a través de los espacios de
+  trabajo es `findInEveryScope`, detrás de un nombre que lo dice.
+- Lo que un contexto necesita de otro es un **puerto** con sus propias palabras, en el
+  `.deps.ts` del módulo, que se entrega al abrir el contexto. Un test le entrega un
+  falso.
+
+Siguiente: [De ficheros a SQLite](./05-sqlite).

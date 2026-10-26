@@ -1,14 +1,15 @@
 # Introducción
 
-Esta guía te enseña a construir un backend con newt. Va de lo sencillo a lo complejo,
-como un libro: cada capítulo se apoya en el anterior, y al acabar habrás leído el
-backend de una aplicación entera y sabrás por qué está hecho como está.
+Este tutorial te enseña a construir un backend con newt construyendo uno: cooper.
+Empiezas con un repositorio que tiene el framework y ninguna aplicación, y escribes el
+backend de cooper capítulo a capítulo. Al final de cada capítulo el proyecto compila,
+sus tests pasan, su lint está limpio y puedes arrancarlo y preguntarle algo.
 
 No explica cómo funciona el framework por dentro. Explica **cómo se usa**: qué piezas
 hay, cómo se combinan, qué garantiza cada una y qué decisiones te tocan a ti. Cuando
-la guía dice "el framework garantiza X", puedes fiarte sin saber cómo lo consigue.
+un capítulo dice "newt garantiza X", puedes fiarte sin saber cómo lo consigue.
 
-## Lo que vas a leer: cooper
+## Lo que vas a construir: cooper
 
 cooper es un Trello pequeño: espacios de trabajo (*workspaces*) con tableros, tableros
 con columnas, columnas con tarjetas. Alrededor tiene lo que tiene un SaaS de verdad:
@@ -23,6 +24,8 @@ su propio servidor:
 | `auth` | Quién es cada uno: cuentas, workspaces, quién puede entrar en qué, y el servidor OAuth con el que entran todas las apps. | 3001 |
 | `boards` | El SaaS en sí: los tableros, columnas y tarjetas de cada workspace, en la web y por MCP. | 3002 |
 | `backoffice` | La consola del personal: lee `auth` y `boards`. | 3003 |
+
+Construyes `boards` primero, solo, y los otros dos cuando ya se sostiene.
 
 ### Dos tipos de personas
 
@@ -60,119 +63,14 @@ para `boards`. Con él llama a herramientas como `list_boards`, `create_card` o
 Aun así, cooper sabe por dónde llegó cada cambio: quien actúa dice si fue por la web o
 por MCP, y la actividad de cada tarjeta lo enseña.
 
-cooper también tiene tres frontends web, uno por contexto, en `cooper/frontend`. Esta
-guía no los trata: va del backend.
-
-## Lo que vas a aprender
-
-| Parte | Capítulos | Qué enseña |
-|---|---|---|
-| Primeros pasos | [1](./01-the-project) – [4](./04-use-cases) | El proyecto, un contexto, tu primer módulo, los casos de uso. |
-| Quién y dónde | [5](./05-who-and-where) | El actor, el inicio de sesión, los permisos, el ámbito del workspace. |
-| Guardar sin miedo | [6](./06-transactions) – [9](./09-shared-counters) | Transacciones, dos personas cambiando una tarjeta, reglas sobre varias filas, contadores que todos cambian. |
-| Eventos | [10](./10-events) – [16](./16-sagas) | Eventos, workers, consistencia eventual, workers que se pueden repetir, emails, fallos, sagas. |
-| Crecer | [17](./17-modules-talk) – [19](./19-several-contexts) | Módulos que hablan, referencias, varios contextos. |
-| Lo propio de cooper | [20](./20-oauth-server) – [22](./22-backoffice) | Un servidor OAuth, un servidor MCP, el backoffice. |
-| Datos y producción | [23](./23-search) – [26](./26-production) | Búsquedas, migraciones, tests, producción. |
-
-Todos los capítulos siguen los mismos pasos: el problema, lo que newt te da para
-resolverlo, el código (copiado de cooper, con su ruta encima), cómo comprobar que
-funciona y la regla que conviene recordar.
-
-## Arrancarlo
-
-Necesitas [Bun](https://bun.sh) 1.4 o posterior. newt solo funciona con Bun.
-
-```bash
-bun install
-bun run cooper:seed
-bun run cooper
-```
-
-`bun run cooper:seed` escribe los datos de demostración a través de los casos de uso
-de los contextos, como lo haría cualquiera: una cuenta del personal, el workspace Acme
-de Ana con dos tableros (Welcome y Launch), y Bob, que entró en Acme aceptando la
-invitación de Ana. Puedes ejecutarlo otra vez: lo que ya está se queda. Los emails que
-envía salen por la consola. Al terminar imprime:
-
-```
-cooper is seeded. Every account's password is
-  cooper-demo
-
-  staff@cooper.dev   the staff: the backoffice, http://localhost:5173
-  ana@cooper.dev     Acme's admin, http://localhost:5172: its boards Welcome and Launch
-  bob@cooper.dev     a member of Acme, who accepted Ana's invitation
-
-  MCP server         http://localhost:5172/mcp (OAuth: sign in as Ana or Bob)
-```
-
-`bun run cooper` arranca el backend (los tres contextos en un proceso, cada uno en su
-puerto) y un servidor de Vite por frontend, y reinicia el backend con cada cambio.
-Cuando todo responde, imprime dónde vive cada app:
-
-```
-  auth        http://localhost:5171  (API on port 3001)
-  boards      http://localhost:5172  (API on port 3002)
-  backoffice  http://localhost:5173  (API on port 3003)
-```
-
-Abre `http://localhost:5172` y entra como `ana@cooper.dev` con `cooper-demo`. Pulsa
-Ctrl+C para pararlo todo. Lo que guarda cooper va a `data/`, un fichero SQLite por
-contexto: borra la carpeta para empezar de cero.
-
-::: tip Consejo
-Cada puerto y cada URL se pueden cambiar con una variable de entorno
-(`COOPER_BOARDS_PORT`, `COOPER_BOARDS_PUBLIC_URL`…). El capítulo [2](./02-a-context)
-enseña dónde se leen. Cada servidor de Vite lee el mismo `COOPER_<NAME>_PORT`, así que
-sigue encontrando su API.
-:::
-
-## El mapa del repositorio
-
-Solo el backend, que es de lo que va la guía:
-
-```
-packages/
-  newt/                   el framework: newt/core, newt/runtime, newt/http…
-  newt-eslint/            el lint de una aplicación hecha con newt
-cooper/
-  backend/
-    index.ts              abre los contextos, sirve cada uno, los para
-    config.ts             la configuración, de variables de entorno
-    open-contexts.ts      abre auth, boards y backoffice, en ese orden
-    shared/               lo que usan todos los contextos: su base, su servidor, el actor, la sesión web,
-                          el outbox, un mailer, un tracer, los mensajes de newt con palabras de cooper
-    contexts/
-      auth/               cuentas, workspaces, accesos, invitaciones, el servidor OAuth
-      boards/             tableros, columnas y tarjetas; el servidor MCP en mcp/
-      backoffice/         la consola del personal
-  scripts/
-    dev.ts                bun run cooper
-    seed.ts               bun run cooper:seed
-    migrations.ts         bun run cooper:migrations
-data/                     los ficheros SQLite (fuera de git)
-```
-
-Dentro de un contexto hay siempre las mismas piezas, y dentro de cada uno de sus
-módulos, los mismos ficheros. Este es `boards`, el contexto que construirás primero:
-
-```
-cooper/backend/contexts/boards/
-  boards.context.ts       el contexto: abre su store, sus módulos y su servidor
-  boards-base.ts          lo que recibe cada uno de sus módulos
-  boards-config.ts        su configuración
-  initialize-modules.ts   sus módulos, cada uno después de los que usa
-  migrations/             sus tablas, en SQL
-  modules/
-    board/  column/  card/  member/  workspace/  activity/
-  mcp/                    su servidor MCP
-  testing/                lo que abren sus tests
-```
+cooper también tiene tres frontends web, uno por contexto. El tutorial va del backend:
+los frontends se copian del repositorio en el capítulo [23](./23-frontends), donde se
+ve qué comparten con el backend.
 
 ## Las piezas
 
-Antes de escribir código conviene tener el mapa de las piezas. Un backend hecho con
-newt se compone siempre de las mismas pocas:
+Un backend hecho con newt se compone siempre de las mismas pocas piezas. Conocerás cada
+una en su capítulo; aquí va el mapa:
 
 | Pieza | Qué es | En cooper |
 |---|---|---|
@@ -181,50 +79,210 @@ newt se compone siempre de las mismas pocas:
 | **Entidad** | Lo que guarda un módulo, con su comportamiento. | `Board`, `Card`, `Tenant`. |
 | **Caso de uso** | Cada cosa que se le puede pedir a un módulo. | `board.create`, `card.move`. |
 | **Repositorio** | Lo único que lee y escribe las entidades de un módulo. | `Board_Repository`. |
-| **Store** | Donde un contexto guarda sus datos. | SQLite, un fichero por contexto. |
+| **Store** | Donde un contexto guarda sus datos. | Ficheros planos al principio, luego SQLite, luego Postgres. |
 | **Evento** | Algo que ha pasado, contado a quien quiera escucharlo. | `card.assigned`, `tenant.created`. |
 | **Worker** | Código que reacciona a un evento, después y por su cuenta. | Avisar por email a quien le asignan una tarjeta. |
 
 Así viaja una petición por ellas:
 
 ```
-cliente ── POST /api/workspaces/:id/cards/:cardId/assign ──▶ ruta
-ruta ── card.assign ──▶ caso de uso ── cambia ──▶ Card (entidad)
-caso de uso ── persist ──▶ repositorio ── transacción ──▶ store
-                           repositorio ┄┄ evento card.assigned ┄┄▶ worker ── envía el email
+client ── POST /api/workspaces/:id/cards/:cardId/assign ──▶ route
+route ── card.assign ──▶ use case ── changes ──▶ Card (entity)
+use case ── persist ──▶ repository ── transaction ──▶ store
+                         repository ┄┄ event card.assigned ┄┄▶ worker ── sends the email
 ```
 
 Fíjate en la flecha de puntos. La ruta responde al cliente en cuanto la tarjeta está
 guardada; el worker trabaja después, por su cuenta. Esa separación entre **lo que pasa
-ahora** y **lo que pasa enseguida** es la idea más importante de esta guía. Tiene
-nombre, *consistencia eventual*, y los capítulos [10](./10-events) a
-[16](./16-sagas) tratan de ella.
+ahora** y **lo que pasa enseguida** es la idea más importante de newt. Tiene nombre,
+*consistencia eventual*, y la Parte II trata de ella.
 
-## Las reglas que nunca se rompen
+## El mapa
 
-Unas pocas reglas mantienen el código ordenado mientras la aplicación crece. Aquí van
-todas juntas. No hace falta que las entiendas aún: cada una se explica en su capítulo,
-y conviene volver a esta lista de vez en cuando.
+El tutorial tiene seis partes. Cada capítulo añade algo a lo que dejó el anterior.
 
-1. **Un módulo, una responsabilidad.** Si para describirlo necesitas un "y", son dos.
-2. **Una ruta no piensa.** Lee la petición, llama a un caso de uso y responde.
-3. **Solo la entidad se cambia a sí misma**, con métodos que dicen qué ha pasado.
-4. **Solo el repositorio toca el store.**
-5. **Una transacción es un guardado**, no un caso de uso entero.
-6. **Un módulo lee de otros cuando quiere, pero escribe en otro solo desde un
-   worker**, reaccionando a un evento.
-7. **Lo irreversible (un email, un cobro) sale de un worker**, nunca de un caso de uso.
-8. **Un worker puede ejecutarse más de una vez**, así que debe dar igual que lo haga.
-9. **Las dependencias entre módulos nunca forman un círculo.**
-10. **Un módulo apunta a lo de otro solo por su id**, nunca por la entidad ni por su
-    tabla.
-11. **Ninguna lista se devuelve entera** salvo que una regla del dominio la acote (como mucho 10 columnas, 500 cards); las demás van por páginas.
+**Parte I: un primer contexto.** `boards`, solo, desde una carpeta vacía hasta
+tableros, columnas y tarjetas que varias personas cambian a la vez.
+
+| Capítulo | Qué añade |
+|---|---|
+| [1. El proyecto y un contexto](./01-project-and-context) | El proyecto TypeScript de cooper y su lint, el contexto `boards` sobre ficheros planos, su salud. |
+| [2. El primer módulo: tableros](./02-first-module) | El módulo `board`, entero: entidad, esquema, value object, errores, repositorio, casos de uso, rutas. |
+| [3. Casos de uso, páginas y errores](./03-pages-and-errors) | Listas por páginas, y cada error contestado con las palabras de cooper. |
+| [4. Quién y dónde](./04-who-and-where) | El actor, el ámbito del workspace, un grupo de rutas con su middleware. |
+| [5. De ficheros a SQLite](./05-sqlite) | SQLite y sus migraciones, sin cambiar ningún módulo. |
+| [6. Reglas sobre filas](./06-rules-over-rows) | Columnas, y reglas que valen sobre varias filas: como mucho diez, un nombre por workspace. |
+| [7. Tarjetas y un contador compartido](./07-cards-and-a-counter) | Tarjetas, numeradas por un contador que todos cambian a la vez. |
+| [8. Dos personas, una tarjeta](./08-two-people-one-card) | Versiones, conflictos y el caso de uso que se repite. |
+| [9. Preguntar dos veces: POST idempotentes](./09-idempotent-posts) | Una petición enviada dos veces que hace su trabajo una sola. |
+
+**Parte II: eventos.** Lo que pasa después de un guardado, y en otros módulos.
+
+| Capítulo | Qué añade |
+|---|---|
+| [10. Eventos](./10-events) | Eventos de dominio, publicados cuando el guardado se confirma. |
+| [11. Reaccionar: handlers y el outbox](./11-reacting) | Workers sobre una cola, escrita en la misma transacción que el cambio. |
+| [12. Lo irreversible, y los fallos](./12-failures) | Emails desde un worker, intentos, espera entre reintentos y trabajos muertos. |
+| [13. Escuchar a otro contexto](./13-another-context) | Una fuente de eventos como puerto, y la regla de quién escribe dónde. |
+| [14. Sagas: un workspace va y viene](./14-sagas) | Un flujo por varios módulos que converge. |
+| [15. Consultas que una tabla no sabe decir: Kysely](./15-kysely) | Kysely sobre el store, y los filtros que un cliente puede enviar. |
+| [16. Un puerto de búsqueda propio](./16-search-port) | Un puerto, su adaptador en memoria y su suite de contrato. |
+
+**Parte III: auth.** Un segundo contexto, y los dos hablando.
+
+| Capítulo | Qué añade |
+|---|---|
+| [17. Un segundo contexto: auth](./17-auth) | Usuarios y sesiones, secretos fuera de los DTO, varios contextos en un proceso. |
+| [18. Tenants y accesos](./18-tenants-and-access) | Workspaces y quién puede entrar en ellos. |
+| [19. Invitaciones y tiempo](./19-invitations-and-time) | Un reloj que controlas, programaciones y cron. |
+| [20. Conectar los contextos](./20-wiring-contexts) | `boards` sobre el `auth` de verdad, y el lint entre contextos. |
+
+**Parte IV: iniciar sesión de verdad.**
+
+| Capítulo | Qué añade |
+|---|---|
+| [21. Un servidor OAuth](./21-oauth-server) | `auth` como servidor OAuth 2.1, rutas fuera de `/api`, CORS. |
+| [22. Entrar en boards: la sesión web](./22-web-session) | Cookies y sesiones; la cabecera `x-user` desaparece. |
+| [23. Los frontends y newt/contract](./23-frontends) | Las apps web, y lo que comparten con el backend. |
+| [24. Un servidor MCP](./24-mcp-server) | Tokens bearer y herramientas que llaman a los mismos casos de uso. |
+
+**Parte V: el backoffice.**
+
+| Capítulo | Qué añade |
+|---|---|
+| [25. Un tercer contexto que lee a dos](./25-backoffice) | La consola del personal, a través de los casos de uso de los otros contextos. |
+| [26. Trabajos muertos y analítica](./26-dead-jobs-and-analytics) | El outbox visto desde fuera, y un puerto de analítica. |
+
+**Parte VI: producción.**
+
+| Capítulo | Qué añade |
+|---|---|
+| [27. Postgres, MySQL y migraciones en producción](./27-postgres) | Un servidor de base de datos, migraciones por dialecto, y ejecutarlas a mano. |
+| [28. Observabilidad](./28-observability) | Trazas, a la consola o a OpenTelemetry. |
+| [29. Ponerlo en marcha](./29-shipping) | El build, la configuración, y las reglas una vez más. |
+
+Los apéndices reúnen lo que los capítulos enseñan de uno en uno:
+[A. Las reglas de oro](./a-golden-rules), [B. Anatomía de un módulo y lint](./b-module-anatomy),
+[C. Problemas comunes](./c-common-problems), [D. Escribir un store](./d-writing-a-store)
+y [E. Índice](./e-index), que dice qué capítulo enseña cada export de newt.
+
+## Cómo trabajas
+
+Necesitas [git](https://git-scm.com) y [Bun](https://bun.sh) 1.4 o posterior. newt solo
+funciona con Bun: sus stores se construyen sobre `bun:sqlite` y `Bun.SQL`, y su servidor
+sobre `Bun.serve`.
+
+Clona el repositorio de newt y ve al comienzo del tutorial:
+
+```sh
+git clone https://github.com/aromero86/newt.git
+cd newt
+git checkout tutorial/00
+bun install
+```
+
+`tutorial/00` es una etiqueta (*tag*): el repositorio tal como está antes del capítulo
+1. Haz sobre ella una rama propia, para que tu trabajo tenga nombre:
+
+```sh
+git switch -c my-cooper
+```
+
+### Qué hay al empezar
+
+El repositorio es un único workspace de Bun. En `tutorial/00` tiene:
+
+```
+package.json          the workspace: newt, newt-eslint, typescript, eslint, vitepress
+tsconfig.json         the repository's TypeScript projects: for now only newt's
+tsconfig.newt.json    newt's project: the framework and its tests
+eslint.config.js      lints nothing yet: the framework's code is left out
+packages/
+  newt/               the framework: newt/core, newt/runtime, newt/http…
+  newt-eslint/        the lint of an application built with newt
+web/                  this site
+```
+
+El `package.json` de la raíz ya depende de `newt` (`"workspace:*"`) y tiene
+`newt-eslint` entre sus dependencias de desarrollo. cooper importa el framework por su
+nombre, `newt/core`, `newt/http`, exactamente como una aplicación que hubiera ejecutado
+`bun add newt`: cada entrada es uno de los `exports` de `packages/newt/package.json`, y
+nada más del paquete se puede importar.
+
+No hay carpeta `cooper/`. La creas en el capítulo 1.
+
+### Un capítulo, una etiqueta
+
+Cada capítulo termina en una etiqueta: el capítulo 1 en `tutorial/01`, el 2 en
+`tutorial/02`, y así hasta `tutorial/29`, que es cooper entero. Un capítulo muestra cada
+línea que escribes, con su ruta encima. Un fichero mostrado entero es nuevo, o se
+sustituye entero; un fichero mostrado por partes lleva `// …` donde sus otras líneas se
+quedan como estaban, y el texto dice dónde va cada parte.
+
+Cuando acabes un capítulo, compara lo que has escrito con su etiqueta:
+
+```sh
+git diff tutorial/03 -- cooper
+```
+
+Para ver todo lo que cambia un capítulo, antes o después de leerlo:
+
+```sh
+git diff tutorial/02 tutorial/03
+```
+
+Si te quedas atrás, o quieres saltarte un capítulo, toma el código de su etiqueta:
+
+```sh
+git checkout tutorial/03 -- cooper
+```
+
+Eso trae `cooper/` como lo tiene la etiqueta. Añade y sustituye ficheros, y deja en paz
+los que tú tienes y la etiqueta no: `git diff tutorial/03 -- cooper` te los enseña.
+Algunos capítulos también cambian ficheros de la raíz (`package.json`, `tsconfig*.json`,
+`eslint.config.js`): el capítulo lo dice, y los tomas igual, y después ejecutas
+`bun install`:
+
+```sh
+git checkout tutorial/03 -- cooper package.json bun.lock tsconfig.json tsconfig.backend.json eslint.config.js
+bun install
+```
+
+Unos pocos capítulos copian ficheros del repositorio en vez de hacerte escribirlos (los
+frontends, código de protocolo que el capítulo resume). Dicen exactamente qué rutas, y
+de qué etiqueta.
+
+### La puerta
+
+Todos los capítulos terminan con las mismas cuatro comprobaciones:
+
+```sh
+bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+```
+
+- `bunx tsc -b --noEmit` comprueba los tipos de cada proyecto al que hace referencia el
+  `tsconfig.json` de la raíz: el de newt y, desde el capítulo 1, el del backend de
+  cooper. No imprime nada si todo va bien.
+- `bun test cooper` ejecuta los tests de cooper. La comprobación de cada capítulo es
+  también un test, así que lo que pruebas a mano se vuelve a comprobar cada vez.
+- `bun run lint` ejecuta ESLint con el preset de newt sobre el backend de cooper.
+
+En `tutorial/00` todavía no hay cooper: ejecuta `bun test`, que corre los tests del
+propio newt, para ver que el repositorio está sano antes de empezar.
+
+Después cada capítulo tiene su propio "Compruébalo": el servidor arrancado a mano y
+unas líneas de `curl` con lo que responden.
 
 ## En resumen
 
 - cooper tiene tres contextos: `auth` (identidad y OAuth), `boards` (el SaaS, con un
-  servidor MCP) y `backoffice` (la consola del personal).
+  servidor MCP) y `backoffice` (la consola del personal). Construyes `boards` primero.
 - Los miembros usan workspaces; el personal usa el backoffice. En `auth`, un workspace
-  es un tenant, y ser miembro es tener acceso a un producto.
-- `bun install`, `bun run cooper:seed`, `bun run cooper`; contraseña `cooper-demo`.
-- La guía va del backend: `cooper/backend` y el framework, en `packages/newt`.
+  es un tenant y ser miembro es tener acceso a un producto.
+- Clona, `git checkout tutorial/00`, `bun install`. Cada capítulo termina en
+  `tutorial/NN`; `git diff tutorial/NN-1 tutorial/NN` lo enseña,
+  `git checkout tutorial/NN -- cooper` te pone al día.
+- La puerta, al final de cada capítulo:
+  `bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint`.
+
+Empieza por el [capítulo 1: el proyecto y un contexto](./01-project-and-context).
