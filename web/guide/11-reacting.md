@@ -23,8 +23,25 @@ The options say the strategy. There is no default: you choose each time, on purp
 | Where it lives | In memory. | A job, saved in the store. |
 | What for | What you can lose: clearing a cache, a metric. | Everything that matters: an email, a change in another module. |
 
-`'fire-and-forget'` is as simple as it sounds. cooper's own code never uses it; its
-tests do, to count events (you saw it in the [previous chapter](./10-events)):
+`'fire-and-forget'` is as simple as it sounds. cooper uses it once, for a line in the
+server's log each time a card moves, so you can watch a board live while tracing:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+// A line in the server's log as each card moves, to watch a board live while
+// tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
+// or the server stops before it runs, the line is lost, and nothing is wrong: no
+// one needs it later, and the log above keeps the move for good (ch. 13.1).
+events.moved.subscribe(({ dto, previous, by, via }) => {
+  options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
+}, { strategy: 'fire-and-forget' })
+```
+
+`options.log` writes to the console when `COOPER_TRACE=1`, and nowhere otherwise.
+Losing a line is fine: it is there to watch, not to keep. The move itself is kept
+for good by a `'handler'` in the same file, which you will see below.
+
+Its tests use it too, to count events (you saw it in the [previous chapter](./10-events)):
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
@@ -46,14 +63,14 @@ calls. These are the card module's:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
-  // An assignee hears of it once it is saved: a card created for someone, or given to them.
-  cards.events.created.subscribe(async card => {
-    if (card.assigneeId !== null) await cards.notifyAssignee(card)
+  // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
+  cards.events.created.subscribe(async ({ by, ...card }) => {
+    if (card.assigneeId !== null) await cards.notifyAssignee(card, by)
   }, {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
   })
-  cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.assigned',
   })
@@ -91,7 +108,8 @@ cards unassign that member". Four reactions, three sources: the module's own eve
 another module's (`column`), and another context's (`access`, in auth).
 
 - The callback receives the event's payload and calls one use case of the module
-  that reacts, with what that use case needs: here `dto`, not the whole payload.
+  that reacts, with what that use case needs: here the card and `by`, who did it,
+  not the whole payload.
 - The callback may decide whether the event concerns it. A card created without an
   assignee needs no email. auth revokes accesses to every product, and only a
   workspace's matters here. That is a condition on the event, never business logic:
@@ -113,6 +131,39 @@ export type AccessEvents = {
 
 auth's `access.events` fits it, and a test hands its own. [Several contexts](./19-several-contexts)
 comes back to this.
+
+### A module made of reactions: the activity log
+
+Some modules exist only to react. boards keeps each card's history, its activity: who
+created it, edited it, moved it, assigned it, and how they came in. The card module
+knows nothing of it. The activity module listens to the six card events and records
+each one:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
+  const { events } = deps.card
+  events.created.subscribe(card => activity.recordCreated(card), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  events.edited.subscribe(edit => activity.recordEdited(edit), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
+  events.moved.subscribe(move => activity.recordMoved(move), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
+  events.assigned.subscribe(assignment => activity.recordAssigned(assignment), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
+  events.unassigned.subscribe(unassignment => activity.recordUnassigned(unassignment), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
+  events.deleted.subscribe(card => activity.recordDeleted(card), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
+
+  // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
+  deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+    strategy: 'handler',
+    queue: 'activity.purgeWorkspace.on.tenant.deleted',
+  })
+  // …
+}
+```
+
+Each record is a `'handler'`: a missing entry in a history is a bug, so none may be
+lost. And each one is written from the payload alone, with no read: the card, who did
+it (`by`, `via`) and when (`at`) all came in the event, which is why the
+[previous chapter](./10-events) put them there. The entry takes the event's
+`eventId` as its own id; [repeatable workers](./13-repeatable-workers) shows why.
 
 ## A job, saved with the change
 
@@ -223,18 +274,20 @@ This is the use case behind `card.assigned`:
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
  * Tells the assignee of a card they have it, by email: from a worker, once the
- * assignment is saved, since an email cannot be taken back (ch. 16). Run late, it
+ * assignment is saved, since an email cannot be taken back. Run late, it
  * reads the card again: if it is gone, or has another assignee by then, there is
- * nothing to tell (that assignment tells its own).
+ * nothing to tell (that assignment tells its own). Nor is anyone told of a card
+ * they gave themselves (`by`, who created or assigned it).
  */
 @UseCase()
-async notifyAssignee(card: CardDTO): Promise<void> {
-  if (card.assigneeId === null) return
+async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+  if (card.assigneeId === null || card.assigneeId === by) return
   const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
   if (current?.assigneeId !== card.assigneeId) return
   const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
   if (!member) return
-  const link = new URL(`/workspaces/${card.workspaceId}/boards/${card.boardId}?card=${card.number}`, this.options.publicUrl)
+  // Where boards' UI opens the card: on its board's screen, by its id.
+  const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
   await this.options.mailer.send({
     to: member.email,
     subject: `#${card.number} ${card.title} is yours`,
@@ -267,9 +320,9 @@ So the use case sets what it needs itself, from the event:
 - The member: `member.find(workspaceId, userId)` takes the workspace as an argument,
   where `member.isMember(userId)` reads it from the scope. One is for requests, the
   other for workers.
-- `currentActor()` would throw here, and the job would fail on every attempt until it
-  died. If a use case needs to know who did something, it reads it from the data, or
-  the event carries it.
+- Who acted: `currentActor()` would throw here, and the job would fail on every
+  attempt until it died. The event carries it instead: the callback passes `by`, and
+  the use case sends no email to someone who assigned the card to themselves.
 
 The mailer is an option of the module, given by the context: the console in
 development, a list in tests, an email service in production. The module does not
@@ -314,14 +367,33 @@ test('assigns a card only to a member of its workspace, and tells them by email 
   expect(t.mails).toEqual([])
   await t.settled()
   expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#1 Plan is yours']])
-  expect(t.mails[0]!.text).toContain(`/workspaces/acme/boards/${boardId}?card=1`)
+  // The link opens the card on its board, in boards' UI.
+  expect(t.mails[0]!.text).toBe(['Hi bea,', '', 'Card #1, "Plan", is assigned to you.', '', new URL(`/w/acme/boards/${boardId}?card=${plan.id}`, t.boards.config.publicUrl).toString()].join('\n'))
   // …
 })
 ```
 
+And nobody hears of a card they gave themselves:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('tells nobody of a card they created for themselves, or took', async () => {
+  await create('Plan', { assigneeId: 'ana' })
+  const design = await create('Design')
+  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
+  // Given to someone else, they hear of it.
+  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+
+  await t.settled()
+
+  expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
+})
+```
+
 Run it with `bun test cooper/backend/contexts/boards/modules/card`. In development,
-assign a card in the app and watch the server's console: the email is printed there
-a moment later.
+assign a card to someone else in the app and watch the server's console: the email
+is printed there a moment later. Start the server with `COOPER_TRACE=1` and move a
+card: the fire-and-forget line shows up as soon as the move commits.
 
 ## In short
 
@@ -333,4 +405,7 @@ a moment later.
 - Its queue is `<module that reacts>.<use case>.on.<event>`. Rename it only when it is
   empty.
 - The callback only decides whether the event concerns it and calls one use case.
-- A worker has no actor and no scope: the use case sets what it needs from the event.
+- `'fire-and-forget'` only for what nobody needs later: a log line to watch, a test
+  counting events.
+- A worker has no actor and no scope: the use case sets what it needs from the event,
+  who acted included.

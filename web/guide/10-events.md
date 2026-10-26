@@ -20,22 +20,73 @@ name, the moment it happened, and a payload:
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-assigned.ts
 import type { DomainEvent } from 'newt/core'
-import type { CardDTO } from '../card.schema'
+import type { CardAuthor, CardDTO } from '../card.schema'
+import { cardEventStamp, type CardEventStamp } from './card-event-stamp'
 
-/** The card, now assigned to `dto.assigneeId`, and who had it before, if anyone. */
-type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null }
+/** The card, now assigned to `dto.assigneeId`, who had it before, if anyone, and who assigned it. */
+type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null } & CardAuthor & { by: string }
 
-export class Card_Assigned implements DomainEvent<CardAssignment> {
+export class Card_Assigned implements DomainEvent<CardAssignment & CardEventStamp> {
   static readonly eventName = 'card.assigned'
   readonly name = Card_Assigned.eventName
   readonly occurredAt = new Date().toISOString()
-  constructor(readonly payload: CardAssignment) {}
+  readonly payload: CardAssignment & CardEventStamp
+  constructor(assignment: CardAssignment) {
+    this.payload = { ...assignment, ...cardEventStamp() }
+  }
 }
 ```
 
 The name is `<module>.<what happened>`. The payload is plain data (DTOs, strings,
 numbers), never an entity: it is written to the database and read back later,
 maybe by another version of the code.
+
+## What every card event carries
+
+Look at what a card's payload holds besides the card. Two things, the same in all six
+of its events.
+
+Who did it. `by` is the user's id and `via` how they came in: the web, or an AI
+assistant through the [MCP server](./21-mcp-server). Both are `null` when boards did
+it on its own, from a worker, with nobody behind it:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.schema.ts
+/**
+ * Who does something to a card, as its events tell it: their user's id (`by`) and how
+ * they came in (`via`, the web or MCP). Both null for boards' own work, which a worker
+ * does with no one behind it (ch. 13.5): a workspace's welcome card, the cards a
+ * removed column or a member who left leaves behind.
+ */
+export type CardAuthor = { by: string | null, via: ActorVia | null }
+```
+
+An assignment always has someone behind it, so `Card_Assigned` narrows it to
+`{ by: string }`.
+
+The event's own id and time. A listener sees only the payload, never the event
+object around it, so whatever it needs to know about the event itself must be in
+there:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/events/card-event-stamp.ts
+/**
+ * What every event of a card carries besides what happened: its own id and when it
+ * was told. A handler sees only the payload, so whoever reacts once per event (the
+ * activity log) keys on this id.
+ */
+export type CardEventStamp = { eventId: string, at: string }
+
+export function cardEventStamp(): CardEventStamp {
+  return { eventId: Bun.randomUUIDv7(), at: new Date().toISOString() }
+}
+```
+
+Why the author goes in the event, and is not read later: a worker that reacts runs
+with [no actor](./11-reacting#a-worker-calls-a-use-case). The person who moved the
+card is known only now, while the use case runs. If a listener will need it, the
+event has to carry it. The `eventId` is what lets a listener
+[do its work once](./13-repeatable-workers) however many times its job runs.
 
 ## The entity tells it
 
@@ -44,25 +95,67 @@ You saw it in [your first module](./03-first-module): the entity notes its event
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-/** To a member of its workspace: the module checked they are. Assigning it again to the same one changes nothing. */
-assign(assigneeId: string): void {
+/** To a member of its workspace, by someone: the module checked they are. Assigning it again to the same one changes nothing. */
+assign(assigneeId: string, author: CardAuthor & { by: string }): void {
   const previousAssigneeId = this.data.assigneeId
   if (assigneeId === previousAssigneeId) return
   this.change({ assigneeId })
-  this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId }))
+  this.trackEvent(new Card_Assigned({ dto: this.toDTO(), previousAssigneeId, ...author }))
 }
 
-unassign(): void {
+unassign(author: CardAuthor): void {
   const previousAssigneeId = this.data.assigneeId
   if (previousAssigneeId === null) return
   this.change({ assigneeId: null })
-  this.trackEvent(new Card_Unassigned({ dto: this.toDTO(), previousAssigneeId }))
+  this.trackEvent(new Card_Unassigned({ dto: this.toDTO(), previousAssigneeId, ...author }))
 }
 ```
 
 Look at the early `return`s. Assigning a card to the person who already has it
 changes nothing, so it tells nothing. A listener never gets an event for a change
 that did not happen.
+
+The entity does not know who is acting: the module tells it. A use case a route or an
+MCP tool called passes the person acting now; a use case a worker calls passes
+`BOARDS`, nobody:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.module.ts
+/** Boards' own work, from a worker: no one did it. */
+const BOARDS: CardAuthor = { by: null, via: null }
+
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
+
+// …
+@UseCase()
+async assign(id: string, input: CardAssignDTO): Promise<CardDTO> {
+  const { assigneeId } = CardAssignSchema.parse(input)
+  const card = await this.load(id)
+  await this.assertMember(assigneeId)
+  card.assign(assigneeId, actingAuthor())
+  await this.repo.persist(card)
+  return card.toDTO()
+}
+```
+
+`via` is not a newt field. newt's actor knows one thing, its user; cooper adds how
+they came in, once, for every program:
+
+```ts
+// cooper/backend/shared/actor.ts
+export type ActorVia = 'web' | 'mcp'
+
+// …
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
 
 ## When it is published
 
@@ -125,9 +218,10 @@ again:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-static create(input: CardOpening): Card {
+static create(input: CardOpening, author: CardAuthor): Card {
   const card = new Card(input, true)
-  card.trackEvent(new Card_Created(card.toDTO()))
+  card.author = author
+  card.trackEvent(new Card_Created({ ...card.toDTO(), ...author }))
   return card
 }
 
@@ -135,7 +229,7 @@ static create(input: CardOpening): Card {
 place(number: number, position: number): void {
   if (!this.isNew) throw new Error(`Card ${this.id} is placed once, as it is created`)
   this.change({ number, position })
-  this.trackEvent(new Card_Created(this.toDTO()))
+  this.trackEvent(new Card_Created({ ...this.toDTO(), ...this.author! }))
 }
 ```
 
@@ -145,7 +239,7 @@ The save publishes one `card.created`, not two, because:
 > of the same kind replaces the first.
 
 The last one is built from the entity as it is now, so it tells everything: here,
-the card with its real number. This is the whole rule, in newt's `Entity`:
+the card with its real number, and a fresh `eventId`. This is the whole rule, in newt's `Entity`:
 
 ```ts
 // packages/newt/core/entity/entity.ts
@@ -166,23 +260,24 @@ more, because a listener usually wants to know what changed. Look at `edit` and
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.ts
-edit(changes: { title?: string, description?: string }): void {
+edit(changes: { title?: string, description?: string }, author: CardAuthor): void {
   this.change(changes)
   const diff = this.getChanges()
-  if (diff) this.trackEvent(new Card_Edited({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
+  if (diff) this.trackEvent(new Card_Edited({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()!, ...author }))
 }
 
-/** Someone moved it: to this column, at this position. */
-moveTo(columnId: string, position: number): void {
+/** Someone moved it, or boards did (its column was removed): to this column, at this position. */
+moveTo(columnId: string, position: number, author: CardAuthor): void {
   this.change({ columnId, position })
   const diff = this.getChanges()
-  if (diff) this.trackEvent(new Card_Moved({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()! }))
+  if (diff) this.trackEvent(new Card_Moved({ dto: this.toDTO(), changes: diff, previous: this.getPrevious()!, ...author }))
 }
 ```
 
 - `dto`: the card as it is now, whole.
 - `changes`: the fields that changed since it was loaded.
 - `previous`: what those fields were before.
+- `by` and `via`, `eventId` and `at`, as every card event.
 
 A listener that keeps a history of moves can write "from Doing to Done" without
 reading anything. And the `if (diff)` again: saving the same title tells nothing.
@@ -229,7 +324,8 @@ private constructor(
 ```
 
 From outside they read as what they are: `card.events.assigned`. And they are typed:
-whoever subscribes to `card.events.assigned` receives a `{ dto, previousAssigneeId }`.
+whoever subscribes to `card.events.assigned` receives a
+`{ dto, previousAssigneeId, by, via, eventId, at }`.
 
 auth does the same, and its events are the ones other contexts listen to:
 
@@ -282,5 +378,7 @@ expect(t.mails).toHaveLength(1)
 - The repository publishes it with the save: it exists only if the transaction commits.
 - At most one event of each kind per save: the last one replaces the others.
 - A change event carries `dto`, `changes` and `previous`.
+- Whatever a listener will need and only the moment knows goes in the payload: who
+  acted (`by`, `via`), and the event's own id and time.
 - A module offers its events with `eventsOf`, under `events`. Once someone listens,
   they are a contract.

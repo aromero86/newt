@@ -24,8 +24,27 @@ propósito.
 | Dónde vive | En memoria. | Un job, guardado en el store. |
 | Para qué | Lo que puedes perder: limpiar una caché, una métrica. | Todo lo que importa: un email, un cambio en otro módulo. |
 
-`'fire-and-forget'` es tan sencilla como suena. El código de cooper no la usa nunca;
-sus tests sí, para contar eventos (lo viste en el [capítulo anterior](./10-events)):
+`'fire-and-forget'` es tan sencilla como suena. cooper la usa una vez, para escribir
+una línea en el log del servidor cada vez que se mueve una tarjeta, y así ver un
+tablero en directo mientras trazas:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+// A line in the server's log as each card moves, to watch a board live while
+// tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
+// or the server stops before it runs, the line is lost, and nothing is wrong: no
+// one needs it later, and the log above keeps the move for good (ch. 13.1).
+events.moved.subscribe(({ dto, previous, by, via }) => {
+  options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
+}, { strategy: 'fire-and-forget' })
+```
+
+`options.log` escribe en la consola cuando `COOPER_TRACE=1`, y en ningún sitio si no.
+Perder una línea no pasa nada: está para mirarla, no para guardarla. El movimiento en
+sí lo guarda para siempre un `'handler'` del mismo fichero, que verás más abajo.
+
+Sus tests también la usan, para contar eventos (lo viste en el [capítulo
+anterior](./10-events)):
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
@@ -47,14 +66,14 @@ llama su `initialize`. Estas son las del módulo de tarjetas:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
-  // An assignee hears of it once it is saved: a card created for someone, or given to them.
-  cards.events.created.subscribe(async card => {
-    if (card.assigneeId !== null) await cards.notifyAssignee(card)
+  // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
+  cards.events.created.subscribe(async ({ by, ...card }) => {
+    if (card.assigneeId !== null) await cards.notifyAssignee(card, by)
   }, {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
   })
-  cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.assigned',
   })
@@ -93,7 +112,8 @@ tres orígenes: los eventos del propio módulo, los de otro módulo (`column`) y
 otro contexto (`access`, en auth).
 
 - El callback recibe el payload del evento y llama a un caso de uso del módulo que
-  reacciona, con lo que ese caso de uso necesita: aquí `dto`, no el payload entero.
+  reacciona, con lo que ese caso de uso necesita: aquí la tarjeta y `by`, quién lo
+  hizo, no el payload entero.
 - El callback puede decidir si el evento le concierne. Una tarjeta creada sin nadie
   asignado no necesita email. auth retira accesos a todos sus productos, y aquí solo
   importa el de un workspace. Es una condición sobre el evento, nunca lógica de
@@ -115,6 +135,40 @@ export type AccessEvents = {
 
 El `access.events` de auth encaja en él, y un test pasa el suyo. [Varios
 contextos](./19-several-contexts) vuelve sobre esto.
+
+### Un módulo hecho de reacciones: el registro de actividad
+
+Hay módulos que solo existen para reaccionar. boards guarda la historia de cada
+tarjeta, su actividad: quién la creó, la editó, la movió, la asignó, y cómo entró. El
+módulo de tarjetas no sabe nada de ella. El módulo de actividad escucha los seis
+eventos de una tarjeta y apunta cada uno:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
+  const { events } = deps.card
+  events.created.subscribe(card => activity.recordCreated(card), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  events.edited.subscribe(edit => activity.recordEdited(edit), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
+  events.moved.subscribe(move => activity.recordMoved(move), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
+  events.assigned.subscribe(assignment => activity.recordAssigned(assignment), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
+  events.unassigned.subscribe(unassignment => activity.recordUnassigned(unassignment), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
+  events.deleted.subscribe(card => activity.recordDeleted(card), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
+
+  // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
+  deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+    strategy: 'handler',
+    queue: 'activity.purgeWorkspace.on.tenant.deleted',
+  })
+  // …
+}
+```
+
+Cada registro es un `'handler'`: que falte una entrada en una historia es un fallo,
+así que no se puede perder ninguna. Y cada una se escribe solo con el payload, sin
+leer nada: la tarjeta, quién lo hizo (`by`, `via`) y cuándo (`at`) venían en el
+evento, y por eso los puso ahí el [capítulo anterior](./10-events). La entrada toma
+como id el `eventId` del evento; [workers repetibles](./13-repeatable-workers) cuenta
+por qué.
 
 ## Un job, guardado con el cambio
 
@@ -228,18 +282,20 @@ Este es el caso de uso que hay detrás de `card.assigned`:
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
  * Tells the assignee of a card they have it, by email: from a worker, once the
- * assignment is saved, since an email cannot be taken back (ch. 16). Run late, it
+ * assignment is saved, since an email cannot be taken back. Run late, it
  * reads the card again: if it is gone, or has another assignee by then, there is
- * nothing to tell (that assignment tells its own).
+ * nothing to tell (that assignment tells its own). Nor is anyone told of a card
+ * they gave themselves (`by`, who created or assigned it).
  */
 @UseCase()
-async notifyAssignee(card: CardDTO): Promise<void> {
-  if (card.assigneeId === null) return
+async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+  if (card.assigneeId === null || card.assigneeId === by) return
   const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
   if (current?.assigneeId !== card.assigneeId) return
   const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
   if (!member) return
-  const link = new URL(`/workspaces/${card.workspaceId}/boards/${card.boardId}?card=${card.number}`, this.options.publicUrl)
+  // Where boards' UI opens the card: on its board's screen, by its id.
+  const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
   await this.options.mailer.send({
     to: member.email,
     subject: `#${card.number} ${card.title} is yours`,
@@ -271,9 +327,9 @@ Así que el caso de uso pone él mismo lo que necesita, a partir del evento:
 - El miembro: `member.find(workspaceId, userId)` recibe el workspace como argumento,
   mientras que `member.isMember(userId)` lo lee del scope. Uno es para peticiones; el
   otro, para workers.
-- `currentActor()` lanzaría aquí un error, y el job fallaría en cada intento hasta
-  morir. Si un caso de uso necesita saber quién hizo algo, lo lee de los datos, o lo
-  trae el evento.
+- Quién actuó: `currentActor()` lanzaría aquí un error, y el job fallaría en cada
+  intento hasta morir. Lo trae el evento: el callback pasa `by`, y el caso de uso no
+  le manda email a quien se asignó la tarjeta a sí mismo.
 
 El mailer es una opción del módulo, que le da el contexto: la consola en desarrollo,
 una lista en los tests, un servicio de email en producción. El módulo no sabe cuál.
@@ -318,14 +374,33 @@ test('assigns a card only to a member of its workspace, and tells them by email 
   expect(t.mails).toEqual([])
   await t.settled()
   expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#1 Plan is yours']])
-  expect(t.mails[0]!.text).toContain(`/workspaces/acme/boards/${boardId}?card=1`)
+  // The link opens the card on its board, in boards' UI.
+  expect(t.mails[0]!.text).toBe(['Hi bea,', '', 'Card #1, "Plan", is assigned to you.', '', new URL(`/w/acme/boards/${boardId}?card=${plan.id}`, t.boards.config.publicUrl).toString()].join('\n'))
   // …
 })
 ```
 
+Y nadie se entera de una tarjeta que se dio a sí mismo:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('tells nobody of a card they created for themselves, or took', async () => {
+  await create('Plan', { assigneeId: 'ana' })
+  const design = await create('Design')
+  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
+  // Given to someone else, they hear of it.
+  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+
+  await t.settled()
+
+  expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
+})
+```
+
 Ejecútalo con `bun test cooper/backend/contexts/boards/modules/card`. En desarrollo,
-asigna una tarjeta en la aplicación y mira la consola del servidor: el email aparece
-ahí un instante después.
+asígnale una tarjeta a otra persona en la aplicación y mira la consola del servidor:
+el email aparece ahí un instante después. Arranca el servidor con `COOPER_TRACE=1` y
+mueve una tarjeta: la línea fire-and-forget sale en cuanto el movimiento se confirma.
 
 ## En resumen
 
@@ -338,5 +413,7 @@ ahí un instante después.
 - Su cola es `<módulo que reacciona>.<caso de uso>.on.<evento>`. Renómbrala solo
   cuando esté vacía.
 - El callback solo decide si el evento le concierne y llama a un caso de uso.
+- `'fire-and-forget'` solo para lo que nadie necesita después: una línea de log para
+  mirar, un test que cuenta eventos.
 - Un worker no tiene actor ni scope: el caso de uso pone lo que necesita a partir del
-  evento.
+  evento, también quién actuó.

@@ -38,8 +38,8 @@ cooper does the second. Here it is not even a choice:
 4. The route answers `201` with the workspace. The client has its answer.
 5. auth's worker wakes up after the commit, claims `workspace.prepare.on.tenant.created`
    and calls boards' `workspace.prepare` with the workspace's id.
-6. `prepare` creates the board, its columns and its card, each in a short transaction
-   of its own.
+6. `prepare` checks the workspace is still there, then creates the board, its
+   columns and its card, each in a short transaction of its own.
 7. The client lists the workspace's boards again, and "Welcome" is there.
 
 Each step that touches a store is a short transaction of its own. And every time one
@@ -109,23 +109,25 @@ And the worker calls the use case that prepares the board:
  * A new workspace gets its welcome board: "Welcome", with To do, Doing and Done, and
  * a first card. A worker calls it once auth created the workspace (eventual
  * consistency: for a moment, the workspace has no board), and it writes in three
- * modules, which only a worker may (ch. 19): if it fails halfway, its job runs it
- * again. Each step looks for what an earlier run did first, so a second run only
- * finishes what the first left (ch. 15), and adds nothing to a finished one.
+ * modules, which only a worker may: if it fails halfway, its job runs it again.
+ * Each step looks for what an earlier run did first, so a second run only finishes
+ * what the first left, and adds nothing to a finished one; two runs at once add
+ * each column and the card once, since their saves look again.
+ *
+ * A workspace auth deleted meanwhile gets nothing: its job may run late, after the
+ * workspace's purge. One deleted while it runs has what it wrote purged again.
  */
 @UseCase()
 async prepare(workspaceId: string): Promise<void> {
+  if (!await this.deps.member.exists(workspaceId)) return
   await runInWorkspace(workspaceId, async () => {
     const board = await this.deps.board.findByName(WELCOME_BOARD.name)
       ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-    const columns = await this.deps.column.list(board.id)
-    for (const name of WELCOME_BOARD.columns) {
-      if (!columns.some(column => column.name === name)) columns.push(await this.deps.column.add(board.id, { name }))
-    }
-    if ((await this.deps.card.listInBoard(board.id)).length > 0) return
+    const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
     const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
-    await this.deps.card.create(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
+    await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
   })
+  if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
 }
 ```
 
@@ -133,6 +135,16 @@ async prepare(workspaceId: string): Promise<void> {
 only from a worker. If it fails halfway, its job runs it again, and every step first
 looks for what an earlier run left. That is the subject of the
 [next chapter](./13-repeatable-workers).
+
+Look at the two `exists` checks, before and after. A job runs a moment after its
+event, and the world may have moved on by then. Someone can create a workspace and
+delete it a second later: by the time `prepare` runs, the workspace is gone, and
+boards may even have purged it already. Writing a welcome board then would leave a
+board in a workspace that no longer exists, with nobody to ever remove it. So
+`prepare` asks auth first, and does nothing for a deleted workspace. The workspace
+can also go while `prepare` runs, after its purge was done: the second check purges
+again what this run wrote. A worker that reacts late must ask whether what it reacts
+to still holds.
 
 ## Immediate where it matters
 
@@ -152,6 +164,26 @@ tenants.events.created.subscribe(tenant => tenants.ensureAdmin(tenant), {
 
 That is the question to ask for each piece: does the person need it to go on, right
 now? The admin access, yes. The welcome board can come a moment later.
+
+Deletion asks the same question. Once a workspace is deleted, nobody may enter it, its
+admin neither, from the moment the request answers. So `tenant.delete` takes the
+workspace's accesses away itself, right after saving the deletion, and its worker is
+the fallback:
+
+```ts
+// cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
+@UseCase({ writesTo: ['access'], retryOnConflict: false })
+async delete(tenantId: string): Promise<void> {
+  await this.assertAdmin(tenantId)
+  const tenant = await this.load(tenantId)
+  tenant.delete()
+  await this.repo.persist(tenant)
+  await this.deps.access.revokeTenant(tenantId)
+}
+```
+
+Its boards, its invitations, its activity log: nobody needs those gone right now, and
+they go from workers, a moment later ([sagas](./16-sagas) follows that deletion).
 
 ## What the client sees, and how to design for it
 
@@ -180,10 +212,10 @@ not yet. Whoever builds a client on it has to count on that intermediate state:
   the board takes milliseconds.
 - **Do not promise what has not happened yet.**
 
-The same holds for deletion, the other way round. When a workspace is deleted, auth
-takes its members' accesses away a moment later, from a worker. In between, an access
-still points at a workspace that is gone, so the use case that lists someone's
-workspaces leaves those out:
+Deletion has its own short window. The workspace and its accesses are two saves, one
+after the other. Between them, or if the second fails and its worker has not run yet,
+an access still points at a workspace that is gone. So the use case that lists
+someone's workspaces leaves those out:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
@@ -222,6 +254,8 @@ Go through each moment of the journey:
 - **It stops halfway through `prepare`**, with the board created and one column. The
   job was not marked done, so it runs again, finds the board and the column, and adds
   only what is missing.
+- **The workspace is deleted before the job runs**, or while it runs. `prepare` finds
+  it gone and writes nothing, or purges what it wrote.
 
 In no case is the workspace left without its board for good. The last case works only
 because `prepare` is written to run again without harm.
@@ -234,6 +268,7 @@ because `prepare` is written to run again without harm.
   transaction holds two.
 - Give in the request only what the person needs to go on; everything else follows
   from an event.
+- A worker runs late: it checks that what it reacts to still holds before writing.
 - The API shows the intermediate state honestly, and the client is designed for it:
   show it, ask again, do not promise.
 - newt guarantees the job is saved with the change and runs after the commit, again

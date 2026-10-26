@@ -41,8 +41,8 @@ cooper usa la segunda. Aquí ni siquiera es una elección:
 5. El worker de auth se despierta tras el commit, reclama
    `workspace.prepare.on.tenant.created` y llama al `workspace.prepare` de boards con
    el id del workspace.
-6. `prepare` crea el tablero, sus columnas y su tarjeta, cada cosa en una transacción
-   corta propia.
+6. `prepare` comprueba que el workspace sigue ahí, y crea el tablero, sus columnas y
+   su tarjeta, cada cosa en una transacción corta propia.
 7. El cliente vuelve a pedir los tableros del workspace, y "Welcome" está ahí.
 
 Cada paso que toca un store es una transacción corta propia. Y cada vez que una de
@@ -112,23 +112,25 @@ Y el worker llama al caso de uso que prepara el tablero:
  * A new workspace gets its welcome board: "Welcome", with To do, Doing and Done, and
  * a first card. A worker calls it once auth created the workspace (eventual
  * consistency: for a moment, the workspace has no board), and it writes in three
- * modules, which only a worker may (ch. 19): if it fails halfway, its job runs it
- * again. Each step looks for what an earlier run did first, so a second run only
- * finishes what the first left (ch. 15), and adds nothing to a finished one.
+ * modules, which only a worker may: if it fails halfway, its job runs it again.
+ * Each step looks for what an earlier run did first, so a second run only finishes
+ * what the first left, and adds nothing to a finished one; two runs at once add
+ * each column and the card once, since their saves look again.
+ *
+ * A workspace auth deleted meanwhile gets nothing: its job may run late, after the
+ * workspace's purge. One deleted while it runs has what it wrote purged again.
  */
 @UseCase()
 async prepare(workspaceId: string): Promise<void> {
+  if (!await this.deps.member.exists(workspaceId)) return
   await runInWorkspace(workspaceId, async () => {
     const board = await this.deps.board.findByName(WELCOME_BOARD.name)
       ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-    const columns = await this.deps.column.list(board.id)
-    for (const name of WELCOME_BOARD.columns) {
-      if (!columns.some(column => column.name === name)) columns.push(await this.deps.column.add(board.id, { name }))
-    }
-    if ((await this.deps.card.listInBoard(board.id)).length > 0) return
+    const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
     const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
-    await this.deps.card.create(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
+    await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
   })
+  if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
 }
 ```
 
@@ -136,6 +138,17 @@ async prepare(workspaceId: string): Promise<void> {
 puede hacerlo desde un worker. Si falla a mitad, su job lo ejecuta otra vez, y cada
 paso busca primero lo que dejó una ejecución anterior. De eso va el [capítulo
 siguiente](./13-repeatable-workers).
+
+Fíjate en las dos comprobaciones de `exists`, antes y después. Un job corre un
+momento después de su evento, y para entonces el mundo puede haber cambiado. Alguien
+puede crear un workspace y borrarlo un segundo después: cuando `prepare` corre, el
+workspace ya no está, y puede que boards ya lo haya purgado. Escribir entonces un
+tablero de bienvenida dejaría un tablero en un workspace que ya no existe, sin nadie
+que lo quite nunca. Así que `prepare` pregunta antes a auth, y no hace nada para un
+workspace borrado. El workspace también puede irse mientras `prepare` corre, después
+de su purga: la segunda comprobación purga otra vez lo que escribió esta ejecución.
+Un worker que reacciona tarde tiene que preguntar si lo que lo hizo reaccionar sigue
+siendo verdad.
 
 ## Inmediato donde importa
 
@@ -155,6 +168,27 @@ tenants.events.created.subscribe(tenant => tenants.ensureAdmin(tenant), {
 
 Esa es la pregunta para cada pieza: ¿lo necesita la persona para seguir, ahora mismo?
 El acceso de admin, sí. El tablero de bienvenida puede llegar un instante después.
+
+El borrado se hace la misma pregunta. En cuanto se borra un workspace, nadie puede
+entrar en él, tampoco su admin, desde el momento en que responde la petición. Así que
+`tenant.delete` retira él mismo los accesos del workspace, justo después de guardar el
+borrado, y su worker queda de respaldo:
+
+```ts
+// cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
+@UseCase({ writesTo: ['access'], retryOnConflict: false })
+async delete(tenantId: string): Promise<void> {
+  await this.assertAdmin(tenantId)
+  const tenant = await this.load(tenantId)
+  tenant.delete()
+  await this.repo.persist(tenant)
+  await this.deps.access.revokeTenant(tenantId)
+}
+```
+
+Sus tableros, sus invitaciones, su registro de actividad: nadie necesita que
+desaparezcan ya, y se van desde workers, un instante después ([sagas](./16-sagas)
+sigue ese borrado).
 
 ## Qué ve el cliente, y cómo diseñar para ello
 
@@ -183,10 +217,10 @@ construya un cliente sobre ella tiene que contar con ese estado intermedio:
   En cooper, el tablero tarda milisegundos.
 - **No prometas lo que aún no ha pasado.**
 
-Con el borrado pasa lo mismo, al revés. Cuando se borra un workspace, auth retira los
-accesos de sus miembros un instante después, desde un worker. Entre medias, un acceso
-sigue apuntando a un workspace que ya no existe, así que el caso de uso que lista los
-workspaces de alguien deja esos fuera:
+El borrado tiene su propia ventana, corta. El workspace y sus accesos son dos
+guardados, uno detrás de otro. Entre ellos, o si el segundo falla y su worker aún no
+ha corrido, un acceso sigue apuntando a un workspace que ya no existe. Así que el caso
+de uso que lista los workspaces de alguien deja esos fuera:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
@@ -226,6 +260,8 @@ Repasa cada momento del viaje:
 - **Se para a mitad de `prepare`**, con el tablero creado y una columna. El job no se
   marcó como hecho, así que se ejecuta otra vez, encuentra el tablero y la columna, y
   añade solo lo que falta.
+- **Se borra el workspace antes de que corra el job**, o mientras corre. `prepare` ve
+  que no está y no escribe nada, o purga lo que escribió.
 
 En ningún caso se queda el workspace sin su tablero para siempre. El último caso solo
 funciona porque `prepare` está escrito para repetirse sin daño.
@@ -238,6 +274,8 @@ funciona porque `prepare` está escrito para repetirse sin daño.
   transacción abarca dos.
 - Da en la petición solo lo que la persona necesita para seguir; lo demás sale de un
   evento.
+- Un worker corre tarde: antes de escribir, comprueba que lo que lo hizo reaccionar
+  sigue siendo verdad.
 - La API enseña el estado intermedio tal cual, y el cliente está diseñado para él:
   muéstralo, pregunta otra vez, no prometas.
 - newt garantiza que el job se guarda con el cambio y se ejecuta tras el commit, otra
