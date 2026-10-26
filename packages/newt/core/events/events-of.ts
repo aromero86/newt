@@ -1,10 +1,11 @@
 import type { DomainEventClass } from './domain-event-class'
 import { DomainEventEmitter } from './domain-event-emitter'
 import type { EventBus } from './event-bus'
+import type { Json } from './json'
 
 /** One emitter for each event class, each typed with its payload. */
 export type EmittersOf<Classes> = {
-  readonly [K in keyof Classes]: Classes[K] extends DomainEventClass<infer Payload> ? DomainEventEmitter<Payload> : never
+  readonly [K in keyof Classes]: Classes[K] extends DomainEventClass<infer Payload extends Json> ? DomainEventEmitter<Payload> : never
 }
 
 /**

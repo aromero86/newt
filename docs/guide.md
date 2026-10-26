@@ -486,6 +486,9 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 - Payloads: `created` and `deleted` carry the DTO; `updated` carries
   `{ dto, changes, previous }`: the whole DTO, the fields that changed, and what they
   were before. Each field's transition is `previous[field]` → `changes[field]`.
+  A payload is JSON (`DomainEvent<T extends Json>`), as a `handler` gets it back from
+  its stored job: a date travels as its ISO string, and a payload is a `type`, not an
+  `interface` (which TypeScript does not take as JSON).
 - **An event is published after the commit of the save that tracked it.** A save
   that rolls back publishes nothing.
 - Events come from entities, through their repository. Something that is not an

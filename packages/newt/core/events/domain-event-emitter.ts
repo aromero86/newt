@@ -1,5 +1,6 @@
 import type { DomainEventClass } from './domain-event-class'
 import type { EventBus } from './event-bus'
+import type { Json } from './json'
 import type { Subscription } from './subscription'
 
 /** `<module>.<use case>.on.`, then the event's own name. */
@@ -16,7 +17,7 @@ const QUEUE = /^[A-Za-z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*\.on\./
  * })
  * ```
  */
-export class DomainEventEmitter<TPayload> {
+export class DomainEventEmitter<TPayload extends Json> {
 
   constructor(
     private readonly bus: EventBus,

@@ -542,6 +542,10 @@ export class Product_Updated implements DomainEvent<ProductChange> {
 }
 ```
 
+El payload es JSON (`DomainEvent<T extends Json>`): una reacción `handler` lo recibe
+del trabajo guardado, así que una fecha viaja como su texto ISO, nunca como `Date`. Y
+es un `type`, no una `interface`, que TypeScript no acepta como JSON.
+
 El nombre sigue la forma `<módulo>.<verbo en pasado>`. Para un `updated`, el payload
 cuenta la **transición** entera:
 
