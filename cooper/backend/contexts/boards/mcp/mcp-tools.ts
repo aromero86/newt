@@ -85,6 +85,14 @@ export function registerMcpTools(server: McpServer, modules: Boards_Modules): vo
     })
   }))
 
+  server.registerTool('list_members', {
+    title: 'List members',
+    description: 'Who belongs to a workspace, its admin first: whom its cards can be assigned to, those with no card too.',
+    inputSchema: { workspaceId },
+    annotations: READ_ONLY,
+  }, async args => within(args.workspaceId, async () =>
+    answer((await workspace.members()).map(({ id, name, email, isAdmin }) => ({ id, name, email, isAdmin })))))
+
   server.registerTool('search_cards', {
     title: 'Search cards',
     description: 'The cards of a workspace with these words in their title or description (whatever their case), in a board, a column or assigned to someone. Everything is optional.',
@@ -133,8 +141,8 @@ export function registerMcpTools(server: McpServer, modules: Boards_Modules): vo
 
   server.registerTool('assign_card', {
     title: 'Assign a card',
-    description: 'Assigns a card to a member of its workspace, who is told by email; null leaves it unassigned.',
-    inputSchema: { workspaceId, cardId: z.string(), assigneeId: z.string().nullable().describe('A member\'s id, from get_board; null to unassign') },
+    description: 'Assigns a card to a member of its workspace (list_members says who they are), who is told by email; null leaves it unassigned.',
+    inputSchema: { workspaceId, cardId: z.string(), assigneeId: z.string().nullable().describe('A member\'s id, from list_members; null to unassign') },
     annotations: WRITE,
   }, async ({ workspaceId: id, cardId, assigneeId }) => within(id, async () => {
     const changed = assigneeId === null ? await card.unassign(cardId) : await card.assign(cardId, { assigneeId })

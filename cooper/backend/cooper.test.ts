@@ -253,8 +253,12 @@ describe('the MCP server', () => {
     await settled()
     const client = await mcpClient(await connect(ana.as))
     try {
-      expect((await client.listTools()).tools.map(tool => tool.name).toSorted()).toEqual(['assign_card', 'create_card', 'get_board', 'list_boards', 'list_workspaces', 'move_card', 'search_cards'])
+      expect((await client.listTools()).tools.map(tool => tool.name).toSorted()).toEqual(['assign_card', 'create_card', 'get_board', 'list_boards', 'list_members', 'list_workspaces', 'move_card', 'search_cards'])
       expect(await use(client, 'list_workspaces')).toEqual([{ id: acme.id, name: 'Acme', isAdmin: true }])
+      expect(await use(client, 'list_members', { workspaceId: acme.id })).toEqual([
+        { id: ana.id, name: 'Ana', email: 'ana@cooper.test', isAdmin: true },
+        { id: bob.id, name: 'Bob', email: 'bob@cooper.test', isAdmin: false },
+      ])
 
       const boards = await use<{ items: { id: string, name: string }[] }>(client, 'list_boards', { workspaceId: acme.id })
       expect(boards.items.map(board => board.name)).toEqual(['Welcome'])
