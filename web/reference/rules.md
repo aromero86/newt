@@ -948,7 +948,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 
     ```ts
     // cooper/backend/contexts/boards/modules/card/card.workers.ts
-    cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+    cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
       strategy: 'handler',
       queue: 'card.notifyAssignee.on.card.assigned',
     })
@@ -1006,7 +1006,10 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   ```
 - **What cannot be taken back leaves from a worker, never from a use case**: an email
   is sent after the event of what it is about, so only for what was saved (cooper's
-  `card.notifyAssignee`, on `card.created` and `card.assigned`).
+  `card.notifyAssignee`, on `card.created` and `card.assigned`). Its job may run
+  twice, so it is sent with a key, the event's id, and sent once: cooper's `Mailer`
+  takes it in `Mail.key`, its console and test mailers skip a key they have seen,
+  and one of a real provider passes it as the provider's idempotency key.
 - **An event's shape only grows.** Its jobs keep it as it was published, and may run
   after a deploy with the code of then: an event only gains optional fields. A change
   that breaks its shape comes with a migration that rewrites its pending jobs.

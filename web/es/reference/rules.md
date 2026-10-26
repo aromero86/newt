@@ -989,7 +989,7 @@ entero.
 
     ```ts
     // cooper/backend/contexts/boards/modules/card/card.workers.ts
-    cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+    cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
       strategy: 'handler',
       queue: 'card.notifyAssignee.on.card.assigned',
     })
@@ -1051,7 +1051,10 @@ entero.
 - **Lo que no se puede deshacer sale de un worker, nunca de un caso de uso**: un email
   se envía después del evento de aquello de lo que trata, así que solo por lo que se
   ha guardado (el `card.notifyAssignee` de cooper, con `card.created` y
-  `card.assigned`).
+  `card.assigned`). Su trabajo puede ejecutarse dos veces, así que se envía con una
+  clave, el id del evento, y se envía una vez: el `Mailer` de cooper la recibe en
+  `Mail.key`, sus mailers de consola y de test se saltan una clave ya vista, y uno de
+  un proveedor real la pasa como la clave de idempotencia del proveedor.
 - **La forma de un evento solo crece.** Sus trabajos lo guardan tal como se publicó, y
   pueden ejecutarse después de un despliegue con el código de entonces: un evento solo
   gana campos opcionales. Un cambio que rompe su forma viene con una migración que

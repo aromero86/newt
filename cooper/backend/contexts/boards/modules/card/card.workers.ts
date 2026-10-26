@@ -12,12 +12,12 @@ type CreatedFor = CardDTO & CardAuthor & { assigneeId: string }
  */
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
-  cards.events.created.subscribe(({ by, ...card }) => cards.notifyAssignee(card, by), {
+  cards.events.created.subscribe(({ by, ...card }, { id }) => cards.notifyAssignee(card, by, id), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
     when: card => card.assigneeId !== null,
   })
-  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+  cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.assigned',
   })

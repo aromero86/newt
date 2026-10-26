@@ -250,10 +250,11 @@ export class Card_Module extends Module {
    * assignment is saved, since an email cannot be taken back. Run late, it
    * reads the card again: if it is gone, or has another assignee by then, there is
    * nothing to tell (that assignment tells its own). Nor is anyone told of a card
-   * they gave themselves (`by`, who created or assigned it).
+   * they gave themselves (`by`, who created or assigned it). Its job may run twice:
+   * the email's key is the event's id (`eventId`), so it is sent once.
    */
   @UseCase()
-  async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+  async notifyAssignee(card: CardDTO, by: string | null, eventId: string): Promise<void> {
     if (card.assigneeId === null || card.assigneeId === by) return
     const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
     if (current?.assigneeId !== card.assigneeId) return
@@ -265,6 +266,7 @@ export class Card_Module extends Module {
       to: member.email,
       subject: `#${card.number} ${card.title} is yours`,
       text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
+      key: `card.notifyAssignee:${eventId}`,
     })
   }
 

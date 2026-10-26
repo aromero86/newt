@@ -76,7 +76,7 @@ callback llama a `cards.notifyAssignee` sobre un `Card_Module`, y el emisor es
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
   strategy: 'handler',
   queue: 'card.notifyAssignee.on.card.assigned',
 })

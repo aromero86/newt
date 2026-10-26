@@ -275,6 +275,18 @@ describe('card', () => {
     expect(t.mails).toHaveLength(1)
   })
 
+  test('tells the assignee once, however many times the job of an assignment runs', async () => {
+    const { id } = await create('Plan')
+    const plan = await inAcme(() => t.modules.card.assign(id, { assigneeId: 'bea' }))
+
+    // The job of one event, run twice (its first run failed after sending), and one of another event.
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-2')
+
+    expect(t.mails.map(mail => [mail.subject, mail.key])).toEqual([['#1 Plan is yours', 'card.notifyAssignee:event-1'], ['#1 Plan is yours', 'card.notifyAssignee:event-2']])
+  })
+
   test('tells the assignee of a card created for them, and nobody of one assigned and unassigned at once', async () => {
     await create('Plan', { assigneeId: 'bea' })
     const design = await create('Design')

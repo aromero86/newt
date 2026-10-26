@@ -3,6 +3,7 @@ import { runAsActor } from 'newt/core'
 import { serve } from 'newt/http'
 import { config } from '../../config'
 import type { Mail } from '../../shared/mail/mailer'
+import { RecordingMailer } from '../../shared/mail/recording-mailer'
 import { Auth_Context } from './auth.context'
 import type { UserDTO } from './modules/user/user.schema'
 
@@ -12,9 +13,10 @@ let mails: Mail[]
 let time: number
 
 beforeEach(async () => {
-  mails = []
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
   time = Date.now()
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer }, { now: () => new Date(time) })
   auth.start()
 })
 
