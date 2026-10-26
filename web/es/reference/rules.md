@@ -893,7 +893,10 @@ entero.
 - Cada método público de un módulo es un caso de uso, marcado con `@UseCase()`. Se
   llama como su módulo y él mismo (`list` de `board` es `board.list`), y cada llamada
   es una invocación: un span de la traza, dentro del de quien lo llama cuando lo llama
-  otro caso de uso. No abre ninguna transacción: cada `persist` es una.
+  otro caso de uso. No abre ninguna transacción: cada `persist` es una. Un método que
+  solo llama el módulo es `private`; uno público sin `@UseCase` es lo que rechaza
+  `newt/use-case`, porque correría fuera de la regla de escritura, del reintento ante
+  un conflicto y de la traza.
 - Valida la entrada en la puerta: `<M>CreateSchema.parse(input)`.
 - Forma: validar → cargar → decidir → cambiar la entidad → `persist` → devolver DTOs.
   Guardar una vez, al final. Cuando un caso de uso no puede evitar guardar en pasos (o

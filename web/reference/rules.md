@@ -856,7 +856,9 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 - Every public method of a module is a use case, marked `@UseCase()`. It is named
   after its module and itself (`list` of `board` is `board.list`), and each call is an
   invocation: a span of the trace, inside its caller's when another use case calls it.
-  It holds no transaction: each `persist` is one.
+  It holds no transaction: each `persist` is one. A method only the module calls is
+  `private`; one public without `@UseCase` is what `newt/use-case` refuses, since it
+  would run outside the write rule, the retry on a conflict and the trace.
 - Validate the input at the door: `<M>CreateSchema.parse(input)`.
 - Shape: validate → load → decide → change the entity → `persist` → return DTOs. Save
   once, at the end. When a use case cannot avoid saving in steps (or calling another
