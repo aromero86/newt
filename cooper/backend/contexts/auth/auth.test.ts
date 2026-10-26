@@ -15,7 +15,8 @@ let time: number
 beforeEach(async () => {
   const mailer = new RecordingMailer()
   mails = mailer.mails
-  time = Date.now()
+  // Set before auth opens: its schedules' first look, as it starts, is at noon of this day.
+  time = Date.parse('2027-03-15T12:00:00Z')
   auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer }, { now: () => new Date(time) })
   auth.start()
 })
@@ -46,11 +47,11 @@ describe('accounts', () => {
   test('tells someone signed up at the time by auth\'s clock', async () => {
     const told: string[] = []
     modules().user.events.signedUp.subscribe((_, event) => { told.push(event.occurredAt) }, { strategy: 'fire-and-forget' })
-    time = Date.parse('2027-03-15T12:00:00Z')
+    time = Date.parse('2027-04-01T08:30:00Z')
 
     await signUp('Ana')
 
-    expect(told).toEqual(['2027-03-15T12:00:00.000Z'])
+    expect(told).toEqual(['2027-04-01T08:30:00.000Z'])
   })
 
   test('checks a password, and says nothing about which emails have an account', async () => {
@@ -81,9 +82,9 @@ describe('accounts', () => {
 
   test('removes the expired sessions every night at three, by auth\'s clock', async () => {
     const sessions = () => auth.base.store.table('session').count({})
-    time = Date.parse('2027-03-15T12:00:00Z')
-    // The first look at a schedule tells nothing of before: its next tick is tonight's.
-    await auth.base.schedules.tick()
+    // Its own loop stopped, once its first look, as auth started, is done: the test ticks
+    // by hand. That first look told nothing of before: the next tick is tonight's.
+    await auth.base.schedules.stop()
     await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
     time += config.auth.sessionDays * DAY_MS
     await modules().session.signIn({ email: 'ana@cooper.test', password: 'a long password' })
