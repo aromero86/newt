@@ -85,10 +85,7 @@ argument:
 // cooper/backend/contexts/boards/modules/card/card.routes.ts
   // A client may send it again with the same `Idempotency-Key` (its answer lost on the
   // way): it gets the card made the first time, kept in the store, not a second one.
-  workspace.post('/boards/:boardId/cards', async request => {
-    const input = await request.json() as CardCreateDTO
-    return Response.json(await cards.create(request.params.boardId, input), { status: 201 })
-  }, { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
+  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }), { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
 ```
 
 That is all the code. The route's handler is the same; the use case knows nothing of

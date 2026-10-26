@@ -65,16 +65,12 @@ and 100 whatever the client asks. Add the import and the route at the top of
 // cooper/backend/contexts/boards/modules/board/board.routes.ts
 import { pageRequestFrom } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
-import type { BoardCreateDTO, BoardUpdateDTO } from './board'
 import type { Board_Module } from './board.module'
 
 export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): void {
   base.http.get('/boards', async request => Response.json(await boards.list(pageRequestFrom(request))))
 
-  base.http.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  base.http.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 // …
 }
 ```

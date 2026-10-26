@@ -185,8 +185,8 @@ the use case would find one column and refuse all the same.
 
 ### The use cases
 
-Add `ColumnMoveSchema` and `ColumnMoveDTO` to the imports of `column.module.ts` (both
-are in `column.schema.ts` already: a position), and import `LastColumn`:
+Add `ColumnMoveSchema` to the imports of `column.module.ts` (it is in
+`column.schema.ts` already: a position), and import `LastColumn`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/column.module.ts
@@ -196,10 +196,7 @@ import {
   ColumnMoveSchema,
   ColumnRenameSchema,
   MAX_COLUMNS,
-  type ColumnAddDTO,
   type ColumnDTO,
-  type ColumnMoveDTO,
-  type ColumnRenameDTO,
 } from './column'
 import type { Column_Deps } from './column.deps'
 import { Column_Repository } from './column.repository'
@@ -219,7 +216,7 @@ and two use cases after `rename`:
    * meanwhile makes it run again, from the start, with the board as it is then.
    */
   @UseCase()
-  async move(id: string, input: ColumnMoveDTO): Promise<ColumnDTO> {
+  async move(id: string, input: unknown): Promise<ColumnDTO> {
     const { position } = ColumnMoveSchema.parse(input)
     const column = await this.load(id)
     const others = (await this.repo.ofBoard(column.boardId)).filter(each => each.id !== id)
@@ -269,7 +266,6 @@ That is for the card module, below.
 // cooper/backend/contexts/boards/modules/column/column.routes.ts
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { ColumnAddDTO, ColumnMoveDTO, ColumnRenameDTO } from './column'
 import type { Column_Deps } from './column.deps'
 import type { Column_Module } from './column.module'
 
@@ -279,20 +275,11 @@ export function registerColumnRoutes(base: BoardsBase, columns: Column_Module, d
 
   workspace.get('/boards/:boardId/columns', async request => Response.json(await columns.list(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/columns', async request => {
-    const input = await request.json() as ColumnAddDTO
-    return Response.json(await columns.add(request.params.boardId, input), { status: 201 })
-  })
+  workspace.post('/boards/:boardId/columns', async request => Response.json(await columns.add(request.params.boardId, await request.json()), { status: 201 }))
 
-  workspace.patch('/columns/:columnId', async request => {
-    const input = await request.json() as ColumnRenameDTO
-    return Response.json(await columns.rename(request.params.columnId, input))
-  })
+  workspace.patch('/columns/:columnId', async request => Response.json(await columns.rename(request.params.columnId, await request.json())))
 
-  workspace.post('/columns/:columnId/move', async request => {
-    const input = await request.json() as ColumnMoveDTO
-    return Response.json(await columns.move(request.params.columnId, input))
-  })
+  workspace.post('/columns/:columnId/move', async request => Response.json(await columns.move(request.params.columnId, await request.json())))
 }
 ```
 
@@ -413,8 +400,7 @@ export class ColumnNotEmpty extends ConflictError {
 
 ### The use cases
 
-Add `CardMoveSchema`, `CardMoveDTO` and `ColumnNotEmpty` to the imports of
-`card.module.ts`:
+Add `CardMoveSchema` and `ColumnNotEmpty` to the imports of `card.module.ts`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
@@ -425,11 +411,7 @@ import {
   CardEditSchema,
   CardMoveSchema,
   MAX_CARDS,
-  type CardAssignDTO,
-  type CardCreateDTO,
   type CardDTO,
-  type CardEditDTO,
-  type CardMoveDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
 import { Card_Repository } from './card.repository'
@@ -453,7 +435,7 @@ import { TooManyCards } from './errors/too-many-cards'
    * at once both get their move, one after the other.
    */
   @UseCase()
-  async move(id: string, input: CardMoveDTO): Promise<CardDTO> {
+  async move(id: string, input: unknown): Promise<CardDTO> {
     const { columnId, position } = CardMoveSchema.parse(input)
     const card = await this.load(id)
     const from = card.columnId
@@ -537,14 +519,13 @@ board's first column, which is always there.
 
 ### The routes
 
-`card.routes.ts` imports `CardMoveDTO`, and gets `POST /cards/:cardId/move`,
-`DELETE /cards/:cardId` and the column's removal, `DELETE /columns/:columnId`:
+`card.routes.ts` gets `POST /cards/:cardId/move`, `DELETE /cards/:cardId` and the
+column's removal, `DELETE /columns/:columnId`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.routes.ts
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { CardAssignDTO, CardCreateDTO, CardEditDTO, CardMoveDTO } from './card'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 
@@ -553,27 +534,15 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   workspace.get('/boards/:boardId/cards', async request => Response.json(await cards.listInBoard(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/cards', async request => {
-    const input = await request.json() as CardCreateDTO
-    return Response.json(await cards.create(request.params.boardId, input), { status: 201 })
-  })
+  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }))
 
   workspace.get('/cards/:cardId', async request => Response.json(await cards.get(request.params.cardId)))
 
-  workspace.patch('/cards/:cardId', async request => {
-    const input = await request.json() as CardEditDTO
-    return Response.json(await cards.edit(request.params.cardId, input))
-  })
+  workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json())))
 
-  workspace.post('/cards/:cardId/move', async request => {
-    const input = await request.json() as CardMoveDTO
-    return Response.json(await cards.move(request.params.cardId, input))
-  })
+  workspace.post('/cards/:cardId/move', async request => Response.json(await cards.move(request.params.cardId, await request.json())))
 
-  workspace.post('/cards/:cardId/assign', async request => {
-    const input = await request.json() as CardAssignDTO
-    return Response.json(await cards.assign(request.params.cardId, input))
-  })
+  workspace.post('/cards/:cardId/assign', async request => Response.json(await cards.assign(request.params.cardId, await request.json())))
 
   workspace.post('/cards/:cardId/unassign', async request => Response.json(await cards.unassign(request.params.cardId)))
 

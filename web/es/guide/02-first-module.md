@@ -27,6 +27,10 @@ board/
 Un tablero todavía no tiene workspace: todos ven todos los tableros. El capítulo
 [4](./04-who-and-where) pone cada tablero en un workspace.
 
+Aquí escribes cada fichero. En un proyecto tuyo, `bunx newt add module
+<carpeta-del-contexto> <nombre>` escribe un esqueleto de estos ficheros para empezar
+([apéndice G](./g-command-line)).
+
 ## zod
 
 Todos los datos de newt se describen con [zod](https://zod.dev). Añádelo al
@@ -266,6 +270,8 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
     super(base, base.store.table<BoardRow>('board'), {
       // Archiving stamps `deletedAt`: an archived board is in no list.
       softDelete: true,
+      // No scope yet: chapter 4 gives the boards their workspace's.
+      scope: 'none',
     })
   }
 
@@ -283,6 +289,10 @@ Con eso ya tienes `find`, `first`, `count`, `page` y `persist`:
 - **`softDelete: true`** convierte el borrado que pide `archive()` en una marca
   `deletedAt`. La fila se queda, porque las columnas y las tarjetas le apuntarán; los
   tableros archivados desaparecen de todo `find`, `count` y `page`.
+- **`scope`** dice de quién son estas filas. Todo repositorio tiene que decirlo, o no
+  compila: o un ámbito (el workspace en el que está una petición, desde el capítulo
+  [4](./04-who-and-where)) o `'none'`, escrito. De momento no hay workspaces, así que
+  los tableros dicen `'none'`, con un comentario que dice hasta cuándo.
 - **`persist(...entities)`** guarda uno o varios tableros a la vez, todos o ninguno: una
   transacción. Escribe solo lo que ha cambiado.
 - **Lo que se busca se dice con criterios**, campo a campo: `this.repo.find({ id })` es
@@ -322,9 +332,7 @@ import {
   Board,
   BoardCreateSchema,
   BoardUpdateSchema,
-  type BoardCreateDTO,
   type BoardDTO,
-  type BoardUpdateDTO,
 } from './board'
 import { Board_Repository } from './board.repository'
 import { registerBoardRoutes } from './board.routes'
@@ -349,7 +357,7 @@ export class Board_Module extends Module {
   }
 
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     const board = Board.create({ name, description })
     await this.repo.persist(board)
@@ -358,7 +366,7 @@ export class Board_Module extends Module {
 
   /** Renames it, describes it, or both. */
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     board.update(changes)
@@ -383,7 +391,12 @@ export class Board_Module extends Module {
 - **`super('board', base.invocations)`** da nombre al módulo. **`@UseCase()`** convierte
   cada método público en un caso de uso con el nombre de ambos: `board.create`,
   `board.update`. Cada llamada es una invocación que la base registra; esos nombres son
-  los que verás en las trazas y en los nombres de las colas.
+  los que verás en las trazas y en los nombres de las colas. Todo método público de un
+  módulo es un caso de uso: uno sin `@UseCase()` es un error del lint
+  (`newt/use-case`), y lo que no es un caso de uso es `private`, como `load`.
+- **La entrada es `unknown`.** `create` y `update` aceptan lo que se les pase y lo
+  validan: `BoardCreateSchema.parse(input)` es lo que le da un tipo. Una ruta, un test
+  u otro contexto pueden pasar cualquier cosa; quien comprueba es el caso de uso.
 - **`static initialize`** crea el módulo y registra sus rutas. Es lo que llama el
   contexto. El constructor es privado.
 - **Todos los casos de uso tienen la misma forma**: validar la entrada en la puerta
@@ -402,21 +415,14 @@ un script y, más adelante, desde una herramienta MCP.
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.routes.ts
 import type { BoardsBase } from '../../boards-base'
-import type { BoardCreateDTO, BoardUpdateDTO } from './board'
 import type { Board_Module } from './board.module'
 
 export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): void {
-  base.http.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  base.http.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   base.http.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
 
-  base.http.patch('/boards/:boardId', async request => {
-    const input = await request.json() as BoardUpdateDTO
-    return Response.json(await boards.update(request.params.boardId, input))
-  })
+  base.http.patch('/boards/:boardId', async request => Response.json(await boards.update(request.params.boardId, await request.json())))
 
   base.http.post('/boards/:boardId/archive', async request => {
     await boards.archive(request.params.boardId)
@@ -430,8 +436,10 @@ export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): voi
   existe y es un `string`.
 - **No hay `try/catch`.** Si el caso de uso lanza `BoardNotFound`, el router responde 404
   con `{ error, code }`. El capítulo siguiente enseña todas las respuestas.
-- `as BoardCreateDTO` no es una comprobación, solo un tipo para el editor. La
-  comprobación es el `parse` del caso de uso.
+- **El cuerpo llega al caso de uso tal como vino**: `await request.json()`, sin
+  `as BoardCreateDTO`. Un cast no es una comprobación, solo un tipo que el editor se
+  cree, y el caso de uso valida de todos modos. El lint lo rechaza (`newt/route-body`),
+  así que ninguna ruta finge saber lo que envió un cliente.
 
 ## Registrarlo
 
@@ -712,7 +720,10 @@ rellenado; un `GET` del tablero es ahora un 404:
   separadas las dos cosas.
 - Solo la entidad se cambia a sí misma; solo el repositorio toca el store. Un caso de
   uso valida, carga, cambia, persiste una vez y devuelve DTO.
+- Un caso de uso recibe su entrada como `unknown` y la valida; una ruta le pasa el
+  cuerpo tal como vino. Todo método público de un módulo es un `@UseCase()`.
 - Una ruta no piensa. Quién envía una petición es asunto del autenticador, nunca de la
   ruta.
+- Todo repositorio declara su `scope`, aunque sea `'none'`.
 
 Siguiente: [casos de uso, páginas y errores](./03-pages-and-errors).

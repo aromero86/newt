@@ -28,6 +28,11 @@ los stores. También escribes tu segundo módulo, `column`, que usa `board`.
 
 ## El módulo column
 
+`bunx newt add module cooper/backend/contexts/boards column` escribiría un esqueleto de
+este módulo, con cada fichero nombrado como pide el lint
+([apéndice G](./g-command-line)). Aquí escribes los ficheros de verdad, que dicen más
+que un esqueleto.
+
 ### Su esquema y su entidad
 
 Una columna pertenece a un tablero, por id, y tiene una `position`: 0 a la izquierda,
@@ -321,9 +326,7 @@ import {
   ColumnAddSchema,
   ColumnRenameSchema,
   MAX_COLUMNS,
-  type ColumnAddDTO,
   type ColumnDTO,
-  type ColumnRenameDTO,
 } from './column'
 import type { Column_Deps } from './column.deps'
 import { Column_Repository } from './column.repository'
@@ -363,7 +366,7 @@ export class Column_Module extends Module {
 
   /** A new column, at the end of the board: a board has at most `MAX_COLUMNS`. */
   @UseCase()
-  async add(boardId: string, input: ColumnAddDTO): Promise<ColumnDTO> {
+  async add(boardId: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnAddSchema.parse(input)
     await this.deps.board.get(boardId)
     const count = await this.repo.count({ boardId })
@@ -375,7 +378,7 @@ export class Column_Module extends Module {
   }
 
   @UseCase()
-  async rename(id: string, input: ColumnRenameDTO): Promise<ColumnDTO> {
+  async rename(id: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnRenameSchema.parse(input)
     const column = await this.load(id)
     column.rename(name)
@@ -433,13 +436,14 @@ pregunta a `board.get` en vez de leer la tabla `board`.
 ### Sus rutas
 
 Las rutas de columnas viven también en el grupo del espacio de trabajo: las columnas
-de un tablero bajo el tablero, y una columna por su propio id.
+de un tablero bajo el tablero, y una columna por su propio id. Cada una pasa el cuerpo
+a su caso de uso tal como vino, como las de los tableros: `add` y `rename` reciben su
+entrada como `unknown` y la validan.
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/column.routes.ts
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { ColumnAddDTO, ColumnRenameDTO } from './column'
 import type { Column_Deps } from './column.deps'
 import type { Column_Module } from './column.module'
 
@@ -448,15 +452,9 @@ export function registerColumnRoutes(base: BoardsBase, columns: Column_Module, d
 
   workspace.get('/boards/:boardId/columns', async request => Response.json(await columns.list(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/columns', async request => {
-    const input = await request.json() as ColumnAddDTO
-    return Response.json(await columns.add(request.params.boardId, input), { status: 201 })
-  })
+  workspace.post('/boards/:boardId/columns', async request => Response.json(await columns.add(request.params.boardId, await request.json()), { status: 201 }))
 
-  workspace.patch('/columns/:columnId', async request => {
-    const input = await request.json() as ColumnRenameDTO
-    return Response.json(await columns.rename(request.params.columnId, input))
-  })
+  workspace.patch('/columns/:columnId', async request => Response.json(await columns.rename(request.params.columnId, await request.json())))
 }
 ```
 
@@ -726,7 +724,7 @@ posterior):
   }
 
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     await this.assertNameFree(BoardName.from(name))
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
@@ -744,7 +742,7 @@ nombre ocupado. Su comprobación deja fuera al propio tablero: renombrar `Roadma
 // cooper/backend/contexts/boards/modules/board/board.module.ts
   /** Renames it, describes it, or both. */
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)

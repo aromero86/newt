@@ -296,9 +296,11 @@ getter antes de `name`:
 
 ### El ámbito del repositorio
 
-Ahora, lo importante. Un repositorio cuyas filas pertenecen a un espacio de trabajo lo
-dice **una vez**, con la opción `scope` de `TableRepository`: el campo que guarda el
-espacio de trabajo, y una función que da el actual.
+Ahora, lo importante. En el capítulo [2](./02-first-module) el repositorio decía
+`scope: 'none'`, porque no había espacios de trabajo. Un repositorio cuyas filas
+pertenecen a un espacio de trabajo lo dice **una vez**, en esa misma opción: el campo
+que guarda el espacio de trabajo, y una función que da el actual. Cambia `'none'` por
+ellos, y añade el import:
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.repository.ts
@@ -334,6 +336,13 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
   }
 }
 ```
+
+El tipo de la opción es `RepositoryScope<Row> | 'none'`, de `newt/repository`.
+Un `RepositoryScope` es `{ field, current }`: `field` es una columna de la fila
+(`'workspaceId'`; un nombre que la fila no tiene no compila), y `current` da el valor
+del ámbito para el trabajo en curso. La opción no es opcional. Un repositorio que deja
+fuera `scope` no compila, así que un ámbito nunca se pierde por olvidarlo: quitarlo es
+escribir `'none'`, donde una revisión lo ve.
 
 Lo que garantiza `scope`:
 
@@ -443,7 +452,7 @@ envía: viene de la URL, comprobada por el middleware.
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.module.ts
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
     await this.repo.persist(board)
@@ -462,7 +471,6 @@ siendo `/boards…`; el grupo pone delante `/workspaces/:workspaceId`.
 import { pageRequestFrom } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { BoardCreateDTO, BoardUpdateDTO } from './board'
 import type { Board_Deps } from './board.deps'
 import type { Board_Module } from './board.module'
 
@@ -471,17 +479,11 @@ export function registerBoardRoutes(base: BoardsBase, boards: Board_Module, deps
 
   workspace.get('/boards', async request => Response.json(await boards.list(pageRequestFrom(request))))
 
-  workspace.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  workspace.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   workspace.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
 
-  workspace.patch('/boards/:boardId', async request => {
-    const input = await request.json() as BoardUpdateDTO
-    return Response.json(await boards.update(request.params.boardId, input))
-  })
+  workspace.patch('/boards/:boardId', async request => Response.json(await boards.update(request.params.boardId, await request.json())))
 
   workspace.post('/boards/:boardId/archive', async request => {
     await boards.archive(request.params.boardId)
@@ -835,6 +837,22 @@ boards.base.http.authenticateWith(async request => {
 Un programa que no es un test e importa de `testing/` es un apaño provisional, y lo
 dice en su comentario: el capítulo 20 lo quita.
 
+## Decírselo a los agentes
+
+El ámbito del espacio de trabajo es una convención de cooper que las reglas de newt no
+dicen: todos los repositorios de `boards` tienen el ámbito del espacio de trabajo.
+Añádela a las convenciones de `cooper/AGENTS.md` (capítulo
+[1](./01-project-and-context)), para que un agente de código que añada un módulo le dé
+ámbito a su repositorio también:
+
+```md
+## Conventions
+
+- Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
+  its routes on `base.http`, in its `<m>.routes.ts`.
+- boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
+```
+
 ## Compruébalo
 
 ```sh
@@ -882,7 +900,8 @@ curl localhost:3002/api/workspaces/acme/boards
 - **Dónde** es un ámbito (`defineScope`), en el que entra una sola vez el middleware de
   un grupo. Un repositorio con `scope` ve solo las filas del espacio de trabajo actual,
   así que ninguna consulta puede olvidar el filtro; mirar a través de los espacios de
-  trabajo es `findInEveryScope`, detrás de un nombre que lo dice.
+  trabajo es `findInEveryScope`, detrás de un nombre que lo dice. Todo repositorio
+  declara su ámbito (`RepositoryScope` o `'none'`): si no, no compila.
 - Lo que un contexto necesita de otro es un **puerto** con sus propias palabras, en el
   `.deps.ts` del módulo, que se entrega al abrir el contexto. Un test le entrega un
   falso.

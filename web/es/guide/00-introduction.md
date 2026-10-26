@@ -106,7 +106,7 @@ tableros, columnas y tarjetas que varias personas cambian a la vez.
 
 | Capítulo | Qué añade |
 |---|---|
-| [1. El proyecto y un contexto](./01-project-and-context) | El proyecto TypeScript de cooper y su lint, el contexto `boards` sobre ficheros planos, su salud. |
+| [1. El proyecto y un contexto](./01-project-and-context) | El proyecto TypeScript de cooper, su lint y su `AGENTS.md`, el contexto `boards` sobre ficheros planos, su salud. |
 | [2. El primer módulo: tableros](./02-first-module) | El módulo `board`, entero: entidad, esquema, value object, errores, repositorio, casos de uso, rutas. |
 | [3. Casos de uso, páginas y errores](./03-pages-and-errors) | Listas por páginas, y cada error contestado con las palabras de cooper. |
 | [4. Quién y dónde](./04-who-and-where) | El actor, el ámbito del workspace, un grupo de rutas con su middleware. |
@@ -200,7 +200,8 @@ tsconfig.json         the repository's TypeScript projects: for now only newt's
 tsconfig.newt.json    newt's project: the framework and its tests
 eslint.config.js      lints nothing yet: the framework's code is left out
 packages/
-  newt/               the framework: newt/core, newt/runtime, newt/http…
+  newt/               the framework: newt/core, newt/runtime, newt/http…, its `newt`
+                      command and its AGENTS.md, the rules for coding agents
   newt-eslint/        the lint of an application built with newt
 web/                  this site
 ```

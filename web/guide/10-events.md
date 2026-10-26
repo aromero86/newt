@@ -689,9 +689,7 @@ after the imports, a function that reads the actor:
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
 // …
-  type CardAssignDTO,
   type CardAuthor,
-  type CardCreateDTO,
 // …
 import { TooManyCards } from './errors/too-many-cards'
 import { Card_Assigned } from './events/card-assigned'
@@ -740,11 +738,11 @@ passes it to `newCard`, which takes it and hands it to `Card.create`:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
   @UseCase()
-  async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
+  async create(boardId: string, input: unknown): Promise<CardDTO> {
     const card = await this.newCard(boardId, input, actingAuthor())
 // …
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
-  private async newCard(boardId: string, input: CardCreateDTO, author: CardAuthor): Promise<Card> {
+  private async newCard(boardId: string, input: unknown, author: CardAuthor): Promise<Card> {
 // …
       title,
       description,

@@ -27,6 +27,10 @@ second module, `column`, which uses `board`.
 
 ## The column module
 
+`bunx newt add module cooper/backend/contexts/boards column` would write a skeleton of
+this module, with every file named as the lint asks ([appendix G](./g-command-line)).
+Here you type the real files, which say more than a skeleton does.
+
 ### Its schema and entity
 
 A column belongs to a board, by id, and has a `position`: 0 on the left, then 1, 2…
@@ -317,9 +321,7 @@ import {
   ColumnAddSchema,
   ColumnRenameSchema,
   MAX_COLUMNS,
-  type ColumnAddDTO,
   type ColumnDTO,
-  type ColumnRenameDTO,
 } from './column'
 import type { Column_Deps } from './column.deps'
 import { Column_Repository } from './column.repository'
@@ -359,7 +361,7 @@ export class Column_Module extends Module {
 
   /** A new column, at the end of the board: a board has at most `MAX_COLUMNS`. */
   @UseCase()
-  async add(boardId: string, input: ColumnAddDTO): Promise<ColumnDTO> {
+  async add(boardId: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnAddSchema.parse(input)
     await this.deps.board.get(boardId)
     const count = await this.repo.count({ boardId })
@@ -371,7 +373,7 @@ export class Column_Module extends Module {
   }
 
   @UseCase()
-  async rename(id: string, input: ColumnRenameDTO): Promise<ColumnDTO> {
+  async rename(id: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnRenameSchema.parse(input)
     const column = await this.load(id)
     column.rename(name)
@@ -428,13 +430,13 @@ That is why a column keeps a `boardId` and nothing more of its board, and why
 ### Its routes
 
 The column routes live on the workspace group too: a board's columns under the board,
-and a column by its own id.
+and a column by its own id. Each one passes the body to its use case as it came, as
+the boards' do: `add` and `rename` take their input as `unknown` and parse it.
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/column.routes.ts
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { ColumnAddDTO, ColumnRenameDTO } from './column'
 import type { Column_Deps } from './column.deps'
 import type { Column_Module } from './column.module'
 
@@ -443,15 +445,9 @@ export function registerColumnRoutes(base: BoardsBase, columns: Column_Module, d
 
   workspace.get('/boards/:boardId/columns', async request => Response.json(await columns.list(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/columns', async request => {
-    const input = await request.json() as ColumnAddDTO
-    return Response.json(await columns.add(request.params.boardId, input), { status: 201 })
-  })
+  workspace.post('/boards/:boardId/columns', async request => Response.json(await columns.add(request.params.boardId, await request.json()), { status: 201 }))
 
-  workspace.patch('/columns/:columnId', async request => {
-    const input = await request.json() as ColumnRenameDTO
-    return Response.json(await columns.rename(request.params.columnId, input))
-  })
+  workspace.patch('/columns/:columnId', async request => Response.json(await columns.rename(request.params.columnId, await request.json())))
 }
 ```
 
@@ -715,7 +711,7 @@ whatever its case, for other modules (a later chapter uses it):
   }
 
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     await this.assertNameFree(BoardName.from(name))
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
@@ -732,7 +728,7 @@ out the board itself: renaming `Roadmap` to `ROADMAP` is fine.
 // cooper/backend/contexts/boards/modules/board/board.module.ts
   /** Renames it, describes it, or both. */
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)

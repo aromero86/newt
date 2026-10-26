@@ -291,9 +291,11 @@ getter before `name`:
 
 ### The repository's scope
 
-Now the important part. A repository whose rows belong to a workspace says so **once**,
-with the `scope` option of `TableRepository`: the field that holds the workspace, and
-a function that gives the current one.
+Now the important part. In chapter [2](./02-first-module) the repository said
+`scope: 'none'`, because there were no workspaces. A repository whose rows belong to a
+workspace says so **once**, in that same option: the field that holds the workspace,
+and a function that gives the current one. Replace `'none'` with them, and add the
+import:
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.repository.ts
@@ -329,6 +331,13 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
   }
 }
 ```
+
+The option's type is `RepositoryScope<Row> | 'none'`, from `newt/repository`.
+A `RepositoryScope` is `{ field, current }`: `field` is a column of the row
+(`'workspaceId'`; a name the row does not have does not compile), and `current` gives
+the scope's value for the work in progress. The option is not optional. A repository
+that leaves `scope` out does not compile, so a scope is never lost by forgetting it:
+dropping one means writing `'none'`, where a review sees it.
 
 What `scope` guarantees:
 
@@ -435,7 +444,7 @@ it comes from the URL, checked by the middleware.
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.module.ts
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
     await this.repo.persist(board)
@@ -454,7 +463,6 @@ The routes move from `base.http` to the workspace group. Their paths stay
 import { pageRequestFrom } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { BoardCreateDTO, BoardUpdateDTO } from './board'
 import type { Board_Deps } from './board.deps'
 import type { Board_Module } from './board.module'
 
@@ -463,17 +471,11 @@ export function registerBoardRoutes(base: BoardsBase, boards: Board_Module, deps
 
   workspace.get('/boards', async request => Response.json(await boards.list(pageRequestFrom(request))))
 
-  workspace.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  workspace.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   workspace.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
 
-  workspace.patch('/boards/:boardId', async request => {
-    const input = await request.json() as BoardUpdateDTO
-    return Response.json(await boards.update(request.params.boardId, input))
-  })
+  workspace.patch('/boards/:boardId', async request => Response.json(await boards.update(request.params.boardId, await request.json())))
 
   workspace.post('/boards/:boardId/archive', async request => {
     await boards.archive(request.params.boardId)
@@ -826,6 +828,21 @@ boards.base.http.authenticateWith(async request => {
 A program that is not a test importing from `testing/` is a stopgap, and says so in
 its comment: chapter 20 takes it out.
 
+## Telling the agents
+
+The workspace scope is a convention of cooper's that newt's rules do not say: every
+repository of `boards` is scoped by workspace. Add it to the conventions of
+`cooper/AGENTS.md` (chapter [1](./01-project-and-context)), so a coding agent that adds
+a module scopes its repository too:
+
+```md
+## Conventions
+
+- Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
+  its routes on `base.http`, in its `<m>.routes.ts`.
+- boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
+```
+
 ## Check it
 
 ```sh
@@ -872,7 +889,8 @@ curl localhost:3002/api/workspaces/acme/boards
 - **Where** is a scope (`defineScope`), entered once by a group's middleware. A
   repository with `scope` sees only the current workspace's rows, so no query can
   forget the filter; looking across workspaces is `findInEveryScope`, behind a name
-  that says so.
+  that says so. Every repository states its scope (`RepositoryScope` or `'none'`): it
+  does not compile otherwise.
 - What a context needs from another is a **port** in its own words, in the module's
   `.deps.ts`, handed in when the context opens. A test hands it a fake.
 

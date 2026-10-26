@@ -13,6 +13,9 @@ Al final tendrás estos ficheros:
 tsconfig.json              changed: it references the backend's project
 tsconfig.backend.json      the backend's TypeScript project
 eslint.config.js           changed: newt's lint on the backend
+cooper/
+  AGENTS.md                what a coding agent reads first about cooper
+  CLAUDE.md                the same, for Claude Code
 cooper/backend/
   config.ts                the settings, from environment variables
   index.ts                 opens boards and serves it
@@ -122,9 +125,92 @@ Estas son sus reglas. Conocerás cada una la primera vez que la rompas:
 | `newt/module-boundaries` | Un módulo llega a otro solo por sus casos de uso, su esquema, sus eventos, sus errores y sus value objects. |
 | `newt/queue-name` | La cola de un worker lleva el nombre del caso de uso al que llama y del evento que escucha. |
 | `newt/context-boundaries` | Un contexto importa solo los contextos que le da `uses`. |
+| `newt/use-case` | Todo método público de un módulo es un caso de uso, marcado con `@UseCase()`; el resto es privado. |
+| `newt/route-body` | Una ruta pasa el cuerpo de una petición a su caso de uso tal como vino, nunca convertido a un tipo. |
+| `newt/schema-imports` | El esquema de un módulo, que un frontend puede importar, toma de newt solo `newt/contract`. |
 
 El preset también rechaza una promesa sin `await`, y una `transaction` llamada dentro de
 un módulo (un módulo guarda a través de su repositorio).
+
+## Instrucciones para agentes de código
+
+Quien escriba el próximo módulo de cooper puede ser un agente de código (Claude Code,
+Codex, Cursor, Copilot…) tanto como tú. Un agente lee el `AGENTS.md` del proyecto
+antes de escribir nada. newt te escribe uno, con `newt init`
+([apéndice G](./g-command-line)). Ejecútalo en la carpeta de cooper, ahora que el lint
+de la raíz existe:
+
+```sh
+cd cooper && bunx newt init
+```
+
+```
+wrote    AGENTS.md
+wrote    CLAUDE.md
+skipped  eslint.config.js (../eslint.config.js is there: add newt-eslint's preset to it, `newt()`)
+```
+
+Nunca sobrescribe un fichero. Ha encontrado el `eslint.config.js` de la raíz, que ya
+tiene el preset de newt, así que no ha escrito un lint propio: por eso se ejecuta
+después del lint de arriba, no antes. Luego imprime lo que queda por hacer. Instalar
+newt y su lint ya está hecho (el `package.json` de la raíz los tiene desde
+`tutorial/00`); rellenar `AGENTS.md` te toca a ti. Vuelve a la raíz (`cd ..`) para el
+resto del capítulo.
+
+`cooper/CLAUDE.md` son dos líneas, dos imports, para Claude Code, que lee
+`CLAUDE.md`:
+
+```md
+@AGENTS.md
+@../node_modules/newt/AGENTS.md
+```
+
+El segundo fichero es el `AGENTS.md` propio de newt, que viaja dentro del paquete: las
+reglas del framework, la anatomía de un módulo, qué hacer con cada uno de sus errores,
+las reglas del lint y qué significa "terminado". Viene con la versión que instalaste,
+así que actualizar newt lo actualiza. El `AGENTS.md` de cooper dice solo lo que es de
+cooper, y manda a los agentes primero al de newt. `newt init` deja sus secciones por
+rellenar; rellénalas para que el fichero quede así:
+
+````md
+# AGENTS.md
+
+Before writing code, read ../node_modules/newt/AGENTS.md: it is the rules of the
+framework, versioned with it. What follows is this project's own.
+
+## This project
+
+cooper: boards of cards for teams, each team in a workspace of its own. newt's
+example application, built step by step in its tutorial (web/guide).
+
+## Contexts
+
+In backend/contexts/, each with a database of its own. Which contexts each one uses
+is said in the root's eslint.config.js, and the lint keeps it.
+
+- boards: the boards of each workspace, their columns and cards. Uses none.
+
+## Conventions
+
+- Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
+  its routes on `base.http`, in its `<m>.routes.ts`.
+
+## Commands
+
+From the repository's root:
+
+```sh
+bun check          # types
+bun test cooper    # cooper's tests
+bun run lint       # newt's lint (eslint.config.js)
+```
+````
+
+El proyecto, sus contextos y cuáles usa cada uno, las convenciones que newt no decide,
+y los comandos que dicen que un cambio está terminado. Mantenlo al día a medida que
+cooper crece: capítulos posteriores añaden una línea cada vez que cooper decide algo
+propio (el ámbito del espacio de trabajo en el capítulo [4](./04-who-and-where), cada
+contexto nuevo).
 
 ## Su configuración
 
@@ -430,6 +516,9 @@ curl -s localhost:3002/api/health
   nunca `experimentalDecorators`.
 - El preset de newt-eslint hace el lint del backend; `contexts.uses` es la forma de la
   aplicación, y crece con cada contexto.
+- `newt init` escribe `AGENTS.md` y `CLAUDE.md`, que mandan a los agentes de código a
+  las reglas de newt en `node_modules/newt/AGENTS.md`. El `AGENTS.md` de la aplicación
+  dice lo que es suyo, y se mantiene al día.
 - La base es lo que recibe cada módulo. Amplía la `Base` de newt con lo que necesiten
   tus módulos (cooper: un router), tipada con el store sobre el que funcionan.
 - Un contexto abre su store, crea su base e inicializa sus módulos. Recibe su

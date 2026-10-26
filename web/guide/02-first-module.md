@@ -27,6 +27,10 @@ board/
 A board has no workspace yet: everyone sees every board. Chapter
 [4](./04-who-and-where) puts each board in a workspace.
 
+You type every file here. In a project of your own, `bunx newt add module
+<context-folder> <name>` writes a skeleton of these files to start from
+([appendix G](./g-command-line)).
+
 ## zod
 
 Every piece of data in newt is described with [zod](https://zod.dev). Add it to the
@@ -263,6 +267,8 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
     super(base, base.store.table<BoardRow>('board'), {
       // Archiving stamps `deletedAt`: an archived board is in no list.
       softDelete: true,
+      // No scope yet: chapter 4 gives the boards their workspace's.
+      scope: 'none',
     })
   }
 
@@ -280,6 +286,10 @@ With that you already have `find`, `first`, `count`, `page` and `persist`:
 - **`softDelete: true`** turns the deletion `archive()` asks for into a `deletedAt`
   stamp. The row stays, because columns and cards will point at it; archived boards
   drop out of every `find`, `count` and `page`.
+- **`scope`** says whose rows these are. Every repository has to say it, or it does
+  not compile: either a scope (the workspace a request is in, from chapter
+  [4](./04-who-and-where)) or `'none'`, written out. For now there are no workspaces,
+  so the boards say `'none'`, with a comment that says until when.
 - **`persist(...entities)`** saves one or more boards at once, all or none: one
   transaction. It writes only what changed.
 - **What to find is said with criteria**, field by field: `this.repo.find({ id })` is
@@ -319,9 +329,7 @@ import {
   Board,
   BoardCreateSchema,
   BoardUpdateSchema,
-  type BoardCreateDTO,
   type BoardDTO,
-  type BoardUpdateDTO,
 } from './board'
 import { Board_Repository } from './board.repository'
 import { registerBoardRoutes } from './board.routes'
@@ -346,7 +354,7 @@ export class Board_Module extends Module {
   }
 
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     const board = Board.create({ name, description })
     await this.repo.persist(board)
@@ -355,7 +363,7 @@ export class Board_Module extends Module {
 
   /** Renames it, describes it, or both. */
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     board.update(changes)
@@ -380,7 +388,12 @@ export class Board_Module extends Module {
 - **`super('board', base.invocations)`** names the module. **`@UseCase()`** makes each
   public method a use case named after both: `board.create`, `board.update`. Each call
   is an invocation the base records; those names are what you will see in traces and
-  in queue names.
+  in queue names. Every public method of a module is a use case: one without
+  `@UseCase()` is a lint error (`newt/use-case`), and what is not a use case is
+  `private`, as `load` is.
+- **The input is `unknown`.** `create` and `update` take whatever they are handed and
+  parse it: `BoardCreateSchema.parse(input)` is what gives it a type. A route, a test
+  or another context can pass anything; the use case is the one that checks.
 - **`static initialize`** creates the module and registers its routes. It is what the
   context calls. The constructor is private.
 - **Every use case has the same shape**: validate the input at the door
@@ -398,21 +411,14 @@ script, and later from an MCP tool.
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.routes.ts
 import type { BoardsBase } from '../../boards-base'
-import type { BoardCreateDTO, BoardUpdateDTO } from './board'
 import type { Board_Module } from './board.module'
 
 export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): void {
-  base.http.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  base.http.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   base.http.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
 
-  base.http.patch('/boards/:boardId', async request => {
-    const input = await request.json() as BoardUpdateDTO
-    return Response.json(await boards.update(request.params.boardId, input))
-  })
+  base.http.patch('/boards/:boardId', async request => Response.json(await boards.update(request.params.boardId, await request.json())))
 
   base.http.post('/boards/:boardId/archive', async request => {
     await boards.archive(request.params.boardId)
@@ -426,8 +432,10 @@ export function registerBoardRoutes(base: BoardsBase, boards: Board_Module): voi
   exists and is a `string`.
 - **There is no `try/catch`.** If the use case throws `BoardNotFound`, the router
   answers 404 with `{ error, code }`. The next chapter shows every answer.
-- `as BoardCreateDTO` is not a check, only a type for the editor. The check is the use
-  case's `parse`.
+- **The body goes to the use case as it came**: `await request.json()`, with no
+  `as BoardCreateDTO`. A cast is not a check, only a type the editor believes, and
+  the use case parses anyway. The lint refuses one (`newt/route-body`), so no route
+  pretends to know what a client sent.
 
 ## Registering it
 
@@ -706,7 +714,10 @@ It answers `204 No Content`. The file stays, at version 2, with `deletedAt` set;
   typed, `schema` is strict about what is kept, and the brand keeps the two apart.
 - Only the entity changes itself; only the repository touches the store. A use case
   validates, loads, changes, persists once and returns DTOs.
+- A use case takes its input as `unknown` and parses it; a route passes the body as
+  it came. Every public method of a module is a `@UseCase()`.
 - A route does not think. Who sends a request is the authenticator's business, never
   the route's.
+- Every repository states its `scope`, even when it is `'none'`.
 
 Next: [use cases, pages and errors](./03-pages-and-errors).

@@ -107,7 +107,7 @@ and cards that several people change at once.
 
 | Chapter | What it adds |
 |---|---|
-| [1. The project and a context](./01-project-and-context) | cooper's TypeScript project and lint, the `boards` context on plain files, its health. |
+| [1. The project and a context](./01-project-and-context) | cooper's TypeScript project, lint and `AGENTS.md`, the `boards` context on plain files, its health. |
 | [2. The first module: boards](./02-first-module) | The `board` module, whole: entity, schema, value object, errors, repository, use cases, routes. |
 | [3. Use cases, pages and errors](./03-pages-and-errors) | Lists by pages, and every error answered in cooper's words. |
 | [4. Who and where](./04-who-and-where) | The actor, the workspace scope, a group of routes with its middleware. |
@@ -201,7 +201,8 @@ tsconfig.json         the repository's TypeScript projects: for now only newt's
 tsconfig.newt.json    newt's project: the framework and its tests
 eslint.config.js      lints nothing yet: the framework's code is left out
 packages/
-  newt/               the framework: newt/core, newt/runtime, newt/http…
+  newt/               the framework: newt/core, newt/runtime, newt/http…, its `newt`
+                      command and its AGENTS.md, the rules for coding agents
   newt-eslint/        the lint of an application built with newt
 web/                  this site
 ```

@@ -456,10 +456,7 @@ import {
   CardCreateSchema,
   CardEditSchema,
   MAX_CARDS,
-  type CardAssignDTO,
-  type CardCreateDTO,
   type CardDTO,
-  type CardEditDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
 import { Card_Repository } from './card.repository'
@@ -516,7 +513,7 @@ export class Card_Module extends Module {
    * a board holds at most `MAX_CARDS`.
    */
   @UseCase()
-  async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
+  async create(boardId: string, input: unknown): Promise<CardDTO> {
     const card = await this.newCard(boardId, input)
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
     if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
@@ -525,7 +522,7 @@ export class Card_Module extends Module {
   }
 
   @UseCase()
-  async edit(id: string, input: CardEditDTO): Promise<CardDTO> {
+  async edit(id: string, input: unknown): Promise<CardDTO> {
     const changes = CardEditSchema.parse(input)
     const card = await this.load(id)
     card.edit(changes)
@@ -535,7 +532,7 @@ export class Card_Module extends Module {
 
   /** Assigns it to a member of its workspace: anyone else is a mistake of the request (400). */
   @UseCase()
-  async assign(id: string, input: CardAssignDTO): Promise<CardDTO> {
+  async assign(id: string, input: unknown): Promise<CardDTO> {
     const { assigneeId } = CardAssignSchema.parse(input)
     const card = await this.load(id)
     await this.assertMember(assigneeId)
@@ -553,7 +550,7 @@ export class Card_Module extends Module {
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
-  private async newCard(boardId: string, input: CardCreateDTO): Promise<Card> {
+  private async newCard(boardId: string, input: unknown): Promise<Card> {
     const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
     const board = await this.deps.board.get(boardId)
     await this.assertColumnOf(boardId, columnId)
@@ -611,7 +608,6 @@ en el workspace una vez que `member.enter` ha dejado entrar a la persona.
 // cooper/backend/contexts/boards/modules/card/card.routes.ts
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
-import type { CardAssignDTO, CardCreateDTO, CardEditDTO } from './card'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 
@@ -620,22 +616,13 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   workspace.get('/boards/:boardId/cards', async request => Response.json(await cards.listInBoard(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/cards', async request => {
-    const input = await request.json() as CardCreateDTO
-    return Response.json(await cards.create(request.params.boardId, input), { status: 201 })
-  })
+  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }))
 
   workspace.get('/cards/:cardId', async request => Response.json(await cards.get(request.params.cardId)))
 
-  workspace.patch('/cards/:cardId', async request => {
-    const input = await request.json() as CardEditDTO
-    return Response.json(await cards.edit(request.params.cardId, input))
-  })
+  workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json())))
 
-  workspace.post('/cards/:cardId/assign', async request => {
-    const input = await request.json() as CardAssignDTO
-    return Response.json(await cards.assign(request.params.cardId, input))
-  })
+  workspace.post('/cards/:cardId/assign', async request => Response.json(await cards.assign(request.params.cardId, await request.json())))
 
   workspace.post('/cards/:cardId/unassign', async request => Response.json(await cards.unassign(request.params.cardId)))
 }
