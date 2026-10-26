@@ -49,7 +49,7 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
    * card's number, even the last one's, is not given again. The table's unique index
    * on (board, number) is the last word.
    */
-  async persistNew(card: Card): Promise<void> {
+  async persistNew(card: Card, options: { first?: boolean } = {}): Promise<void> {
     const { boardId, columnId } = card
     await this.save([card], each => this.write(each), {
       guard: [`boardCards:${boardId}`, `cards:${columnId}`],
@@ -57,6 +57,8 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
       after: async () => {
         const count = await this.count({ boardId })
         if (count > MAX_CARDS) throw new TooManyCards(boardId)
+        // Its board's first, and another one got in first: the use case runs again, and finds it.
+        if (options.first && count > 1) this.conflict()
       },
     })
   }
@@ -79,6 +81,14 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
           if (positions.some((position, index) => position !== index)) this.conflict()
         }
       },
+    })
+  }
+
+  /** Removes every card of a workspace, and its boards' counters, for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.saveRows(async () => {
+      await this.purge({ workspaceId })
+      await this.counters.deleteMany({ workspaceId })
     })
   }
 

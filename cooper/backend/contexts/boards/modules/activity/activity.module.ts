@@ -72,6 +72,12 @@ export class Activity_Module extends Module {
     await this.append(card, card, event, 'deleted', { number: card.number, title: card.title })
   }
 
+  /** A workspace was deleted in auth: its log goes. A step of that deletion, safe to run again. */
+  @UseCase()
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.repo.purgeWorkspace(workspaceId)
+  }
+
   /**
    * Records an event of a card, in its workspace (a worker is in none), by the event's
    * id: the second time, the entry is there already.

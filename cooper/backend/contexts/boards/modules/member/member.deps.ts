@@ -10,6 +10,8 @@ export type Workspaces = {
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
+  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
+  exists(workspaceId: string): Promise<boolean>
 }
 
 export interface Member_Deps {

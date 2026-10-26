@@ -101,6 +101,16 @@ export class Board_Module extends Module {
     await this.repo.persist(board)
   }
 
+  /**
+   * A workspace was deleted in auth: its boards go, archived ones too. A step of that
+   * deletion: a worker calls it, as many times as it takes, and the second
+   * time finds nothing to remove.
+   */
+  @UseCase()
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.repo.purgeWorkspace(workspaceId)
+  }
+
   private load(id: string): Promise<Board> {
     return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
   }

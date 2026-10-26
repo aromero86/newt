@@ -43,6 +43,29 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
   }
 
   /**
+   * Saves new columns at the end of their board, as `persistAdded` does, where none
+   * of the board's other columns has their names, whatever the case: checked again after writing them,
+   * guarding the board's columns. A save that finds one already there (another run
+   * of the same work added it meanwhile) is a conflict, and the use case runs again,
+   * finding it.
+   */
+  async persistMissing(columns: Column[], boardId: string): Promise<void> {
+    await this.save(columns, each => this.write(each), {
+      guard: [`columns:${boardId}`],
+      before: async () => {
+        const count = await this.count({ boardId })
+        columns.forEach((column, index) => column.place(count + index))
+      },
+      after: async () => {
+        if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
+        for (const column of columns) {
+          if (await this.count({ boardId, name: { ieq: column.name } }) > 1) this.conflict()
+        }
+      },
+    })
+  }
+
+  /**
    * Saves a board's columns in their new order, all of them or none: each
    * one moved, and the one removed. Each was read at a version, so a column moved by
    * someone else meanwhile makes it a conflict, and the use case runs again with what
@@ -59,5 +82,10 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
         if (positions.some((position, index) => position !== index)) this.conflict()
       },
     })
+  }
+
+  /** Removes every column of a workspace for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.purge({ workspaceId })
   }
 }

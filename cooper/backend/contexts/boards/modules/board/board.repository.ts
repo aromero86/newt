@@ -46,4 +46,13 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
   recentInEveryScope(limit: number): Promise<Board[]> {
     return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
   }
+
+  /**
+   * Removes every board of a workspace, archived ones too, for good: rows that will
+   * tell nothing, so `purge` removes them. The workspace is named, not the current
+   * one: auth deleted it, and nobody is in it.
+   */
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.purge({ workspaceId })
+  }
 }

@@ -16,6 +16,12 @@ export function registerActivityWorkers(activity: Activity_Module, deps: Activit
   events.unassigned.subscribe((unassignment, event) => activity.recordUnassigned(unassignment, event), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
   events.deleted.subscribe((card, event) => activity.recordDeleted(card, event), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
 
+  // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
+  deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+    strategy: 'handler',
+    queue: 'activity.purgeWorkspace.on.tenant.deleted',
+  })
+
   // A line in the server's log as each card moves, to watch a board live while
   // tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
   // or the server stops before it runs, the line is lost, and nothing is wrong: no

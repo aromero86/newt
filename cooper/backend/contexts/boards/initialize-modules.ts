@@ -9,14 +9,17 @@ import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
 import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
+import type { TenantEvents } from './modules/workspace/workspace.deps'
+import { Workspace_Module } from './modules/workspace/workspace.module'
 
 /**
  * What `boards`' modules are given besides its base: what they need of auth, as ports
- * of their own (who belongs to each workspace, and auth's events about access), and a
- * mailer. Whoever opens the context wires them.
+ * of their own (who belongs to each workspace, and auth's events about workspaces and
+ * access), and a mailer. Whoever opens the context wires them.
  */
 export type Boards_ModuleDeps = {
   workspaces: Workspaces
+  tenants: TenantEvents
   access: AccessEvents
   mailer: Mailer
   /** Where a line goes as each card moves, for whoever watches: the console while tracing, nowhere if none. */
@@ -29,10 +32,11 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
-  const activity = Activity_Module.initialize(base, { card, member }, { log: deps.log ?? (() => {}) })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants })
+  const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
-  return { member, board, column, card, activity, outbox }
+  return { member, board, column, card, workspace, activity, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>

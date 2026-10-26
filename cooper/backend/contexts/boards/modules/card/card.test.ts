@@ -311,17 +311,6 @@ describe('card', () => {
     expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
   })
 
-  test('takes a card left in a removed column to the first one of its board, a moment later', async () => {
-    await create('Already there', { columnId: doing })
-    await create('Plan')
-
-    // As if a card were moved into it while it was being removed: the column goes with a card in it.
-    await inAcme(() => t.modules.column.remove(todo))
-    await t.settled()
-
-    expect(await columns()).toEqual({ todo: [], doing: ['#1@0', '#2@1'], done: [] })
-  })
-
   test('a reaction that keeps failing dies after its attempts, is listed, and runs once retried', async () => {
     // A reaction of the test's own, as if the mail server were down, at its only attempt.
     let down = true

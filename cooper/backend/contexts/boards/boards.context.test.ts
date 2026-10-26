@@ -42,7 +42,7 @@ describe('boards, through its API', () => {
     expect(await call('GET', '/acme/boards')).toMatchObject({ status: 200, body: { items: [], total: 0 } })
   })
 
-  test('keeps a board, its columns and its cards', async () => {
+  test('keeps a board, its columns and its cards, and shows them as one screen', async () => {
     const board = await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })
     expect(board.status).toBe(201)
     const id = board.body.id
@@ -55,8 +55,10 @@ describe('boards, through its API', () => {
     expect((await call('POST', `/acme/cards/${card.body.id}/assign`, { assigneeId: 'bea' })).body).toMatchObject({ code: 'card.assignee_not_member' })
     expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
 
-    expect((await call<{ name: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.name)).toEqual(['To do', 'Done'])
-    expect((await call<{ title: string }[]>('GET', `/acme/boards/${id}/cards`)).body.map(each => each.title)).toEqual(['Plan'])
+    const view = await call<{ board: { name: string }, columns: { name: string }[], cards: { title: string }[] }>('GET', `/acme/boards/${id}/view`)
+    expect(view.body.board.name).toBe('Plans')
+    expect(view.body.columns.map(column => column.name)).toEqual(['To do', 'Done'])
+    expect(view.body.cards.map(each => each.title)).toEqual(['Plan'])
 
     // Another workspace sees none of it.
     expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)

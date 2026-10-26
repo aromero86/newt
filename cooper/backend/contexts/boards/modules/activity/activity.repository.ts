@@ -16,4 +16,9 @@ export class Activity_Repository extends TableRepository<Activity, ActivityRow, 
   protected toEntity(row: ActivityRow): Activity {
     return Activity.fromDTO(row)
   }
+
+  /** Forgets every entry of a workspace: auth deleted it (see `Board_Repository.purgeWorkspace`). */
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.purge({ workspaceId })
+  }
 }

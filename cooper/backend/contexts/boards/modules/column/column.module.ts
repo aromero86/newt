@@ -66,6 +66,28 @@ export class Column_Module extends Module {
     return column.toDTO()
   }
 
+  /**
+   * Adds at the end of the board the columns of these names it does not have yet,
+   * whatever the case (`to do` is `To do`, as boards' names), and answers the board's
+   * columns of these names, in their order: what a worker preparing a board calls, as
+   * many times as it takes. Runs at once add each name once: the save checks it again.
+   */
+  @UseCase()
+  async addMissing(boardId: string, input: string[]): Promise<ColumnDTO[]> {
+    await this.deps.board.get(boardId)
+    const names = input.map(name => ColumnAddSchema.parse({ name }).name)
+    const columns = await this.repo.ofBoard(boardId)
+    const added: Column[] = []
+    for (const name of names) {
+      if ([...columns, ...added].some(column => column.isNamed(name))) continue
+      added.push(Column.add({ workspaceId: currentWorkspaceId(), boardId, name, position: columns.length + added.length }))
+    }
+    if (columns.length + added.length > MAX_COLUMNS) throw new TooManyColumns(boardId)
+    if (added.length > 0) await this.repo.persistMissing(added, boardId)
+    const all = [...columns, ...added]
+    return names.map(name => all.find(column => column.isNamed(name))!.toDTO())
+  }
+
   @UseCase()
   async rename(id: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnRenameSchema.parse(input)
@@ -108,6 +130,12 @@ export class Column_Module extends Module {
     others.forEach((each, index) => each.reposition(index))
     column.remove()
     await this.repo.persistOrder([column, ...others], column.boardId)
+  }
+
+  /** A workspace was deleted in auth: its columns go. A step of that deletion, safe to run again. */
+  @UseCase()
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.repo.purgeWorkspace(workspaceId)
   }
 
   private load(id: string): Promise<Column> {

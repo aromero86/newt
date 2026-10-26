@@ -37,6 +37,12 @@ export class Member_Module extends Module {
     return this.deps.workspaces.isMember(currentWorkspaceId(), userId)
   }
 
+  /** Whether a workspace is still there: what a worker that writes in one asks first. */
+  @UseCase()
+  async exists(workspaceId: string): Promise<boolean> {
+    return this.deps.workspaces.exists(workspaceId)
+  }
+
   /** Someone of a workspace, or null if they do not belong to it (any more): what a worker, outside any scope, asks. */
   @UseCase()
   async find(workspaceId: string, userId: string): Promise<MemberDTO | null> {

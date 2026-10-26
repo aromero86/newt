@@ -10,6 +10,7 @@ import {
   CardMoveSchema,
   MAX_CARDS,
   type CardAuthor,
+  type CardCreateDTO,
   type CardDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
@@ -102,6 +103,19 @@ export class Card_Module extends Module {
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
     if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
     await this.repo.persistNew(card)
+    return card.toDTO()
+  }
+
+  /**
+   * A board's first card, unless it has one already (null then): what a worker
+   * preparing a board calls, as many times as it takes. Runs at once create it once:
+   * the save counts the board's cards again.
+   */
+  @UseCase()
+  async createFirst(boardId: string, input: CardCreateDTO): Promise<CardDTO | null> {
+    if (await this.repo.count({ boardId }) > 0) return null
+    const card = await this.newCard(boardId, input, BOARDS)
+    await this.repo.persistNew(card, { first: true })
     return card.toDTO()
   }
 
@@ -249,6 +263,12 @@ export class Card_Module extends Module {
       for (const card of cards) card.unassign(BOARDS)
       await this.repo.persist(...cards)
     })
+  }
+
+  /** A workspace was deleted in auth: its cards go. A step of that deletion, safe to run again. */
+  @UseCase()
+  async purgeWorkspace(workspaceId: string): Promise<void> {
+    await this.repo.purgeWorkspace(workspaceId)
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
