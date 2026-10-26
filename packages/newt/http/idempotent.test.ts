@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SqliteStore } from '../adapter-sqlite'
-import { NotFoundError } from '../core'
+import { NotFoundError, type Clock } from '../core'
 import { HttpRouter } from './http-router'
 import type { KeptAnswer } from './kept-answer'
 
@@ -13,6 +13,10 @@ let store: SqliteStore
 let server: Server<undefined>
 let made: number
 let gate: Promise<void> | null
+let time: number
+const clock: Clock = { now: () => new Date(time) }
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
 
 class NothingToMake extends NotFoundError {
   readonly code = 'thing.nothing'
@@ -20,7 +24,7 @@ class NothingToMake extends NotFoundError {
 
 beforeAll(async () => {
   folder = await mkdtemp(join(tmpdir(), 'newt-idempotency-'))
-  await Bun.write(join(folder, '00001_idempotency-key_up.sql'), 'CREATE TABLE idempotency_key (id TEXT PRIMARY KEY, version INTEGER NOT NULL, status INTEGER NOT NULL, headers TEXT NOT NULL, body TEXT NOT NULL, expires_at TEXT NOT NULL);')
+  await Bun.write(join(folder, '00001_idempotency-key_up.sql'), 'CREATE TABLE idempotency_key (id TEXT PRIMARY KEY, version INTEGER NOT NULL, body_hash TEXT NOT NULL, status INTEGER NOT NULL, headers TEXT NOT NULL, body TEXT NOT NULL, expires_at TEXT NOT NULL); CREATE INDEX idempotency_key_expires_at ON idempotency_key (expires_at);')
   await Bun.write(join(folder, '00001_idempotency-key_down.sql'), 'DROP TABLE idempotency_key;')
 })
 
@@ -30,7 +34,8 @@ beforeEach(async () => {
   store = await SqliteStore.open({ path: ':memory:', migrations: folder })
   made = 0
   gate = null
-  const router = new HttpRouter({ idempotency: { table: store.table<KeptAnswer>('idempotency_key'), ttlMs: 200 } })
+  time = Date.parse('2026-01-01T00:00:00.000Z')
+  const router = new HttpRouter({ idempotency: { table: store.table<KeptAnswer>('idempotency_key'), ttlMs: HOUR, clock } })
   router.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
     return userId ? { userId } : null
@@ -51,6 +56,8 @@ afterEach(async () => {
   await server.stop(true)
   await store.close()
 })
+
+const kept = () => store.table<KeptAnswer>('idempotency_key').count()
 
 const post = (name: string, key?: string, user = 'ana', method = 'POST') => fetch(new URL('/api/things', server.url), {
   method,
@@ -84,11 +91,37 @@ describe('idempotency', () => {
     expect(made).toBe(2)
   })
 
-  test('a key is forgotten once it expires', async () => {
+  test('a key is forgotten once it expires, by the clock it is given', async () => {
     await post('Plan', 'key-1')
-    await Bun.sleep(250)
+    time += HOUR - 1
+    expect(await (await post('Plan', 'key-1')).json()).toMatchObject({ number: 1 })
+    time += 1
     expect(await (await post('Plan', 'key-1')).json()).toMatchObject({ number: 2 })
     expect(await (await post('Plan', 'key-1')).json()).toMatchObject({ number: 2 })
+  })
+
+  test('forgotten keys are removed as new ones come, at most once a minute: the table does not grow forever', async () => {
+    await post('Plan', 'key-1')
+    time += HOUR - MINUTE / 2
+    await post('Plan', 'key-2')
+    expect(await kept()).toBe(2)
+
+    // key-1 is forgotten, but the last removal was half a minute ago: it is still there.
+    time += MINUTE / 2
+    await post('Plan', 'key-3')
+    expect(await kept()).toBe(3)
+
+    time += MINUTE / 2
+    await post('Plan', 'key-4')
+    expect(await kept()).toBe(3)
+  })
+
+  test('the same key with another body is a 422, and runs nothing', async () => {
+    await post('Plan', 'key-1')
+    const other = await post('Other', 'key-1')
+    expect(other.status).toBe(422)
+    expect(await other.json()).toMatchObject({ code: 'idempotency_key_reused' })
+    expect(made).toBe(1)
   })
 
   test('what fails is not kept: the same key tries again', async () => {
@@ -110,5 +143,27 @@ describe('idempotency', () => {
     open()
     expect((await first).status).toBe(201)
     expect(made).toBe(1)
+  })
+
+  test('a key in progress is held a minute at most: a process that died does not hold it for the whole day', async () => {
+    let open = () => {}
+    gate = new Promise(resolve => { open = resolve })
+    const first = post('Plan', 'key-1')
+    await Bun.sleep(30)
+    gate = null
+    time += MINUTE - 1
+    expect((await post('Plan', 'key-1')).status).toBe(409)
+
+    time += 1
+    const second = await post('Plan', 'key-1')
+    expect(second.status).toBe(201)
+    expect(await second.json()).toMatchObject({ number: 1 })
+
+    // The first ends at last: it answers, but the key is the second's now.
+    open()
+    expect(await (await first).json()).toMatchObject({ number: 2 })
+    const again = await post('Plan', 'key-1')
+    expect(again.headers.get('idempotent-replayed')).toBe('true')
+    expect(await again.json()).toMatchObject({ number: 1 })
   })
 })

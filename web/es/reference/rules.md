@@ -27,8 +27,8 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   construye su `Base` sobre él. `Base` da a cada módulo el store, las `invocations` de
   sus casos de uso, el `bus` de eventos, el `publisher` en el que publican sus
   repositorios y los `jobs` de sus suscripciones `handler`. Sus opciones son `name`,
-  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule` y
-  un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
+  `store` y, si hacen falta, un `tracer`, la configuración de `jobs`, la `writeRule`, la
+  `guardRule` y un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
   tocan sus trabajos y sus esperas entre reintentos, y `now()` en sus casos de uso y sus
   handlers (la hora real por defecto; un test mueve el suyo,
   `{ now: () => new Date(time) }`, en vez de esperar).
@@ -151,13 +151,18 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   [Quién y dónde](#quien-y-donde-el-actor-y-otros-ambitos) más abajo). Los parámetros
   de una ruta son los de su grupo más los suyos.
 - **Un POST que un cliente puede enviar otra vez** sin hacerlo dos veces lleva `{
-  idempotency: { table, ttlMs } }` (opción de una ruta, de un grupo o de un router):
+  idempotency: { table, ttlMs, clock } }` (opción de una ruta, de un grupo o de un router):
   una petición con la cabecera `Idempotency-Key` recibe la primera respuesta a esa
   clave, del mismo actor en la misma dirección, mientras se recuerda (un día salvo
-  que se diga otra cosa). Las respuestas se guardan en una tabla del store del
-  contexto, `store.table<KeptAnswer>('idempotency_key')`, con su migración. La misma
-  clave mientras la primera sigue en curso es un 409 (`idempotency_key_in_use`); lo
-  que falla no se guarda, así que la clave puede volver a intentarlo.
+  que se diga otra cosa), según el `clock` que se le dé (el del contexto, en un test
+  que mueve el tiempo). Las respuestas se guardan en una tabla del store del
+  contexto, `store.table<KeptAnswer>('idempotency_key')`, con su migración
+  (`KeptAnswer` la muestra); las claves olvidadas se borran según llegan otras nuevas,
+  como mucho una vez por minuto. La misma clave mientras la primera sigue en curso es
+  un 409 (`idempotency_key_in_use`), durante un minuto como mucho: un proceso que murió
+  a medias no la retiene más. La misma clave con otro cuerpo es un 422
+  (`idempotency_key_reused`). Lo que falla no se guarda, así que la clave puede volver
+  a intentarlo.
 - **Las direcciones fuera de `/api`** (los endpoints de OAuth, una entrada MCP, un
   documento `/.well-known`) son un router propio en la raíz, `new HttpRouter({ prefix:
   '' })`, que toma solo sus direcciones y deja el resto al frontend. Un router, un
@@ -793,7 +798,13 @@ entero.
   En Postgres y MySQL, los guardados de otras claves nunca esperan (en SQLite y en
   ficheros cada guardado espera su turno de todos modos). Un guardado con `after` debe
   nombrar su `guard`, o no compila: `guard: []` dice, donde se lee, que no hace falta
-  ninguno. `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
+  ninguno. **La regla de guardas** caza el olvidado en cualquier store, también en
+  SQLite, donde los guardados esperan su turno y la regla se cumple de todos modos: un
+  guardado (o `saveRows`) que no protege nada y lee filas en su transacción (`find`,
+  `count`, en `before`, `write` o `after`) es un error (por defecto), o un aviso
+  (`guardRule: 'warn'` en la `Base` de un contexto; `'off'` no comprueba nada). Las
+  lecturas de antes del guardado (la entidad cargada, la comprobación del propio caso
+  de uso) no son asunto suyo, ni una consulta propia (`store.query`, Kysely). `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
   cooper toma ahí su número). El caso de uso sigue comprobando antes, para dar una
   respuesta clara en el caso habitual. Cuando lo que encuentra `after` no es una
   respuesta sino una fila de la que el guardado no tiene versión y que cambió entre
@@ -1091,7 +1102,8 @@ demás tests de ese proceso.
 
 Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
-`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `filter_too_deep`,
+`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `idempotency_key_reused`,
+`filter_too_deep`,
 `filter_too_many_conditions` e `internal`.
 
 Un endpoint OAuth responde en el formato de OAuth, `{ error, error_description }`:

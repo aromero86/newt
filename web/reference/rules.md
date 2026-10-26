@@ -26,7 +26,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   `Base` on it. `Base` gives every module the store, the `invocations` of its use
   cases, the event `bus`, the `publisher` its repositories publish to, and the `jobs`
   of its `handler` subscriptions. Its options are `name`, `store`, and optionally a
-  `tracer`, the `jobs` settings, the `writeRule` and a `clock`: what its entities'
+  `tracer`, the `jobs` settings, the `writeRule`, the `guardRule` and a `clock`: what its entities'
   `createdAt` and `updatedAt`, its jobs' due times and backoffs, and `now()` in its
   use cases and handlers go by (the real time by default; a test moves its own,
   `{ now: () => new Date(time) }`, instead of waiting).
@@ -144,12 +144,16 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   (see [Who and where](#who-and-where-the-actor-and-other-scopes) below). A route's
   params are its group's and its own.
 - **A POST a client may send again** without doing it twice takes `{ idempotency: {
-  table, ttlMs } }` (a route's, a group's or a router's option): a request with an
+  table, ttlMs, clock } }` (a route's, a group's or a router's option): a request with an
   `Idempotency-Key` header gets the first answer to that key, from the same actor at
-  the same address, while it is remembered (a day unless told). The answers are kept
+  the same address, while it is remembered (a day unless told), by the `clock` given
+  (the context's, in a test that moves time). The answers are kept
   in a table of the context's store, `store.table<KeptAnswer>('idempotency_key')`,
-  with its migration. The same key while the first is still running is a 409
-  (`idempotency_key_in_use`); what fails is not kept, so the key may try again.
+  with its migration (`KeptAnswer` shows it); forgotten keys are removed as new ones
+  come, at most once a minute. The same key while the first is still running is a 409
+  (`idempotency_key_in_use`), for a minute at most: a process that died midway does
+  not hold it longer. The same key with another body is a 422
+  (`idempotency_key_reused`). What fails is not kept, so the key may try again.
 - **Addresses outside `/api`** (OAuth's endpoints, an MCP entry, a `/.well-known`
   document) are a router of their own at the root, `new HttpRouter({ prefix: '' })`,
   which takes only its paths and leaves the rest to the frontend. A router, a group or
@@ -762,7 +766,13 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 
   On Postgres and MySQL, saves of other keys never wait (on SQLite and files every
   save takes its turn anyway). A save with `after` must name its `guard`, or it does
-  not compile: `guard: []` says, where it is read, that none is needed. `before`
+  not compile: `guard: []` says, where it is read, that none is needed. **The guard
+  rule** catches the one forgotten on every store, SQLite too, where saves take turns
+  and the rule holds anyway: a save (or `saveRows`) that guards nothing and reads rows
+  in its transaction (`find`, `count`, in `before`, `write` or `after`) is an error
+  (the default), or a warning (`guardRule: 'warn'` in a context's `Base`; `'off'`
+  checks nothing). Reads before the save (the entity loaded, the use case's own check)
+  are not its business, nor are a query of one's own (`store.query`, Kysely). `before`
   writes, or reads, what must go first (cooper's new card takes its number there). The
   use case still checks first, for a clear answer in the usual case. When what
   `after` finds is not an answer but a row the save holds no version of that changed
@@ -1048,7 +1058,8 @@ every other test in that process reads.
 
 Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
-`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `filter_too_deep`,
+`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `idempotency_key_reused`,
+`filter_too_deep`,
 `filter_too_many_conditions` and `internal`.
 
 An OAuth endpoint answers in OAuth's format instead, `{ error, error_description }`:

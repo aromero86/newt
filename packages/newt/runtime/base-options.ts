@@ -1,4 +1,4 @@
-import type { Clock, Tracer, WriteRule } from '../core'
+import type { Clock, GuardRule, Tracer, WriteRule } from '../core'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
 
@@ -21,4 +21,9 @@ export type BaseOptions<S extends Store> = {
    * default; `warn` while an application moves to the rule, `off` never.
    */
   writeRule?: WriteRule
+  /**
+   * What a save that guards nothing and reads other rows in its transaction gets: an
+   * error by default; `warn` while an application adds its guards, `off` never.
+   */
+  guardRule?: GuardRule
 }

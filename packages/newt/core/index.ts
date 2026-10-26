@@ -15,6 +15,7 @@ export { InvalidEntity } from './entity/errors/invalid-entity'
 export { UseCase } from './use-case/use-case.decorator'
 export type { UseCaseOptions } from './use-case/use-case-options'
 export type { WriteRule } from './use-case/write-rule'
+export type { GuardRule } from './use-case/guard-rule'
 export type { Invocations } from './use-case/invocations'
 
 // Who is doing it
