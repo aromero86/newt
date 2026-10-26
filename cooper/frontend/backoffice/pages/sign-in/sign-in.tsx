@@ -41,9 +41,9 @@ export function SignIn({ refused }: { refused: boolean }) {
           )
         : (
             <Card
-              title="Cooper's backoffice"
+              title="For Cooper's staff"
               titleLevel={2}
-              description="Workspaces, accounts, staff and numbers, for Cooper's staff."
+              description="Workspaces, accounts, staff and numbers, in one place."
               footer={<Button block onClick={() => session.signIn(pathname)}>Sign in</Button>}
             >
               <Text size="sm" tone="muted">You sign in at Cooper's account page, and come back here.</Text>

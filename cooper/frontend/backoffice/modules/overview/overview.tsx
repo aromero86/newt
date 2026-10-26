@@ -45,9 +45,10 @@ function OverviewWrapped() {
       {metrics && (
         <>
           <Grid columns={{ base: 1, sm: 3 }}>
-            <Stat label="Cards created" value={metrics.totals.cards} hint="Since the backoffice counts" />
-            <Stat label="Workspaces" value={metrics.totals.workspaces} hint="Created, deleted ones too" />
-            <Stat label="Sign ups" value={metrics.totals.signUps} hint="Accounts made" />
+            {/* Counts of what happened, so things deleted since still count: not how many there are now. */}
+            <Stat label="Cards created" value={metrics.totals.cards} hint="Since counting began, deleted ones too" />
+            <Stat label="Workspaces created" value={metrics.totals.workspaces} hint="Since counting began, deleted ones too" />
+            <Stat label="Sign ups" value={metrics.totals.signUps} hint="Since counting began" />
           </Grid>
           <Card title="Cards created per day" titleLevel={2} description={`The last ${metrics.cardsPerDay.length} days`}>
             <BarChart label="Cards created per day" data={series(metrics.cardsPerDay)} formatValue={plural('card')} />

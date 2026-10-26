@@ -55,7 +55,7 @@ function UsersDetailWrapped() {
         <>
           <PageHeader
             title={<Inline gap={2}>{user.name}{user.staff && <Badge tone="brand">staff</Badge>}</Inline>}
-            description={<>{user.email} · signed up <RelativeTime date={user.createdAt} /></>}
+            description={<>{user.email} · signed up <RelativeTime date={user.createdAt} /> · {user.staff ? 'staff, may use the backoffice' : 'not staff'}</>}
           />
           <Box label="Workspaces">
             <BoxHeader>Workspaces {loaded && <Counter>{total}</Counter>}</BoxHeader>
