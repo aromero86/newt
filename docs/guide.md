@@ -46,7 +46,7 @@ const base = new AppBase({ name: 'shop', store: await SqliteStore.open({ path: '
   `HttpRouter` (`<m>.routes.ts`), all under one prefix (`/api` by default). A
   route's path types its params (`/notes/:id` gives `request.params.id`). Whatever
   a route throws becomes a response: a domain error with its status and code, an
-  invalid input a 400 (a body that is not JSON, `malformed_body`, or one that fails
+  invalid input a 400 (a body that cannot be read, `malformed_body`, or one that fails
   the use case's schema, `validation`), anything else a 500 that says nothing about
   the inside. An entity that fails its own schema (`InvalidEntity`) is a
   programming error, so a 500 too. A JSON body must come as `application/json`
