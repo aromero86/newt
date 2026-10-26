@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, findCurrentActor, now, type Clock } from '../core'
+import { ConcurrencyConflict, findCurrentActor, now } from '../core'
 import type { Table } from '../port-store'
 import { IdempotencyKeyInUse } from './errors/idempotency-key-in-use'
 import { IdempotencyKeyReused } from './errors/idempotency-key-reused'
