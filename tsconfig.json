@@ -1,14 +1,19 @@
 {
+  // The whole repository, as three projects: what runs on the server (newt and cooper's
+  // backend), what runs in the browser (cooper's frontends and their libraries), and
+  // the tools around them (scripts, Vite's configs). `bun check` follows the references.
+  // The paths are here too because Bun and Vite resolve imports with this file.
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "types": ["bun"],
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+    "paths": {
+      "newt/*": ["./packages/newt/*/index.ts"],
+      "@cooper/ui/*": ["./cooper/libs/ui/*"],
+      "@cooper/api/*": ["./cooper/libs/api/*"]
+    }
   },
-  "exclude": ["node_modules"]
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.backend.json" },
+    { "path": "./tsconfig.frontend.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
 }

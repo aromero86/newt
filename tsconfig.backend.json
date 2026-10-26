@@ -1,0 +1,16 @@
+{
+  // What runs on the server, on Bun: the framework and cooper's backend. No DOM.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+  },
+  "include": ["packages/**/*.ts", "cooper/backend/**/*.ts"],
+  "exclude": ["**/node_modules"]
+}
