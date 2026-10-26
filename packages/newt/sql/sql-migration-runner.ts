@@ -33,7 +33,7 @@ export class SqlMigrationRunner implements Migrations {
       const done = new Set(applied.map(record => record.version))
       const pending = files.filter(file => !done.has(file.version))
       for (const migration of pending) {
-        for (const statement of splitStatements(await Bun.file(migration.up).text())) await run(statement)
+        for (const statement of this.statements(await Bun.file(migration.up).text())) await run(statement)
         await run(`INSERT INTO ${this.dialect.quote(this.table)} (version, name) VALUES (${this.dialect.param(1)}, ${this.dialect.param(2)})`, [migration.version, migration.name])
       }
       return pending.map(migration => migrationName(migration.version, migration.name))
@@ -47,10 +47,15 @@ export class SqlMigrationRunner implements Migrations {
       if (!last) return null
       const migration = (await this.files()).find(file => file.version === last.version && file.name === last.name)
       if (!migration) throw new Error(`Migration file for ${migrationName(last.version, last.name)} not found`)
-      for (const statement of splitStatements(await Bun.file(migration.down).text())) await run(statement)
+      for (const statement of this.statements(await Bun.file(migration.down).text())) await run(statement)
       await run(`DELETE FROM ${this.dialect.quote(this.table)} WHERE version = ${this.dialect.param(1)}`, [migration.version])
       return migrationName(migration.version, migration.name)
     })
+  }
+
+  /** A script's statements: a Postgres function's body, between dollar quotes, goes whole. */
+  private statements(sql: string): string[] {
+    return splitStatements(sql, { dollarQuotes: this.dialect.name === 'postgres' })
   }
 
   status(): Promise<{ applied: string[], pending: string[] }> {

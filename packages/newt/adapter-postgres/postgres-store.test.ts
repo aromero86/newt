@@ -151,6 +151,28 @@ if (url) {
       await store.close()
     })
 
+    test('apply a function and its trigger, whose bodies have semicolons of their own', async () => {
+      await empty()
+      const folder = await migrations({
+        '00002_stamp_up.sql': `CREATE FUNCTION stamp_name() RETURNS trigger AS $$
+BEGIN
+  NEW.name := upper(NEW.name);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER thing_stamp BEFORE INSERT ON thing FOR EACH ROW EXECUTE FUNCTION stamp_name();`,
+        '00002_stamp_down.sql': 'DROP TRIGGER thing_stamp ON thing; DROP FUNCTION stamp_name();',
+      })
+
+      const store = await PostgresStore.open({ url: url!, migrations: folder })
+      try {
+        expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_stamp'], pending: [] })
+        expect(await store.migrations.down()).toBe('00002_stamp')
+      } finally {
+        await store.close()
+      }
+    })
+
     test('refuse a database whose last migration is not in the folder', async () => {
       await empty()
       const folder = await migrations()

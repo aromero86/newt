@@ -117,7 +117,8 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
   its column to name it back); `types` matters here: a boolean is kept as 0 or 1,
   JSON as text.
 - **Migrations are SQL**: pairs of `000NN_<name>_up.sql` and `000NN_<name>_down.sql`
-  in a folder, applied all or none. An entity's table has `id TEXT PRIMARY KEY` and
+  in a folder, applied all or none. A file is run whole, so a trigger, with
+  semicolons in its body, goes in one. An entity's table has `id TEXT PRIMARY KEY` and
   `version INTEGER NOT NULL`; a unique value is a unique index (partial,
   `WHERE deleted_at IS NULL`, when rows are deleted softly). The framework's own
   tables (`job`, `job_queue`) are migrated after the context's.
@@ -143,7 +144,11 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   progress; Kysely runs on it as on SQLite.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
   Postgres applies a batch all or none; MySQL commits a change of structure at once,
-  so a batch that fails halfway keeps what it did.
+  so a batch that fails halfway keeps what it did. A file is split into statements
+  on its semicolons, leaving out those in `'…'` strings, in `--` comments and, on
+  Postgres, in dollar-quoted bodies (`$$ … $$`), so a Postgres function or trigger
+  goes in whole; a MySQL trigger is a single statement (`FOR EACH ROW SET …`), with
+  no `BEGIN … END`.
 - **Postgres**: an entity table has `id TEXT PRIMARY KEY` and `version INTEGER NOT
   NULL`; booleans are `BOOLEAN`, JSON is `JSONB`; a unique value among the rows not
   deleted is a partial unique index. A statement that fails inside a transaction

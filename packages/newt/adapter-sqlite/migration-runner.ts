@@ -3,7 +3,6 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { migrationName, type Migrations } from '../port-store'
 import type { MigrationFile } from './migration-file'
-import { splitStatements } from '../sql'
 
 /** A migration as the database remembers it: applied, and when. */
 type MigrationRecord = { version: number, name: string, created_at: string }
@@ -43,9 +42,7 @@ export class MigrationRunner implements Migrations {
 
     const apply = this.sqlite.transaction(() => {
       for (const migration of pending) {
-        for (const statement of splitStatements(sqlByVersion.get(migration.version)!)) {
-          this.sqlite.run(statement)
-        }
+        this.runScript(sqlByVersion.get(migration.version)!)
         this.sqlite.run(`INSERT INTO ${this.table} (version, name) VALUES (?, ?)`, [migration.version, migration.name])
       }
     })
@@ -66,14 +63,21 @@ export class MigrationRunner implements Migrations {
 
     const sql = await Bun.file(migration.downPath).text()
     const revert = this.sqlite.transaction(() => {
-      for (const statement of splitStatements(sql)) {
-        this.sqlite.run(statement)
-      }
+      this.runScript(sql)
       this.sqlite.run(`DELETE FROM ${this.table} WHERE version = ?`, [migration.version])
     })
     revert()
 
     return migrationName(migration.version, migration.name)
+  }
+
+  /**
+   * Runs a script whole, as SQLite reads it: a trigger's body has semicolons of its
+   * own. One with no statement (a down that has nothing to revert) does nothing.
+   */
+  private runScript(sql: string): void {
+    const statements = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/;/g, '')
+    if (statements.trim()) this.sqlite.run(sql)
   }
 
   async status(): Promise<{ applied: string[], pending: string[] }> {

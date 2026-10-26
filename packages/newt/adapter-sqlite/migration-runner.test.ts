@@ -108,6 +108,36 @@ describe('the folder', () => {
   })
 })
 
+describe('a store\'s own SQL', () => {
+  test('a trigger, with semicolons in its body, applies and reverts', async () => {
+    await write('00002_note-search_up.sql', `CREATE VIRTUAL TABLE note_search USING fts5(title);
+CREATE TRIGGER note_search_insert AFTER INSERT ON note BEGIN
+  INSERT INTO note_search (rowid, title) VALUES (new.rowid, new.title);
+END;`)
+    await write('00002_note-search_down.sql', 'DROP TRIGGER note_search_insert; DROP TABLE note_search;')
+    const runner = new MigrationRunner(sqlite, folder)
+
+    await runner.up()
+    sqlite.run("INSERT INTO note (id, title) VALUES ('n1', 'olive oil')")
+    expect(sqlite.query("SELECT title FROM note_search WHERE note_search MATCH 'oil'").all()).toEqual([{ title: 'olive oil' }])
+
+    await runner.down()
+    expect(sqlite.query("SELECT name FROM sqlite_master WHERE name LIKE 'note_search%'").all()).toEqual([])
+  })
+})
+
+describe('a script with no statement', () => {
+  test('does nothing, as a down that has nothing to revert', async () => {
+    await write('00002_irreversible_up.sql', "INSERT INTO note (id, title) VALUES ('n1', 'kept');")
+    await write('00002_irreversible_down.sql', '-- nothing to revert\n')
+    const runner = new MigrationRunner(sqlite, folder)
+    await runner.up()
+
+    expect(await runner.down()).toBe('00002_irreversible')
+    expect(rows()).toEqual([{ id: 'n1', title: 'kept' }])
+  })
+})
+
 describe('down, further', () => {
   test('refuses when the last applied migration has no file to revert it', async () => {
     const runner = new MigrationRunner(sqlite, folder)

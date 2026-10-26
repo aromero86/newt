@@ -2881,6 +2881,11 @@ Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
 (`BOOLEAN` y `JSONB` en Postgres; `VARCHAR(36)` y columnas `utf8mb4_bin` en MySQL).
 [`stores.md`](stores.md) cuenta los detalles de cada uno.
 
+Un fichero puede tener varias sentencias, y también triggers y funciones con sus
+propios `;` dentro: SQLite ejecuta el fichero entero, y en Postgres un cuerpo entre
+`$$ … $$` va de una pieza. En MySQL cada `;` cierra una sentencia, así que un trigger
+de MySQL tiene que ser de una sola (`FOR EACH ROW SET NEW.x = …`), sin `BEGIN … END`.
+
 ### 25.2 En ficheros
 
 En ficheros no hay estructura que cambiar: una migración **transforma registros**.
