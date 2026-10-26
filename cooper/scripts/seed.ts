@@ -3,6 +3,7 @@
 // where Bob joined by accepting her invitation. Safe to run again: what is there stays.
 import { runAsActor, type Email } from 'newt/core'
 import { config } from '../backend/config'
+import { inWorkspace } from '../backend/contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from '../backend/open-contexts'
 import { ConsoleMailer } from '../backend/shared/mail/console-mailer'
 import type { Mail } from '../backend/shared/mail/mailer'
@@ -14,9 +15,14 @@ const PASSWORD = 'cooper-demo'
 const mails: Mail[] = []
 const console_ = new ConsoleMailer(config.mail.from)
 const contexts = await openContexts(config, { mailer: { send: async mail => { mails.push(mail); await console_.send(mail) } } })
-// Their workers run too: what each context does after auth's events (Acme's first board).
-for (const context of contexts.all) context.start()
-const settled = () => Promise.all(contexts.all.map(context => context.base.jobs.idle()))
+/**
+ * Until the background work is done: auth's jobs first, boards' reactions to auth's
+ * events among them (Acme's welcome board), then what those made boards tell.
+ */
+const settled = async () => {
+  await contexts.auth.base.jobs.idle()
+  await contexts.boards.base.jobs.idle()
+}
 
 try {
   const { user, access, tenant, invitation } = contexts.auth.modules
@@ -45,13 +51,38 @@ try {
   }
   await settled()
 
+  // A second board, "Launch", made by Ana in Acme as she would from boards' UI.
+  const { board, column, card } = contexts.boards.modules
+  await asAna(() => inWorkspace(contexts.boards.modules.member, acme.id, async () => {
+    if (await board.findByName('Launch')) return
+    const launch = await board.create({ name: 'Launch', description: 'Everything left before Acme\'s launch.' })
+    const [backlog, doing, review, done] = [
+      await column.add(launch.id, { name: 'Backlog' }),
+      await column.add(launch.id, { name: 'In progress' }),
+      await column.add(launch.id, { name: 'Review' }),
+      await column.add(launch.id, { name: 'Done' }),
+    ]
+    const cards = [
+      { columnId: backlog.id, title: 'Write the press release', assigneeId: ana.id },
+      { columnId: backlog.id, title: 'Plan the launch party', assigneeId: null },
+      { columnId: doing.id, title: 'Finish the pricing page', assigneeId: bob.id },
+      { columnId: doing.id, title: 'Record the demo video', assigneeId: ana.id },
+      { columnId: review.id, title: 'Check the sign-up emails', assigneeId: bob.id },
+      { columnId: done.id, title: 'Pick the launch date', description: 'The first Monday of next month.', assigneeId: ana.id },
+    ]
+    for (const each of cards) await card.create(launch.id, each)
+  }))
+  await settled()
+
   console.log([
     '',
     'cooper is seeded. Every account\'s password is', `  ${PASSWORD}`,
     '',
     `  staff@cooper.dev   the staff: the backoffice, ${config.backoffice.publicUrl}`,
-    `  ana@cooper.dev     Acme's admin, ${config.boards.publicUrl}`,
+    `  ana@cooper.dev     Acme's admin, ${config.boards.publicUrl}: its boards Welcome and Launch`,
     '  bob@cooper.dev     a member of Acme, who accepted Ana\'s invitation',
+    '',
+    `  MCP server         ${config.boards.publicUrl}/mcp (OAuth: sign in as Ana or Bob)`,
     '',
   ].join('\n'))
 } finally {
