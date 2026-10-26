@@ -159,12 +159,19 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   progress; Kysely runs on it as on SQLite. Unlike SQLite, a write outside a
   transaction is not refused: it runs at once, on its own.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
-  Postgres applies a batch all or none; MySQL commits a change of structure at once,
-  so a batch that fails halfway keeps what it did. A file is split into statements
-  on its semicolons, leaving out those in `'…'` strings, in `--` comments and, on
-  Postgres, in dollar-quoted bodies (`$$ … $$`), so a Postgres function or trigger
-  goes in whole; a MySQL trigger is a single statement (`FOR EACH ROW SET …`), with
-  no `BEGIN … END`.
+  A batch runs in one transaction. Postgres applies it all or none. MySQL commits
+  each change of structure (`CREATE`, `ALTER`, `DROP`…) at once, together with all
+  the batch did before it: a batch of data statements only (`INSERT`, `UPDATE`…) is
+  all or none; one that fails after a change of structure keeps what was committed
+  then, the migrations before it recorded as applied, and the failed one's changes
+  of structure, not recorded. Two processes that migrate at once take turns (an
+  advisory lock, a named lock): the second finds the first's migrations applied.
+  Two files with the same number and different names are an error. A file is split
+  into statements on its semicolons, leaving out those in strings and quoted names
+  (`'…'`, `"…"`, `` `…` ``, with `\` escapes on MySQL), in comments (`--`, `/* */`)
+  and, on Postgres, in dollar-quoted bodies (`$$ … $$`), so a Postgres function or
+  trigger goes in whole; a MySQL trigger is a single statement (`FOR EACH ROW SET
+  …`), with no `BEGIN … END`.
 - **Postgres**: an entity table has `id TEXT PRIMARY KEY` and `version INTEGER NOT
   NULL`; booleans are `BOOLEAN`, JSON is `JSONB`; a unique value among the rows not
   deleted is a partial unique index. A statement that fails inside a transaction

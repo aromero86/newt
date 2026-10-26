@@ -2967,6 +2967,17 @@ propios `;` dentro: SQLite ejecuta el fichero entero, y en Postgres un cuerpo en
 `$$ … $$` va de una pieza. En MySQL cada `;` cierra una sentencia, así que un trigger
 de MySQL tiene que ser de una sola (`FOR EACH ROW SET NEW.x = …`), sin `BEGIN … END`.
 
+Las pendientes se aplican en una transacción. En SQLite y Postgres es todo o nada. En
+MySQL cada cambio de estructura (`CREATE`, `ALTER`, `DROP`…) se confirma al momento,
+con todo lo anterior: unas migraciones solo de datos (`INSERT`, `UPDATE`…) son todo o
+nada, pero si algo falla después de un cambio de estructura, lo confirmado se queda
+(las migraciones anteriores, anotadas como aplicadas, y los cambios de estructura de
+la que falló, sin anotar).
+
+En Postgres y MySQL, dos procesos que arrancan a la vez se turnan: el segundo espera
+al primero y encuentra sus migraciones aplicadas. Y dos ficheros con el mismo número
+y distinto nombre (dos ramas que se juntan) son un error: renumera una de las dos.
+
 ### 25.2 En ficheros
 
 En ficheros no hay estructura que cambiar: una migración **transforma registros**.
