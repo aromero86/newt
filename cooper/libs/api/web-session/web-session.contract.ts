@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
-// No backend schema yet: the session is boards' own (a BFF client of auth), and its
-// routes arrive when boards is wired to auth. This is the contract they keep.
+// The session is each web app's own (a BFF client of auth): its routes are the web
+// session's (`cooper/backend/shared/web-session`), and what `GET /api/session` tells
+// of the signed-in person each context says in its own code, its `profile`, with no
+// schema of its own. This is the contract boards' and the backoffice's keep.
 
 /** Who is signed in, as boards tells its web app. */
 export const SessionUserSchema = z.object({
