@@ -497,8 +497,6 @@ Reemplaza `modules/workspace/workspace.routes.ts`:
 import { allPages, currentActor } from 'newt/core'
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import { InvitationNotOpen } from '../../../auth/modules/invitation/errors/invitation-not-open'
-import type { InvitationCreateDTO } from '../../../auth/modules/invitation/invitation.schema'
-import type { TenantCreateDTO, TenantRenameDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Workspace_Deps } from './workspace.deps'
@@ -523,13 +521,13 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   base.http.get('/workspaces', async () => Response.json(await workspaces.mine()))
 
   base.http.post('/workspaces', async request => {
-    const created = await tenant.create(await request.json() as TenantCreateDTO)
+    const created = await tenant.create(await request.json())
     return Response.json(workspaceOf(created, currentActor().userId), { status: 201 })
   })
 
   // The rest is about one workspace: a member's (404 for anyone else), and auth checks the admin.
   workspace.patch('', async request => {
-    const renamed = await tenant.rename(request.params.workspaceId, await request.json() as TenantRenameDTO)
+    const renamed = await tenant.rename(request.params.workspaceId, await request.json())
     return Response.json(workspaceOf(renamed, currentActor().userId))
   })
 
@@ -552,7 +550,7 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   })
 
   workspace.post('/invitations', async request => {
-    const created = await invitation.create(request.params.workspaceId, await request.json() as InvitationCreateDTO)
+    const created = await invitation.create(request.params.workspaceId, await request.json())
     return Response.json(workspaceInvitationOf(created), { status: 201 })
   })
 
@@ -590,6 +588,9 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   `invitation.not_open`.
 - `POST /invitations/:token/accept` necesita a alguien con sesión, y auth comprueba que es
   el email invitado.
+- Cada ruta pasa el cuerpo tal como llegó, `await request.json()`: `tenant.create`,
+  `tenant.rename` e `invitation.create` reciben `input: unknown` y lo parsean
+  (capítulos 18 y 19), así que las rutas no importan ningún esquema de auth.
 
 Una ruta no es un caso de uso. Es un adaptador, como las rutas propias de auth, así que lo
 que llama en auth es la raíz de lo que auth hace: `tenant.create` escribe el tenant y el
@@ -660,8 +661,8 @@ FakeAuth está ahora solo en `testing/`, y solo `openTestBoards` lo abre.
 ## El lint: boards usa auth
 
 Los archivos de boards importan ahora los de auth: `workspace.deps.ts` nombra las clases de
-módulo de auth, y `card.workers.ts` y `workspace.routes.ts` importan `WORKSPACES_PRODUCT` y
-los esquemas de auth. Desde el [capítulo 17](./17-auth) el lint decía `boards: []`, y ahora
+módulo de auth, y `card.workers.ts` y `workspace.routes.ts` importan `WORKSPACES_PRODUCT`, y
+las rutas uno de los errores de auth. Desde el [capítulo 17](./17-auth) el lint decía `boards: []`, y ahora
 dice que no:
 
 ```text
@@ -685,6 +686,13 @@ const BACKEND = newt({
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'] } },
 })
+```
+
+`cooper/AGENTS.md` también lo dice, para los agentes de código. Cambia la línea de boards
+en su `## Contexts`:
+
+```md
+- boards: the boards of each workspace, their columns and cards. Uses auth.
 ```
 
 El lint del preset usa información de tipos (rechaza una promesa sin esperar), así que
@@ -1096,7 +1104,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 102 pass
+ 103 pass
  0 fail
 ```
 

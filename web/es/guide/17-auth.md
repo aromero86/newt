@@ -21,6 +21,7 @@ Al final tendrás estos archivos:
 
 ```
 eslint.config.js                 changed: auth is a context
+cooper/AGENTS.md                 changed: auth, and its repositories' scope
 cooper/backend/
   config.ts                      changed: auth's settings
   index.ts                       changed: runs every context with runContexts
@@ -135,6 +136,23 @@ error  '../boards/boards-base' is the context boards's, and auth uses no other c
 
 Un `uses` que nombra un contexto que no existe, o un ciclo (auth usando boards mientras
 boards usa auth), lanza un error en cuanto arranca el lint. Quita el import otra vez.
+
+`cooper/AGENTS.md` también lista los contextos, para los agentes de código (capítulo
+[1](./01-project-and-context)). Añade auth debajo de boards en su `## Contexts`:
+
+```md
+- boards: the boards of each workspace, their columns and cards. Uses none.
+- auth: people, the workspaces (its tenants) and who may enter each, and how people
+  sign in. Uses none.
+```
+
+y, al final de sus convenciones, lo que dicen de su ámbito los repositorios de este
+capítulo (más abajo):
+
+```md
+- auth's repositories say `scope: 'none'`: people, sessions and tenants span
+  workspaces, so its use cases ask who may see what.
+```
 
 ## Productos: un módulo sin entidad
 
@@ -443,7 +461,8 @@ export type UserRow = UserEntityDTO & { version: number }
 export class User_Repository extends TableRepository<User, UserRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<UserRow>('user'))
+    // No scope: people belong to no tenant; they are in many.
+    super(base, base.store.table<UserRow>('user'), { scope: 'none' })
   }
 
   protected toEntity(row: UserRow): User {
@@ -466,6 +485,13 @@ export class User_Repository extends TableRepository<User, UserRow, AuthBase> {
   }
 }
 ```
+
+Su ámbito es `'none'`, con un comentario que dice por qué. Los repositorios de boards
+tienen el ámbito del espacio de trabajo (capítulo [4](./04-who-and-where)); una cuenta
+no está en un espacio de trabajo, está en muchos, así que no aplica ningún ámbito. Todo
+repositorio debe decir su ámbito (si no, no compila), así que `'none'` se escribe a
+propósito, donde una revisión lo ve, y son los casos de uso los que deciden quién puede
+ver qué. Todos los repositorios de auth dicen `'none'`, y `cooper/AGENTS.md` ya lo dice.
 
 Es otra vez el nombre de tablero del capítulo [6](./06-rules-over-rows): una regla sobre
 filas, comprobada en el guardado. `persistWithEmailFree` escribe la cuenta y, en la misma
@@ -677,7 +703,8 @@ export type SessionRow = SessionEntityDTO & { version: number }
 export class Session_Repository extends TableRepository<Session, SessionRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<SessionRow>('session'))
+    // No scope: a session is a person's, found by its token, in no tenant.
+    super(base, base.store.table<SessionRow>('session'), { scope: 'none' })
   }
 
   protected toEntity(row: SessionRow): Session {
@@ -802,7 +829,7 @@ export interface Session_Deps {
 import type { BunRequest } from 'bun'
 import type { AuthBase } from '../../auth-base'
 import type { Session_Module } from './session.module'
-import { SessionCookie, type SessionSignInDTO, type SessionSignUpDTO } from './session.schema'
+import { SessionCookie } from './session.schema'
 
 export function registerSessionRoutes(base: AuthBase, sessions: Session_Module): void {
   /** The session lives in a cookie the page's scripts cannot read, sent only to auth. */
@@ -816,13 +843,13 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
 
   // The use cases validate every body.
   base.http.post('/session/sign-up', async request => {
-    const { user, token } = await sessions.signUp((await request.json()) as SessionSignUpDTO)
+    const { user, token } = await sessions.signUp(await request.json())
     keep(request, token)
     return Response.json(user, { status: 201 })
   }, { public: true })
 
   base.http.post('/session/sign-in', async request => {
-    const { user, token } = await sessions.signIn((await request.json()) as SessionSignInDTO)
+    const { user, token } = await sessions.signIn(await request.json())
     keep(request, token)
     return Response.json(user)
   }, { public: true })
@@ -862,7 +889,9 @@ como `Set-Cookie`:
 - **`secure`** cuando la petición llegó por https: en producción nunca se envía en claro;
   en desarrollo, en `http://localhost`, sigue funcionando.
 
-Las rutas leen el cuerpo como JSON y lo pasan: los casos de uso validan todo.
+Las rutas leen el cuerpo como JSON y lo pasan tal como llegó, `await request.json()`
+sin `as SessionSignUpDTO` (newt/route-body): `signUp` y `signIn` reciben `input:
+unknown` y lo parsean con sus esquemas, así que los casos de uso validan todo.
 
 ### Los casos de uso
 
@@ -878,7 +907,7 @@ import type { Session_Deps } from './session.deps'
 import type { Session_Options } from './session-options'
 import { Session_Repository } from './session.repository'
 import { registerSessionRoutes } from './session.routes'
-import { SessionCookie, SessionSignInSchema, SessionSignUpSchema, type SessionSignInDTO, type SessionSignUpDTO } from './session.schema'
+import { SessionCookie, SessionSignInSchema, SessionSignUpSchema } from './session.schema'
 
 /**
  * Who is signed in to auth itself: signing up, in and out, and who sends each request
@@ -909,7 +938,7 @@ export class Session_Module extends Module {
    * opening the session fails, the account stays, and the person signs in.
    */
   @UseCase({ writesTo: ['user'] })
-  async signUp(input: SessionSignUpDTO): Promise<{ user: UserDTO, token: SecretToken }> {
+  async signUp(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { productId, ...account } = SessionSignUpSchema.parse(input)
     if (productId !== undefined) {
       const product = await this.deps.product.get(productId)
@@ -921,7 +950,7 @@ export class Session_Module extends Module {
   }
 
   @UseCase()
-  async signIn(input: SessionSignInDTO): Promise<{ user: UserDTO, token: SecretToken }> {
+  async signIn(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { email, password } = SessionSignInSchema.parse(input)
     const user = await this.deps.user.verifyPassword(email, password)
     if (!user) throw new InvalidCredentials()
@@ -1356,7 +1385,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 79 pass
+ 80 pass
  0 fail
 ```
 
@@ -1368,7 +1397,7 @@ bun test cooper -t 'accounts|two contexts'
 
 ```text
  5 pass
- 74 filtered out
+ 75 filtered out
  0 fail
  27 expect() calls
 Ran 5 tests across 10 files.

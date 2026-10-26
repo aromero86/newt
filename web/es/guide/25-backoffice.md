@@ -289,17 +289,13 @@ import { pageRequestFrom } from 'newt/http'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import { staffRoutes } from '../../staff-routes'
 import type { Staff_Module } from './staff.module'
-import type { StaffGrantDTO } from './staff.schema'
 
 export function registerStaffRoutes(base: CooperBase, staff: Staff_Module): void {
   const routes = staffRoutes(base, staff)
 
   routes.get('/staff', async request => Response.json(await staff.list(pageRequestFrom(request))))
 
-  routes.post('/staff', async request => {
-    const input = await request.json() as StaffGrantDTO
-    return Response.json(await staff.grant(input), { status: 201 })
-  })
+  routes.post('/staff', async request => Response.json(await staff.grant(await request.json()), { status: 201 }))
 
   routes.delete('/staff/:userId', async request => {
     await staff.revoke(request.params.userId)
@@ -321,7 +317,7 @@ import { StaffAccountNotFound } from './errors/staff-account-not-found'
 import type { Staff_Deps } from './staff.deps'
 import type { Staff_Options } from './staff-options'
 import { registerStaffRoutes } from './staff.routes'
-import { StaffGrantSchema, type StaffGrantDTO, type StaffMemberDTO } from './staff.schema'
+import { StaffGrantSchema, type StaffMemberDTO } from './staff.schema'
 
 /**
  * Who the staff are: whoever has access to the backoffice for no tenant, as auth keeps
@@ -377,7 +373,7 @@ export class Staff_Module extends Module {
    * signed-in person (auth checks they are staff too). Given twice, it is given once.
    */
   @UseCase()
-  async grant(input: StaffGrantDTO): Promise<StaffMemberDTO> {
+  async grant(input: unknown): Promise<StaffMemberDTO> {
     const { email } = StaffGrantSchema.parse(input)
     const user = await this.deps.user.findByEmail(email)
     if (!user) throw new StaffAccountNotFound(email)
@@ -404,8 +400,9 @@ export class Staff_Module extends Module {
   página entera de una vez, con `user.getMany` ([capítulo 20](./20-wiring-contexts)): dos
   llamadas por página, nunca una por fila. `mapPage`, de `newt/core`, transforma cada
   elemento y descarta los que no dan nada (una cuenta que ya no existe).
-- **`grant`** busca la cuenta por email (`user.findByEmail`) y pide a auth que conceda el
-  acceso. Un email sin cuenta es `StaffAccountNotFound`: el personal no se registra por el
+- **`grant`** recibe `input: unknown`, el cuerpo tal como lo recibió la ruta, y lo parsea
+  con `StaffGrantSchema`. Busca la cuenta por email (`user.findByEmail`) y pide a auth
+  que conceda el acceso. Un email sin cuenta es `StaffAccountNotFound`: el personal no se registra por el
   producto del backoffice, se registra antes y se le concede después.
 - **`revoke`** pide a auth que lo quite, pero nunca el propio: lo hace otra persona, para
   que el backoffice no se quede nunca sin personal.
@@ -1070,6 +1067,13 @@ const BACKEND = newt({
 importarlo. Sin el cambio, `newt/context-boundaries` rechaza todo import de auth o boards
 desde la carpeta del backoffice, como rechazó los de boards en el [capítulo
 20](./20-wiring-contexts).
+
+Díselo también a los agentes de código: en `cooper/AGENTS.md`, añade el backoffice a
+`## Contexts`, después de auth:
+
+```md
+- backoffice: what the staff see and do across the others. Uses auth and boards.
+```
 
 ## Tests
 

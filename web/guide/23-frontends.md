@@ -990,10 +990,10 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 141 pass
+ 142 pass
  0 fail
- 491 expect() calls
-Ran 141 tests across 19 files.
+ 492 expect() calls
+Ran 142 tests across 19 files.
 ```
 
 Build both apps:

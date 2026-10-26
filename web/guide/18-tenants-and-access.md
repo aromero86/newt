@@ -343,7 +343,8 @@ export type AccessRow = AccessDTO & { version: number }
 export class Access_Repository extends TableRepository<Access, AccessRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<AccessRow>('access'))
+    // No scope: a person's accesses span tenants (and the staff's belong to none); the use cases ask who may see them.
+    super(base, base.store.table<AccessRow>('access'), { scope: 'none' })
   }
 
   protected toEntity(row: AccessRow): Access {
@@ -394,6 +395,10 @@ stores ignore that option, since their indexes say it, and the files store, the 
 one that keeps it, lets two rows whose field is null share the value. The staff's
 accesses have a null tenant, so on the files store they would go unguarded. The
 index says it on every SQL store, null included.
+
+Its scope is `'none'`, like every repository of auth (chapter [17](./17-auth)): a
+person's accesses span tenants, and the staff's belong to none. The use cases ask who
+may see them.
 
 ### Given once: a unique index, and `DuplicateValue`
 
@@ -801,7 +806,8 @@ export class NotTenantAdmin extends ForbiddenError {
 ```
 
 The repository deletes softly, as chapter 2's boards did: a deleted workspace keeps
-its row, and no `find`, `first`, `page` or `count` sees it.
+its row, and no `find`, `first`, `page` or `count` sees it. It has no scope either:
+these are the tenants themselves, not rows inside one.
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/tenant.repository.ts
@@ -814,7 +820,8 @@ export type TenantRow = TenantDTO & { version: number, deletedAt: string | null 
 export class Tenant_Repository extends TableRepository<Tenant, TenantRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<TenantRow>('tenant'), { softDelete: true })
+    // No scope: these are the tenants themselves; the use cases ask who may see each one.
+    super(base, base.store.table<TenantRow>('tenant'), { softDelete: true, scope: 'none' })
   }
 
   protected toEntity(row: TenantRow): Tenant {
@@ -893,7 +900,7 @@ import { TenantNotFound } from './errors/tenant-not-found'
 import { Tenant_Created } from './events/tenant-created'
 import { Tenant_Deleted } from './events/tenant-deleted'
 import { Tenant_Renamed } from './events/tenant-renamed'
-import { Tenant, TenantCreateSchema, TenantFilter, TenantRenameSchema, type TenantCreateDTO, type TenantDTO, type TenantRenameDTO } from './tenant'
+import { Tenant, TenantCreateSchema, TenantFilter, TenantRenameSchema, type TenantDTO } from './tenant'
 import type { Tenant_Deps } from './tenant.deps'
 import type { Tenant_Options } from './tenant-options'
 import { Tenant_Repository, type TenantRow } from './tenant.repository'
@@ -933,7 +940,7 @@ export class Tenant_Module extends Module {
    * It never runs again on a conflict: it would make a second workspace.
    */
   @UseCase({ writesTo: ['access'], retryOnConflict: false })
-  async create(input: TenantCreateDTO): Promise<TenantDTO> {
+  async create(input: unknown): Promise<TenantDTO> {
     const { name } = TenantCreateSchema.parse(input)
     const tenant = Tenant.create({ name, createdBy: currentActor().userId })
     await this.repo.persist(tenant)
@@ -973,7 +980,7 @@ export class Tenant_Module extends Module {
 
   /** Only its admin renames it. */
   @UseCase()
-  async rename(tenantId: string, input: TenantRenameDTO): Promise<TenantDTO> {
+  async rename(tenantId: string, input: unknown): Promise<TenantDTO> {
     const { name } = TenantRenameSchema.parse(input)
     await this.assertAdmin(tenantId)
     const tenant = await this.load(tenantId)
@@ -1037,7 +1044,9 @@ someone's accesses to `cooper`, a page of them, and the workspaces they point at
 `mapPage` leaves out an item its function returns `undefined` for, so a workspace
 deleted while this read is not in the page. `list` is the staff's: `filter` is
 `unknown`, since it comes from a client, and `TenantFilter.schema.parse` is what gives
-it a type, or a 400.
+it a type, or a 400. `create` and `rename` take `input: unknown` for the same reason
+and parse it with their schemas: a route will hand them a body as it came (chapter
+[20](./20-wiring-contexts)).
 
 `rename` and `delete` belong to the admin. `assertAdmin` asks `access.check`: no
 access at all is `TenantNotFound`, an access that is not the admin's is
@@ -1054,7 +1063,7 @@ purpose, and says so where it is seen:
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
   @UseCase({ writesTo: ['access'], retryOnConflict: false })
-  async create(input: TenantCreateDTO): Promise<TenantDTO> {
+  async create(input: unknown): Promise<TenantDTO> {
 ```
 
 **`writesTo: ['access']`.** Whoever makes a workspace must be able to enter it the
@@ -1396,7 +1405,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 89 pass
+ 90 pass
  0 fail
 ```
 

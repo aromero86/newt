@@ -62,10 +62,10 @@ bun install && bun check && bun test cooper && bun run lint && bun run cooper:bu
 ```
 
 ```text
- 169 pass
+ 170 pass
  0 fail
- 622 expect() calls
-Ran 169 tests across 29 files.
+ 623 expect() calls
+Ran 170 tests across 29 files.
 ```
 
 Con `COOPER_TEST_POSTGRES_URL` definida (capítulo [27](./27-postgres)), se ejecutan cinco
@@ -294,6 +294,11 @@ comprobarías a ojo:
   eventos, errores y objetos de valor; nunca su entidad, repositorio, rutas ni workers.
 - [ ] **`newt/schema-imports`**: el `<m>.schema.ts` de un módulo toma de newt solo
   `newt/contract`, porque lo importa un frontend (capítulo [23](./23-frontends)).
+- [ ] **`newt/use-case`**: todo método público de un módulo es un `@UseCase`, o
+  `private` (capítulo [2](./02-first-module)).
+- [ ] **`newt/route-body`**: una ruta pasa el cuerpo a su caso de uso tal como llegó,
+  `await request.json()`, nunca `as` un DTO; el caso de uso lo recibe como `unknown` y
+  lo parsea (capítulo [2](./02-first-module)).
 - [ ] **`newt/queue-name`**: la cola de un handler es
   `<module>.<use case>.on.<module>.<event>`, y su callback llama a ese caso de uso
   (capítulo [11](./11-reacting)).
@@ -311,7 +316,52 @@ filas y no protege nada (la regla del guard), una escritura en otro módulo fuer
 worker, o dos módulos guardados en una transacción, también en un worker (la regla de
 escritura, salvo que `writesTo` lo diga), una cola cuyo nombre no coincide con su
 suscripción. Y el compilador: un guardado con `after` y sin `guard` no
-compila.
+compila, ni un repositorio que no diga su ámbito.
+
+Un punto más no es código: **`cooper/AGENTS.md`** está al día. Un agente de código lo
+lee antes que nada (capítulo [1](./01-project-and-context)), y debe nombrar cada
+contexto, lo que usa cada uno y las convenciones propias de cooper, tal como las
+fueron añadiendo los capítulos (4, 17, 20, 25). El tuyo ya es igual al del repositorio:
+
+````md
+# AGENTS.md
+
+Before writing code, read ../node_modules/newt/AGENTS.md: it is the rules of the
+framework, versioned with it. What follows is this project's own.
+
+## This project
+
+cooper: boards of cards for teams, each team in a workspace of its own. newt's
+example application, built step by step in its tutorial (web/guide).
+
+## Contexts
+
+In backend/contexts/, each with a database of its own. Which contexts each one uses
+is said in the root's eslint.config.js, and the lint keeps it.
+
+- boards: the boards of each workspace, their columns and cards. Uses auth.
+- auth: people, the workspaces (its tenants) and who may enter each, and how people
+  sign in. Uses none.
+- backoffice: what the staff see and do across the others. Uses auth and boards.
+
+## Conventions
+
+- Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
+  its routes on `base.http`, in its `<m>.routes.ts`.
+- boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
+- auth's repositories say `scope: 'none'`: people, sessions and tenants span
+  workspaces, so its use cases ask who may see what.
+
+## Commands
+
+From the repository's root:
+
+```sh
+bun check          # types
+bun test cooper    # cooper's tests
+bun run lint       # newt's lint (eslint.config.js)
+```
+````
 
 ## Las reglas, una vez más
 
@@ -327,13 +377,17 @@ Lo que enseñaron los capítulos, en el orden en que lo fuiste viendo. El apénd
   [2](./02-first-module)).
 - Solo la entidad se cambia a sí misma; solo el repositorio toca el store; una ruta no
   piensa (capítulo [2](./02-first-module)).
+- Una ruta pasa el cuerpo tal como llegó; el caso de uso lo recibe como `unknown` y lo
+  parsea. Todo método público de un módulo es un caso de uso (capítulo
+  [2](./02-first-module)).
 - Una ruta nunca captura: lo que lanza un caso de uso se convierte en `{ error, code }`
   con su estado, y un cliente actúa según `code` (capítulo
   [3](./03-pages-and-errors)).
 - Ninguna lista se devuelve entera salvo que una regla del dominio la acote; todas las
   demás van por páginas (capítulo [3](./03-pages-and-errors)).
 - Quién es el actor, nunca un id pasado a mano; si puede se pregunta cada vez; dónde es
-  un ámbito (capítulo [4](./04-who-and-where)).
+  un ámbito, que todo repositorio declara, `'none'` incluido (capítulo
+  [4](./04-who-and-where)).
 
 **Los datos y sus reglas.**
 

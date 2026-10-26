@@ -189,7 +189,8 @@ export type WebSessionRow = WebSessionDTO & { version: number }
 export class WebSession_Repository extends TableRepository<WebSession, WebSessionRow, CooperBase> {
 
   constructor(base: CooperBase) {
-    super(base, base.store.table<WebSessionRow>('session'))
+    // No scope: a session is a person's, found by its token, in no workspace.
+    super(base, base.store.table<WebSessionRow>('session'), { scope: 'none' })
   }
 
   protected toEntity(row: WebSessionRow): WebSession {
@@ -200,7 +201,9 @@ export class WebSession_Repository extends TableRepository<WebSession, WebSessio
 
 El repositorio recibe una `CooperBase`, la base de cualquier contexto. Qué tabla `session`
 escribe depende de la base que se le dé: la base de boards escribe la base de datos de
-boards.
+boards. Su ámbito es `'none'`, como el de las sesiones de auth (capítulo
+[17](./17-auth)): una sesión es de una persona, se encuentra por su token, y no está en
+ningún espacio de trabajo.
 
 ## Su tabla, en el store de cada contexto
 
@@ -1150,7 +1153,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 114 pass
+ 115 pass
  0 fail
 ```
 

@@ -62,7 +62,11 @@ export interface CardSearch {
    * an older copy last.
    */
   index(card: CardDTO): Promise<void>
-  /** Forgets a card: nothing happens if it never had it. */
+  /**
+   * Forgets a card for good: nothing happens if it never had it, and a copy of it
+   * indexed afterwards is not kept if it is older than the removal, as a job that read
+   * the card before it was deleted may hand it over after.
+   */
   remove(id: string): Promise<void>
   /** Forgets every card of a workspace. */
   removeWorkspace(workspaceId: string): Promise<void>
@@ -89,6 +93,8 @@ Lo que dice el puerto, y lo que deja fuera:
 - **`index` se queda con la copia más nueva.** Si recibe una tarjeta más antigua que la
   que guarda (un `updatedAt` anterior), se queda con lo que tiene. Por qué debe hacerlo
   un adaptador lo cuenta el worker que mantiene el índice, más abajo.
+- **`remove` es para siempre.** Una copia de la tarjeta que llega después de quitarla,
+  más antigua que la retirada, no se guarda: la tarjeta no vuelve a la búsqueda.
 
 ## Su contrato, como suite
 
@@ -184,6 +190,15 @@ export function describeCardSearchContract(name: string, open: () => CardSearch 
       expect(await ids('design')).toEqual([card.id])
     })
 
+    test('keeps a removed card out when a copy from before its removal comes late', async () => {
+      const card = cardOf({ title: 'Plan', updatedAt: new Date(Date.now() - 1000).toISOString() })
+      await search.index(card)
+      await search.remove(card.id)
+      await search.index(card)
+
+      expect(await ids()).toEqual([])
+    })
+
     test('forgets every card of a workspace, and only those', async () => {
       const theirs = cardOf({ title: 'Plan', workspaceId: 'globex' })
       await search.index(theirs)
@@ -219,7 +234,8 @@ una forma de abrir un adaptador nuevo, y `beforeEach` abre uno por test. Lo que 
 - **Espacios de trabajo**: una búsqueda ve uno.
 - **Escrituras**: `index` reemplaza lo que guardaba de una tarjeta, salvo que lo que
   guardaba sea más nuevo, llegue la copia que llegue la última; `remove` la olvida,
-  y dos veces es igual que una; `removeWorkspace` olvida las tarjetas de un espacio de
+  dos veces es igual que una, y una copia de antes de quitarla que llega tarde se queda
+  fuera; `removeWorkspace` olvida las tarjetas de un espacio de
   trabajo y de ningún otro.
 - **Páginas**: por id, en el orden en que se indexaron las tarjetas, con el total
   contando todas las coincidencias.
@@ -235,27 +251,33 @@ búsqueda. Crea `search/memory-card-search.ts`:
 
 ```ts
 // cooper/backend/contexts/boards/search/memory-card-search.ts
-import { matches, toPage, type Page, type PageRequest } from 'newt/core'
+import { matches, now, toPage, type Page, type PageRequest } from 'newt/core'
 import type { CardDTO } from '../modules/card/card.schema'
 import type { CardQuery, CardSearch } from './card-search'
 
 /**
  * The cards' search in memory: every card in a map, each search a look at all of them.
  * Enough for one process; what it keeps is lost when the process ends, so boards
- * indexes every card again when it opens.
+ * indexes every card again when it opens. A removed card leaves its id and the time
+ * it went, so a copy from before that comes too late is not kept.
  */
 export class MemoryCardSearch implements CardSearch {
 
   private readonly cards = new Map<string, CardDTO>()
+  /** The cards removed, by id: when each went. */
+  private readonly removed = new Map<string, string>()
 
   async index(card: CardDTO): Promise<void> {
     const kept = this.cards.get(card.id)
     if (kept && kept.updatedAt > card.updatedAt) return
+    const removedAt = this.removed.get(card.id)
+    if (removedAt !== undefined && removedAt >= card.updatedAt) return
     this.cards.set(card.id, card)
   }
 
   async remove(id: string): Promise<void> {
     this.cards.delete(id)
+    this.removed.set(id, now().toISOString())
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
@@ -288,6 +310,12 @@ Dos piezas de newt hacen casi todo:
 `index` compara `updatedAt` antes de reemplazar: una copia más antigua que la guardada
 se descarta. Las dos son marcas de tiempo ISO del mismo reloj, así que compararlas como
 strings las compara en el tiempo.
+
+`remove` borra la tarjeta y deja una lápida: su id en `removed`, con la hora a la que se
+fue, según `now()` (el reloj de newt, que los tests pueden fijar). `index` rechaza luego
+una copia cuyo `updatedAt` no sea posterior a esa hora: se leyó antes de que la tarjeta
+se borrara. Las lápidas son un id y una fecha cada una, y se quedan hasta que acaba el
+proceso, como el resto del mapa.
 
 El texto es el `toLowerCase` e `includes` de JavaScript: la capitalización de cada letra
 se iguala, y `%` es un carácter como cualquier otro. Buscar es lineal en el número de
@@ -472,7 +500,7 @@ Sustituye `search`:
    * behind; the cards are read as they are now, and one gone since is left out.
    */
   @UseCase()
-  async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
+  async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
     const { text, filter } = CardSearchSchema.parse(input)
     const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
     const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
@@ -510,7 +538,8 @@ eventos. Añade un caso de uso después de `countByBoard`:
    * The search finds a card as it is now: read again, it is indexed, or removed if it
    * is gone. What a worker calls on every change of a card, in any order, as many
    * times as it takes: each run indexes what is there then, and two at once that
-   * hand the search their copies in the wrong order leave it the newer one.
+   * hand the search their copies in the wrong order leave it the newer one, or none
+   * once the card is deleted.
    */
   @UseCase()
   async indexCard(workspaceId: string, id: string): Promise<void> {
@@ -563,10 +592,18 @@ más nuevo y la indexa, y solo entonces el primero indexa la copia que leyó, m�
 Cada job leyó la verdad de su momento; la búsqueda acabaría con la más antigua, y la
 guardaría hasta que la tarjeta volviera a cambiar.
 
+El mismo cruce pasa con un borrado. Un job lee la tarjeta, la tarjeta se borra, el job
+del evento `deleted` no la encuentra y la quita; después el primer job indexa la copia
+que leyó. Sin más, la tarjeta borrada volvería a la búsqueda, y nada la quitaría nunca:
+no queda ningún evento de esa tarjeta por llegar.
+
 Por eso el puerto pide a `index` que se quede con la copia más nueva. Cada cambio de una
 tarjeta adelanta su `updatedAt`, así que de dos copias la del `updatedAt` posterior es la
 tarjeta más nueva. Si recibe la más antigua la última, el adaptador se queda con lo que
-tiene. Escriba el último el job que escriba, la búsqueda acaba con la copia más nueva:
+tiene. Y pide a `remove` que sea para siempre: una retirada es más nueva que cualquier
+copia leída antes, así que una copia que llega tarde se descarta. Escriba el último el
+job que escriba, la búsqueda acaba con la copia más nueva, o con ninguna una vez
+borrada la tarjeta:
 la misma convergencia que la de los seguidores del capítulo
 [13](./13-another-context), cada job haciendo su parte sin que importe el orden. Un
 adaptador sobre un servidor de búsqueda hace lo mismo con la herramienta del propio
@@ -828,8 +865,11 @@ estaría terminado cuando `describeCardSearchContract('ElasticCardSearch', …)`
   tarjeta, con `workspaceId`, `boardId`, `columnId`, `assigneeId` e `id` como campos
   `keyword`, `number` como `integer`, y `title` y `description` como texto.
 - **`index(card)`** pone el documento por su id, reemplazando lo que había: eso ya es lo
-  que pide el contrato. **`remove(id)`** lo borra, y toma un "no encontrado" como hecho,
-  ya que quitar dos veces es igual que una. **`removeWorkspace`** es un borrado por
+  que pide el contrato, con el `updatedAt` como versión externa para que el servidor
+  rechace una copia más antigua. **`remove(id)`** lo borra, también con versión, y toma
+  un "no encontrado" como hecho, ya que quitar dos veces es igual que una; el servidor
+  guarda la versión del documento borrado un tiempo (`index.gc_deletes`) y rechaza una
+  copia más antigua que llegue en ese tiempo. **`removeWorkspace`** es un borrado por
   consulta sobre el término `workspaceId`.
 - **`search`** es una consulta `bool`. Su `filter` toma siempre el espacio de trabajo
   como un término, y los criterios traducidos: `criteriaTree(criteria)` de newt, de
@@ -913,8 +953,8 @@ anteriores.)
 - El índice es una proyección: lo mantienen workers `'handler'` en cada evento de una
   tarjeta, cada uno releyendo la tarjeta e indexando lo que hay o quitándola. Los jobs
   se ejecutan desordenados y se repiten; releer hace inofensivas ambas cosas, y un
-  `index` que se queda con la copia más nueva (un `updatedAt` posterior) hace
-  inofensivos también dos jobs que se cruzan.
+  `index` que se queda con la copia más nueva (un `updatedAt` posterior), y un `remove`
+  que deja fuera una copia tardía, hacen inofensivos también dos jobs que se cruzan.
 - Una proyección va un momento por detrás. La búsqueda da ids; el caso de uso lee las
   tarjetas de la tabla. Los tests esperan con `settled()`. Las reglas que deben cumplirse
   nunca leen una proyección.

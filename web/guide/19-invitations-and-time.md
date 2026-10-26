@@ -473,7 +473,8 @@ export type InvitationRow = InvitationEntityDTO & { version: number }
 export class Invitation_Repository extends TableRepository<Invitation, InvitationRow, AuthBase> {
 
   constructor(base: AuthBase) {
-    super(base, base.store.table<InvitationRow>('invitation'))
+    // No scope: an invitation is found by its token before anyone is in its tenant; the use cases ask who is its admin.
+    super(base, base.store.table<InvitationRow>('invitation'), { scope: 'none' })
   }
 
   protected toEntity(row: InvitationRow): Invitation {
@@ -481,6 +482,10 @@ export class Invitation_Repository extends TableRepository<Invitation, Invitatio
   }
 }
 ```
+
+Its scope is `'none'`, as every repository of auth: an invitation is found by its
+token, by someone who is not yet in its workspace. The use cases ask who is the
+workspace's admin.
 
 ### Finding an account by its email
 
@@ -515,7 +520,7 @@ import { InvitationNotOpen } from './errors/invitation-not-open'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'
-import { Invitation, InvitationCreateSchema, type InvitationCreateDTO, type InvitationDTO, type InvitationReviewDTO } from './invitation'
+import { Invitation, InvitationCreateSchema, type InvitationDTO, type InvitationReviewDTO } from './invitation'
 import type { Invitation_Deps } from './invitation.deps'
 import type { Invitation_Options } from './invitation-options'
 import { Invitation_Repository } from './invitation.repository'
@@ -547,7 +552,7 @@ export class Invitation_Module extends Module {
 
   /** The workspace's admin invites an email, which is not a member nor invited already. Its email leaves from a worker. */
   @UseCase()
-  async create(tenantId: string, input: InvitationCreateDTO): Promise<InvitationDTO> {
+  async create(tenantId: string, input: unknown): Promise<InvitationDTO> {
     const { email } = InvitationCreateSchema.parse(input)
     const invitation = Invitation.create({ tenantId, email, invitedBy: currentActor().userId, days: this.options.days })
     await this.assertAdmin(tenantId)
@@ -1174,7 +1179,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 97 pass
+ 98 pass
  0 fail
 ```
 

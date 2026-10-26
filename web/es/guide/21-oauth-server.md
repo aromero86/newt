@@ -405,7 +405,10 @@ git checkout tutorial/21 -- \
 Cada módulo tiene la anatomía del capítulo [2](./02-first-module): un esquema, una
 entidad, un repositorio sobre una tabla, errores, un módulo de casos de uso y un archivo
 de rutas. Lo que es OAuth en ellos (qué campos debe tener una petición, el hash de PKCE,
-qué RFC dice qué) puedes leerlo a tu ritmo. Lo que sigue es la parte que es newt.
+qué RFC dice qué) puedes leerlo a tu ritmo. Cada repositorio dice `scope: 'none'`, como
+los de auth (capítulo [17](./17-auth)): los clientes son de auth, un grant se encuentra
+por su código y un token por su hash, en ningún tenant. Lo que sigue es la parte que es
+newt.
 
 | Módulo | Qué guarda | Sus rutas |
 |---|---|---|
@@ -478,24 +481,28 @@ router puede decir cómo se responden sus errores, con `onError`; newt tiene el 
 ```ts
 // cooper/backend/contexts/auth/modules/oauth-client/oauth-client.routes.ts
 import { toOauthErrorResponse } from 'newt/http'
+import { z } from 'zod'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors'
 import type { AuthBase } from '../../auth-base'
 import type { OauthClient_Module } from './oauth-client.module'
 
-/** What RFC 7591 calls the fields this route reads. */
-type RegistrationRequest = { client_name?: unknown, redirect_uris?: unknown, token_endpoint_auth_method?: unknown }
+/**
+ * What RFC 7591 calls the fields this route reads: an object, each field as it came.
+ * The use case checks what they say.
+ */
+const RegistrationRequest = z.object({ client_name: z.unknown(), redirect_uris: z.unknown(), token_endpoint_auth_method: z.unknown() })
 
 export function registerOauthClientRoutes(base: AuthBase, clients: OauthClient_Module): void {
   // Dynamic client registration (RFC 7591), for MCP clients. Public: whoever registers
   // is nobody in cooper yet. It speaks OAuth's wire format, errors included.
   base.oauth.post('/oauth/register', async request => {
-    const body = (await request.json()) as RegistrationRequest
+    const body = RegistrationRequest.parse(await request.json())
     if (body.token_endpoint_auth_method !== undefined && body.token_endpoint_auth_method !== 'none') {
       return Response.json({ error: 'invalid_client_metadata', error_description: 'A registered client is public: its token_endpoint_auth_method is none' }, { status: 400, headers: { 'cache-control': 'no-store' } })
     }
     const client = await clients.register({
       name: typeof body.client_name === 'string' ? body.client_name : undefined,
-      redirectUris: body.redirect_uris as string[],
+      redirectUris: body.redirect_uris,
     })
     return Response.json({
       client_id: client.clientId,
@@ -511,9 +518,13 @@ export function registerOauthClientRoutes(base: AuthBase, clients: OauthClient_M
 }
 ```
 
-- La ruta lee el cuerpo en bruto (`request.json()`), con el snake_case del RFC 7591, y le
-  pasa al caso de uso los nombres de cooper. Lo que esté mal en ellos, una dirección de
-  redirección en otro sitio, por ejemplo, lo encuentra el esquema del caso de uso.
+- La ruta lee el cuerpo con el snake_case del RFC 7591 y le pasa al caso de uso los
+  nombres de cooper. `RegistrationRequest` es un esquema de zod que solo pide un objeto,
+  cada campo tal como llegó (`z.unknown()`): un cuerpo que no es un objeto (una lista, un
+  string) es un 400 `invalid_client_metadata`, no un fallo. Lo que esté mal en los
+  campos, una dirección de redirección en otro sitio, por ejemplo, lo encuentra el
+  esquema de `register`: recibe `input: unknown` y lo parsea, como todo caso de uso al
+  que llega una ruta.
 - **`onError`** recibe todo error que lanza la ruta. `toOauthErrorResponse` responde un
   `DomainError` con su propio estado y mensaje, y un error de zod o un cuerpo que no es
   JSON con un 400; cada uno con `error` puesto a `fallback`, aquí
@@ -1037,7 +1048,7 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 111 pass
+ 112 pass
  0 fail
 ```
 

@@ -338,7 +338,9 @@ workspace, written by hand as in the search.
 ## The use cases
 
 In `card.module.ts`, the first import takes `mapPage`, `Page` and `PageRequest`, and
-the import from `./card` takes the filter, the search's schema and the new types:
+the import from `./card` takes the filter, the search's schema and the new types (no
+`CardSearchDTO`: the use case takes `input: unknown` and parses it, as every use case
+a route reaches since chapter 2):
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
@@ -355,15 +357,11 @@ import {
   CardMoveSchema,
   CardSearchSchema,
   MAX_CARDS,
-  type CardAssignDTO,
   type CardAuthor,
   type CardCountByBoard,
   type CardCountByWorkspace,
   type CardCreateDTO,
   type CardDTO,
-  type CardEditDTO,
-  type CardMoveDTO,
-  type CardSearchDTO,
 } from './card'
 ```
 
@@ -388,14 +386,14 @@ After `getByNumber`, the search:
    * fields and operators `CardFilter` allows.
    */
   @UseCase()
-  async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
+  async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
     const { text, filter } = CardSearchSchema.parse(input)
     const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
     return mapPage(await this.repo.search(criteria, text, page), card => card.toDTO())
   }
 ```
 
-It parses what the client sent, turns the filter into criteria of the card's fields
+It parses what the client sent, whatever it is, turns the filter into criteria of the card's fields
 (`toCriteria<CardDTO>`), and asks the repository for a page. What the system imposes,
 the workspace, is not in the use case at all: the repository adds it beside the
 criteria, so no filter can get around it. A rule of the module's own (say, only cards
@@ -426,14 +424,11 @@ Nobody calls them over HTTP yet: they are use cases for other contexts, which ch
 
 A tree of groups does not fit well in a URL, so a search travels in the body of a
 `POST`. The page (`size`, `cursor`) stays in the query string, as for every list. In
-`card.routes.ts`, import `pageRequestFrom` and the search's DTO:
+`card.routes.ts`, import `pageRequestFrom` beside `KeptAnswer`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.routes.ts
 import { pageRequestFrom, type KeptAnswer } from 'newt/http'
-import type { BoardsBase } from '../../boards-base'
-import { workspaceRoutes } from '../../workspace-routes'
-import type { CardAssignDTO, CardCreateDTO, CardEditDTO, CardMoveDTO, CardSearchDTO } from './card'
 ```
 
 and add the route after the one that creates a card, before `/cards/:cardId`:
@@ -441,13 +436,12 @@ and add the route after the one that creates a card, before `/cards/:cardId`:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.routes.ts
   // A search sends its filter in the body: groups of conditions do not fit in a URL.
-  workspace.post('/cards/search', async request => {
-    const input = await request.json() as CardSearchDTO
-    return Response.json(await cards.search(input, pageRequestFrom(request)))
-  })
+  workspace.post('/cards/search', async request => Response.json(await cards.search(await request.json(), pageRequestFrom(request))))
 ```
 
-It is on the workspace group, so it lives at
+The route passes the body as it came, `await request.json()`, with no `as
+CardSearchDTO`: the use case is the one that checks it (newt/route-body). It is on the
+workspace group, so it lives at
 `/api/workspaces/:workspaceId/cards/search`, and only the workspace's members reach it.
 It does not take `idempotency`: a search changes nothing, so sending it twice is safe.
 

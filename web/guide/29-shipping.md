@@ -60,10 +60,10 @@ bun install && bun check && bun test cooper && bun run lint && bun run cooper:bu
 ```
 
 ```text
- 169 pass
+ 170 pass
  0 fail
- 622 expect() calls
-Ran 169 tests across 29 files.
+ 623 expect() calls
+Ran 170 tests across 29 files.
 ```
 
 With `COOPER_TEST_POSTGRES_URL` set (chapter [27](./27-postgres)), five more run on
@@ -287,6 +287,11 @@ borders. Before a change goes in, it checks what you would otherwise check by ey
   workers.
 - [ ] **`newt/schema-imports`**: a module's `<m>.schema.ts` takes from newt only
   `newt/contract`, because a frontend imports it (chapter [23](./23-frontends)).
+- [ ] **`newt/use-case`**: every public method of a module is a `@UseCase`, or
+  `private` (chapter [2](./02-first-module)).
+- [ ] **`newt/route-body`**: a route passes the body to its use case as it came,
+  `await request.json()`, never `as` a DTO; the use case takes `unknown` and parses it
+  (chapter [2](./02-first-module)).
 - [ ] **`newt/queue-name`**: a handler's queue is
   `<module>.<use case>.on.<module>.<event>`, and its callback calls that use case
   (chapter [11](./11-reacting)).
@@ -303,7 +308,53 @@ What the lint cannot see, newt checks as it runs: a save that reads rows and gua
 nothing (the guard rule), a write into another module outside a worker, or two
 modules saved in one transaction, in a worker too (the write rule, unless `writesTo`
 says so), a queue whose name does not match its subscription.
-And the compiler: a save with `after` and no `guard` does not compile.
+And the compiler: a save with `after` and no `guard` does not compile, nor a
+repository that does not state its scope.
+
+One more item is not code: **`cooper/AGENTS.md`** is up to date. A coding agent reads
+it before anything else (chapter [1](./01-project-and-context)), and it should name
+every context, what each uses, and cooper's own conventions, as the chapters added
+them (4, 17, 20, 25). Yours now matches the repository's:
+
+````md
+# AGENTS.md
+
+Before writing code, read ../node_modules/newt/AGENTS.md: it is the rules of the
+framework, versioned with it. What follows is this project's own.
+
+## This project
+
+cooper: boards of cards for teams, each team in a workspace of its own. newt's
+example application, built step by step in its tutorial (web/guide).
+
+## Contexts
+
+In backend/contexts/, each with a database of its own. Which contexts each one uses
+is said in the root's eslint.config.js, and the lint keeps it.
+
+- boards: the boards of each workspace, their columns and cards. Uses auth.
+- auth: people, the workspaces (its tenants) and who may enter each, and how people
+  sign in. Uses none.
+- backoffice: what the staff see and do across the others. Uses auth and boards.
+
+## Conventions
+
+- Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
+  its routes on `base.http`, in its `<m>.routes.ts`.
+- boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
+- auth's repositories say `scope: 'none'`: people, sessions and tenants span
+  workspaces, so its use cases ask who may see what.
+
+## Commands
+
+From the repository's root:
+
+```sh
+bun check          # types
+bun test cooper    # cooper's tests
+bun run lint       # newt's lint (eslint.config.js)
+```
+````
 
 ## The rules, once more
 
@@ -318,12 +369,15 @@ What the chapters taught, in the order you met it. Appendix
   keeps a value's rules in one place (chapter [2](./02-first-module)).
 - Only the entity changes itself; only the repository touches the store; a route does
   not think (chapter [2](./02-first-module)).
+- A route passes the body as it came; the use case takes it as `unknown` and parses
+  it. Every public method of a module is a use case (chapter [2](./02-first-module)).
 - A route never catches: what a use case throws becomes `{ error, code }` with its
   status, and a client acts on `code` (chapter [3](./03-pages-and-errors)).
 - No list is returned whole unless a rule of the domain bounds it; every other goes
   by pages (chapter [3](./03-pages-and-errors)).
 - Who is the actor, never an id passed by hand; may they is asked every time; where
-  is a scope (chapter [4](./04-who-and-where)).
+  is a scope, which every repository states, `'none'` included (chapter
+  [4](./04-who-and-where)).
 
 **Data and its rules.**
 
