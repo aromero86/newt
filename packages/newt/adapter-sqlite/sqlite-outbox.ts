@@ -25,7 +25,7 @@ export class SqliteOutbox implements Outbox {
 
   add(jobs: Job[]): Promise<void> {
     return this.store.transaction(() => {
-      const insert = this.store.connection.prepare(`INSERT INTO job (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      const insert = this.store.connection.query(`INSERT INTO job (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       for (const job of jobs) {
         insert.run(job.id, job.queue, job.event, job.status, job.attempts, job.runAfter, job.lockedBy, job.lockedUntil, job.lastError, job.createdAt, job.updatedAt)
       }
@@ -36,7 +36,7 @@ export class SqliteOutbox implements Outbox {
   claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]> {
     const now = new Date().toISOString()
     return this.store.transaction(() => {
-      const rows = this.store.connection.prepare(`
+      const rows = this.store.connection.query(`
         UPDATE job SET status = 'running', locked_by = ?, locked_until = ?, attempts = attempts + 1, updated_at = ?
         WHERE id IN (
           SELECT id FROM job
@@ -67,7 +67,7 @@ export class SqliteOutbox implements Outbox {
     const now = new Date().toISOString()
     return this.store.transaction(() => {
       const changed = this.store.connection
-        .prepare(`UPDATE job SET status = 'pending', attempts = 0, run_after = ?, locked_by = NULL, locked_until = NULL, updated_at = ? WHERE id = ? AND status = 'dead'`)
+        .query(`UPDATE job SET status = 'pending', attempts = 0, run_after = ?, locked_by = NULL, locked_until = NULL, updated_at = ? WHERE id = ? AND status = 'dead'`)
         .run(now, now, id)
       return changed.changes > 0
     })
@@ -76,7 +76,7 @@ export class SqliteOutbox implements Outbox {
   seen(queues: JobQueueRegistration[]): Promise<void> {
     const now = new Date().toISOString()
     return this.store.transaction(() => {
-      const upsert = this.store.connection.prepare(`
+      const upsert = this.store.connection.query(`
         INSERT INTO job_queue (name, event, attempts, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
         ON CONFLICT (name) DO UPDATE SET event = excluded.event, attempts = excluded.attempts, last_seen_at = excluded.last_seen_at`)
       for (const queue of queues) upsert.run(queue.name, queue.event, queue.attempts, now, now)
@@ -85,27 +85,27 @@ export class SqliteOutbox implements Outbox {
 
   purge(before: string): Promise<void> {
     return this.store.transaction(() => {
-      this.store.connection.prepare(`DELETE FROM job WHERE status = 'done' AND updated_at < ?`).run(before)
+      this.store.connection.query(`DELETE FROM job WHERE status = 'done' AND updated_at < ?`).run(before)
     })
   }
 
   async list(): Promise<Job[]> {
-    return (this.store.connection.prepare(`SELECT ${COLUMNS} FROM job ORDER BY created_at, id`).all() as JobRow[]).map(toJob)
+    return (this.store.connection.query(`SELECT ${COLUMNS} FROM job ORDER BY created_at, id`).all() as JobRow[]).map(toJob)
   }
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
-    return this.store.connection.prepare(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`).all() as { queue: string, jobs: number }[]
+    return this.store.connection.query(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`).all() as { queue: string, jobs: number }[]
   }
 
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {
-    return this.store.connection.prepare('SELECT name, event, attempts, last_seen_at AS lastSeenAt FROM job_queue ORDER BY name').all() as (JobQueueRegistration & { lastSeenAt: string })[]
+    return this.store.connection.query('SELECT name, event, attempts, last_seen_at AS lastSeenAt FROM job_queue ORDER BY name').all() as (JobQueueRegistration & { lastSeenAt: string })[]
   }
 
   /** A write on a claimed job, only while it is still the claim it was: see `isSameClaim`. */
   private onClaim(claimed: Job, set: string, params: SQLQueryBindings[]): Promise<void> {
     return this.store.transaction(() => {
       this.store.connection
-        .prepare(`UPDATE job SET ${set} WHERE id = ? AND status = 'running' AND locked_by = ? AND attempts = ?`)
+        .query(`UPDATE job SET ${set} WHERE id = ? AND status = 'running' AND locked_by = ? AND attempts = ?`)
         .run(...params, claimed.id, claimed.lockedBy, claimed.attempts)
     })
   }
