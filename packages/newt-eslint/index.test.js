@@ -47,6 +47,22 @@ describe('the preset of newt', () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => { const { transaction } = store; transaction(() => {}) }\n')).toEqual(['no-restricted-syntax'])
   })
 
+  test("judges a handler's callback by the types TypeScript gives, not by names", async () => {
+    const workers = (calls) => [
+      'class Order_Module { events = { placed: { subscribe: (fn: (o: { id: string }) => unknown, s: object) => fn } }; fulfil(id: string) { return id } }',
+      'type Order_Deps = { orders: { fulfil(id: string): void } }',
+      `export function register(orders: Order_Module, deps: Order_Deps, untyped: any) {`,
+      `  orders.events.placed.subscribe(o => ${calls}, { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })`,
+      '}',
+    ].join('\n')
+
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('orders.fulfil(o.id)'))).toEqual([])
+    // Named after the module, but not of its type: not the module.
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('deps.orders.fulfil(o.id)'))).toEqual(['newt/queue-name'])
+    // Of no type TypeScript knows: not judged.
+    expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('untyped.fulfil(o.id)'))).toEqual([])
+  })
+
   test('refuses a promise left unawaited', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.module.ts', 'async function save() {}\nexport function create() { save() }\n')).toEqual(['@typescript-eslint/no-floating-promises'])
   })
