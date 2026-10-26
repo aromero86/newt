@@ -158,7 +158,8 @@ declare module 'newt/core' {
 un contexto lo tiene. A partir de ahí `currentActor()` devuelve esos campos, y cada
 sitio que dice quién actúa tiene que darlos: el autenticador, `runAsActor`. Un campo
 obligatorio no se puede olvidar; el compilador encuentra cada sitio. Limítalo a quién
-es alguien y cómo entró, nunca a lo que puede hacer. Fuera de cualquier actor, `currentActor()` lanza `NoActor`, un 401.
+es alguien y cómo entró, nunca a lo que puede hacer. Fuera de cualquier actor, `currentActor()` lanza `NoActor`, un 401;
+`findCurrentActor()` devuelve `undefined` en su lugar, para lo que cualquiera puede hacer y quien ha entrado ve con más detalle.
 
 **La autenticación** (quién es) es el `Authenticator` del router: lee la petición (una
 cookie de sesión, un token) y pregunta a un módulo de sesiones, a través de un caso de

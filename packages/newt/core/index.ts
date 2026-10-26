@@ -20,6 +20,7 @@ export type { Invocations } from './use-case/invocations'
 // Who is doing it
 export type { Actor } from './context/actor'
 export { currentActor } from './context/current-actor'
+export { findCurrentActor } from './context/find-current-actor'
 export { runAsActor } from './context/run-as-actor'
 export { NoActor } from './context/errors/no-actor'
 export { defineScope } from './scope/define-scope'

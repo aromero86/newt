@@ -153,7 +153,8 @@ declare module 'newt/core' {
 context has it. From then on `currentActor()` returns those fields, and every place
 that says who acts must give them: the authenticator, `runAsActor`. A required field
 cannot be forgotten; the compiler finds every place. Keep it to who someone is and how
-they came, never what they may do. Outside any actor, `currentActor()` throws `NoActor`, a 401.
+they came, never what they may do. Outside any actor, `currentActor()` throws `NoActor`, a 401;
+`findCurrentActor()` returns `undefined` instead, for what anyone may do and a signed-in person sees more of.
 
 **Authentication** (who is it) is the router's `Authenticator`: it reads the request
 (a session cookie, a token) and asks a module of sessions, through a use case, who
