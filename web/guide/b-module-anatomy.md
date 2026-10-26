@@ -36,11 +36,18 @@ cooper/backend/contexts/boards/modules/card/
   card-options.ts      the mailer, boards' public URL
   card.test.ts
   events/              card-created.ts, card-moved.ts, card-assigned.ts…
-  errors/              card-not-found.ts, column-not-empty.ts…
+  errors/              card-not-found.ts, column-not-empty.ts, too-many-cards.ts…
 ```
 
 And the backoffice's `workspace` keeps nothing, so it has no entity and no repository:
 a module, its deps, its routes, its schema, its test.
+
+A module every context needs alike lives in `cooper/backend/shared/<module>/`, with
+the same files and names, and each context initializes its own over its own store:
+`shared/web-session` (each web app's sessions) and `shared/outbox` (a context's dead
+jobs, for the backoffice to retry). It belongs to no context and imports none of
+them. It is in no `modules/` folder either, so the lint's module rules do not check
+it: keep its anatomy by hand.
 
 ## What the lint checks
 

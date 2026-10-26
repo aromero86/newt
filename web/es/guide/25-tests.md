@@ -30,7 +30,8 @@ function testConfig(): Config {
     ...config,
     auth: { ...config.auth, dbPath: ':memory:', port: 0 },
     boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0, trace: false },
+    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0 },
+    trace: false,
   }
 }
 ```
@@ -65,26 +66,41 @@ store, para que los handlers de boards sean jobs de un outbox, como en producci�
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
 /**
  * `boards` for a test: its database in memory, a fake auth behind its ports, its
- * emails in a list, and who sends a request told by an `x-user` header (the real
+ * emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
  * authenticator, the web session's, is replaced).
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
   const mails: Mail[] = []
+  const lines: string[] = []
   const boards = await Boards_Context.open({ ...config.boards, dbPath: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
     auth: auth.modules,
     mailer: { send: async mail => { mails.push(mail) } },
+    log: line => { lines.push(line) },
   })
   boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
-    return userId ? { userId } : null
+    return userId ? { userId, via: 'web' as const } : null
   })
-  // …
+  return {
+    // …
+    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
+    as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
+      return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+    },
+    // …
+  }
 }
 ```
+
+Todo lo que boards manda fuera queda recogido: los correos en `mails`, las líneas de su
+log en `lines`. Y cada actor dice cómo entró (`via: 'web'` o `'mcp'`), porque cooper
+añadió ese campo al `Actor` de newt ([capítulo 5](./05-who-and-where)): el tipo no deja
+que un test lo olvide. `as` lo recibe como último argumento, así que un test puede
+actuar como lo haría un asistente de IA.
 
 Un falso solo es posible porque boards llega a auth por puertos que declara él
 (`member.deps.ts`, `workspace.deps.ts`, `card.deps.ts`). Un módulo que importara el
@@ -107,7 +123,7 @@ export async function openTestBackoffice() {
   return {
     // …
     as<T>(user: UserDTO, fn: () => Promise<T>): Promise<T> {
-      return runAsActor({ userId: user.id }, fn)
+      return runAsActor({ userId: user.id, via: 'web' }, fn)
     },
     // …
   }
@@ -167,12 +183,28 @@ test('gives a new workspace its welcome board, a moment after auth creates it', 
 
 Dos cosas que `idle()` no espera:
 
-- **Una reacción `'fire-and-forget'`** no es un job. Un test que la escucha necesita un
-  instante o, como hace el test de auth, recoger lo que oyó tras un `idle()` que cubrió
-  los guardados que la publicaron.
+- **Una reacción `'fire-and-forget'`** no es un job: no hay nada que esperar. Empieza
+  justo después del commit, en memoria. Una que hace su trabajo al momento, como la
+  línea de log de boards cuando se mueve una card, ya ha terminado cuando vuelve el
+  caso de uso que guardó, y el test la lee directamente:
+
+  ```ts
+  // cooper/backend/contexts/boards/modules/activity/activity.test.ts
+  test('writes a line as a card moves, at once, with no job to wait for', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await inAcme(() => t.modules.card.move(card.id, { columnId: doing }), 'mcp')
+
+    // In memory, right after the commit: no job, nothing to wait for.
+    expect(t.lines).toEqual([`[boards] #${card.number} "Plan" moved from column ${todo} to ${doing} by ana (mcp)`])
+  })
+  ```
+
+  Una que espera algo suyo necesita que eso termine: el test de auth recoge lo que oyó
+  tras un `idle()` que cubrió los guardados que la publicaron.
 - **Un job que falló y espera su reintento** (a los 10 segundos, y después más) sigue
   pendiente cuando `idle()` vuelve. Si un test provoca fallos, mira los jobs:
-  `base.store.outbox.list()`.
+  `base.store.outbox.list()`, o el `job.dead` del backoffice
+  ([capítulo 22](./22-backoffice)).
 
 ### En el orden correcto, entre contextos
 
@@ -276,8 +308,13 @@ los jobs acabaron `done`: nada que quitar, nada que falle.
 // Its work run again, as after a failure halfway: nothing left to remove, nothing fails.
 await t.auth.deleteWorkspace('acme')
 await t.settled()
-expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done'])
+// Each deletion is heard twice: the workspace's purge, and its activity's.
+expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'done'])
 ```
+
+La lista de jobs creció cuando llegó el módulo de actividad: limpia su propio log con
+`tenant.deleted`. Un test que nombra cada job que espera te avisa cuando una reacción
+nueva se suma al flujo, y el comentario dice cuál.
 
 **Flujos de seguridad.** OAuth va sobre todo de lo que hay que rechazar. Los tests de auth
 los recorren por HTTP, como lo haría un cliente: un código canjeado dos veces revoca los
@@ -307,7 +344,84 @@ empezó, y que un `returnTo` que apunta a otro sitio manda al navegador a la por
 
 **Las reglas del framework.** Un caso de uso que escribe en otro módulo fuera de un
 worker falla ([capítulo 17](./17-modules-talk)). Es lo que pasa por defecto, así que un
-test que pasa por ese camino falla el día que lo escribes, no en producción.
+test que pasa por ese camino falla el día que lo escribes, no en producción. boards
+prueba la propia regla, a propósito: `workspace.prepare` escribe un tablero, columnas y
+una card, así que tiene que ejecutarse desde su worker. Llamado desde una petición, se
+rechaza, y no deja nada detrás:
+
+```ts
+// cooper/backend/contexts/boards/modules/workspace/workspace.test.ts
+test('refuses to prepare a workspace outside a worker: it writes in other modules', async () => {
+  t.auth.join('acme', 'ana')
+
+  await expect(inAcme(() => t.modules.workspace.prepare('acme'))).rejects.toThrow('[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo')
+  expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+})
+```
+
+El test fija el mensaje entero. Si alguien añade `writesTo: ['board']` a `prepare` para
+que se vaya un error, este test falla y pregunta por qué.
+
+**Los límites.** Un límite solo se prueba cruzándolo. La búsqueda de cards es una sola
+consulta porque una versión anterior devolvía los ids que coincidían en un `in`, y una
+consulta admite como mucho 250.000 parámetros en SQLite con Bun. El test escribe
+250.001 cards como filas, más de lo que permitiría ningún caso de uso, y las recorre por
+páginas ([capítulo 23](./23-search)):
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('searches by pages however many cards match, more than a query takes parameters (SQLite in Bun takes 250,000)', async () => {
+  // Written as rows, past what any use case would let in: 250,001 cards of 501 boards.
+  // …
+  await t.writeCards(rows)
+  // …
+  const first = await search({ text: 'TASK' })
+  expect(first).toMatchObject({ hasMore: true, total: 250_001 })
+  // …
+}, 30_000)
+```
+
+`writeCards` es una ayuda de `testing/`: inserta filas con Kysely en una transacción. Es
+el único sitio donde un test escribe por fuera de los casos de uso, y solo para montar
+una situación a la que ningún caso de uso llega.
+
+**Lo que se fija para todo el proceso.** cooper cambia los mensajes de newt una vez, al
+arrancar, con `setMessages` ([capítulo 26](./26-production)). Ese ajuste es del proceso:
+si lo fijas en un test, todos los demás tests del mismo proceso leen los mensajes de
+cooper en vez de los de newt. Así que el test lo ejecuta en un proceso propio, y lee lo
+que ese proceso imprime:
+
+```ts
+// cooper/backend/shared/messages.test.ts
+// In a process of its own: the messages are the whole process's, and every other
+// test in this one reads newt's own.
+test('once set at startup, newt\'s errors and its API speak cooper\'s words', async () => {
+  const script = `
+    import { ConcurrencyConflict, ReferenceNotFound } from 'newt/core'
+    import { ApiRouteNotFound, toErrorResponse } from 'newt/http'
+    import { setCooperMessages } from './cooper/backend/shared/messages'
+
+    setCooperMessages()
+    const response = toErrorResponse(new ApiRouteNotFound('GET', '/api/nothing'))
+    console.log(JSON.stringify({
+      conflict: new ConcurrencyConflict().message,
+      reference: new ReferenceNotFound('column', 'c1').message,
+      route: { status: response.status, body: await response.json() },
+    }))
+  `
+  const child = Bun.spawn(['bun', '-e', script], { cwd: root, stdout: 'pipe', stderr: 'inherit' })
+  expect(await child.exited).toBe(0)
+
+  expect(JSON.parse(await new Response(child.stdout).text())).toEqual({
+    conflict: 'Someone else changed this a moment ago. Reload it and try again.',
+    reference: 'That column is not there any more (c1)',
+    route: { status: 404, body: { error: 'Cooper has nothing at GET /api/nothing', code: 'route_not_found' } },
+  })
+})
+```
+
+Lo mismo vale para cualquier cosa global: una variable de entorno que se lee una vez,
+un reloj sustituido, un módulo parcheado. Tenlo fuera del proceso compartido.
 
 ## Un test que no puede fallar no prueba nada
 
@@ -324,5 +438,7 @@ fallar puede no estar probando lo que crees.
 - Espera a los workers con `jobs.idle()`, nunca con un sleep.
 - Un job vive en el outbox del contexto que publica el evento: espera a los contextos
   en el orden en que fluye el trabajo.
-- Gasta tus tests en lo difícil: cosas a la vez, cosas dos veces, cosas rechazadas.
+- Gasta tus tests en lo difícil: cosas a la vez, cosas dos veces, cosas rechazadas, y
+  límites, cruzados.
+- Lo que se fija para todo el proceso se prueba en un proceso propio.
 - Rompe el código una vez para ver fallar el test.

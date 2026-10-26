@@ -14,9 +14,9 @@ and, if it has any, its entry points. cooper has three: `auth`, `boards` and
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store })
+  const base = new BoardsBase({ name: 'boards', store, tracer })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -48,16 +48,28 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   application's: `serve` from `newt/http` is one way, and cooper's `ServedContext`
   uses it.
 - **Contexts depend on each other without a cycle**: each one is opened after the ones
-  it uses and receives them.
+  it uses and receives their modules, or ports made of them.
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth, boards })
+  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
   ```
 - A context reaches another only through that one's use cases and events, never its
-  store. A call to another context is like a call to an outside API: what it saved
+  base or its store. Its deps type says which modules, as a `Pick`, so nothing else is
+  within reach:
+
+  ```ts
+  // cooper/backend/contexts/backoffice/initialize-modules.ts
+  export type Backoffice_ModuleDeps = {
+    auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
+    boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
+  }
+  ```
+
+  A call to another context is like a call to an outside API: what it saved
   stays saved whatever the caller does next, so the caller puts it after whatever may
   still fail, and makes it safe to run again.
 
@@ -101,7 +113,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
 
   ```ts
   // cooper/backend/contexts/boards/mcp/mcp.ts
-  return await runAsActor({ userId: identity.userId }, () => transport.handleRequest(request))
+  return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
   ```
 - **Routes that share a prefix may share a middleware**: `http.group(prefix,
   middleware)`. It runs after the session is checked, around each route of the group,
@@ -115,23 +127,33 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
 ## Who and where: the actor and other scopes
 
 **The actor** is who is doing what is being done. The framework only knows its
-`userId`, and that is all cooper needs. An application that needs more adds it by
-augmenting the `Actor` interface, once, in a file every program of the application
-loads (the example is the one in newt's own documentation of `Actor`):
+`userId`. An application that needs more adds it by augmenting the `Actor` interface,
+once, in a file every program of the application loads. cooper adds how the person
+came in, through its web apps or through an AI assistant:
 
 ```ts
+// cooper/backend/shared/actor.ts
 import 'newt/core'
 
+/**
+ * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
+ * through boards' MCP server, with an access token.
+ */
+export type ActorVia = 'web' | 'mcp'
+
+// …
 declare module 'newt/core' {
   interface Actor {
-    /** The session it came through; null with an access token. */
-    sessionId: string | null
+    via: ActorVia
   }
 }
 ```
 
-From then on `currentActor()` returns those fields, and the authenticator must give
-them. Outside any actor, `currentActor()` throws `NoActor`, a 401.
+`CooperBase` imports that file (`import './actor'`), so every program that opens a
+context has it. From then on `currentActor()` returns those fields, and every place
+that says who acts must give them: the authenticator, `runAsActor`. A required field
+cannot be forgotten; the compiler finds every place. Keep it to who someone is and how
+they came, never what they may do. Outside any actor, `currentActor()` throws `NoActor`, a 401.
 
 **Authentication** (who is it) is the router's `Authenticator`: it reads the request
 (a session cookie, a token) and asks a module of sessions, through a use case, who
@@ -214,9 +236,23 @@ super(base, base.store.table<BoardRow>('board', { unique: [['workspaceId', 'name
 `find`, `first`, `count` and `page` see only the current workspace's rows; saving an
 entity of another one, or one stored in another, throws; outside a scope `current()`
 throws, so a worker enters it first. What looks across workspaces on purpose uses the
-protected `findInEveryScope`. What a subclass reads or writes on its own
-(`this.table`, Kysely, `saveRows`, a save's `after`) adds the filter itself, as
-cooper's card search does with `.where('workspaceId', '=', currentWorkspaceId())`.
+protected `findInEveryScope`, behind a method whose name says so, reached by no route
+of the workspace's own people:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.repository.ts
+/**
+ * The boards created last, in every workspace: for the staff, who look across them
+ * on purpose. Archived ones stay out.
+ */
+recentInEveryScope(limit: number): Promise<Board[]> {
+  return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
+}
+```
+
+What a subclass reads or writes on its own (`this.table`, Kysely, `saveRows`, a save's
+`after`) adds the filter itself, as cooper's card search does with
+`.where('workspaceId', '=', currentWorkspaceId())`.
 
 ## Modules
 
@@ -293,9 +329,10 @@ the reason beside it:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
- * … So this use case asks, and has the column module remove it: a write to another
- * module outside a worker, said where it is seen. It is the only write it makes, so a
- * failure leaves nothing halfway …
+ * …
+ * case asks, and has the column module remove it: a write to another module outside
+ * a worker, said where it is seen. It is the only write it makes, so a failure leaves
+ * nothing halfway …
  */
 @UseCase({ writesTo: ['column'] })
 async removeColumn(columnId: string): Promise<void> {
@@ -524,8 +561,11 @@ async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
 ```
 
 A field or operator not declared is a 400; what the system imposes goes beside the
-client's filter, in an `and` (`allOf`), where it cannot be escaped. In cooper the
-workspace is imposed by the repository's scope. Every operator offered is a query
+client's filter, in an `and` (`allOf`, or a `where` beside the criteria), where it
+cannot be escaped. In cooper the workspace is imposed by the search's own
+`where('workspaceId', '=', currentWorkspaceId())`, and the client's criteria join it
+through `criteriaTree`, which turns criteria into a tree (`all`, `any`, `field`) a
+query builder can translate. Every operator offered is a query
 anyone can run: an `or` across fields keeps a database from using its indexes, so
 offer what the data can answer quickly. A filter tree travels in a body
 (`POST /api/workspaces/:workspaceId/cards/search`), not a URL.
@@ -546,13 +586,18 @@ async countByBoard(): Promise<CardCountByBoard[]> {
     .groupBy('boardId')
     .orderBy('boardId')
     .execute()
-  return rows.map(row => ({ boardId: row.boardId, cards: Number(row.cards) }))   // a COUNT is text on Postgres
+  return rows.map(row => ({ boardId: row.boardId, cards: Number(row.cards) }))
 }
 ```
 
+A `COUNT` comes back as text on Postgres: `Number(…)` makes it work on all three.
+
 **Keep repositories portable**: `TableRepository` by default, Kysely for what it
 cannot say, and SQL of one store only when there is no other way (SQLite's full-text
-search, say), kept in one place and flagged. Then moving to another store is a new
+search, say), kept in one place and flagged. Never fetch ids to send them back in an
+`in`: a query takes a limited number of parameters (250,000 on SQLite in Bun), and one
+query with everything in it does not. cooper's card search is one Kysely query, page
+and total included. Then moving to another store is a new
 store and its migrations, not new repositories.
 
 **References between modules** (a card's column, its assignee) are ids only, as Vaughn
@@ -611,9 +656,9 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   ```ts
   // cooper/backend/contexts/auth/modules/token/token.module.ts
   /**
-   * … The code is spent first, then the tokens saved; should that fail, the client
-   * signs the person in again. It never runs again on a conflict: the code it spent
-   * would look copied.
+   * …
+   * spent first, then the tokens saved; should that fail, the client signs the person
+   * in again. It never runs again on a conflict: the code it spent would look copied.
    */
   @UseCase({ writesTo: ['oauthGrant'], retryOnConflict: false })
   async exchange(input: TokenExchangeDTO): Promise<TokenPairDTO> {
@@ -629,7 +674,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   async persistWithNameFree(board: Board): Promise<void> {
     const { workspaceId, name } = board
     await this.save([board], each => this.write(each), {
-      guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+      guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
       after: async () => {
         if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
       },
@@ -659,11 +704,14 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
     })
   }
   ```
-- **A value many change at once (a stock, a balance, a counter) is not a field updated
-  in place**: every change would collide with the others. It is what rows only ever
-  inserted add up to: a module of movements, or, as cooper's card numbers, the rows
-  themselves (a new card's number is its board's last one plus one, read in the save
-  under a guard).
+- **A value many change at once (a stock, a balance, a counter) is not a field read
+  and saved freely**: every change would collide with the others. Either it is what
+  rows only ever inserted add up to (a module of movements), or every change takes it
+  inside the save, in `before`, under a guard, so they take turns instead of
+  colliding. cooper's card numbers are the second: each board keeps the last number it
+  gave in a `card_counter` row, which a new card takes one up in the save of the card,
+  under `boardCards:<board>`; it is never lowered, so a deleted card's number is not
+  given again.
 
 ## Use cases
 
@@ -712,10 +760,16 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   again until it completes. When a flow may be stopped by another path, each step done
   has its **compensation**, a step that undoes it, run from a worker on the event that
   stops the flow: a saga. (cooper's workspace deletion converges this way:
-  `tenant.deleted` sets going `tenant.removeAccesses` in auth and `workspace.purge` in
-  boards, each a job that runs until it completes.) A job that runs out of attempts is
+  `tenant.delete` takes the workspace's accesses away itself, right after saving the
+  deletion, so nobody enters it from the moment it answers; `tenant.deleted` then sets
+  going `tenant.removeAccesses` in auth, in case that second save failed, and
+  `workspace.purge` and `activity.purgeWorkspace` in boards, each a job that runs until
+  it completes.) A job that runs out of attempts is
   a flow stuck halfway: someone must look at it, fix the cause and put it back with
-  `store.outbox.retry(id)`.
+  `store.outbox.retry(id)`. cooper gives each context a small `Outbox_Module`
+  (`shared/outbox`) whose use cases `dead(page)` and `retry(id)` list and retry its
+  dead jobs, and its backoffice shows them to the staff, every context's through that
+  context's own use cases.
 - To turn a `find` into one item or an error, use `this.resolve(find, onMissing)` from
   `Module`: the caller picks the error (404 when the id is the resource, 400 when it is
   a reference inside the input).
@@ -777,7 +831,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
 
     ```ts
     // cooper/backend/contexts/boards/modules/card/card.workers.ts
-    cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+    cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
       strategy: 'handler',
       queue: 'card.notifyAssignee.on.card.assigned',
     })
@@ -803,8 +857,18 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
     served for five minutes (a few minutes after a deploy, since the old process served
     it until then).
   - **`'fire-and-forget'`, in memory**: run after the commit, and lost if it fails or
-    the process stops. For what may be lost: a cache, a metric, an email whose payload
-    must never be stored.
+    the process stops. For what may be lost: a cache, a log line, an email whose
+    payload must never be stored. It takes no queue.
+
+    ```ts
+    // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+    events.moved.subscribe(({ dto, previous, by, via }) => {
+      options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
+    }, { strategy: 'fire-and-forget' })
+    ```
+
+    The same event has a `handler` too, which records the move in the card's
+    activity: what must last goes by the outbox, what may be lost does not.
 - A handler runs with no actor, never the publisher's, and in no scope: `currentActor()`
   throws `NoActor` in it, so what it needs it reads from the event, or it sets one
   itself with `runAsActor` (or enters a scope, as cooper's workers do with
@@ -846,12 +910,31 @@ export class BoardNotFound extends NotFoundError {
 All of them extend `DomainError` (`status`, `code`, `message`). A domain error is an
 answer, not a failure: it does not mark its use case's span as failed.
 
-The framework's own errors speak English. An application in another language
-replaces their messages once, at startup (cooper speaks English, so it does not):
+The framework's own errors speak plain English, for a developer. An application
+replaces their messages once, at startup, for the whole process: in its own words, or
+in another language. Only the message changes; the `code` and the status stay. cooper
+does it in `index.ts`, before it opens anything:
 
 ```ts
-setMessages({ concurrency_conflict: () => 'Alguien lo ha cambiado mientras tanto.' })
+// cooper/backend/shared/messages.ts
+export const cooperMessages: Partial<Messages> = {
+  concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
+  not_signed_in: () => 'Your session has ended: sign in again to go on',
+  validation: () => 'Some of what was sent is not right: check the fields and try again',
+  route_not_found: ({ method, path }) => `Cooper has nothing at ${method} ${path}`,
+  internal: () => 'Something went wrong on our side. Try again in a moment.',
+}
+
+// …
+export function setCooperMessages(): void {
+  setMessages(cooperMessages)
+}
 ```
+
+Being the whole process's, it is tested in a process of its own (cooper's
+`messages.test.ts` runs it with `Bun.spawn`): set in a test, it would change what
+every other test in that process reads.
 
 Its codes are `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
@@ -940,7 +1023,18 @@ fed by `handler` workers after the events of what the store saved; each row carr
 id of its own (the event's, the card's), so a job that runs twice adds nothing.
 Reading it is each adapter's own query language. No adapter comes with the framework
 yet; `MemoryAnalytics` (in `newt/port-analytics/contract`) is the one for tests, and
-`describeAnalyticsContract` checks a new one.
+`describeAnalyticsContract` checks a new one. cooper writes a small one on SQLite
+(`shared/analytics/sqlite-analytics.ts`, in the backoffice's own database), declares
+the reads it needs in an interface of its own, and feeds it from `handler` workers on
+auth's and boards' events, each row by the id of what it counts:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/metric/metric.workers.ts
+deps.card.events.created.subscribe(card => metrics.recordCard(card), {
+  strategy: 'handler',
+  queue: 'metric.recordCard.on.card.created',
+})
+```
 
 ## Observability
 
@@ -950,3 +1044,10 @@ case as attributes, a child of its caller's, marked with the error when one that
 not a domain error escapes, and with an event (`conflict.retry`) for each retry on a
 conflict. The job worker's own steps are spans too. Without a tracer, nothing is
 recorded (`NoopTracer`).
+
+Hand the **same** tracer to every context of a process. The active span travels with
+the work, so a use case of one context called by another's lands inside its caller's
+span: one trace for the whole request, across contexts. cooper makes one
+`ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1` and gives it to all
+three (see `open-contexts.ts` above); it writes each trace once it ends, and leaves the
+worker's `job.…` spans out.

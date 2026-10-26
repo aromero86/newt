@@ -7,9 +7,11 @@ y los espacios, y boards lo que hay dentro. En este capítulo construyes `backof
 tercer contexto. Casi no guarda nada: monta cada pantalla con los casos de uso de los
 contextos que saben.
 
-Por el camino verás cuatro cosas que newt te da para una consola así: un acceso sin
-tenant, Kysely para los recuentos que una tabla no sabe decir, el puerto de analítica
-para las métricas y un tracer para ver qué hizo una petición.
+Por el camino verás lo que newt te da para una consola así: un acceso sin tenant,
+Kysely para los recuentos que una tabla no sabe decir, una lectura de todos los
+espacios dicha por su nombre, el puerto de analítica para las métricas, los jobs
+muertos de cada contexto y cómo reintentarlos, y un tracer para ver qué hizo una
+petición.
 
 (La interfaz del backoffice está en `cooper/frontend/backoffice`. Esta guía no la trata.)
 
@@ -140,7 +142,7 @@ test('answers only the staff: 401 without a session, 403 to anyone else, at once
   const sam = await t.staffMember('Sam')
   const ana = await t.staffMember('Ana')
 
-  for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff', '/api/metrics']) {
+  for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff', '/api/metrics', '/api/jobs/boards']) {
     expect((await get(path)).status).toBe(401)
     expect((await get(path, ana.id)).status).toBe(200)
   }
@@ -170,7 +172,7 @@ de nada de eso. Declara en sus deps los módulos que sí lo son:
 /**
  * What a workspace's page is made of, each part asked to the module that keeps it:
  * auth's tenants, accesses and accounts, and boards' boards and cards. Only their use
- * cases, never their repositories (ch. 23).
+ * cases, never their repositories …
  */
 export interface Workspace_Deps {
   /** That who asks is of the staff, before any route answers. */
@@ -179,13 +181,37 @@ export interface Workspace_Deps {
   access: Access_Module
   user: AuthUser_Module
   board: Board_Module
-  /** How many cards each workspace and board has: Kysely's counts, in boards (ch. 26). */
+  // …
   card: Card_Module
 }
 ```
 
-El contexto se los pasa al inicializar sus módulos. auth y boards se abren antes, y el
-backoffice los recibe:
+¿De dónde salen esos módulos? auth y boards se abren antes, y el backoffice recibe sus
+módulos. No los contextos: un contexto tiene una base, y una base tiene un store. Lo
+que el backoffice puede tocar está escrito en el tipo de sus deps, como un `Pick` de
+los módulos de cada contexto:
+
+```ts
+// cooper/backend/contexts/backoffice/initialize-modules.ts
+export type Backoffice_ModuleDeps = {
+  auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
+  boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
+}
+```
+
+```ts
+// cooper/backend/open-contexts.ts
+const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+```
+
+El comentario del tipo dice la regla: los casos de uso de los contextos que lee, los
+que necesita y nada más; nunca la base de un contexto ni su store. `auth.modules`
+tiene todos los módulos de auth, y TypeScript lo acepta donde se pide un `Pick`. Pero
+dentro del backoffice solo existen los cinco que nombra. No hay un
+`deps.auth.base.store` al que echar mano, y quien revisa ve de un vistazo de qué
+módulos de auth depende el backoffice. Añadir uno es cambiar este tipo, a la vista.
+
+Después el contexto le pasa a cada módulo los que necesita:
 
 ```ts
 // cooper/backend/contexts/backoffice/initialize-modules.ts
@@ -321,8 +347,8 @@ El repositorio la usa:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
 /**
- * How many cards each of these workspaces has, by one query that groups them (ch.
- * 26). Across workspaces on purpose: for the staff's backoffice, which looks at
+ * How many cards each of these workspaces has, by one query that groups them.
+ * Across workspaces on purpose: for the staff's backoffice, which looks at
  * all of them, never for a workspace's own work.
  */
 async countByWorkspace(workspaceIds: string[]): Promise<CardCountByWorkspace[]> {
@@ -396,8 +422,114 @@ llegue:
 3. **El SQL propio de un store**, solo cuando no hay otro camino. Ponlo en un único
    sitio, y márcalo con un comentario que diga de qué store es y por qué.
 
-boards se queda en el paso 2. En la siguiente sección verás un paso 3, marcado como pide
-la regla.
+boards se queda en el paso 2. Más abajo, en las métricas, verás un paso 3, marcado como
+pide la regla.
+
+## En todos los espacios, a propósito: `findInEveryScope`
+
+El resumen del backoffice lista los últimos tableros creados, en cualquier espacio de
+trabajo. El repositorio de tableros de boards tiene un ámbito: cada `find`, `count` y
+`page` que lanza ve solo las filas del espacio actual ([capítulo 5](./05-who-and-where)),
+y fuera de un espacio lanza un error. Eso protege el trabajo de cada espacio, y aquí
+estorba.
+
+`TableRepository` tiene una sola salida de su ámbito, y es `protected`: solo el propio
+repositorio puede llamarla, y su nombre dice lo que hace.
+
+```ts
+// packages/newt/repository/table-repository.ts
+/**
+ * The ones that meet the criteria in every scope, not only the current one: for
+ * what looks across scopes on purpose (another context asking which workspace a
+ * customer is in), never for a scope's own work. Deleted ones stay out.
+ */
+protected async findInEveryScope(criteria: Criteria<Row> = {}, options?: FindOptions<Row>): Promise<E[]> {
+```
+
+El repositorio de boards la envuelve en un método suyo, cuyo nombre lo sigue diciendo,
+y el módulo la ofrece como caso de uso para otros contextos:
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.repository.ts
+/**
+ * The boards created last, in every workspace: for the staff, who look across them
+ * on purpose. Archived ones stay out.
+ */
+recentInEveryScope(limit: number): Promise<Board[]> {
+  return this.findInEveryScope({}, { limit, orderBy: [{ field: 'id', direction: 'desc' }] })
+}
+```
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+/**
+ * For the staff's backoffice: the boards created last, whatever their workspace. It
+ * reads every workspace on purpose, so it does not run in one: no person of a
+ * workspace reaches it (no route of boards calls it), and its repository says so by
+ * name (`findInEveryScope`), where a review sees it.
+ */
+@UseCase()
+async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+  const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+  return boards.map(board => board.toDTO())
+}
+```
+
+Tres cosas lo hacen seguro:
+
+- **Ninguna ruta de boards lo llama.** Un miembro de un espacio no tiene forma de
+  llegar a él. Solo el backoffice, cuyas rutas comprueban todas el staff.
+- **Tiene un límite.** Se queda entre 1 y 50, pida lo que pida quien llama: una lista
+  de todo cooper no puede volver entera.
+- **El nombre lo dice en cada nivel.** `findInEveryScope`, `recentInEveryScope`,
+  `recentInEveryWorkspace`: buscar "InEvery" encuentra cada sitio que mira más allá del
+  ámbito. Los tableros archivados quedan fuera, porque el borrado lógico del
+  repositorio sigue aplicándose.
+
+El backoffice añade el nombre del espacio de cada tablero, con una llamada más para toda
+la lista:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/workspace/workspace.module.ts
+/** The boards created last across every workspace, each with its workspace's name: two calls. */
+@UseCase()
+async recentBoards(): Promise<RecentBoardDTO[]> {
+  const boards = await this.deps.board.recentInEveryWorkspace(RECENT_BOARDS)
+  const tenants = new Map((await this.deps.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
+  return boards.map(board => ({ id: board.id, name: board.name, workspaceId: board.workspaceId, createdAt: board.createdAt, workspaceName: tenants.get(board.workspaceId) ?? null }))
+}
+```
+
+Su ruta va antes de la que lleva el id de un espacio, o `/workspaces/recent-boards` se
+leería como el espacio `recent-boards`:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/workspace/workspace.routes.ts
+// The latest boards of every workspace: a path of its own, before any workspace's id.
+routes.get('/workspaces/recent-boards', async () => Response.json(await workspaces.recentBoards()))
+
+routes.get('/workspaces/:workspaceId', async request => Response.json(await workspaces.get(request.params.workspaceId)))
+```
+
+El test crea tableros en dos espacios, archiva uno y comprueba lo que ve el staff:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/workspace/workspace.test.ts
+test('shows the boards created last across every workspace, archived ones out', async () => {
+  const acmeTenant = await acme()
+  const globex = await t.as(bob, () => t.auth.modules.tenant.create({ name: 'Globex' }))
+  await t.settled()
+  const roadmap = await t.board(ana, acmeTenant.id, 'Roadmap', [])
+  const old = await t.board(bob, globex.id, 'Old', [])
+  await t.as(bob, () => runInWorkspace(globex.id, () => t.boards.modules.board.archive(old.id)))
+
+  const recent = await t.as(sam, () => t.modules.workspace.recentBoards())
+  expect(recent[0]).toMatchObject({ id: roadmap.id, name: 'Roadmap', workspaceName: 'Acme' })
+  expect(recent.map(board => [board.name, board.workspaceName])).toContainEqual(['Welcome', 'Globex'])
+  expect(recent.map(board => [board.name, board.workspaceName])).toContainEqual(['Welcome', 'Acme'])
+  expect(recent.some(board => board.id === old.id)).toBe(false)
+})
+```
 
 ## Métricas: una proyección por el puerto de analítica
 
@@ -487,7 +619,7 @@ Los workers se suscriben a eventos de auth y de boards, cada uno con un `handler
  * saved with what happened, in that context's outbox and run by its worker until it
  * succeeds. Not `fireAndForget`: a number lost when the server stops would be wrong
  * for good. Each one appends a row by the id of what it counts, so running it twice
- * counts once (ch. 28).
+ * counts once …
  */
 export function registerMetricWorkers(metrics: Metric_Module, deps: Metric_Deps): void {
   deps.card.events.created.subscribe(card => metrics.recordCard(card), {
@@ -564,6 +696,164 @@ test('counts a card once, however many times its worker runs', async () => {
 todo adaptador debe pasar. `sqlite-analytics.test.ts` la ejecuta sobre el adaptador de
 cooper.
 
+## Jobs muertos: cuidar el outbox de cada contexto
+
+Un job `handler` se vuelve a ejecutar hasta que sale bien, hasta agotar sus intentos
+([capítulo 15](./15-failures)). Uno que falla todas las veces queda marcado como
+**muerto** (`dead`), con su último error, y espera. Primero hay que arreglar algo (un
+servidor de correo, un bug), y después alguien tiene que devolverlo a la cola. Hasta
+ahora ese alguien necesitaba un script y el `retry(id)` del outbox. cooper le da a su
+staff una página para ello.
+
+Cada contexto guarda sus propios jobs, en su propio store. El backoffice no puede leer
+el outbox de auth: sería meter la mano en el store de otro contexto. Así que cada
+contexto ofrece sus jobs con casos de uso, mediante un módulo pequeño que vive en
+`shared/`, porque todos los contextos necesitan el mismo:
+
+```ts
+// cooper/backend/shared/outbox/outbox.module.ts
+export class Outbox_Module extends Module {
+
+  static initialize(base: CooperBase): Outbox_Module {
+    return new Outbox_Module(base)
+  }
+
+  // …
+
+  /**
+   * A page of its dead jobs, the newest first: they wait for someone, and are few. The
+   * outbox lists every job it keeps (a week of those done, too), so the page is cut here.
+   */
+  @UseCase()
+  async dead(page: PageRequest): Promise<Page<DeadJobDTO>> {
+    const dead = (await this.base.store.outbox.list())
+      .filter(job => job.status === 'dead')
+      .toSorted((a, b) => (a.id < b.id ? 1 : -1))
+    const after = page.cursor ? dead.filter(job => job.id < page.cursor!) : dead
+    return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
+  }
+
+  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  @UseCase()
+  async retry(id: string): Promise<void> {
+    if (await this.base.store.outbox.retry(id)) return
+    const job = (await this.base.store.outbox.list()).find(each => each.id === id)
+    throw job ? new JobNotDead(id, job.status) : new JobNotFound(id)
+  }
+}
+```
+
+- **No tiene rutas.** Cada contexto inicializa uno sobre su propio store (`outbox` en
+  los módulos de boards y de auth), y solo las rutas del backoffice llegan a él, detrás
+  de la comprobación del staff.
+- **Lo que enseña está elegido.** `DeadJobDTO` lleva la cola, el nombre del evento, los
+  intentos y el último error. El payload del evento se queda fuera: puede decir más de
+  lo que el staff necesita ver.
+- **Un job que no está muerto no se reintenta.** Uno que espera o se está ejecutando ya
+  va de camino, y uno hecho está hecho: `retry` responde `outbox.job_not_dead`, un 409,
+  o `outbox.job_not_found`, un 404.
+
+El módulo `job` del backoffice pregunta al outbox de cada contexto, por su nombre. Sus
+deps son los tres outbox, el de auth, el de boards y el suyo:
+
+```ts
+// cooper/backend/contexts/backoffice/initialize-modules.ts
+const outbox = Outbox_Module.initialize(base)
+// Each context's dead jobs, through its own use cases.
+const job = Job_Module.initialize(base, { staff, outboxes: { auth: auth.outbox, boards: boards.outbox, backoffice: outbox } })
+```
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.module.ts
+/** A page of a context's dead jobs, the newest first. */
+@UseCase()
+async dead(context: JobContext, page: PageRequest): Promise<Page<ContextJobDTO>> {
+  const name = JobContextSchema.parse(context)
+  const found = await this.deps.outboxes[name].dead(page)
+  return { ...found, items: found.items.map(job => ({ ...job, context: name })) }
+}
+
+/**
+ * A dead job of a context runs again: what a person of the staff asks for, at once,
+ * once they fixed what killed it. The context's own use case puts it back; its
+ * worker runs it.
+ */
+@UseCase({ writesTo: ['outbox'] })
+async retry(context: JobContext, id: string): Promise<void> {
+  await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
+}
+```
+
+¿Por qué `writesTo: ['outbox']`? La regla de escritura es por contexto
+([capítulo 17](./17-modules-talk)). Reintentar un job de auth o de boards llama a un
+caso de uso de otro contexto: es la raíz de lo que pasa allí, y la regla no tiene nada
+que decir. Reintentar uno de los jobs del propio backoffice es escribir en otro módulo
+del **mismo** contexto, fuera de un worker. Es la única escritura que hace `retry`, así
+que un fallo no deja nada a medias, y el staff espera la respuesta. `writesTo` lo dice
+donde se lee.
+
+Las rutas toman el contexto de la ruta, y `JobContextSchema` rechaza cualquier otro
+nombre con un 400:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.routes.ts
+// `/jobs/boards`: boards' dead jobs. A context that is not one is a 400.
+routes.get('/jobs/:context', async request =>
+  Response.json(await jobs.dead(request.params.context as JobContext, pageRequestFrom(request))))
+
+routes.post('/jobs/:context/:jobId/retry', async request => {
+  await jobs.retry(request.params.context as JobContext, request.params.jobId)
+  return new Response(null, { status: 204 })
+})
+```
+
+### Compruébalo
+
+El test hace fallar una reacción suya, con un solo intento, mientras "el servidor de
+correo está caído". Después encuentra el job muerto, arregla la causa, lo reintenta y
+comprueba que se ejecutó:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.test.ts
+test('a job of boards that dies is listed with its last error, retried, and then done', async () => {
+  const tenant = await t.as(sam, () => t.auth.modules.tenant.create({ name: 'Acme' }))
+  await t.settled()
+  // A reaction to boards' cards that fails while the "mail server" is down, at its only attempt.
+  // It is the test's own, of no module: its queue names none.
+  let down = true
+  t.boards.modules.card.events.created.subscribe(() => {
+    if (down) throw new Error('the mail server is down')
+  // eslint-disable-next-line newt/queue-name
+  }, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
+  await t.board(sam, tenant.id, 'Roadmap', ['One'])
+  await t.settled()
+
+  const dead = await t.as(sam, () => t.modules.job.dead('boards', { size: 10 }))
+  expect(dead.items).toEqual([expect.objectContaining({
+    context: 'boards',
+    queue: 'test.tellSomeone.on.card.created',
+    event: 'card.created',
+    attempts: 1,
+    lastError: expect.stringContaining('the mail server is down'),
+  })])
+  expect((await t.as(sam, () => t.modules.job.dead('auth', { size: 10 }))).items).toEqual([])
+
+  down = false
+  await t.as(sam, () => t.modules.job.retry('boards', dead.items[0]!.id))
+  await t.settled()
+
+  expect((await t.as(sam, () => t.modules.job.dead('boards', { size: 10 }))).total).toBe(0)
+  const jobs = await t.boards.base.store.outbox.list()
+  expect(jobs.find(job => job.id === dead.items[0]!.id)?.status).toBe('done')
+  // Done is done: it is not run again.
+  await expect(t.as(sam, () => t.modules.job.retry('boards', dead.items[0]!.id))).rejects.toMatchObject({ code: 'outbox.job_not_dead', status: 409 })
+})
+```
+
+Reintentar es solo la mitad. Un job está muerto porque algo va mal: lee su
+`lastError`, arregla eso, y solo entonces reintenta. Reintentar antes solo vuelve a
+matarlo.
+
 ## Ver qué hizo una petición: un tracer
 
 Cada llamada a un caso de uso es un **span** de una traza, con su nombre
@@ -571,21 +861,41 @@ Cada llamada a un caso de uso es un **span** de una traza, con su nombre
 dentro del suyo. Un reintento tras un conflicto queda anotado como un evento, y un error
 que no es de negocio marca el span.
 
-newt no registra nada si no le das a la base un `Tracer`. cooper tiene uno que escribe en
-la consola, en `shared/observability`, y el backoffice lo usa cuando `COOPER_TRACE` vale
-`1`:
+newt no registra nada si no le das a la base un `Tracer`. El `open` de cada contexto
+recibe uno y se lo pasa a su base:
 
 ```ts
 // cooper/backend/contexts/backoffice/backoffice.context.ts
-static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps): Promise<Backoffice_Context> {
+static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, tracer?: Tracer): Promise<Backoffice_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new CooperBase({ name: 'backoffice', store, tracer: config.trace ? new ConsoleTracer() : undefined })
+  const base = new CooperBase({ name: 'backoffice', store, tracer })
   return new Backoffice_Context(base, initializeModules(base, config, deps), config)
 }
 ```
 
-El tracer implementa la interfaz de newt, la misma que implementaría un adaptador para
-OpenTelemetry:
+cooper crea **un** tracer, cuando `COOPER_TRACE` vale `1`, y le da el mismo a todos los
+contextos:
+
+```ts
+// cooper/backend/open-contexts.ts
+// One tracer for every context: a use case that calls another context's shows that
+// call inside it, since they run in one process …
+const tracer = config.trace ? new ConsoleTracer() : undefined
+const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
+const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
+const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+```
+
+¿Por qué uno, y no uno por contexto? Un tracer sabe qué span se está ejecutando ahora,
+y hace de un span nuevo su hijo. Cuando `workspace.get` del backoffice llama a
+`tenant.get` de auth, los dos corren en el mismo proceso, en la misma cadena de
+`await`. Con un solo tracer, el span de auth cae dentro del del backoffice, y lees la
+petición entera como un árbol: lo que hizo el backoffice y lo que preguntó a auth y a
+boards por el camino. Con un tracer por contexto tendrías tres trazas sueltas, y
+tendrías que casarlas a mano.
+
+El tracer de cooper escribe en la consola. Implementa la interfaz de newt, la misma que
+implementaría un adaptador para OpenTelemetry:
 
 ```ts
 // cooper/backend/shared/observability/console-tracer.ts
@@ -630,17 +940,27 @@ expect(lines.map(line => line.replace(/\d+\.\d ms/, 'n ms'))).toEqual([
 ])
 ```
 
-Para probarlo, arranca cooper con la variable y abre el backoffice:
+Cada línea empieza por el contexto del span, así que un span de auth dentro de uno del
+backoffice dice `auth`, con su propia sangría.
+
+`COOPER_TRACE` enciende una cosa más, en boards: una línea en la consola cada vez que
+se mueve una card. Es una reacción `fire-and-forget` ([capítulo 11](./11-reacting)), la
+única que tiene cooper, y la estrategia adecuada para ella: nadie necesita esa línea
+más tarde, y la actividad de la card guarda el movimiento para siempre.
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+events.moved.subscribe(({ dto, previous, by, via }) => {
+  options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
+}, { strategy: 'fire-and-forget' })
+```
+
+Para probar las dos cosas, arranca cooper con la variable, abre el backoffice y mueve
+una card en boards:
 
 ```bash
 COOPER_TRACE=1 bun run cooper
 ```
-
-Cada contexto tiene su base, así que cada uno tiene su tracer, o ninguno. cooper solo le
-da uno al backoffice. Cuando `workspace.get` llama a `tenant.get` de auth, esa llamada
-pasa por las invocaciones de auth, que no registran nada: ves los casos de uso del
-backoffice, no los de auth ni los de boards. Para trazarlos también, dale un tracer a sus
-bases.
 
 ## En resumen
 
@@ -650,13 +970,20 @@ bases.
   guardes en la sesión: una retirada tiene que contar al momento.
 - 401 es que no hay nadie con sesión; 403, alguien que no puede; 404, algo que no existe.
   Elige 404 en vez de 403 cuando un 403 revelaría que algo existe.
-- Un contexto que lee de otros compone sus casos de uso: unas pocas llamadas por página,
-  nunca una por fila. Ofrece las lecturas por lotes (`getMany`,
-  `countByWorkspace(ids)`).
+- Un contexto que lee de otros recibe sus módulos, tipados como un `Pick` de los que
+  usa: nunca su base ni su store.
+- Compone sus casos de uso: unas pocas llamadas por página, nunca una por fila. Ofrece
+  las lecturas por lotes (`getMany`, `countByWorkspace(ids)`).
 - Lo que un criterio no sabe decir va a Kysely, en el repositorio dueño de la tabla.
   Kysely no aplica el ámbito: escríbelo tú.
 - `TableRepository` por defecto, Kysely para lo demás, y el SQL propio de un store solo
   cuando no hay otro camino, en un único sitio y marcado.
+- Una lectura de todos los ámbitos usa el `findInEveryScope` protegido, detrás de un
+  método cuyo nombre lo dice, con límite, y sin ruta por la que llegue la gente del
+  propio ámbito.
 - Las métricas son una proyección: workers `handler` añaden filas con id, así que un job
   repetido cuenta una vez.
-- Un tracer va en la base de un contexto. Sin él, no se registra nada.
+- Cada contexto ofrece sus jobs muertos con casos de uso (`outbox.dead`,
+  `outbox.retry`); el staff arregla la causa y después reintenta.
+- Un tracer va en la base de un contexto. Dale el mismo a todos los contextos de un
+  proceso, y una llamada entre contextos sale dentro de quien la hizo.

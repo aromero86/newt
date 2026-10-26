@@ -116,7 +116,9 @@ pide a la API propia de su store: cada adaptador expone una.
 transacción del cambio que los publica y luego el worker de trabajos los reclama,
 renueva y cierra, cada reclamación protegida por su intento, de modo que un worker
 cuyo plazo se ha agotado no puede cerrar un trabajo que ha cogido otro. `retry(id)`
-vuelve a poner en espera un trabajo muerto, como nuevo. `list()` y `queues()` enseñan
+vuelve a poner en espera un trabajo muerto, como nuevo (cooper lo ofrece, con la
+lista de trabajos muertos, como casos de uso de un pequeño `Outbox_Module` en cada
+contexto, para su backoffice). `list()` y `queues()` enseñan
 lo que guarda; `waiting()` cuenta los trabajos pendientes de cada cola, que el worker
 lee cada minuto para avisar de una cola que nadie atiende, así que no debería leer los
 trabajos terminados ni su contenido (el store de ficheros, que lee colecciones
@@ -129,7 +131,18 @@ enteras, sí lo hace).
 store con `open` aplica las pendientes; `connect` lo abre tal como está, para los
 scripts que migran a mano, cuyo `up()` aplica primero las del store y luego las del
 framework (su outbox), igual que `open`. Una carpeta de migraciones que no se puede
-leer es un error, nunca "no hay migraciones".
+leer es un error, nunca "no hay migraciones". El de cooper es
+`cooper/scripts/migrations.ts`
+(`bun run cooper:migrations status|up|down [--context <nombre>]`):
+
+```ts
+// cooper/scripts/migrations.ts
+// `connect` opens the database as it is: `open` would migrate it first.
+const store = await SqliteStore.connect({
+  path: config[context].dbPath,
+  migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
+})
+```
 
 ## SQLite: `newt/adapter-sqlite`
 
@@ -403,5 +416,6 @@ Para la analítica el framework tiene un puerto propio, `Analytics`:
 trabajo repetido nunca la duplique; se lee con el lenguaje de cada adaptador. Aún no
 viene ningún adaptador: `MemoryAnalytics` es para los tests y como el ejemplo más
 sencillo, y `describeAnalyticsContract` comprueba uno escrito para ClickHouse o
-DuckDB. DuckDB también puede leer el fichero SQLite de un contexto tal cual, para
+DuckDB. cooper escribe uno pequeño sobre SQLite, `shared/analytics/sqlite-analytics.ts`,
+con su SQL en ese único fichero y marcado como de SQLite. DuckDB también puede leer el fichero SQLite de un contexto tal cual, para
 informes, sin copiarlo.

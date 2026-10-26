@@ -1,11 +1,14 @@
 # C. Common problems
 
 What you see, what it usually means, and what to do. The messages are quoted as newt
-and cooper write them.
+and cooper write them. cooper replaces some of newt's at startup
+([chapter 26](./26-production)): where they differ, both are given. cooper's is what a
+person of the app sees; newt's is what a test or a script sees, since they do not go
+through `index.ts`. The `code` is the same in both.
 
 ## Saving
 
-**"Someone changed it in the meantime. Try again." (`ConcurrencyConflict`, 409)**
+**"Someone else changed this a moment ago. Reload it and try again." / "Someone changed it in the meantime. Try again." (`concurrency_conflict`, 409)**
 Two saves of the same thing at once, and the use case already ran four times (or says
 `retryOnConflict: false`). If it is a new row that collides with a unique value (two
 boards named "Roadmap"), it is the protection working: cooper turns that case into
@@ -13,7 +16,7 @@ boards named "Roadmap"), it is the protection working: cooper turns that case in
 
 **Two saves break a rule over several rows: two admins, two cards with number #7.**
 The save that checks the rule in its `after` does not guard what it protects. Add its
-key: `guard: ['cardNumbers:<board>']`. On SQLite it seems to work without it, because
+key: `guard: ['boardCards:<board>']`. On SQLite it seems to work without it, because
 saves take turns anyway; on Postgres and MySQL it does not.
 ([chapter 8](./08-rules-over-rows))
 
@@ -65,9 +68,17 @@ any of the three leaves the old jobs waiting under the old name. Put the name ba
 or write a script that does what those jobs were meant to do.
 
 **A job is `dead`.**
-It ran out of attempts. Look at its `lastError` in `store.outbox.list()`, fix the
-cause, and put it back with `store.outbox.retry(id)`. A dead job is a flow stuck
-halfway: [chapter 16](./16-sagas) shows how to think about it.
+It ran out of attempts. The backoffice's Jobs page lists each context's dead jobs with
+their `lastError` (`GET /api/jobs/<context>`). Fix the cause first, then retry it there
+(`POST /api/jobs/<context>/<id>/retry`): its context's worker runs it again, with all
+its attempts. Without the backoffice, a script does the same with the context's
+`outbox.dead` and `outbox.retry` use cases. A dead job is a flow stuck halfway:
+[chapter 16](./16-sagas) shows how to think about it, and
+[chapter 22](./22-backoffice) the page.
+
+**"Job … is done, not dead: only a dead job is retried" (`outbox.job_not_dead`, 409)**
+Someone retried it already, or it was never dead: one waiting or running is on its
+way. Reload the list.
 
 ## Things that appear a moment later
 
@@ -78,16 +89,20 @@ later. Design the screen for that moment. ([chapter 12](./12-eventual-consistenc
 **Someone removed from a workspace is still a card's assignee.**
 For a moment, that is normal: the card is unassigned by a worker after
 `access.revoked`. If it lasts, look for a dead `card.unassignMember.on.access.revoked`
-job in auth's outbox.
+job among auth's, on the backoffice's Jobs page.
 
 **The backoffice's numbers are behind.**
 They are a projection, written by workers after the events of auth and boards. If they
-stay behind, look for dead `metric.*` jobs in auth's and boards' outboxes.
+stay behind, look for dead `metric.*` jobs among auth's and boards' on the Jobs page.
 ([chapter 22](./22-backoffice))
+
+**A card's activity is missing an entry.**
+Each entry is written by a worker after the card's event, a moment later. If one never
+comes, look for a dead `activity.*` job among boards'.
 
 ## Who and where
 
-**"Sign in to continue" (`not_signed_in`, 401)**
+**"Your session has ended: sign in again to go on" / "Sign in to continue" (`not_signed_in`, 401)**
 A route that is not `public` was called without a session, or a use case that reads
 `currentActor()` ran without an actor: a script or a test calling it outside
 `runAsActor`.
@@ -100,6 +115,16 @@ group; an MCP tool with `inWorkspace`; a worker or a script with `runInWorkspace
 **A member gets 404 for a workspace that exists (`workspace.not_found`).**
 They do not belong to it: boards answers 404 so a stranger cannot tell it exists.
 Check their access in auth.
+
+**`Property 'via' is missing` where an actor is given.**
+cooper adds `via` (`'web'` or `'mcp'`) to newt's `Actor`, and it is required. Every
+`runAsActor` and every authenticator says how the person came in:
+`runAsActor({ userId, via: 'web' }, fn)`. A script acts as the web app would.
+([chapter 5](./05-who-and-where))
+
+**"Board … has 500 cards already: that is the most a board holds" (`card.too_many`, 409)**
+A board holds at most 500 cards. Move some to another board, or delete the ones that
+are done. The limit keeps a board's view, which comes whole, small.
 
 **Someone of the staff gets 403 in the backoffice (`staff.not_staff`).**
 Their access to the product `backoffice` was taken away, maybe after they signed in.

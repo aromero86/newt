@@ -110,10 +110,10 @@ async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
 
 Lo que impone el sistema va siempre **al lado** del filtro del cliente, nunca dentro, así
 no hay filtro que lo esquive. Aquí el sistema impone el espacio de trabajo, y ni siquiera
-aparece en el caso de uso: el repositorio de cards tiene un ámbito,
-`scope: { field: 'workspaceId', current: currentWorkspaceId }`, que añade el espacio
-actual a cada consulta por criterios ([capítulo 5](./05-who-and-where)). Un cliente que
-filtra por `board` con el id de un tablero de otro espacio no encuentra nada.
+aparece en el caso de uso: la búsqueda del repositorio escribe
+`where('workspaceId', '=', currentWorkspaceId())` antes de los criterios del cliente, y
+los une con un `and` (más abajo). Un cliente que filtra por `board` con el id de un
+tablero de otro espacio no encuentra nada.
 
 Cuando un módulo tiene una regla propia (solo los tableros sin archivar, por ejemplo),
 añádela con `allOf(criteria, { … })` antes de preguntar al repositorio.
@@ -170,47 +170,98 @@ Los operadores de los criterios son `eq`, `ne`, `in`, `gt`, `gte`, `lt`, `lte` e
 (igual, sin importar mayúsculas de la A a la Z). No hay "contiene". `ieq` encuentra
 "Plan the launch" si escribes "plan the LAUNCH", no si escribes "launch".
 
-Así que la parte de texto de una búsqueda de cards se hace con Kysely, el segundo paso de
-la regla de la portabilidad ([capítulo 22](./22-backoffice)). El repositorio busca los ids
-de las cards cuyo título o descripción contiene el texto, y los añade a los criterios:
+Así que una búsqueda de cards con texto es una consulta de Kysely, el segundo paso de la
+regla de la portabilidad ([capítulo 22](./22-backoffice)). Una sola consulta lo hace
+todo: el espacio de trabajo, los criterios del cliente, el texto, la página y el total.
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
 /**
- * A page of the cards that meet the criteria and, if `text` is given, have it in
- * their title or description, whatever its case. Criteria have no "contains", so the
- * text is looked for with Kysely (portable to Postgres and MySQL: `lower` and
- * `like`), in the current workspace, and its cards' ids join the criteria.
+ * A page of the current workspace's cards that meet the criteria and, if `text` is
+ * given, have it in their title or description, whatever its case: one query of
+ * Kysely, since criteria have no "contains", with the criteria in it too, and paged
+ * by id as `page` pages (the cursor is the last id of the page before). Nothing is
+ * read whole, however many cards match.
+ *
+ * What is portable to SQLite, Postgres and MySQL: `lower` on both sides of `like`,
+ * so each database folds the column and the text alike (SQLite only A to Z; Postgres
+ * and MySQL other letters too), and `!` as the escape character of `like`, which
+ * none of them reads specially in a string (a backslash is one in MySQL's).
  */
 async search(criteria: Criteria<CardRow>, text: string | undefined, page: PageRequest): Promise<Page<Card>> {
-  if (!text) return this.page(criteria, page)
-  const pattern = `%${text.toLowerCase().replace(/[\\%_]/g, '\\$&')}%`
-  const matching = await this.base.db
+  const pattern = text ? `%${text.replace(/[!%_]/g, '!$&')}%` : undefined
+  const matching = this.base.db
     .selectFrom('card')
-    .select('id')
     .where('workspaceId', '=', currentWorkspaceId())
-    .where(eb => eb.or([
-      sql<boolean>`lower(${eb.ref('title')}) like ${pattern} escape '\\'`,
-      sql<boolean>`lower(${eb.ref('description')}) like ${pattern} escape '\\'`,
-    ]))
-    .execute()
-  if (matching.length === 0) return toPage([], page.size, 0)
-  return this.page(allOf(criteria, { id: { in: matching.map(row => row.id) } }), page)
+    .where(eb => whereOf(eb, criteriaTree(criteria)))
+    .$if(pattern !== undefined, query => query.where(eb => eb.or([
+      sql<SqlBool>`lower(${eb.ref('title')}) like lower(${pattern}) escape '!'`,
+      sql<SqlBool>`lower(${eb.ref('description')}) like lower(${pattern}) escape '!'`,
+    ])))
+  const [rows, counted] = await Promise.all([
+    matching.selectAll().$if(page.cursor !== undefined, query => query.where('id', '>', page.cursor!)).orderBy('id').limit(page.size + 1).execute(),
+    matching.select(eb => eb.fn.countAll<number>().as('total')).executeTakeFirstOrThrow(),
+  ])
+  return toPage(rows.map(row => this.toEntity(row)), page.size, Number(counted.total))
 }
 ```
 
-Tres detalles:
+`matching` es la consulta hasta sus `where`. Se ejecuta dos veces, en paralelo: una para
+la página (`selectAll`, después del cursor, por id, una más que la página para saber
+`hasMore`) y otra para el total (`countAll`). `toPage`, de newt, monta la `Page` con las
+dos, como hace `TableRepository.page` en cualquier otra lista.
+
+Los criterios del cliente entran en la consulta gracias a `criteriaTree`, de
+`newt/core`. Convierte unos criterios en un árbol que un store puede traducir: `all`
+(todos), `any` (al menos uno) y `field` (una condición sobre un campo). cooper traduce
+ese árbol a Kysely, para lo que `CardFilter` permite y nada más:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+/**
+ * Criteria as a condition of Kysely on the cards: what `CardFilter` lets a client send
+ * (every one, at least one, `eq` and `in` on a field of the card). Anything else is a
+ * mistake of the code, not of the client.
+ */
+function whereOf(eb: ExpressionBuilder<BoardsDatabase, 'card'>, node: CriteriaNode): Expression<SqlBool> {
+  if (node.kind === 'all') return eb.and(node.of.map(each => whereOf(eb, each)))
+  if (node.kind === 'any') return eb.or(node.of.map(each => whereOf(eb, each)))
+  const field = node.field as 'boardId' | 'columnId' | 'assigneeId' | 'number' | 'id'
+  return eb.and(Object.entries(node.condition).map(([operator, operand]) => {
+    if (operator === 'eq') return operand === null ? eb(field, 'is', null) : eb(field, '=', operand as string)
+    // `in` with nothing in it holds for no card: an empty `or`.
+    if (operator === 'in') return (operand as string[]).length === 0 ? eb.or([]) : eb(field, 'in', operand as string[])
+    throw new Error(`A card search has no ${operator} on ${field}`)
+  }))
+}
+```
+
+La función es pequeña porque el filtro es cerrado. Un cliente no puede mandar `gt` sobre
+una card, así que `whereOf` no tiene por qué conocerlo. Si algún día `CardFilter`
+ofrece otro operador, el test que lo pruebe fallará aquí antes que en ningún otro sitio.
+
+Detalles que importan:
 
 - **El espacio de trabajo se escribe a mano.** Kysely no conoce el ámbito del
-  repositorio. Olvida ese `where` y la búsqueda encontrará texto en todos los espacios.
-- **`%` y `_` se escapan.** En un `like` significan "cualquier cosa" y "cualquier
-  carácter". Buscar `100%` tiene que encontrar el texto `100%`, no todo lo que empiece
-  por `100`. El test lo comprueba con una card que se llama `100% done_ish`.
-- **La página sigue saliendo de `this.page`.** Los ids se unen a los criterios del
-  cliente con `allOf`, así que la paginación, el orden, `hasMore` y `total` funcionan
-  como en cualquier otra lista.
+  repositorio. Olvida ese `where`, y la búsqueda encuentra cards de todos los espacios.
+- **`%`, `_` y `!` se escapan, con `!`.** En `like`, `%` significa "lo que sea" y `_`
+  "cualquier carácter". Una búsqueda de `100%` tiene que encontrar el texto `100%`, no
+  todo lo que empieza por `100`. El carácter de escape es `!` y no la barra invertida
+  de siempre, porque MySQL lee una barra invertida dentro de una cadena como un escape
+  suyo, y SQLite y Postgres no: `!` no significa nada especial para ninguno de los
+  tres.
+- **`lower` a los dos lados.** La columna y el texto los pasa a minúsculas la misma
+  base de datos, de la misma forma. En SQLite eso es solo de la A a la Z; en Postgres
+  y MySQL, también otras letras. Así `ÄRGER IM` encuentra `Ärger im Büro` en todos los
+  stores: SQLite deja la `Ä` tal cual a los dos lados y pasa el resto a minúsculas.
+  (`ärger` no lo encontraría en SQLite.) Un test lo comprueba.
+- **Una consulta, coincidan las cards que coincidan.** Una versión anterior buscaba
+  primero los ids de las cards que coincidían, y después pedía una página con
+  `{ id: { in: ids } }`. Eso se rompe cuando el texto coincide con más cards de los
+  parámetros que admite una consulta: SQLite en Bun admite 250.000. Con todo en una
+  consulta, la base de datos nunca devuelve los ids para que se los vuelvas a mandar.
 
-El test del módulo cubre texto, filtro y grupos a la vez:
+Los tests del módulo cubren texto, filtro y grupos a la vez:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.test.ts
@@ -220,6 +271,35 @@ expect(titles(await search({ text: '%' }))).toEqual(['100% done_ish'])
 expect(titles(await search({ text: 'plan', filter: { field: 'column', op: 'eq', value: doing } }))).toEqual(['Plan the party'])
 expect(titles(await search({ filter: { or: [{ field: 'assignee', op: 'eq', value: 'bea' }, { field: 'number', op: 'eq', value: 4 }] } }))).toEqual(['Design the logo', '100% done_ish'])
 ```
+
+Y un test cruza el límite a propósito. Escribe 250.001 cards directamente como filas
+(ningún caso de uso dejaría a un tablero tener tantas: un tablero tiene como mucho 500),
+y luego las recorre por páginas:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('searches by pages however many cards match, more than a query takes parameters (SQLite in Bun takes 250,000)', async () => {
+  // Written as rows, past what any use case would let in: 250,001 cards of 501 boards.
+  const now = new Date().toISOString()
+  const rows = Array.from({ length: 250_001 }, (_, i) => ({
+    id: Bun.randomUUIDv7(), workspaceId: 'acme', boardId: `board-${Math.floor(i / 500)}`, columnId: todo, number: i % 500 + 1,
+    title: `Task ${i}`, description: '', assigneeId: i % 2 === 0 ? 'bea' : null, position: i % 500, createdAt: now, updatedAt: now, version: 1,
+  }))
+  await t.writeCards(rows)
+  const search = (input: object, cursor?: string) => inAcme(() => t.modules.card.search(input, { size: 2, cursor }))
+
+  const first = await search({ text: 'TASK' })
+  expect(first).toMatchObject({ hasMore: true, total: 250_001 })
+  expect(first.items.map(card => card.title)).toEqual(['Task 0', 'Task 1'])
+  expect((await search({ text: 'task' }, first.items[1]!.id)).items.map(card => card.title)).toEqual(['Task 2', 'Task 3'])
+  expect(await search({ text: 'task', filter: { field: 'assignee', op: 'eq', value: 'bea' } })).toMatchObject({ total: 125_001 })
+  // `!`, `%` and `_` are only themselves.
+  expect(await search({ text: '5!%' })).toMatchObject({ total: 0 })
+}, 30_000)
+```
+
+Un test de un límite tiene que cruzarlo. Con 249.999 filas, la versión anterior habría
+pasado.
 
 ## La misma herramienta en auth
 
@@ -311,10 +391,14 @@ ya usan, no.
 - Los criterios se agrupan con `and` y `or`. Son para el código del módulo.
 - Un cliente filtra solo por lo que `defineFilter` permite: nombres públicos, operadores
   por campo, `maxDepth` y `maxConditions`. Lo demás es un 400.
-- Las reglas del sistema van al lado del filtro del cliente (`allOf`, o el ámbito del
-  repositorio), nunca dentro.
+- Las reglas del sistema van al lado del filtro del cliente (`allOf`, el ámbito del
+  repositorio o un `where` propio), nunca dentro.
 - Una búsqueda viaja en el cuerpo de un `POST`; su página, en la query string.
-- Los criterios no tienen "contiene": la búsqueda de texto es una consulta de Kysely en
-  el repositorio, con el ámbito escrito a mano y `%` y `_` escapados.
+- Los criterios no tienen "contiene": la búsqueda de texto es una sola consulta de
+  Kysely en el repositorio, con el espacio escrito a mano, los criterios dentro gracias
+  a `criteriaTree`, `%`, `_` y `!` escapados con `escape '!'`, y la página y el total
+  sacados de la misma consulta.
+- Nunca pidas unos ids para devolverlos en un `in`: una consulta admite un número
+  limitado de parámetros. Prueba un límite cruzándolo.
 - Cada operador que ofreces es una consulta que cualquiera puede lanzar. Ofrece poco,
   ponle índice, amplía después.
