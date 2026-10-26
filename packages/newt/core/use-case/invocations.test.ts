@@ -112,6 +112,21 @@ describe('checkWrite', () => {
     await writeFrom(invocations, 'order.place', 'stock.reserve', { writesTo: ['stock'] })
   })
 
+  test('a writesTo counts for what is written below it, however deep it is said', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
+    const write = (current: string) => invocations.run(current, async () => invocations.checkWrite())
+
+    // onboarding.start → workspace.create (writesTo member) → member.add, which saves.
+    await invocations.run('onboarding.start', () =>
+      invocations.run('workspace.create', () => write('member.add'), { writesTo: ['member'] }), { writesTo: ['workspace'] })
+
+    // Not above it: a sibling call outside workspace.create may not.
+    await expect(invocations.run('onboarding.start', async () => {
+      await invocations.run('workspace.create', async () => {}, { writesTo: ['member'] })
+      await write('member.add')
+    }, { writesTo: ['workspace'] })).rejects.toThrow('onboarding.start writes to shop.member')
+  })
+
   test('from a worker, it may write anywhere', async () => {
     const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
     await inWorker.run(true, () => writeFrom(invocations, 'order.place', 'stock.reserve'))
@@ -145,7 +160,7 @@ describe('checkWrite', () => {
     await expect(writeFrom(new Invocations(undefined, { context: 'shop' }), 'order.place', 'stock.reserve')).rejects.toThrow('outside a worker')
   })
 
-  test('warn warns, once for each pair of modules', async () => {
+  test('warn warns, once for each use case and module it writes to', async () => {
     const invocations = new Invocations(undefined, { context: 'shop' }, 'warn')
 
     const warnings = await warningsOf(async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { message } from '../../messages/message'
 import type { Criteria } from '../criteria'
 import type { Filter } from './filter'
 import type { FilterField } from './filter-field'
@@ -51,8 +52,8 @@ export function defineFilter<const Fields extends Record<string, FilterField>>(f
 
   const schema = node.superRefine((filter, context) => {
     const { depth, conditions } = measure(filter as Node)
-    if (depth > maxDepth) context.addIssue({ code: 'custom', message: `A filter nests at most ${maxDepth} groups deep` })
-    if (conditions > maxConditions) context.addIssue({ code: 'custom', message: `A filter has at most ${maxConditions} conditions` })
+    if (depth > maxDepth) context.addIssue({ code: 'custom', message: message('filter_too_deep', { max: maxDepth }) })
+    if (conditions > maxConditions) context.addIssue({ code: 'custom', message: message('filter_too_many_conditions', { max: maxConditions }) })
   }) as unknown as z.ZodType<FilterNode<Fields>>
 
   const toCriteria = (filter: Node): Record<string, unknown> => {

@@ -14,6 +14,10 @@ export type Messages = {
   validation: () => string
   /** A request whose body cannot be read as JSON. */
   malformed_body: () => string
+  /** A client's filter that nests more groups than its `defineFilter` allows. */
+  filter_too_deep: (params: { max: number }) => string
+  /** A client's filter with more conditions than its `defineFilter` allows. */
+  filter_too_many_conditions: (params: { max: number }) => string
   /** Anything unexpected: it says nothing about the inside. */
   internal: () => string
 }

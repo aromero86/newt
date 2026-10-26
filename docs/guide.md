@@ -193,7 +193,8 @@ The framework checks it as it runs: a save of module B under a use case of modul
 outside a worker, is an error (the default), or a warning (`writeRule: 'warn'` in a
 context's `Base`, while an application moves to the rule). An exception that is justified is said
 where it is seen: `@UseCase({ writesTo: ['workspaceMember'] })`, with the reason
-beside it. The rule is per context: a use case called from another context is that
+beside it; it counts for whatever is written below that use case, whoever called
+it. The rule is per context: a use case called from another context is that
 context's API, the root of what it does in its own, where the rule holds as for any
 other.
 

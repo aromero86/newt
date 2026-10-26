@@ -147,7 +147,7 @@ describe('the write rule', () => {
     expect(await store.table('note').count()).toBe(1)
   })
 
-  test('warn only warns, once for each pair', async () => {
+  test('warn only warns, once for each use case and module', async () => {
     const { diary } = open('warn')
     const warnings: string[] = []
     const original = console.warn

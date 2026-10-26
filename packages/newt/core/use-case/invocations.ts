@@ -33,15 +33,20 @@ export class Invocations {
     const attributes = { ...this.attributes, module, useCase: name }
     const link = { context: String(this.attributes.context ?? ''), module, useCase: name }
     const chain = invocationChain.find()
+    const writesTo = options?.writesTo ?? []
     // Called from another context, it is that context's API: the root of what it does here.
-    const root = chain && chain.root.context === link.context ? chain.root : { ...link, writesTo: options?.writesTo ?? [] }
+    // Within one, a use case's writesTo counts for what is written below it, however deep.
+    const root = chain && chain.root.context === link.context
+      ? (writesTo.length ? { ...chain.root, writesTo: [...chain.root.writesTo, ...writesTo] } : chain.root)
+      : { ...link, writesTo }
     return invocationChain.run({ root, current: link }, () => this.traced(name, attributes, fn, options))
   }
 
   /**
    * Called before a save: a use case writes to its own module, or to another one
    * of its context only from a worker (where a failure halfway is retried until it
-   * completes) or when its root use case says so (`writesTo`). A use case called from
+   * completes) or when a use case on the way to it says so (`writesTo`), its root or
+   * one it called. A use case called from
    * another context is that context's API, as an outside one would be: it is the
    * root of what it does in its own, where the rule holds as for any other.
    */

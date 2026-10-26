@@ -2342,7 +2342,7 @@ Lo que hace al encontrarlo lo decide la opción `writeRule` de la base:
 | `writeRule` | Qué hace | Para |
 |---|---|---|
 | `'error'` | Lanza un error: el guardado no se hace. Es lo que hace si no dices nada. | Siempre. |
-| `'warn'` | Un aviso en la consola, una vez por pareja. | Una aplicación que se está pasando a la regla. |
+| `'warn'` | Un aviso en la consola, una vez por caso de uso y módulo en que escribe. | Una aplicación que se está pasando a la regla. |
 | `'off'` | Nada. | Casi nunca. |
 
 ```ts
@@ -2362,6 +2362,11 @@ ve**, en el caso de uso, con el porqué al lado:
 @UseCase({ writesTo: ['workspaceMember'] })
 async create(input: WorkspaceCreateDTO): Promise<WorkspaceDTO> { … }
 ```
+
+El `writesTo` vale para todo lo que se escribe **por debajo** de ese caso de uso,
+lo llame quien lo llame. Si `onboarding.start` llama a `workspace.create`, el
+miembro se guarda igual; a `onboarding.start` solo le toca declarar lo que escribe
+él al llamar: `@UseCase({ writesTo: ['workspace'] })`.
 
 ### 19.3 Las dependencias
 
@@ -2726,6 +2731,9 @@ setMessages({
     `${method} no está permitido en ${path}`,
   validation: () => 'La petición no es válida',
   malformed_body: () => 'El cuerpo de la petición no es JSON válido',
+  filter_too_deep: ({ max }) => `Un filtro anida como mucho ${max} grupos`,
+  filter_too_many_conditions: ({ max }) =>
+    `Un filtro tiene como mucho ${max} condiciones`,
   internal: () => 'Algo ha fallado',
 })
 ```

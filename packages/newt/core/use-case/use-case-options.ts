@@ -8,8 +8,9 @@ export type UseCaseOptions = {
    */
   retryOnConflict?: boolean
   /**
-   * The other modules this use case may write to although it is not a worker's: an
-   * exception to the rule, written where it is seen, with its reason beside it.
+   * The other modules this use case, or any it calls, may write to although it is
+   * not a worker's: an exception to the rule, written where it is seen, with its
+   * reason beside it.
    */
   writesTo?: string[]
 }
