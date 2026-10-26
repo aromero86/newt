@@ -1,0 +1,12 @@
+import type { DomainEvent } from 'newt/core'
+import type { CardDTO } from '../card.schema'
+
+/** The card, now assigned to `dto.assigneeId`, and who had it before, if anyone. */
+type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null }
+
+export class Card_Assigned implements DomainEvent<CardAssignment> {
+  static readonly eventName = 'card.assigned'
+  readonly name = Card_Assigned.eventName
+  readonly occurredAt = new Date().toISOString()
+  constructor(readonly payload: CardAssignment) {}
+}
