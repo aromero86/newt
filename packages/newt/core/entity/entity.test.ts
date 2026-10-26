@@ -117,6 +117,18 @@ describe('change', () => {
     expect(tight.version).toBe(2)
   })
 
+  test('a field that may be left out, read back as null, is left out', () => {
+    const Noted = z.object({ id: z.string(), note: z.string().optional(), kept: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })
+    class Note extends Entity<typeof Noted> {
+      static of(row: Record<string, unknown>) {
+        return new Note(Noted, row as never, false)
+      }
+    }
+    const note = Note.of({ id: 'n', note: null, kept: null, createdAt: 'c', updatedAt: 'u', version: 1 })
+
+    expect(note.toDTO()).toEqual({ id: 'n', kept: null, createdAt: 'c', updatedAt: 'u' })
+  })
+
   test('a stored row the schema rejects is one too', () => {
     expect(() => Thing.fromDTO({ ...existing().toDTO(), name: 42, version: 1 } as never)).toThrow(InvalidEntity)
   })

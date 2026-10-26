@@ -278,9 +278,9 @@ export class Note extends Entity<typeof NoteSchema> {
   `fromDTO` gets it from the row (the constructor throws without it, since saving
   it could overwrite someone), and the repository moves it on as it writes it,
   and back if the save rolls back.
-- **A field that may have no value is `.nullable()`** (or `.nullish()`): a store
-  keeps "none" as `null`, and that is what is read back. One cleared to `undefined`
-  is written as `null` too.
+- **A store keeps "no value" as `null`**: a field cleared to `undefined` is written
+  as `null`, and read back as `null` if its schema takes it (`.nullable()`,
+  `.nullish()`), or left out if it is only `.optional()`.
 - Outside its module an entity does not exist: use cases return `toDTO()`.
 
 ## Repositories

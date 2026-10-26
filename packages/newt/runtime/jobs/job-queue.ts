@@ -69,6 +69,8 @@ export class JobQueue {
     options: Partial<JobQueueOptions> = {},
   ) {
     this.options = { ...DEFAULTS, ...options }
+    const { concurrency } = this.options
+    if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`A job queue runs at least one job at a time: its concurrency is a whole number from 1, not ${concurrency}`)
   }
 
   register(name: string, pattern: string, handler: EventHandler, attempts = DEFAULT_ATTEMPTS): () => void {

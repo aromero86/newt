@@ -16,6 +16,10 @@ type Fields = Record<string, unknown>
 /** What a store keeps with a row besides the entity's data: its version, and when it was soft deleted. */
 const FRAMEWORK_FIELDS = ['version', 'deletedAt']
 
+/** A field that takes no value but not null (`.optional()`): null is what a store gives back for it. */
+const optionalOnly = (field: z.ZodType | undefined): boolean =>
+  field !== undefined && field.safeParse(undefined).success && !field.safeParse(null).success
+
 export class Entity<TSchema extends EntitySchema> {
   private initial: z.infer<TSchema> | null
   private current: z.infer<TSchema>
@@ -37,6 +41,8 @@ export class Entity<TSchema extends EntitySchema> {
     // What the framework adds to a stored row is not the entity's data, unless its schema says so.
     const data: Fields = { ...input, id }
     for (const key of FRAMEWORK_FIELDS) if (!Object.hasOwn(schema.shape, key)) delete data[key]
+    // A store keeps "no value" as null: a field that may be left out, but not null, reads it as left out.
+    if (!isNew) for (const key of Object.keys(data)) if (data[key] === null && optionalOnly(schema.shape[key] as z.ZodType | undefined)) delete data[key]
     this.current = this.checked(() => schema.parse(data), new.target.name, id) as z.infer<TSchema>
 
     if (isNew) {

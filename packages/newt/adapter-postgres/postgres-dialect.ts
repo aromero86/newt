@@ -42,7 +42,8 @@ export const postgresDialect: SqlServerDialect = {
     const [{ previous }] = await connection.unsafe("SELECT current_setting('lock_timeout') AS previous, set_config('lock_timeout', $1, true)", [`${Math.max(1, Math.floor(waitMs))}ms`]) as { previous: string }[]
     for (const key of keys) {
       try {
-        await connection.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [key])
+        // Its text holds no NUL: a key from a request may, so it is escaped, one key still one lock.
+        await connection.unsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [key.replaceAll('\\', '\\\\').replaceAll('\0', '\\0')])
       } catch (error) {
         // lock_not_available
         if (errorCode(error) === '55P03') throw new Error(`Waited ${waitMs} ms for the guard '${key}', which another transaction holds`)

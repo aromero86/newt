@@ -117,6 +117,23 @@ if (url) {
       }
     })
 
+    test('guards a key with NUL, which its text cannot hold, as a key of its own', async () => {
+      const store = await open({ waitTimeoutMs: 100 })
+      try {
+        const holding = store.transaction(async () => {
+          await store.guard(['name:a\u0000b'])
+          await Bun.sleep(500)
+        })
+        await Bun.sleep(20)
+
+        await store.transaction(() => store.guard(['name:a\\0b']))
+        await expect(store.transaction(() => store.guard(['name:a\u0000b']))).rejects.toThrow('the guard')
+        await holding
+      } finally {
+        await store.close()
+      }
+    })
+
     test('a guard bounds its own wait only: a row lock after it waits as long as it takes', async () => {
       const store = await open({ waitTimeoutMs: 100 })
       try {

@@ -115,6 +115,11 @@ describe('register', () => {
     queue.register(QUEUE, 'user.created', () => {})
   })
 
+  test('refuses a concurrency that is not a whole number from 1', () => {
+    for (const concurrency of [0, -1, 1.5]) expect(() => setup({ concurrency })).toThrow('concurrency is a whole number from 1')
+    setup({ concurrency: 1 })
+  })
+
   test('refuses attempts that are not a whole number from 1', () => {
     const { queue } = setup()
 
