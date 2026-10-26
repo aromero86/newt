@@ -28,4 +28,9 @@ export class StockMovement extends Entity<typeof StockMovementSchema> {
   get quantity(): number {
     return this.data.quantity
   }
+
+  /** The operation it belongs to: an order's id, `release:<order id>`, `received`. */
+  get reference(): string {
+    return this.data.reference
+  }
 }

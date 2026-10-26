@@ -27,9 +27,9 @@ export const OrderSchema = z.object({
   updatedAt: z.string().default(''),
 })
 
-/** As typed: the email in any case, which `Email` normalizes. */
+/** As typed: the email in any case and with spaces around; it trims them, and `Email` lowers the case. */
 export const OrderPlaceSchema = z.object({
-  customerEmail: z.email(),
+  customerEmail: z.string().trim().pipe(z.email()),
   lines: z.array(OrderLineSchema.pick({ productId: true, quantity: true })).min(1),
 })
 

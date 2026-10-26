@@ -38,10 +38,12 @@ export class StockMovement_Module extends Module {
 
   /**
    * Takes the units of every line out of stock, all of them or none (`NotEnoughStock`).
-   * Safe to run again for the same reference: once it took them, it does nothing.
+   * Safe to run again for the same reference, even at once: once it took them, it
+   * does nothing.
    */
   @UseCase()
   async reserve(lines: StockMovementLineDTO[], reference: string): Promise<void> {
+    // Taken already: nothing to do. Two runs at once both pass here; the save sees it.
     if (await this.repo.count({ reference }) > 0) return
     await this.repo.persistKeepingStock(lines.map(line => StockMovement.record({ productId: line.productId, quantity: -line.quantity, reference })))
   }
@@ -49,15 +51,16 @@ export class StockMovement_Module extends Module {
   /**
    * Gives back what was reserved for a reference: a compensation, for a flow that
    * reserved and then could not go on (an order cancelled). New movements undo the
-   * old ones, which stay as history. Safe to run again, and before any reservation:
-   * then there is nothing to give back.
+   * old ones, which stay as history. Safe to run again, even at once, and before any
+   * reservation: then there is nothing to give back.
    */
   @UseCase()
   async release(reference: string): Promise<void> {
     const released = `release:${reference}`
+    // Given back already: nothing to do. Two runs at once both pass here; the save sees it.
     if (await this.repo.count({ reference: released }) > 0) return
     const reserved = await this.repo.find({ reference })
     if (reserved.length === 0) return
-    await this.repo.persist(...reserved.map(movement => StockMovement.record({ productId: movement.productId, quantity: -movement.quantity, reference: released })))
+    await this.repo.persistKeepingStock(reserved.map(movement => StockMovement.record({ productId: movement.productId, quantity: -movement.quantity, reference: released })))
   }
 }

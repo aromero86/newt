@@ -1,4 +1,4 @@
-import { eventsOf, Module, UseCase, type Ref } from 'newt/core'
+import { eventsOf, Module, UseCase, type Page, type PageRequest, type Ref } from 'newt/core'
 import type { ShopBase } from '../../shop-base'
 import { CategoryNotFound } from './errors/category-not-found'
 import { Category_Created } from './events/category-created'
@@ -37,6 +37,22 @@ export class Category_Module extends Module {
   @UseCase()
   async assertExists(id: string): Promise<void> {
     await this.load(id)
+  }
+
+  /** A page of them, oldest first: what a client joins with the products it shows. */
+  @UseCase()
+  async list(page: PageRequest): Promise<Page<CategoryDTO>> {
+    const found = await this.repo.page({}, page)
+    return {
+      items: found.items.map(each => each.toDTO()),
+      hasMore: found.hasMore,
+      total: found.total,
+    }
+  }
+
+  @UseCase()
+  async get(id: string): Promise<CategoryDTO> {
+    return (await this.load(id)).toDTO()
   }
 
   @UseCase()

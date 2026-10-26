@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runAsActor } from 'newt/core'
 import { Shop_Context, type ShopConfig } from './shop.context'
 
 type Mail = { to: string, subject: string }
@@ -38,7 +37,8 @@ describe.each(stores)('the shop, on %s', (_, store) => {
   }
   const product = async (name: string, priceCents = 250, refs: { brandId?: string, categoryId?: string } = {}) => (await call<{ id: string }>('POST', '/products', { name, priceCents, ...refs })).body.id
   const level = async (productId: string) => (await call<{ level: number }>('GET', `/stock/${productId}`)).body.level
-  const order = (productId: string, quantity: number, user = 'ana') => call<{ id: string, status: string, totalCents: number }>('POST', '/orders', { customerEmail: `${user}@Shop.test`, lines: [{ productId, quantity }] }, user)
+  // The email as a person types it, with a capital and a space: the order keeps it clean.
+  const order = (productId: string, quantity: number, user = 'ana') => call<{ id: string, status: string, totalCents: number }>('POST', '/orders', { customerEmail: ` ${user}@Shop.test`, lines: [{ productId, quantity }] }, user)
   /** Until the background work is done: the jobs the commits wrote, run. */
   const settled = () => shop.base.jobs.idle()
 
@@ -95,9 +95,21 @@ describe.each(stores)('the shop, on %s', (_, store) => {
 
     // As a job retried after it did its work: nothing more happens.
     await shop.modules.order.fulfil(placed.body.id)
-    await runAsActor({ userId: 'system' }, () => shop.modules.stockMovement.reserve([{ productId: oil, quantity: 2 }], placed.body.id))
+    await shop.modules.stockMovement.reserve([{ productId: oil, quantity: 2 }], placed.body.id)
 
     expect(await level(oil)).toBe(3)
+  })
+
+  test('reserves and gives back once, even when the same work runs twice at once', async () => {
+    const oil = await product('Olive oil')
+    await call('POST', `/stock/${oil}/received`, { quantity: 5 })
+    const stock = shop.modules.stockMovement
+
+    await Promise.all([stock.reserve([{ productId: oil, quantity: 2 }], 'order-1'), stock.reserve([{ productId: oil, quantity: 2 }], 'order-1')])
+    expect(await level(oil)).toBe(3)
+
+    await Promise.all([stock.release('order-1'), stock.release('order-1')])
+    expect(await level(oil)).toBe(5)
   })
 
   test('refuses an order of a product it does not know, or no longer sells', async () => {
@@ -120,10 +132,13 @@ describe.each(stores)('the shop, on %s', (_, store) => {
     const acme = (await call<{ id: string }>('POST', '/brands', { name: 'Acme' })).body.id
     const oils = (await call<{ id: string }>('POST', '/categories', { name: 'Oils' })).body.id
     const oil = await product('Olive oil', 1_000, { brandId: acme, categoryId: oils })
+    expect((await call('GET', '/brands')).body).toMatchObject({ items: [{ id: acme, name: 'Acme' }], hasMore: false, total: 1 })
+    expect((await call('GET', `/categories/${oils}`)).body).toMatchObject({ name: 'Oils' })
 
     expect((await call('POST', '/products', { name: 'Ghost', priceCents: 1, brandId: 'nope' })).body).toMatchObject({ code: 'reference_not_found' })
 
     expect((await call('DELETE', `/brands/${acme}`)).status).toBe(204)
+    expect((await call('GET', `/brands/${acme}`)).status).toBe(404)
     await settled()
     expect((await call('GET', `/products/${oil}`)).body).toMatchObject({ brandId: null, categoryId: oils })
   })

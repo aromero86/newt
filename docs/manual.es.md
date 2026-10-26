@@ -1390,7 +1390,8 @@ a escribir y a comprobar. Lo que el `after` lee es la verdad, y lo seguirá sien
 hasta que confirme.
 
 ```ts
-// stock-movement.repository.ts
+// stock-movement.repository.ts, lo esencial (el capítulo 15 le añade que una
+// misma operación no se apunte dos veces)
 async persistKeepingStock(movements: StockMovement[]): Promise<void> {
   const products = [...new Set(movements.map(m => m.productId))]
   await this.save(movements, movement => this.write(movement), {
@@ -1983,6 +1984,40 @@ async reserve(
 }
 ```
 
+Esa comprobación basta cuando las ejecuciones van una detrás de otra. Pero dos a la
+vez (un reintento que llega mientras la primera aún corre) pasan las dos por ella antes de
+que ninguna guarde. Por eso la de verdad va **dentro del guardado**, con un `guard`
+por operación, como el del stock del capítulo 10: la segunda espera a la primera, ve
+sus movimientos y se deshace sin apuntar nada.
+
+```ts
+// stock-movement.repository.ts
+async persistKeepingStock(movements: StockMovement[]): Promise<boolean> {
+  if (movements.length === 0) return false
+  const products = [...new Set(movements.map(m => m.productId))]
+  const reference = movements[0]!.reference
+  try {
+    await this.save(movements, movement => this.write(movement), {
+      guard: [`movements:${reference}`, ...products.map(p => `stock:${p}`)],
+      after: async () => {
+        // Ya la apuntó otra ejecución: esta es una repetición.
+        if (await this.count({ reference }) > movements.length) throw new AlreadyRecorded()
+        for (const productId of products) {
+          if (await this.levelOf(productId) < 0) throw new NotEnoughStock(productId)
+        }
+      },
+    })
+    return true
+  } catch (error) {
+    if (error instanceof AlreadyRecorded) return false
+    throw error
+  }
+}
+```
+
+La comprobación de antes se queda como atajo: una repetición que llega sola no
+intenta guardar nada.
+
 **3. Escribir "el resultado", no "el cambio".** "Pon el stock de la caché a 7" se
 puede repetir; "suma 1 a la caché" no. Cuando un worker mantiene una copia de datos,
 que la sobrescriba entera.
@@ -2175,7 +2210,7 @@ async release(reference: string): Promise<void> {
   const reserved = await this.repo.find({ reference })
   // Nunca se reservó: nada que devolver.
   if (reserved.length === 0) return
-  await this.repo.persist(...reserved.map(movement =>
+  await this.repo.persistKeepingStock(reserved.map(movement =>
     StockMovement.record({
       productId: movement.productId,
       quantity: -movement.quantity,
@@ -2185,7 +2220,8 @@ async release(reference: string): Promise<void> {
 ```
 
 No borra los movimientos de la reserva: escribe otros que los anulan, y la historia
-queda entera. Y se puede repetir: la segunda vez ve los suyos y no hace nada.
+queda entera. Y se puede repetir, incluso dos veces a la vez: guarda con
+`persistKeepingStock`, que apunta cada operación una sola vez (capítulo 15).
 
 ### 18.4 Cancelar un pedido
 
@@ -2637,7 +2673,9 @@ Así es imposible guardar un email sin normalizar por despiste.
 
 ### 21.3 Dónde se aplica `from`
 
-El esquema de **entrada** es permisivo: acepta el email como lo escriba la persona.
+El esquema de **entrada** es permisivo: acepta el email como lo escriba la persona,
+con espacios alrededor y en mayúsculas: le quita los espacios y comprueba que sea un
+email.
 Es la entidad quien lo normaliza al crearse:
 
 ```ts
@@ -2647,7 +2685,7 @@ export const OrderSchema = z.object({
   // …
 })
 export const OrderPlaceSchema = z.object({
-  customerEmail: z.email(),           // como llega
+  customerEmail: z.string().trim().pipe(z.email()),   // como llega: con espacios, en mayúsculas
   // …
 })
 
@@ -2666,8 +2704,8 @@ static place(input: OrderPlacement): Order {
 }
 ```
 
-Por eso, en el ejemplo del capítulo 14, `Ana@Ejemplo.es` se guarda como
-`ana@ejemplo.es`.
+Por eso, en los tests de La Despensa, un pedido con `' ana@Shop.test'` guarda
+`ana@shop.test`, y a esa dirección van sus avisos.
 
 Si consultas con Kysely (capítulo 26), di el tipo en la interfaz de la tabla, y no
 necesitarás ningún cast: `customerEmail: Email`.
