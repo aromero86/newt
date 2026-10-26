@@ -38,14 +38,13 @@ export class Outbox_Module extends Module {
   }
 
   /**
-   * A page of its dead jobs, the newest first: they wait for someone, and are few. The
-   * outbox lists every job it keeps (a week of those done, too), so the page is cut here.
+   * A page of its dead jobs, the newest first (by id: one made later has a greater
+   * one): they wait for someone, and are few, so they are all read, and the page is
+   * cut here, its cursor still good once the job it names was retried.
    */
   @UseCase()
   async dead(page: PageRequest): Promise<Page<DeadJobDTO>> {
-    const dead = (await this.base.store.outbox.list())
-      .filter(job => job.status === 'dead')
-      .toSorted((a, b) => (a.id < b.id ? 1 : -1))
+    const dead = (await this.base.store.outbox.list({ status: 'dead' })).toSorted((a, b) => (a.id < b.id ? 1 : -1))
     const after = page.cursor ? dead.filter(job => job.id < page.cursor!) : dead
     return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
   }
@@ -58,7 +57,7 @@ export class Outbox_Module extends Module {
   @UseCase()
   async retry(id: string): Promise<void> {
     if (await this.base.store.outbox.retry(id)) return
-    const job = (await this.base.store.outbox.list()).find(each => each.id === id)
+    const job = await this.base.store.outbox.get(id)
     throw job ? new JobNotDead(id, job.status) : new JobNotFound(id)
   }
 }

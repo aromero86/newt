@@ -1,4 +1,4 @@
-import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../port-outbox'
+import { isSameClaim, type Job, type JobClosing, type JobQuery, type JobQueueRegistration, type Outbox } from '../port-outbox'
 import type { FileCollection } from './file-collection'
 import type { FileStore } from './file-store'
 
@@ -78,8 +78,15 @@ export class FileOutbox implements Outbox {
     })
   }
 
-  async list(): Promise<Job[]> {
-    return (await this.all()).sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1))
+  async list({ status, after, limit }: JobQuery = {}): Promise<Job[]> {
+    const all = (await this.all()).sort(oldestFirst)
+    const from = after === undefined ? 0 : (all.findIndex(job => job.id === after) + 1 || all.length)
+    const found = all.slice(from).filter(job => status === undefined || job.status === status)
+    return limit === undefined ? found : found.slice(0, limit)
+  }
+
+  async get(id: string): Promise<Job | undefined> {
+    return await this.jobs.get(id) as Job | undefined
   }
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
@@ -104,6 +111,12 @@ export class FileOutbox implements Outbox {
       if (stored && isSameClaim(stored, claimed)) await this.jobs.put({ ...change(stored), updatedAt: new Date().toISOString() })
     })
   }
+}
+
+/** By `createdAt`, then `id`. */
+function oldestFirst(a: Job, b: Job): number {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /** How many jobs of each queue are still to run, by queue name. */

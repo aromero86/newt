@@ -1,5 +1,6 @@
 import type { Job } from './job'
 import type { JobClosing } from './job-closing'
+import type { JobQuery } from './job-query'
 import type { JobQueueRegistration } from './job-queue-registration'
 
 /**
@@ -31,8 +32,13 @@ export interface Outbox {
   seen(queues: JobQueueRegistration[]): Promise<void>
   /** Forgets the jobs done before `before`: they are only history. */
   purge(before: string): Promise<void>
-  /** Every job it keeps, oldest first: for whoever looks after them (an admin page, a test). */
-  list(): Promise<Job[]>
+  /**
+   * The jobs it keeps, oldest first (by `createdAt`, then `id`), all of them or those
+   * `query` says: for whoever looks after them (an admin page, a test).
+   */
+  list(query?: JobQuery): Promise<Job[]>
+  /** One job, by its id; none if it is not kept. */
+  get(id: string): Promise<Job | undefined>
   /**
    * How many jobs of each queue are still to run (pending or running), for the
    * queues that have any: what the worker looks at every minute, so it reads no job

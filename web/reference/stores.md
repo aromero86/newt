@@ -108,8 +108,11 @@ the change that publishes them, then claimed, renewed and closed by the job work
 each claim fenced by its attempt so a worker whose lease ran out cannot close a job
 another one took. `retry(id)` puts a dead job back to wait, as new (cooper offers it,
 with the list of dead jobs, as use cases of a small `Outbox_Module` in each context,
-for its backoffice). `list()` and
-`queues()` show what it holds; `waiting()` counts the jobs still to run of each
+for its backoffice): whether it did, as a boolean; `get(id)` tells why not (no such
+job, or one not dead). `list({ status, limit, after })` reads its jobs oldest first
+(by `createdAt`, then `id`), of one status, a page at a time after the id of the last
+job of the page before; `list()` reads them all. `get` and `list` and `queues()`
+show what it holds; `waiting()` counts the jobs still to run of each
 queue, which the worker reads every minute to warn about a queue nobody serves, so
 it should not read the jobs done nor their payloads (the files store, which reads
 whole collections, does).

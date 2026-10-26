@@ -922,6 +922,34 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
         expect((await store.outbox.list()).map(each => each.id)).toEqual(['b', 'a'])
       })
+
+      test('lists the jobs of one status, a page at a time, after the last job of the page before', async () => {
+        const created = at(-10_000)
+        await store.outbox.add([
+          { ...job('a.b.on.c'), id: 'j2', createdAt: created },
+          { ...job('a.b.on.c'), id: 'j1', createdAt: created },
+          { ...job('a.b.on.c'), id: 'j3', createdAt: at(-5_000) },
+          { ...job('a.b.on.c'), id: 'j0', createdAt: at(-20_000), status: 'dead' },
+          { ...job('a.b.on.c'), id: 'j4', createdAt: at(-1_000) },
+        ])
+        const ids = async (query: Parameters<typeof store.outbox.list>[0]) => (await store.outbox.list(query)).map(each => each.id)
+
+        expect(await ids({ status: 'pending', limit: 2 })).toEqual(['j1', 'j2'])
+        expect(await ids({ status: 'pending', limit: 2, after: 'j2' })).toEqual(['j3', 'j4'])
+        expect(await ids({ status: 'pending', after: 'j4' })).toEqual([])
+        expect(await ids({ after: 'j0', limit: 1 })).toEqual(['j1'])
+        expect(await ids({ status: 'dead' })).toEqual(['j0'])
+        expect(await ids({ status: 'done' })).toEqual([])
+        expect(await ids({ limit: 0 })).toEqual([])
+      })
+
+      test('gets one job by its id, and none for an id it does not keep', async () => {
+        const kept = job('a.b.on.c')
+        await store.outbox.add([kept, job('a.b.on.c')])
+
+        expect(await store.outbox.get(kept.id)).toEqual(kept)
+        expect(await store.outbox.get('none')).toBeUndefined()
+      })
     })
 
     describe('the job queue', () => {

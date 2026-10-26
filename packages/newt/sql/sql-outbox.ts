@@ -1,4 +1,4 @@
-import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../port-outbox'
+import type { Job, JobClosing, JobQuery, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqlServerDialect } from './sql-server-dialect'
 
 const COLUMNS = ['id', 'queue', 'event', 'status', 'attempts', 'run_after', 'locked_by', 'locked_until', 'last_error', 'created_at', 'updated_at']
@@ -61,8 +61,20 @@ export class SqlOutbox implements Outbox {
     })
   }
 
-  async list(): Promise<Job[]> {
-    return (await this.read(`SELECT ${COLUMNS.join(', ')} FROM job ORDER BY created_at, id`)).map(toJob)
+  async list({ status, after, limit }: JobQuery = {}): Promise<Job[]> {
+    const params: unknown[] = []
+    const param = (value: unknown) => this.dialect.param(params.push(value))
+    const where = [
+      ...(status === undefined ? [] : [`status = ${param(status)}`]),
+      ...(after === undefined ? [] : [`(created_at, id) > (SELECT created_at, id FROM job WHERE id = ${param(after)})`]),
+    ]
+    const sql = `SELECT ${COLUMNS.join(', ')} FROM job${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at, id${limit === undefined ? '' : ` LIMIT ${param(limit)}`}`
+    return (await this.read(sql, params)).map(toJob)
+  }
+
+  async get(id: string): Promise<Job | undefined> {
+    const [row] = await this.read(`SELECT ${COLUMNS.join(', ')} FROM job WHERE id = ${this.dialect.param(1)}`, [id])
+    return row ? toJob(row) : undefined
   }
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {

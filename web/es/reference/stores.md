@@ -118,8 +118,11 @@ renueva y cierra, cada reclamación protegida por su intento, de modo que un wor
 cuyo plazo se ha agotado no puede cerrar un trabajo que ha cogido otro. `retry(id)`
 vuelve a poner en espera un trabajo muerto, como nuevo (cooper lo ofrece, con la
 lista de trabajos muertos, como casos de uso de un pequeño `Outbox_Module` en cada
-contexto, para su backoffice). `list()` y `queues()` enseñan
-lo que guarda; `waiting()` cuenta los trabajos pendientes de cada cola, que el worker
+contexto, para su backoffice): si lo hizo, como booleano; `get(id)` dice por qué no
+(no hay tal trabajo, o no está muerto). `list({ status, limit, after })` lee sus
+trabajos del más antiguo al más nuevo (por `createdAt`, luego `id`), de un estado, una
+página cada vez tras el id del último trabajo de la página anterior; `list()` los lee
+todos. `get`, `list` y `queues()` enseñan lo que guarda; `waiting()` cuenta los trabajos pendientes de cada cola, que el worker
 lee cada minuto para avisar de una cola que nadie atiende, así que no debería leer los
 trabajos terminados ni su contenido (el store de ficheros, que lee colecciones
 enteras, sí lo hace).

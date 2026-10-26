@@ -59,6 +59,10 @@ class MemoryOutbox implements Outbox {
     return this.jobs
   }
 
+  async get(id: string) {
+    return this.jobs.find(job => job.id === id)
+  }
+
   async retry() {
     return false
   }

@@ -1,5 +1,5 @@
 import type { SQLQueryBindings } from 'bun:sqlite'
-import type { Job, JobClosing, JobQueueRegistration, Outbox } from '../port-outbox'
+import type { Job, JobClosing, JobQuery, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqliteStore } from './sqlite-store'
 
 type JobRow = {
@@ -89,8 +89,19 @@ export class SqliteOutbox implements Outbox {
     })
   }
 
-  async list(): Promise<Job[]> {
-    return (this.store.connection.query(`SELECT ${COLUMNS} FROM job ORDER BY created_at, id`).all() as JobRow[]).map(toJob)
+  async list({ status, after, limit }: JobQuery = {}): Promise<Job[]> {
+    const where = [
+      ...(status === undefined ? [] : ['status = $status']),
+      ...(after === undefined ? [] : ['(created_at, id) > (SELECT created_at, id FROM job WHERE id = $after)']),
+    ]
+    const sql = `SELECT ${COLUMNS} FROM job${where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at, id${limit === undefined ? '' : ' LIMIT $limit'}`
+    const params = { ...(status === undefined ? {} : { $status: status }), ...(after === undefined ? {} : { $after: after }), ...(limit === undefined ? {} : { $limit: limit }) }
+    return (this.store.connection.query(sql).all(params) as JobRow[]).map(toJob)
+  }
+
+  async get(id: string): Promise<Job | undefined> {
+    const row = this.store.connection.query(`SELECT ${COLUMNS} FROM job WHERE id = ?`).get(id) as JobRow | null
+    return row ? toJob(row) : undefined
   }
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
