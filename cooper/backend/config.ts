@@ -22,6 +22,15 @@ const publicUrls = {
 }
 
 /**
+ * `COOPER_<APP>_CLIENT_SECRET`: the secret each web app proves itself with at auth's
+ * token endpoint, as an OAuth confidential client. `auth` knows both; each app its own.
+ */
+const clientSecrets = {
+  cooper: env.COOPER_BOARDS_CLIENT_SECRET ?? 'cooper-dev-boards-client-secret',
+  backoffice: env.COOPER_BACKOFFICE_CLIENT_SECRET ?? 'cooper-dev-backoffice-client-secret',
+}
+
+/**
  * cooper's settings, from environment variables, with what development needs by
  * default. Each context has its own: where it listens, where its database lives,
  * where people open it and the built frontend it serves.
@@ -41,6 +50,8 @@ export const config = {
     /** Where the other contexts are opened: the apps that sign people in through it. */
     boardsPublicUrl: publicUrls.boards,
     backofficePublicUrl: publicUrls.backoffice,
+    /** The secret of each app's OAuth client, by the product it signs people in to. */
+    clientSecrets,
     sessionDays,
     /** `COOPER_INVITATION_DAYS`: how long an invitation to a workspace waits to be accepted. */
     invitationDays: Number(env.COOPER_INVITATION_DAYS ?? 7),
@@ -62,6 +73,8 @@ export const config = {
     publicUrl: publicUrls.boards,
     /** Where its people sign in. */
     authPublicUrl: publicUrls.auth,
+    /** Its OAuth client's secret: boards is the product `cooper` in auth. */
+    clientSecret: clientSecrets.cooper,
     sessionDays,
     /** `COOPER_BOARDS_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BOARDS_FRONTEND ?? 'dist/cooper/boards'),
@@ -75,6 +88,8 @@ export const config = {
     publicUrl: publicUrls.backoffice,
     /** Where the staff sign in. */
     authPublicUrl: publicUrls.auth,
+    /** Its OAuth client's secret: the product `backoffice` in auth. */
+    clientSecret: clientSecrets.backoffice,
     sessionDays,
     /** `COOPER_BACKOFFICE_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BACKOFFICE_FRONTEND ?? 'dist/cooper/backoffice'),
