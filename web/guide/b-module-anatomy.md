@@ -116,7 +116,7 @@ const BACKEND = newt({
 // …
 ```
 
-Run it with `bun run lint`. The preset turns on six checks: four rules of newt's own
+Run it with `bun run lint`. The preset turns on seven checks: five rules of newt's own
 (`newt/…`), one restriction, and one rule of typescript-eslint. The errors below are
 real: each was written into `card/` on purpose and linted.
 
@@ -162,6 +162,29 @@ import { Board_Repository } from '../board/board.repository'
 
 Fix: call a use case of `Board_Module` through the module's deps, and use its DTO
 ([chapter 6](./06-rules-over-rows)).
+
+### `newt/schema-imports`
+
+**Where**: a module's `<m>.schema.ts`.
+**What it checks**: it takes from newt only `newt/contract`. A frontend imports the
+schema ([chapter 23](./23-frontends)); `newt/core` and newt's other entries are the
+server's (they keep scopes on `AsyncLocalStorage` and reach Bun), so not even a type
+comes from them. Only the schema's own imports are read, not those of the files it
+imports.
+
+```ts
+import { now } from 'newt/core'
+import type { Criteria } from 'newt/core'
+```
+
+```text
+card/card.schema.ts
+  1:21  error  'newt/core' is the server's: card.schema.ts is imported by the frontend, so it takes from newt only 'newt/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody)  newt/schema-imports
+  2:31  error  'newt/core' is the server's: card.schema.ts is imported by the frontend, so it takes from newt only 'newt/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody)  newt/schema-imports
+```
+
+Fix: take it from `newt/contract` if it is there (value objects and their errors,
+`defineFilter`, `Page`, `PageRequest`, `ErrorBody`), or keep it out of the schema.
 
 ### `newt/queue-name`
 
@@ -253,8 +276,9 @@ part ([chapter 20](./20-wiring-contexts)).
 ### What the lint does not check
 
 - The anatomy of `shared/` modules, which are in no `modules/` folder.
-- That a `*.schema.ts` imports only `newt/contract`, not `newt/core`: Vite warns about
-  `node:async_hooks` when a frontend pulls `newt/core` in ([chapter 23](./23-frontends)).
+- What a schema's value objects import: `newt/schema-imports` reads only the schema's
+  own imports. A value object that imports `newt/core` reaches the frontend through
+  it, and Vite warns about `node:async_hooks` ([chapter 23](./23-frontends)).
 - The write rule and the guard rule: newt checks those as the code runs
   ([chapter 8](./08-two-people-one-card), [chapter 6](./06-rules-over-rows)).
 

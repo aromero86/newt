@@ -95,6 +95,14 @@ raíz de lo que hace en el suyo: la regla se cumple ahí como en cualquier otro
 ([capítulo 20](./20-wiring-contexts)). El `writeRule: 'warn'` de la base convierte el
 error en un aviso mientras una aplicación pasa a la regla.
 
+**"[write rule] card.create saves boards.board in the transaction that saved boards.card: one module per transaction; save it after that one commits, from a worker reacting to an event, or list it in its writesTo"**
+Dos módulos guardados en una transacción, también en un worker: un hook de guardado que
+llamó a un caso de uso que guarda de otro módulo, o los guardados de dos módulos dentro
+de un `store.transaction`. Guarda el segundo después de que el primero haga commit,
+desde un worker que reacciona a su evento; un worker guarda un módulo tras otro, cada
+uno en su propia transacción. Los nombres son los de quien la rompa
+([apéndice F](./f-aggregates)).
+
 ## Pedir dos veces
 
 **"A request with this Idempotency-Key is still in progress: try again once it ends" (`idempotency_key_in_use`, 409)**
@@ -151,8 +159,9 @@ lo que esos jobs debían hacer ([capítulo 11](./11-reacting)).
 Un job se ejecuta al menos una vez, así que quizá más: un worker que se paró a medias,
 una concesión (lease) agotada. Haz que la segunda ejecución no encuentre nada que hacer,
 y basa en el `id` del evento (el segundo argumento del handler, `EventMeta`) lo que sale
-del proceso, el mismo en todas las ejecuciones
-([capítulo 11](./11-reacting), [capítulo 13](./13-another-context)).
+del proceso, el mismo en todas las ejecuciones: un email lo recibe como su `key`, y se
+envía una vez ([capítulo 11](./11-reacting), [capítulo 12](./12-failures),
+[capítulo 13](./13-another-context)).
 
 **Un job está `dead`.**
 Se quedó sin intentos (5 por defecto). Su `lastError` dice por qué. Arregla primero la
@@ -229,8 +238,10 @@ La entidad no tiene esquema público. `Entity<typeof Kept, typeof Public>` hace 
 
 **"Migration 00001_board was changed after it was applied: put its up file back as it was, and make the change a new migration"**
 El store guarda un checksum de cada migración aplicada y se niega a abrir cuando una ha
-cambiado. Devuelve el archivo a su estado (`git checkout`), y escribe el cambio como la
-siguiente migración ([capítulo 5](./05-sqlite), [capítulo 18](./18-tenants-and-access)).
+cambiado; `up` también la rechaza, y `bun run cooper:migrations status` nombra cada una
+de esas migraciones sin fallar. Devuelve el archivo a su estado (`git checkout`), y
+escribe el cambio como la siguiente migración ([capítulo 5](./05-sqlite),
+[capítulo 18](./18-tenants-and-access), [capítulo 27](./27-postgres)).
 Los finales de línea no cuentan: un checkout que convierte `\n` en `\r\n` no cambia nada.
 
 **"Migrations … and … share the version …: renumber one"**
@@ -255,7 +266,9 @@ Cada dialecto tiene su propia carpeta de migraciones, `migrations/sqlite/` y
 **`Module "node:async_hooks" has been externalized for browser compatibility, imported by ".../packages/newt/core/scope/define-scope.ts"`**
 Un frontend arrastró `newt/core`, a través de un esquema o un objeto de valor que lo
 importa. Un navegador no tiene `node:async_hooks`. Un `*.schema.ts` y sus objetos de
-valor importan `newt/contract`, nunca `newt/core` ([capítulo 23](./23-frontends)).
+valor importan `newt/contract`, nunca `newt/core` ([capítulo 23](./23-frontends)). El
+`newt/schema-imports` del lint lo detecta en el propio esquema; en un objeto de valor
+que el esquema importa, solo lo detecta este aviso ([apéndice B](./b-module-anatomy)).
 
 **Un cliente muestra un mensaje que ha cambiado, o se rompe cuando cambia.**
 Actúa según el mensaje. Actúa según `code`, que nunca cambia; lee cada fallo como un

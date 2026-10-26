@@ -78,7 +78,11 @@ with React Router. auth's routes are `sign-in`, `sign-up`, `authorize/:id` and
 guard (no session: it shows a sign-in button where the page would be, which starts
 chapter 22's round trip at `/api/session/sign-in`), then the workspace's zones (`w/:workspaceId/boards`, `search`, `settings`),
 each loaded the first time someone enters it. A screen is a component that reads a
-service's signals; the service holds the state and calls the API.
+service's signals; the service holds the state and calls the API. A screen may say
+in advance what the backend would refuse: on a board, a column's menu disables
+*Remove* while the column has cards, and on the board's last column ("a board keeps
+one column", [chapter 8](./08-two-people-one-card)); the backend still answers a 409
+`card.column_not_empty` or `column.last` to whoever asks anyway.
 
 None of that touches newt. What does is in `@cooper/api`.
 
@@ -123,9 +127,9 @@ import. For that to work, a schema file imports only:
 - `newt/contract`;
 - its own module's value objects (which import `newt/contract`), and other modules'
   schemas;
-- types, with `import type`, from anywhere: they are erased before the browser sees
-  the file. `card.schema.ts` imports the type `ActorVia` from `shared/actor.ts` this
-  way.
+- types, with `import type`, from anywhere but newt's other entries: they are erased
+  before the browser sees the file. `card.schema.ts` imports the type `ActorVia` from
+  `shared/actor.ts` this way.
 
 The clients use it in two ways. Mostly as types: `CardDTO`, `CardCreateDTO`,
 `Page<CardDTO>`. A client and its server cannot disagree about a field's name,
@@ -157,9 +161,13 @@ export * from './card.api'
 Nothing in the frontend imports a use case, an entity or a repository, and the lint
 makes sure of it (below): the frontend never imports `backend/`; `@cooper/api` may
 import `backend/contexts/<context>/modules/<module>/<module>.schema.ts` and nothing
-else. A few contracts have no backend schema of that shape (the web session lives in
-`shared/`, the workspaces boards serves are auth's tenants), and those are written in
-`@cooper/api` itself, as `*.contract.ts`, in plain zod.
+else. A few folders keep a `*.contract.ts` of their own. The workspaces, their members
+and their invitations are auth's tenants and accesses, which boards' routes serve in
+the shapes of boards' `workspace.schema.ts`: `workspace.contract.ts`,
+`workspace-member.contract.ts` and `invitation.contract.ts` re-export those shapes
+(renamed where the app names them otherwise) and add only what someone types, such as
+a workspace's name. The web session has no module at all (its routes live in
+`shared/web-session`), so `web-session.contract.ts` writes its contract in plain zod.
 
 ## Talking to the API: Requester
 
@@ -370,10 +378,16 @@ levels and ten conditions. The client builds it from the search screen's choices
 ```
 
 The page goes in the query, `size` and `cursor`, and the answer is a `Page<CardDTO>`:
-`items`, `hasMore`, `total`. The search screen hands `search` to a `ListStore`, which
-asks for the first page and then for more, with the id of the last card shown as the
-cursor. The type of the page comes from `newt/contract`; the server's
-`pageRequestFrom` reads the same two parameters.
+`items`, `hasMore`, `total`, and `nextCursor` when the server knows where the next page
+starts. The search screen hands `search` to a `ListStore`, which asks for the first
+page and then for more, from where the last page said the next one starts: its
+`nextCursor`, or else the id of its last item. A search page may come empty and still
+have more after it: the index found cards that are gone since, so the page has none of
+them left, but its cursor is still the last one found. `ListStore` follows that cursor
+on, past the empty pages, until a page has cards or says there are no more; with the
+id of the last card shown it would ask for the same page again. The types of the page
+come from `newt/contract` (`@cooper/api`'s `PageRequest` is newt's, with `size`
+optional); the server's `pageRequestFrom` reads the same two parameters.
 
 Its test replaces `fetch` and looks at the headers each call sent:
 
@@ -488,7 +502,7 @@ Each app's config is one line:
 
 ```ts
 // cooper/frontend/auth/vite.config.ts
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // Signing in, signing up and granting access. Its context is the OAuth server: the
 // API, the authorization endpoints and their metadata.
@@ -497,11 +511,14 @@ export default cooperApp({ name: 'auth', port: 5171, proxy: ['/api', '/oauth', '
 
 ```ts
 // cooper/frontend/boards/vite.config.ts
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // The SaaS. Its context serves the API.
 export default cooperApp({ name: 'boards', port: 5172, proxy: ['/api'] })
 ```
+
+The import names `../vite-app.ts` with its extension, as Node would need it: Vite may
+load its config that way, and the tools' TypeScript project allows it (below).
 
 The ports are not arbitrary: 5171 and 5172 are the **public URLs** of auth and boards
 in `config.ts` (`COOPER_AUTH_PUBLIC_URL`, `COOPER_BOARDS_PUBLIC_URL`), the addresses
@@ -821,7 +838,8 @@ imports (in `bun test`) with the root file:
 
 The Vite configs run in Bun, not in the browser, so they are left out of the frontend
 project and go to the tools' one. In `tsconfig.node.json`, change the comment and the
-`include`:
+`include`, and allow the configs' imports with a `.ts` extension
+(`allowImportingTsExtensions`, which needs `noEmit`):
 
 ```json
 {
@@ -834,6 +852,8 @@ project and go to the tools' one. In `tsconfig.node.json`, change the comment an
     "types": ["bun"],
     "moduleDetection": "force",
     "noEmit": true,
+    // A Vite config imports its neighbour as Node would load it: with its extension.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true
   },
@@ -954,22 +974,26 @@ cooper/libs/api/card/bad.ts
 ✖ 2 problems (2 errors, 0 warnings)
 ```
 
-The lint checks the path; what keeps the schema itself safe for a browser is that it
-imports `newt/contract`, never `newt/core`. That one is yours to keep.
+The lint checks the path. What keeps the schema itself safe for a browser is that it
+takes from newt only `newt/contract`, and the backend's half checks that too: newt's
+rule `newt/schema-imports`, part of the preset from the start, refuses any other newt
+entry in a `<m>.schema.ts`, even for a type. It reads only the schema's own imports,
+not those of the files it imports: that a value object imports `newt/contract`, never
+`newt/core`, is still yours to keep.
 
 ## Check it
 
 The gate, with the new project and the libraries' tests:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 127 pass
+ 141 pass
  0 fail
- 457 expect() calls
-Ran 127 tests across 19 files.
+ 491 expect() calls
+Ran 141 tests across 19 files.
 ```
 
 Build both apps:
@@ -1005,9 +1029,6 @@ boards listening on http://localhost:3002/
   auth    http://localhost:5171  (API on port 3001)
   boards  http://localhost:5172  (API on port 3002)
 ```
-
-(Vite also warns that `vite.config.ts` imports `../vite-app` without a file
-extension, for a config loader it does not use yet; it changes nothing.)
 
 Both apps answer, and boards' API answers through its Vite server:
 

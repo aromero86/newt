@@ -1163,13 +1163,18 @@ its API does not take: `frontendFolder` has been in its config since chapter 25.
 The staff do not sign up to the backoffice: auth refuses new accounts for it. Someone
 must be given access first, and the seed does it, the way `staffMember` does in the
 tests: an account, admitted with `access.admit`, which checks no actor. In
-`cooper/scripts/seed.ts`, the opening comment names it:
+`cooper/scripts/seed.ts`, the opening comment names it, and the seed imports `PRODUCTS`,
+auth's product ids:
 
 ```ts
 // cooper/scripts/seed.ts
 // bun run cooper:seed: cooper's demo data, written through the contexts' use cases as
 // anyone would: a staff user with access to the backoffice, and Ana's workspace Acme,
 // where Bob joined by accepting her invitation. Safe to run again: what is there stays.
+// …
+import { config } from '../backend/config'
+import { PRODUCTS } from '../backend/contexts/auth/modules/product/product.schema'
+import { inWorkspace } from '../backend/contexts/boards/workspace-scope'
 // …
 ```
 
@@ -1181,7 +1186,7 @@ make it before Ana:
   const account = async (email: string, name: string) => (await user.findByEmail(email)) ?? user.signUp({ email, name, password: PASSWORD })
 
   const staff = await account('staff@cooper.dev', 'Cooper Staff')
-  await access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
+  await access.admit({ userId: staff.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
 
   const ana = await account('ana@cooper.dev', 'Ana García')
 // …
@@ -1207,7 +1212,7 @@ workspace and cards are counted by the metric workers like anyone's.
 The gate:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 The backoffice's tests and the adapter's:

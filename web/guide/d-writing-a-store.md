@@ -65,8 +65,10 @@ The hardest promises are about transactions, and newt gives the machinery for th
 order they ask; keeps the current one in an `AsyncLocalStorage`, so a call inside one
 joins it; closes it once it starts committing, so a late call fails instead of running
 outside it; runs `afterCommit` and `afterRollback` callbacks; and fails a call that
-waits too long, saying why. Its `State` is whatever the adapter keeps for each
-transaction.
+waits too long, saying why; and keeps which modules each transaction saved, so the
+write rule refuses a second module's save in it (one module per transaction, in a
+worker too). An adapter that does not build on it is not checked for that. Its
+`State` is whatever the adapter keeps for each transaction.
 
 An adapter hands `run` its steps: `begin`, `commit`, `rollback` and an optional `end`.
 Because the scope runs one transaction at a time, `guard` needs nothing more than being
@@ -82,7 +84,7 @@ it wrote.
 ```ts
 import { compare, ConcurrencyConflict, DuplicateValue, matches, type Criteria } from 'newt/core'
 import { isSameClaim, type Job, type JobClosing, type JobQuery, type JobQueueRegistration, type Outbox } from 'newt/port-outbox'
-import { noteRead, TransactionScope, type FindOptions, type Migrations, type NewRow, type Store, type StoredRow, type Table, type TableOptions } from 'newt/port-store'
+import { noteRead, TransactionScope, type FindOptions, type Migrations, type MigrationStatus, type NewRow, type Store, type StoredRow, type Table, type TableOptions } from 'newt/port-store'
 
 type Row = Record<string, unknown>
 /** A table's rows, by id. */
@@ -284,14 +286,16 @@ what a caller changes is not what is kept.
 ## Migrations
 
 A store remembers the changes to its structure (`Migrations`: `up`, `down`,
-`status`). An in-memory store has no structure to change, so its migrations are none:
+`status`, which tells a `MigrationStatus`: what is `applied`, what is `pending`, and
+what was `changed` after it was applied). An in-memory store has no structure to
+change, so its migrations are none:
 
 ```ts
 /** An in-memory store has no structure to change: nothing to migrate. */
 class NoMigrations implements Migrations {
   async up(): Promise<string[]> { return [] }
   async down(): Promise<string | null> { return null }
-  async status(): Promise<{ applied: string[], pending: string[] }> { return { applied: [], pending: [] } }
+  async status(): Promise<MigrationStatus> { return { applied: [], pending: [], changed: [] } }
 }
 ```
 

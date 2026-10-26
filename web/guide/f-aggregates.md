@@ -99,7 +99,19 @@ on purpose, each with a worker that finishes the second if it fails
 ([chapter 18](./18-tenants-and-access)).
 
 Everything else that writes into another module runs from a worker, where the rule
-does not apply: a job that fails halfway runs again until it completes.
+lets it. It still does not let two modules share a transaction, in a worker or out of
+one: a save of a second module in a transaction that already saved another (from a
+save hook, or two saves inside one `store.transaction`) is refused too, unless the
+use case the chain started with lists both in its `writesTo` (again with the names
+of whichever broke it):
+
+```text
+[write rule] card.create saves boards.board in the transaction that saved boards.card: one module per transaction; save it after that one commits, from a worker reacting to an event, or list it in its writesTo
+```
+
+So a worker saves one module after another, each in its own transaction, and a job
+that fails halfway runs again until it completes. That is Vernon's rule of thumb in
+its strict form: one aggregate per transaction, whoever runs it.
 
 ### The version: optimistic concurrency at the boundary
 
@@ -168,16 +180,40 @@ The cards follow the columns this way:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
-  // A card points at its column: when a column goes, no card is left in it.
+  // A card points at its column: when a column goes, no card is left in it. A card
+  // checks its column before its save, so the column may go in between: a card
+  // created in one, or moved to one, looks again once saved. Whichever looks last finds it.
   deps.column.events.removed.subscribe(column => cards.leaveRemovedColumn(column), {
     strategy: 'handler',
     queue: 'card.leaveRemovedColumn.on.column.removed',
   })
+  cards.events.created.subscribe(card => cards.leaveRemovedColumn({ id: card.columnId, boardId: card.boardId, workspaceId: card.workspaceId }), {
+    strategy: 'handler',
+    queue: 'card.leaveRemovedColumn.on.card.created',
+  })
+  cards.events.moved.subscribe(({ dto }) => cards.leaveRemovedColumn({ id: dto.columnId, boardId: dto.boardId, workspaceId: dto.workspaceId }), {
+    strategy: 'handler',
+    queue: 'card.leaveRemovedColumn.on.card.moved',
+    when: ({ changes }) => changes.columnId !== undefined,
+  })
 ```
+
+Following the column's event alone would leave a gap. A card checks its column before
+its save, outside the column's transaction, so the column may be removed in between:
+its worker runs after the column's commit, looks for cards in it, and finds none,
+because the card's save has not committed yet. Then the card commits, into a column
+that is gone. So the card also follows its own events: once a card is created in a
+column, or moved to one, a job looks again. Each follower runs after its own commit
+and checks the other side's state, not what the event said; whichever runs last sees
+both commits, so the two converge in any order. `leaveRemovedColumn` does nothing
+while the column is still there.
 
 A job may run more than once, so every reaction is idempotent: the second time,
 `leaveRemovedColumn` finds no card in the removed column and does nothing
-([chapter 13](./13-another-context)). The same works across contexts: boards follows
+([chapter 13](./13-another-context)). An assignee is followed the same way:
+`unassignMember` runs on auth's `access.revoked` and on a card created for someone
+or assigned to them, and does nothing while the person still belongs to the
+workspace, so someone let in again keeps their cards. The same works across contexts: boards follows
 auth's `access.revoked` through a port, and the job is in auth's outbox
 ([chapter 20](./20-wiring-contexts)).
 
@@ -349,9 +385,12 @@ Be clear about the trade:
 - **The lock is named by convention.** Nothing ties `columns:<board>` to the column
   module but the string. Two repositories could use the same name and wait on each
   other, or two saves of one rule could use different names and not wait at all.
-- **A follower must come after what it follows.** A reference checked before the
-  owner's change, and saved after it, is fixed only by a follower that runs after
-  that save. Eventual consistency is only as good as the reaction that closes it.
+- **A follower watches both sides.** A reference checked before the owner's change,
+  and saved after it, is missed by the owner's follower if that one runs first.
+  cooper closes it by following its own events too (`card.created`, `card.moved`,
+  `card.assigned`), each reaction checking the other side's state: a subscription
+  per side, and reactions that read instead of trusting the event. Eventual
+  consistency is only as good as the reactions that close it.
 - **It is still one store.** A guard works because the rows are in one database. It
   is not a way around rule 4: a rule over two contexts' data is eventually
   consistent, by events, as Vernon says.
@@ -585,7 +624,8 @@ check before is only for the clear answer.
 
 **Calling another module from a save's hook.** A hook runs inside the transaction; a
 use case called from it would read, or write, in that transaction, so two
-aggregates would share it. A hook reads only its own module's rows.
+aggregates would share it; a save there is refused by the write rule. A hook reads
+only its own module's rows.
 
 **An event with no change.** An entity that tracks `card.assigned` when the card
 already had that assignee tells something that did not happen. The save refuses it
@@ -605,17 +645,21 @@ run side by side, and both pass the count. Name exactly what the rule reads, in 
 form it compares.
 
 **A worker that assumes the event is still true.** A job runs later, maybe after
-other changes. It reads again what it is about before acting, as
-`notifyAssignee` reads the card again ([chapter 12](./12-failures)).
+other changes, and maybe twice. It reads again what it is about before acting, as
+`notifyAssignee` reads the card again, and what it cannot undo carries a key, as
+`notifyAssignee`'s email carries its event's id, so that sent twice it goes once
+([chapter 12](./12-failures)).
 
 ## In short
 
 - A module is an aggregate; its entity is the root, and only the entity changes
   itself.
 - A save is one module's, all or none; the write rule makes a use case write into
-  another module only from a worker, or with `writesTo` and its reason.
+  another module only from a worker, or with `writesTo` and its reason, and never two
+  modules in one transaction, in a worker too.
 - A version protects a row; a guard protects a rule over several rows, named as
   narrowly as the rule.
 - Other aggregates are ids, checked by asking their module, and followed by their
-  events.
+  events and by your own: each follower checks the other side after its own commit,
+  so whichever runs last sees both.
 - What happens elsewhere happens later, from the outbox, safe to run again.

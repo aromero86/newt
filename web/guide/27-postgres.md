@@ -450,6 +450,8 @@ opening boards fails with:
 Error: Migration 00001_board was changed after it was applied: put its up file back as it was, and make the change a new migration
 ```
 
+`status`, in the script below, names such a migration instead of failing.
+
 The twins are no exception. A fix to a Postgres migration that already ran somewhere
 is a new migration, in both folders, with the same number.
 
@@ -569,6 +571,8 @@ That is the script, `cooper/scripts/migrations.ts`:
 // opens each context; this is for looking at what is pending, applying it before a
 // deploy, or reverting the last one. `status` and `up` go through every context unless
 // one is named; `down` reverts one context's last migration, so it needs its name.
+// `status` also names the migrations applied whose up file was changed since, which
+// `up` and the server's start refuse.
 // Each context's database is the one it opens (`COOPER_<CONTEXT>_DATABASE`): a SQLite
 // file, or a Postgres address, migrated with that database's own folder of migrations.
 import { join } from 'node:path'
@@ -600,8 +604,10 @@ for (const context of contexts) {
   const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
   try {
     if (command === 'status') {
-      const { applied, pending } = await store.migrations.status()
+      const { applied, pending, changed } = await store.migrations.status()
       console.log(`${context}: ${applied.length} applied${applied.length ? ` (last ${applied.at(-1)})` : ''}, ${pending.length} pending${pending.length ? `: ${pending.join(', ')}` : ''}`)
+      // One changed after it was applied stops `up` and the server's start: say which, and what to do.
+      if (changed.length) console.log(`${context}: changed after they were applied: ${changed.join(', ')}; put their up files back as they were, and make the change a new migration`)
     } else if (command === 'up') {
       const applied = await store.migrations.up()
       console.log(`${context}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}`)
@@ -618,7 +624,10 @@ for (const context of contexts) {
 It opens each context's database with `connectStore`, which does not migrate, and
 calls the store's `migrations`:
 
-- **`status()`**: `{ applied, pending }`, the names of each.
+- **`status()`**: a `MigrationStatus`, `{ applied, pending, changed }`, the names of
+  each. `changed` are the applied ones whose up file no longer matches its checksum.
+  `status` does not refuse them, as `open` and `up` do: it is where you go to find
+  out what is wrong, so it names them and says what to do.
 - **`up()`**: applies what is pending, and returns the names it applied. Through
   `connect`, it also applies the framework's own tables after the context's (the
   outbox: `job`, `job_queue`, `schedule_tick`), as `open` does.
@@ -637,8 +646,8 @@ server would open. Add it to the root `package.json`, after `cooper:seed`:
 ## A test on Postgres
 
 Every test so far runs on SQLite in memory. One more runs cooper on a real Postgres,
-when you give it one: `COOPER_TEST_POSTGRES_URL`, the address of a server where it may
-create databases. Without it, the file defines no test, and `bun test cooper` skips
+when you give it one: `COOPER_TEST_POSTGRES_URL`, the address of a user with the right
+to create databases on that server (a role with `CREATEDB`). Without it, the file defines no test, and `bun test cooper` skips
 it.
 
 ```ts
@@ -658,8 +667,8 @@ import { connectStore } from './shared/open-store'
 
 /**
  * cooper on Postgres, when there is one to test against: `COOPER_TEST_POSTGRES_URL`,
- * an address on a server where it may make databases. Without it, these tests are
- * skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
+ * the address of a user with the right to create databases (`CREATE DATABASE`, a
+ * role with `CREATEDB`) on that server. Without it, these tests are skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
  * and made again: never one that matters.
  */
 const url = process.env.COOPER_TEST_POSTGRES_URL
@@ -773,7 +782,7 @@ if (url) {
 The gate, as at the end of every chapter:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 Without `COOPER_TEST_POSTGRES_URL`, `postgres.test.ts` has nothing to run:
@@ -822,6 +831,30 @@ bun run cooper:migrations up --context boards
 
 ```text
 boards: applied 00001_board, 00002_column, 00003_card, 00004_idempotency_key, 00005_activity, 00006_session
+```
+
+Now break the rule of the checksums on purpose: add a line to a migration that ran,
+and ask again.
+
+```sh
+echo "-- a comment" >> cooper/backend/contexts/boards/migrations/postgres/00001_board_up.sql
+bun run cooper:migrations status --context boards
+```
+
+```text
+boards: 6 applied (last 00006_session), 0 pending
+boards: changed after they were applied: 00001_board; put their up files back as they were, and make the change a new migration
+```
+
+`up` now fails with the checksum's error, as the server's start would. Take the line
+out of the file again, and the status is clean:
+
+```sh
+bun run cooper:migrations status --context boards
+```
+
+```text
+boards: 6 applied (last 00006_session), 0 pending
 ```
 
 ```sh
@@ -886,8 +919,8 @@ docker rm -f cooper-pg
 - Migrations are SQL in each database's dialect: one folder per dialect, the same
   numbers and names. On Postgres, text is `COLLATE "C"` (so it compares as everywhere
   else), booleans `BOOLEAN`, JSON `JSONB`.
-- An applied migration never changes, on any store: a checksum refuses it. A fix is a
-  new migration, in every dialect's folder.
+- An applied migration never changes, on any store: a checksum refuses it, and
+  `status` names it. A fix is a new migration, in every dialect's folder.
 - `open` migrates; `connect` does not. Migrating by hand (`status`, `up`, `down`) goes
   through `connect`, before a deploy or to revert the last one.
 - Postgres and MySQL run saves side by side: the guards you named on SQLite are what

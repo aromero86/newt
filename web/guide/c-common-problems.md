@@ -89,6 +89,13 @@ root of what it does in its own: the rule holds there as for any other
 ([chapter 20](./20-wiring-contexts)). The base's `writeRule: 'warn'` turns the error into
 a warning while an application moves to the rule.
 
+**"[write rule] card.create saves boards.board in the transaction that saved boards.card: one module per transaction; save it after that one commits, from a worker reacting to an event, or list it in its writesTo"**
+Two modules saved in one transaction, in a worker too: a save hook that called another
+module's saving use case, or two modules' saves inside one `store.transaction`. Save
+the second after the first commits, from a worker reacting to its event; a worker
+saves one module after another, each in its own transaction. The names are whichever
+broke it ([appendix F](./f-aggregates)).
+
 ## Asking twice
 
 **"A request with this Idempotency-Key is still in progress: try again once it ends" (`idempotency_key_in_use`, 409)**
@@ -144,8 +151,9 @@ or write a script that does what those jobs were meant to do
 **A job runs twice, and its effect shows twice.**
 A job runs at least once, so maybe more: a worker that stopped halfway, a lease run out.
 Make the second run find nothing to do, and key what leaves the process on the event's
-`id` (the handler's second argument, `EventMeta`), the same for every run
-([chapter 11](./11-reacting), [chapter 13](./13-another-context)).
+`id` (the handler's second argument, `EventMeta`), the same for every run: an email
+gets it as its `key`, and is sent once ([chapter 11](./11-reacting),
+[chapter 12](./12-failures), [chapter 13](./13-another-context)).
 
 **A job is `dead`.**
 It ran out of attempts (5 by default). Its `lastError` says why. Fix the cause first,
@@ -219,8 +227,10 @@ give only the public fields ([chapter 17](./17-auth)).
 
 **"Migration 00001_board was changed after it was applied: put its up file back as it was, and make the change a new migration"**
 The store keeps a checksum of each applied migration and refuses to open when one
-changed. Put the file back (`git checkout` it), and write the change as the next
-migration ([chapter 5](./05-sqlite), [chapter 18](./18-tenants-and-access)). Line ends
+changed; `up` refuses it too, and `bun run cooper:migrations status` names every such
+migration without failing. Put the file back (`git checkout` it), and write the change
+as the next migration ([chapter 5](./05-sqlite), [chapter 18](./18-tenants-and-access),
+[chapter 27](./27-postgres)). Line ends
 do not count: a checkout that turns `\n` into `\r\n` changes nothing.
 
 **"Migrations … and … share the version …: renumber one"**
@@ -245,7 +255,9 @@ Each dialect has its own folder of migrations, `migrations/sqlite/` and
 **`Module "node:async_hooks" has been externalized for browser compatibility, imported by ".../packages/newt/core/scope/define-scope.ts"`**
 A frontend pulled `newt/core` in, through a schema or a value object that imports it.
 A browser has no `node:async_hooks`. A `*.schema.ts` and its value objects import
-`newt/contract`, never `newt/core` ([chapter 23](./23-frontends)).
+`newt/contract`, never `newt/core` ([chapter 23](./23-frontends)). The lint's
+`newt/schema-imports` catches it in the schema itself; in a value object the schema
+imports, only this warning does ([appendix B](./b-module-anatomy)).
 
 **A client shows a message that changed, or breaks when it does.**
 It acts on the message. Act on `code`, which never changes; read every failure as an

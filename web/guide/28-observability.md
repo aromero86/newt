@@ -341,7 +341,7 @@ import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { cooperTracer, openContexts, stopContexts } from './open-contexts'
-import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 ```
 
@@ -416,7 +416,7 @@ The collector wins over the console when both are set; `job.claim` never leaves;
 The gate:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 The tracing tests alone:

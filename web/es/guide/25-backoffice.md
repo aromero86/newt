@@ -1529,8 +1529,9 @@ y el test espera tres de todo:
 // cooper/backend/open-contexts.test.ts
 // …
 test('opens the three contexts, serves each on its own port, and stops them', async () => {
-  const mails: Mail[] = []
-  const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  const mails = mailer.mails
+  const contexts = await openContexts(testConfig(), { mailer })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards', 'backoffice'])
 
   const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
@@ -1570,10 +1571,10 @@ Sin él, el test abriría el backoffice en el puerto 3003 y con su base de datos
 
 ## Compruébalo
 
-La puerta:
+La comprobación:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 Los tests del propio backoffice:

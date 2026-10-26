@@ -11,7 +11,7 @@ mantiene ordenado.
 3. **Solo la entidad se cambia a sí misma**, con métodos que dicen qué ha pasado. ([2](./02-first-module))
 4. **Solo el repositorio toca el store.** ([2](./02-first-module))
 5. **Una transacción es un guardado**, nunca un caso de uso entero. ([6](./06-rules-over-rows))
-6. **Un caso de uso escribe en otro módulo solo desde un worker**, reaccionando a un evento; una excepción dice `writesTo`, con su motivo. ([8](./08-two-people-one-card), [13](./13-another-context))
+6. **Un caso de uso escribe en otro módulo solo desde un worker**, reaccionando a un evento, y una transacción guarda un solo módulo, también la de un worker; una excepción dice `writesTo`, con su motivo. ([8](./08-two-people-one-card), [13](./13-another-context))
 7. **Lo que no se puede deshacer sale de un worker** (un email, una llamada a otro sistema), nunca del caso de uso que hace el cambio. ([12](./12-failures))
 8. **Un job puede ejecutarse más de una vez**, así que una segunda ejecución no debe encontrar nada que hacer. ([11](./11-reacting))
 9. **Los módulos y los contextos nunca dependen unos de otros en un ciclo.** ([1](./01-project-and-context), [20](./20-wiring-contexts))
@@ -23,7 +23,7 @@ mantiene ordenado.
 - El backend es un proyecto TypeScript propio que importa newt por su nombre; decoradores estándar, nunca `experimentalDecorators`. ([1](./01-project-and-context))
 - Un contexto abre su store, crea su base e inicializa sus módulos; recibe su config y nunca lee el entorno. ([1](./01-project-and-context))
 - Todos los módulos tienen los mismos archivos, con su nombre ([apéndice B](./b-module-anatomy)); el lint los mantiene así. ([2](./02-first-module))
-- El `*.schema.ts` de un módulo es su contrato: los esquemas de entrada toman solo lo que envía un cliente, y reutilizan las reglas del esquema completo. ([2](./02-first-module), [23](./23-frontends))
+- El `*.schema.ts` de un módulo es su contrato: los esquemas de entrada toman solo lo que envía un cliente, y reutilizan las reglas del esquema completo; de newt toma solo `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - Un objeto de valor guarda las reglas de un valor en un solo sitio: `from` perdona lo que alguien escribió, `schema` es estricto con lo que se guarda. ([2](./02-first-module))
 - Un módulo llega a otro solo a través de su módulo, su esquema, sus eventos, sus errores y sus objetos de valor (`newt/module-boundaries`). ([6](./06-rules-over-rows))
 - Un módulo comprueba sus referencias llamando a los casos de uso del otro módulo, nunca a sus tablas. ([7](./07-cards-and-a-counter))
@@ -67,6 +67,8 @@ mantiene ordenado.
 - La cola de un handler es `<módulo>.<caso de uso>.on.<módulo>.<evento>`; renombrarla deja atrás sus jobs pendientes. ([11](./11-reacting))
 - Un job se ejecuta sin actor y sin scope: lee quién es del payload y entra él mismo en el espacio de trabajo. ([11](./11-reacting), [13](./13-another-context))
 - Un worker que se ejecuta tarde vuelve a leer aquello de lo que trata antes de actuar. ([12](./12-failures))
+- Lo que sale del proceso lleva una clave sacada del id de su evento (la `key` de un email), para que un job ejecutado dos veces lo envíe una. ([12](./12-failures))
+- Un módulo que sigue a otro sigue también sus propios eventos: cada seguidor comprueba el otro lado después de su propio commit, así que el que corre el último ve los dos. ([13](./13-another-context))
 - `when` decide, a partir del payload, qué eventos tienen un job; las reglas de negocio se quedan en el caso de uso. ([12](./12-failures), [13](./13-another-context))
 - El trabajo sobre varios módulos es una saga desde un worker: cada paso encuentra lo que hizo una ejecución anterior, y la saga solo avanza. ([14](./14-sagas))
 - Un job muerto es trabajo atascado a medias: arregla la causa, y luego reinténtalo. ([12](./12-failures), [26](./26-dead-jobs-and-analytics))
@@ -98,16 +100,17 @@ mantiene ordenado.
 - Un cliente actúa según `code`, que nunca cambia; `setMessages`, una vez al arrancar, pone los mensajes de newt en tus palabras. ([3](./03-pages-and-errors))
 - Las rutas para las que nadie puede haber iniciado sesión dicen `{ public: true }`; una sesión vive en una cookie `httpOnly`. ([17](./17-auth))
 - Un router tiene un solo autenticador, puesto por el módulo que conoce las sesiones. ([22](./22-web-session))
-- Las direcciones con un formato propio son un router en la raíz (`prefix: ''`), que responde a los errores a su manera con `onError`. ([21](./21-oauth-server), [24](./24-mcp-server))
+- Las direcciones con un formato propio son un router en la raíz (`prefix: ''`), que responde a los errores a su manera con `onError`, incluido el 405 de un método que la ruta no tiene. ([21](./21-oauth-server), [24](./24-mcp-server))
 - Una ruta a la que llaman otros orígenes lo dice con `cors`, y nunca con cookies. ([21](./21-oauth-server))
 - El navegador carga `newt/contract`, nunca `newt/core`. ([23](./23-frontends))
 - Una herramienta MCP es otra puerta a los mismos casos de uso; no añade reglas. ([24](./24-mcp-server))
 
 ## Migraciones y producción
 
-- Un cambio de forma es una migración nueva; una ya aplicada nunca se edita (se comprueba su checksum). ([5](./05-sqlite), [18](./18-tenants-and-access))
+- Un cambio de forma es una migración nueva; una ya aplicada nunca se edita (se comprueba su checksum, y `status` nombra la que cambió). ([5](./05-sqlite), [18](./18-tenants-and-access), [27](./27-postgres))
 - Cada dialecto tiene su propia carpeta de migraciones; `open` migra, `connect` no. ([27](./27-postgres))
 - Un solo tracer para todos los contextos de un proceso. ([28](./28-observability))
+- Un servidor drena al detenerse: su health responde 503 durante `drainMs` antes de cerrar. ([29](./29-shipping))
 
 ## Tests
 

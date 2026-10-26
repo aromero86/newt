@@ -549,7 +549,7 @@ metadatos por ahí. Añade ambos al proxy del frontend de boards:
 
 ```ts
 // cooper/frontend/boards/vite.config.ts
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // The SaaS. Its context serves the API, the MCP server and the OAuth metadata that points to auth.
 export default cooperApp({ name: 'boards', port: 5172, proxy: ['/api', '/mcp', '/.well-known'] })
@@ -631,10 +631,10 @@ El segundo test es la puerta: sin token, con uno falso, y un preflight desde otr
 
 ## Compruébalo
 
-La barrera, como al final de todos los capítulos:
+La comprobación, como al final de todos los capítulos:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Solo los tests de MCP:

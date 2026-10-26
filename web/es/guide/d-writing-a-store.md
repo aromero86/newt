@@ -68,7 +68,10 @@ el orden en que lo piden; guarda la actual en un `AsyncLocalStorage`, así que u
 dentro de una se une a ella; la cierra en cuanto empieza a confirmarse, de modo que una
 llamada tardía falla en vez de ejecutarse fuera de ella; ejecuta los callbacks
 `afterCommit` y `afterRollback`; y hace fallar una llamada que espera demasiado, diciendo
-por qué. Su `State` es lo que sea que el adaptador guarda por cada transacción.
+por qué; y guarda qué módulos guardó cada transacción, para que la regla de escritura
+rechace en ella el guardado de un segundo módulo (un módulo por transacción, también en
+un worker). Un adaptador que no se apoye en él no se comprueba en eso. Su `State` es lo
+que sea que el adaptador guarda por cada transacción.
 
 Un adaptador le da a `run` sus pasos: `begin`, `commit`, `rollback` y un `end`
 opcional. Como el scope ejecuta una transacción a la vez, `guard` no necesita más que
@@ -84,7 +87,7 @@ lee lo que escribió.
 ```ts
 import { compare, ConcurrencyConflict, DuplicateValue, matches, type Criteria } from 'newt/core'
 import { isSameClaim, type Job, type JobClosing, type JobQuery, type JobQueueRegistration, type Outbox } from 'newt/port-outbox'
-import { noteRead, TransactionScope, type FindOptions, type Migrations, type NewRow, type Store, type StoredRow, type Table, type TableOptions } from 'newt/port-store'
+import { noteRead, TransactionScope, type FindOptions, type Migrations, type MigrationStatus, type NewRow, type Store, type StoredRow, type Table, type TableOptions } from 'newt/port-store'
 
 type Row = Record<string, unknown>
 /** A table's rows, by id. */
@@ -287,8 +290,9 @@ al salir (`structuredClone`), así que lo que cambia quien llama no es lo que se
 
 ## Migraciones
 
-Un store recuerda los cambios de su estructura (`Migrations`: `up`, `down`, `status`).
-Un store en memoria no tiene estructura que cambiar, así que sus migraciones son
+Un store recuerda los cambios de su estructura (`Migrations`: `up`, `down`, `status`,
+que da un `MigrationStatus`: lo `applied`, lo `pending`, y lo `changed` después de
+aplicarse). Un store en memoria no tiene estructura que cambiar, así que sus migraciones son
 ninguna:
 
 ```ts
@@ -296,7 +300,7 @@ ninguna:
 class NoMigrations implements Migrations {
   async up(): Promise<string[]> { return [] }
   async down(): Promise<string | null> { return null }
-  async status(): Promise<{ applied: string[], pending: string[] }> { return { applied: [], pending: [] } }
+  async status(): Promise<MigrationStatus> { return { applied: [], pending: [], changed: [] } }
 }
 ```
 

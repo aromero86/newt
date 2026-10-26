@@ -344,7 +344,7 @@ import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { cooperTracer, openContexts, stopContexts } from './open-contexts'
-import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 ```
 
@@ -417,10 +417,10 @@ envía al instante lo que el temporizador habría enviado más tarde.
 
 ## Compruébalo
 
-La puerta de control:
+La comprobación:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 Solo los tests del tracing:

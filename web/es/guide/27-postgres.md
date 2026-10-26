@@ -454,6 +454,8 @@ de que se ejecutara, y abrir boards falla con:
 Error: Migration 00001_board was changed after it was applied: put its up file back as it was, and make the change a new migration
 ```
 
+`status`, en el script de más abajo, nombra esa migración en vez de fallar.
+
 Las gemelas no son una excepción. Una corrección a una migración de Postgres que ya se
 ejecutó en algún sitio es una migración nueva, en las dos carpetas, con el mismo
 número.
@@ -577,6 +579,8 @@ Ese es el script, `cooper/scripts/migrations.ts`:
 // opens each context; this is for looking at what is pending, applying it before a
 // deploy, or reverting the last one. `status` and `up` go through every context unless
 // one is named; `down` reverts one context's last migration, so it needs its name.
+// `status` also names the migrations applied whose up file was changed since, which
+// `up` and the server's start refuse.
 // Each context's database is the one it opens (`COOPER_<CONTEXT>_DATABASE`): a SQLite
 // file, or a Postgres address, migrated with that database's own folder of migrations.
 import { join } from 'node:path'
@@ -608,8 +612,10 @@ for (const context of contexts) {
   const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
   try {
     if (command === 'status') {
-      const { applied, pending } = await store.migrations.status()
+      const { applied, pending, changed } = await store.migrations.status()
       console.log(`${context}: ${applied.length} applied${applied.length ? ` (last ${applied.at(-1)})` : ''}, ${pending.length} pending${pending.length ? `: ${pending.join(', ')}` : ''}`)
+      // One changed after it was applied stops `up` and the server's start: say which, and what to do.
+      if (changed.length) console.log(`${context}: changed after they were applied: ${changed.join(', ')}; put their up files back as they were, and make the change a new migration`)
     } else if (command === 'up') {
       const applied = await store.migrations.up()
       console.log(`${context}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}`)
@@ -626,7 +632,10 @@ for (const context of contexts) {
 Abre la base de datos de cada contexto con `connectStore`, que no migra, y llama a
 `migrations` del store:
 
-- **`status()`**: `{ applied, pending }`, los nombres de cada grupo.
+- **`status()`**: un `MigrationStatus`, `{ applied, pending, changed }`, los nombres de
+  cada grupo. `changed` son las aplicadas cuyo fichero up ya no coincide con su
+  checksum. `status` no las rechaza, como hacen `open` y `up`: es adonde vas a averiguar
+  qué falla, así que las nombra y dice qué hacer.
 - **`up()`**: aplica lo pendiente y devuelve los nombres que aplicó. Con `connect`,
   también aplica las tablas propias del framework después de las del contexto (el
   outbox: `job`, `job_queue`, `schedule_tick`), como hace `open`.
@@ -647,7 +656,8 @@ que el servidor abriría. Añádelo al `package.json` de la raíz, después de
 
 Todos los tests hasta ahora corren sobre SQLite en memoria. Uno más ejecuta cooper
 sobre un Postgres de verdad, cuando le das uno: `COOPER_TEST_POSTGRES_URL`, la
-dirección de un servidor donde pueda crear bases de datos. Sin ella, el fichero no
+dirección de un usuario con permiso para crear bases de datos en ese servidor (un rol
+con `CREATEDB`). Sin ella, el fichero no
 define ningún test, y `bun test cooper` lo salta.
 
 ```ts
@@ -667,8 +677,8 @@ import { connectStore } from './shared/open-store'
 
 /**
  * cooper on Postgres, when there is one to test against: `COOPER_TEST_POSTGRES_URL`,
- * an address on a server where it may make databases. Without it, these tests are
- * skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
+ * the address of a user with the right to create databases (`CREATE DATABASE`, a
+ * role with `CREATEDB`) on that server. Without it, these tests are skipped. Each context gets a database of its own, `cooper_test_<context>`, dropped
  * and made again: never one that matters.
  */
 const url = process.env.COOPER_TEST_POSTGRES_URL
@@ -780,10 +790,10 @@ if (url) {
 
 ## Compruébalo
 
-La puerta de control, como al final de cada capítulo:
+La comprobación, como al final de cada capítulo:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 Sin `COOPER_TEST_POSTGRES_URL`, `postgres.test.ts` no tiene nada que ejecutar:
@@ -833,6 +843,30 @@ bun run cooper:migrations up --context boards
 
 ```text
 boards: applied 00001_board, 00002_column, 00003_card, 00004_idempotency_key, 00005_activity, 00006_session
+```
+
+Ahora rompe a propósito la regla de los checksums: añade una línea a una migración que
+ya se ejecutó, y vuelve a preguntar.
+
+```sh
+echo "-- a comment" >> cooper/backend/contexts/boards/migrations/postgres/00001_board_up.sql
+bun run cooper:migrations status --context boards
+```
+
+```text
+boards: 6 applied (last 00006_session), 0 pending
+boards: changed after they were applied: 00001_board; put their up files back as they were, and make the change a new migration
+```
+
+`up` falla ahora con el error del checksum, como fallaría el arranque del servidor.
+Quita otra vez la línea del fichero, y el estado vuelve a estar limpio:
+
+```sh
+bun run cooper:migrations status --context boards
+```
+
+```text
+boards: 6 applied (last 00006_session), 0 pending
 ```
 
 ```sh
@@ -897,8 +931,9 @@ docker rm -f cooper-pg
 - Las migraciones son SQL en el dialecto de cada base de datos: una carpeta por
   dialecto, con los mismos números y nombres. En Postgres, el texto es `COLLATE "C"`
   (para que compare como en todas partes), los booleanos `BOOLEAN`, el JSON `JSONB`.
-- Una migración aplicada no cambia nunca, en ningún store: un checksum la rechaza. Una
-  corrección es una migración nueva, en la carpeta de cada dialecto.
+- Una migración aplicada no cambia nunca, en ningún store: un checksum la rechaza, y
+  `status` la nombra. Una corrección es una migración nueva, en la carpeta de cada
+  dialecto.
 - `open` migra; `connect` no. Migrar a mano (`status`, `up`, `down`) pasa por
   `connect`, antes de un despliegue o para revertir la última.
 - Postgres y MySQL ejecutan los guardados en paralelo: los guards que nombraste en

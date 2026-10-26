@@ -79,7 +79,11 @@ sesión (sin sesión: muestra un botón de iniciar sesión donde iría la págin
 la ida y vuelta del capítulo 22 en `/api/session/sign-in`), y después las zonas del
 workspace (`w/:workspaceId/boards`, `search`, `settings`), cada una cargada la primera vez
 que alguien entra. Una pantalla es un componente que lee las señales de un servicio; el
-servicio guarda el estado y llama a la API.
+servicio guarda el estado y llama a la API. Una pantalla puede decir de antemano lo que
+el backend rechazaría: en un tablero, el menú de una columna desactiva *Remove* mientras
+la columna tiene tarjetas, y en la última columna del tablero ("a board keeps one
+column", [capítulo 8](./08-two-people-one-card)); el backend sigue respondiendo un 409
+`card.column_not_empty` o `column.last` a quien lo pida igualmente.
 
 Nada de eso toca newt. Lo que sí lo toca está en `@cooper/api`.
 
@@ -124,8 +128,9 @@ importar. Para que eso funcione, un archivo de esquema importa solo:
 - `newt/contract`;
 - los objetos de valor de su propio módulo (que importan `newt/contract`) y los esquemas de
   otros módulos;
-- tipos, con `import type`, de cualquier sitio: se borran antes de que el navegador vea el
-  archivo. `card.schema.ts` importa así el tipo `ActorVia` de `shared/actor.ts`.
+- tipos, con `import type`, de cualquier sitio salvo las otras entradas de newt: se
+  borran antes de que el navegador vea el archivo. `card.schema.ts` importa así el tipo
+  `ActorVia` de `shared/actor.ts`.
 
 Los clientes lo usan de dos maneras. Sobre todo como tipos: `CardDTO`, `CardCreateDTO`,
 `Page<CardDTO>`. Un cliente y su servidor no pueden discrepar sobre el nombre de un campo,
@@ -157,9 +162,13 @@ export * from './card.api'
 Nada en el frontend importa un caso de uso, una entidad ni un repositorio, y el lint se
 encarga de que así sea (más abajo): el frontend nunca importa `backend/`; `@cooper/api`
 puede importar `backend/contexts/<context>/modules/<module>/<module>.schema.ts` y nada
-más. Unos pocos contratos no tienen un esquema de backend de esa forma (la sesión web vive
-en `shared/`, los workspaces que sirve boards son los tenants de auth), y esos se escriben
-en el propio `@cooper/api`, como `*.contract.ts`, en zod llano.
+más. Unas pocas carpetas tienen un `*.contract.ts` propio. Los workspaces, sus miembros y
+sus invitaciones son los tenants y los accesos de auth, que las rutas de boards sirven con
+las formas del `workspace.schema.ts` de boards: `workspace.contract.ts`,
+`workspace-member.contract.ts` e `invitation.contract.ts` reexportan esas formas
+(renombradas donde la app las llama de otro modo) y añaden solo lo que alguien escribe,
+como el nombre de un workspace. La sesión web no tiene módulo (sus rutas viven en
+`shared/web-session`), así que `web-session.contract.ts` escribe su contrato en zod llano.
 
 ## Hablar con la API: Requester
 
@@ -372,10 +381,17 @@ pantalla de búsqueda:
 ```
 
 La página va en la query, `size` y `cursor`, y la respuesta es una `Page<CardDTO>`:
-`items`, `hasMore`, `total`. La pantalla de búsqueda le da `search` a un `ListStore`, que
-pide la primera página y luego más, con el id de la última tarjeta mostrada como cursor. El
-tipo de la página viene de `newt/contract`; el `pageRequestFrom` del servidor lee los
-mismos dos parámetros.
+`items`, `hasMore`, `total`, y `nextCursor` cuando el servidor sabe dónde empieza la
+página siguiente. La pantalla de búsqueda le da `search` a un `ListStore`, que pide la
+primera página y luego más, desde donde la última dijo que empieza la siguiente: su
+`nextCursor`, o si no el id de su último elemento. Una página de búsqueda puede llegar
+vacía y aun así tener más detrás: el índice encontró tarjetas que ya no están, así que a
+la página no le queda ninguna, pero su cursor sigue siendo la última encontrada.
+`ListStore` sigue ese cursor, pasando las páginas vacías, hasta que una página trae
+tarjetas o dice que no hay más; con el id de la última tarjeta mostrada volvería a pedir
+la misma página. Los tipos de la página vienen de `newt/contract` (el `PageRequest` de
+`@cooper/api` es el de newt, con `size` opcional); el `pageRequestFrom` del servidor lee
+los mismos dos parámetros.
 
 Su test reemplaza `fetch` y mira las cabeceras que envió cada llamada:
 
@@ -490,7 +506,7 @@ La config de cada app es una línea:
 
 ```ts
 // cooper/frontend/auth/vite.config.ts
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // Signing in, signing up and granting access. Its context is the OAuth server: the
 // API, the authorization endpoints and their metadata.
@@ -499,11 +515,15 @@ export default cooperApp({ name: 'auth', port: 5171, proxy: ['/api', '/oauth', '
 
 ```ts
 // cooper/frontend/boards/vite.config.ts
-import { cooperApp } from '../vite-app'
+import { cooperApp } from '../vite-app.ts'
 
 // The SaaS. Its context serves the API.
 export default cooperApp({ name: 'boards', port: 5172, proxy: ['/api'] })
 ```
+
+El import nombra `../vite-app.ts` con su extensión, como lo necesitaría Node: Vite puede
+cargar su config así, y el proyecto de TypeScript de las herramientas lo permite (más
+abajo).
 
 Los puertos no son arbitrarios: 5171 y 5172 son las **URLs públicas** de auth y boards en
 `config.ts` (`COOPER_AUTH_PUBLIC_URL`, `COOPER_BOARDS_PUBLIC_URL`), las direcciones que la
@@ -821,7 +841,8 @@ imports (en `bun test`) con el archivo de la raíz:
 
 Las configs de Vite corren en Bun, no en el navegador, así que se dejan fuera del proyecto
 del frontend y van al de las herramientas. En `tsconfig.node.json`, cambia el comentario y
-el `include`:
+el `include`, y permite los imports de las configs con extensión `.ts`
+(`allowImportingTsExtensions`, que necesita `noEmit`):
 
 ```json
 {
@@ -834,6 +855,8 @@ el `include`:
     "types": ["bun"],
     "moduleDetection": "force",
     "noEmit": true,
+    // A Vite config imports its neighbour as Node would load it: with its extension.
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true
   },
@@ -954,22 +977,26 @@ cooper/libs/api/card/bad.ts
 ✖ 2 problems (2 errors, 0 warnings)
 ```
 
-El lint comprueba la ruta; lo que mantiene el esquema mismo a salvo para un navegador es
-que importa `newt/contract`, nunca `newt/core`. Eso te toca mantenerlo a ti.
+El lint comprueba la ruta. Lo que mantiene el esquema mismo a salvo para un navegador es
+que de newt solo toma `newt/contract`, y la mitad del backend también lo comprueba: la
+regla `newt/schema-imports` de newt, parte del preset desde el principio, rechaza cualquier
+otra entrada de newt en un `<m>.schema.ts`, aunque sea para un tipo. Solo lee los
+imports del propio esquema, no los de los archivos que importa: que un objeto de valor
+importe `newt/contract`, nunca `newt/core`, sigue siendo cosa tuya.
 
 ## Compruébalo
 
-La puerta de calidad, con el proyecto nuevo y los tests de las librerías:
+La comprobación, con el proyecto nuevo y los tests de las librerías:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 127 pass
+ 141 pass
  0 fail
- 457 expect() calls
-Ran 127 tests across 19 files.
+ 491 expect() calls
+Ran 141 tests across 19 files.
 ```
 
 Construye las dos apps:
@@ -1005,9 +1032,6 @@ boards listening on http://localhost:3002/
   auth    http://localhost:5171  (API on port 3001)
   boards  http://localhost:5172  (API on port 3002)
 ```
-
-(Vite también avisa de que `vite.config.ts` importa `../vite-app` sin extensión de
-archivo, por un cargador de configs que todavía no usa; no cambia nada.)
 
 Las dos apps responden, y la API de boards responde a través de su servidor de Vite:
 

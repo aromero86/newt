@@ -1,19 +1,23 @@
 # Ponerlo en producción
 
-Ya no queda código por escribir. Después del capítulo 28 tu árbol es cooper: los mismos
+Queda un último trozo de código, y trata de detenerse. Cuando un despliegue le dice a
+cooper que se detenga, cada servidor debería seguir respondiendo un momento, diciendo
+que se está deteniendo, para que quien reparte la carga delante de él no le envíe nada
+nuevo antes de que cierre. Es una opción de configuración y una línea, más abajo, en
+[Arrancar y detener](#arrancar-y-detener). Con ella, tu árbol es cooper: los mismos
 contextos, módulos, migraciones, tests y scripts que el `cooper/` del repositorio. El
-último punto de control, `tutorial/29`, no añade nada a `tutorial/28`; marca el final.
+último punto de control, `tutorial/29`, es el código del repositorio, y
 
 ```sh
-git diff tutorial/29 newt-review -- cooper eslint.config.js 'tsconfig*.json' package.json
+git diff tutorial/29 main -- cooper eslint.config.js 'tsconfig*.json' package.json bun.lock
 ```
 
 no imprime nada.
 
-Este capítulo trata de ponerlo delante de la gente: el test de extremo a extremo que
-dice que cooper funciona como un todo, el build, la configuración, cómo arranca y cómo
-se detiene, el lint como lista de comprobación, y las reglas que enseñó la guía, en un
-solo sitio.
+El resto del capítulo trata de ponerlo delante de la gente: el test de extremo a
+extremo que dice que cooper funciona como un todo, el build, la configuración, cómo
+arranca y cómo se detiene, el lint como lista de comprobación, y las reglas que enseñó
+la guía, en un solo sitio.
 
 ## cooper, de extremo a extremo
 
@@ -51,17 +55,17 @@ bun test cooper/backend/cooper.test.ts
 Ran 6 tests across 1 file.
 ```
 
-Y toda la puerta de control, una vez más:
+Y toda la comprobación, una vez más:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 ```text
- 155 pass
+ 169 pass
  0 fail
- 588 expect() calls
-Ran 155 tests across 29 files.
+ 622 expect() calls
+Ran 169 tests across 29 files.
 ```
 
 Con `COOPER_TEST_POSTGRES_URL` definida (capítulo [27](./27-postgres)), se ejecutan cinco
@@ -134,6 +138,7 @@ con lo que necesita el desarrollo por defecto. Bun carga un fichero `.env` por s
 | `COOPER_MAIL_FROM` | `cooper <no-reply@cooper.local>` | De quién vienen los correos. |
 | `COOPER_TRACE` | apagado | `1` escribe cada traza en la consola, y cada movimiento de tarjeta. |
 | `COOPER_OTLP_URL` | ninguna | Un colector de OpenTelemetry al que van las trazas en su lugar. |
+| `COOPER_DRAIN_MS` | `2000` | Cuánto sigue respondiendo cada servidor una vez se le dice que se detenga. |
 
 Las rutas relativas son relativas a la raíz del repositorio. Los tests leen una más,
 `COOPER_TEST_POSTGRES_URL`, y nada más la lee.
@@ -159,7 +164,23 @@ mismo `send(mail)`.
 
 ## Arrancar y detener
 
-El backend es un solo proceso, `bun cooper/backend/index.ts`:
+El backend es un solo proceso, `bun cooper/backend/index.ts`. Su última opción es
+cuánto drena un servidor al detenerse. Añádela a `config.ts`, después de `trace`:
+
+```ts
+// cooper/backend/config.ts
+// …
+  trace: env.COOPER_TRACE === '1',
+  /**
+   * `COOPER_DRAIN_MS`: how long each server goes on answering once told to stop, its
+   * health a 503 meanwhile, so whoever balances the load sends it nothing new: 2
+   * seconds. Only the backend's process drains: a test stops its servers at once.
+   */
+  drainMs: Number(env.COOPER_DRAIN_MS ?? 2000),
+// …
+```
+
+y sirve cada contexto con ella, en `index.ts`:
 
 ```ts
 // cooper/backend/index.ts
@@ -175,7 +196,8 @@ setCooperMessages()
 const contexts = await openContexts(config)
 
 // One tracer for every context: a request, and the use cases it calls in any context, is one trace.
-const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+// Stopping, each server's health answers 503 for a moment before it closes.
+const app = runContexts(contexts.all.map(context => ({ context, serve: { ...context.serving(), drainMs: config.drainMs } })), { tracer: cooperTracer(config) })
 for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)
 ```
 
@@ -201,15 +223,39 @@ balanceador de carga u orquestador a ella, una comprobación por contexto.
 
 **Detener**, con SIGINT o SIGTERM (lo que envía un despliegue):
 
-1. Cada servidor deja de aceptar peticiones. Su health responde
-   `503 {"status":"stopping"}` desde ese momento, y las peticiones en curso terminan.
-   `serve` también acepta `drainMs`, cuánto seguir respondiendo antes de cerrar, para
-   que un balanceador que consulta el health vea el 503 y no envíe nada nuevo; cooper
-   lo deja en ninguno.
+1. Cada servidor drena, y después deja de aceptar peticiones. Su health responde
+   `503 {"status":"stopping"}` desde ese momento. Durante `drainMs` sigue respondiendo
+   todo lo demás como antes, así que un balanceador que consulta el health ve el 503 y
+   lleva las peticiones nuevas a otra instancia mientras esta aún responde las que ya
+   venían de camino. Después cierra, y las peticiones en curso terminan.
 2. Cada contexto se detiene, el último abierto primero, de modo que ninguno se detiene
    antes que uno que lo usa: su worker deja de reclamar jobs, espera a los que están en
    curso, y su store se cierra.
 3. El tracer envía lo que aún guarda (`flush`).
+
+`serving()` no da `drainMs`, así que los tests, que abren los contextos y los sirven
+igual, detienen sus servidores en el acto; solo `index.ts` lo añade. Pruébalo con un
+drenaje más largo:
+
+```sh
+COOPER_DRAIN_MS=3000 bun cooper/backend/index.ts
+```
+
+Desde otra terminal, envíale SIGTERM (`kill -TERM <su pid>`) y pide su health dentro
+de esos tres segundos:
+
+```sh
+curl -s -i localhost:3002/api/health
+```
+
+```text
+HTTP/1.1 503 Service Unavailable
+…
+{"status":"stopping"}
+```
+
+Tres segundos después los servidores están cerrados, y el mismo `curl` no encuentra a
+nadie.
 
 Lo que estaba pendiente sigue pendiente, en el outbox, y se ejecuta cuando cooper
 vuelve: un job se escribe en la misma transacción que el cambio que lo originó
@@ -246,6 +292,8 @@ comprobarías a ojo:
   [2](./02-first-module)).
 - [ ] **`newt/module-boundaries`**: un módulo importa de otro solo su módulo, schema,
   eventos, errores y objetos de valor; nunca su entidad, repositorio, rutas ni workers.
+- [ ] **`newt/schema-imports`**: el `<m>.schema.ts` de un módulo toma de newt solo
+  `newt/contract`, porque lo importa un frontend (capítulo [23](./23-frontends)).
 - [ ] **`newt/queue-name`**: la cola de un handler es
   `<module>.<use case>.on.<module>.<event>`, y su callback llama a ese caso de uso
   (capítulo [11](./11-reacting)).
@@ -260,8 +308,9 @@ comprobarías a ojo:
 
 Lo que el lint no puede ver, lo comprueba newt mientras se ejecuta: un guardado que lee
 filas y no protege nada (la regla del guard), una escritura en otro módulo fuera de un
-worker (la regla de escritura, salvo que `writesTo` lo diga), una cola cuyo nombre no
-coincide con su suscripción. Y el compilador: un guardado con `after` y sin `guard` no
+worker, o dos módulos guardados en una transacción, también en un worker (la regla de
+escritura, salvo que `writesTo` lo diga), una cola cuyo nombre no coincide con su
+suscripción. Y el compilador: un guardado con `after` y sin `guard` no
 compila.
 
 ## Las reglas, una vez más
@@ -315,8 +364,12 @@ Lo que enseñaron los capítulos, en el orden en que lo fuiste viendo. El apénd
 - Una reacción es un job en el outbox, escrito en la misma transacción; se ejecuta al
   menos una vez, así que no debe importar que se ejecute dos (capítulo
   [11](./11-reacting)).
-- Lo que no se puede deshacer sale de un worker, que vuelve a leer antes de actuar
-  (capítulo [12](./12-failures)).
+- Lo que no se puede deshacer sale de un worker, que vuelve a leer antes de actuar, y
+  con una clave del evento de su job, para que enviado dos veces salga una (capítulo
+  [12](./12-failures)).
+- Un módulo que sigue a otro reacciona también a sus propios eventos: cada seguidor se
+  ejecuta después de su propio commit y mira el otro lado, así que el que corre el
+  último ve los dos (capítulo [13](./13-another-context)).
 - Un caso de uso escribe en otro módulo solo desde un worker; la excepción lo dice con
   `writesTo` (capítulos [8](./08-two-people-one-card) y [17](./17-auth)).
 - El trabajo sobre varios módulos es una saga de pasos que encuentran cada uno lo que
@@ -351,8 +404,8 @@ Lo que enseñaron los capítulos, en el orden en que lo fuiste viendo. El apénd
   el backoffice (capítulo [26](./26-dead-jobs-and-analytics)).
 - Un tracer para todo el proceso; newt hace los spans (capítulo
   [28](./28-observability)).
-- Migra antes de arrancar; deja de servir antes de detener los contextos (este
-  capítulo).
+- Migra antes de arrancar; drena y deja de servir antes de detener los contextos
+  (este capítulo).
 
 ## El final
 

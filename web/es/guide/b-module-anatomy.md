@@ -119,7 +119,7 @@ const BACKEND = newt({
 // …
 ```
 
-Ejecútalo con `bun run lint`. El preset activa seis comprobaciones: cuatro reglas propias
+Ejecútalo con `bun run lint`. El preset activa siete comprobaciones: cinco reglas propias
 de newt (`newt/…`), una restricción y una regla de typescript-eslint. Los errores de
 abajo son reales: cada uno se escribió a propósito en `card/` y se pasó por el lint.
 
@@ -166,6 +166,29 @@ import { Board_Repository } from '../board/board.repository'
 
 Arreglo: llama a un caso de uso de `Board_Module` a través de las deps del módulo, y usa
 su DTO ([capítulo 6](./06-rules-over-rows)).
+
+### `newt/schema-imports`
+
+**Dónde**: el `<m>.schema.ts` de un módulo.
+**Qué comprueba**: que de newt solo toma `newt/contract`. Un frontend importa el
+esquema ([capítulo 23](./23-frontends)); `newt/core` y las demás entradas de newt son
+del servidor (guardan scopes en `AsyncLocalStorage` y llegan a Bun), así que ni siquiera
+un tipo viene de ellas. Solo se leen los imports del propio esquema, no los de los
+archivos que importa.
+
+```ts
+import { now } from 'newt/core'
+import type { Criteria } from 'newt/core'
+```
+
+```text
+card/card.schema.ts
+  1:21  error  'newt/core' is the server's: card.schema.ts is imported by the frontend, so it takes from newt only 'newt/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody)  newt/schema-imports
+  2:31  error  'newt/core' is the server's: card.schema.ts is imported by the frontend, so it takes from newt only 'newt/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody)  newt/schema-imports
+```
+
+Arreglo: tómalo de `newt/contract` si está ahí (objetos de valor y sus errores,
+`defineFilter`, `Page`, `PageRequest`, `ErrorBody`), o déjalo fuera del esquema.
 
 ### `newt/queue-name`
 
@@ -258,8 +281,9 @@ La regla necesita que cada archivo linteado esté en un proyecto TypeScript: el
 ### Lo que el lint no comprueba
 
 - La anatomía de los módulos de `shared/`, que no están en ninguna carpeta `modules/`.
-- Que un `*.schema.ts` importa solo `newt/contract`, no `newt/core`: Vite avisa de
-  `node:async_hooks` cuando un frontend arrastra `newt/core` ([capítulo 23](./23-frontends)).
+- Lo que importan los objetos de valor de un esquema: `newt/schema-imports` lee solo
+  los imports del propio esquema. Un objeto de valor que importa `newt/core` llega al
+  frontend a través de él, y Vite avisa de `node:async_hooks` ([capítulo 23](./23-frontends)).
 - La regla de escritura y la regla del guard: newt las comprueba mientras se ejecuta el
   código ([capítulo 8](./08-two-people-one-card), [capítulo 6](./06-rules-over-rows)).
 

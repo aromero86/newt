@@ -1166,13 +1166,18 @@ dirección que su API no toma: `frontendFolder` está en su configuración desde
 El personal no se registra en el backoffice: auth rechaza las cuentas nuevas para él.
 Alguien debe recibir acceso primero, y lo hace el seed, como lo hace `staffMember` en los
 tests: una cuenta, admitida con `access.admit`, que no comprueba ningún actor. En
-`cooper/scripts/seed.ts`, el comentario inicial lo nombra:
+`cooper/scripts/seed.ts`, el comentario inicial lo nombra, y el seed importa `PRODUCTS`,
+los ids de los productos de auth:
 
 ```ts
 // cooper/scripts/seed.ts
 // bun run cooper:seed: cooper's demo data, written through the contexts' use cases as
 // anyone would: a staff user with access to the backoffice, and Ana's workspace Acme,
 // where Bob joined by accepting her invitation. Safe to run again: what is there stays.
+// …
+import { config } from '../backend/config'
+import { PRODUCTS } from '../backend/contexts/auth/modules/product/product.schema'
+import { inWorkspace } from '../backend/contexts/boards/workspace-scope'
 // …
 ```
 
@@ -1184,7 +1189,7 @@ créala antes que Ana:
   const account = async (email: string, name: string) => (await user.findByEmail(email)) ?? user.signUp({ email, name, password: PASSWORD })
 
   const staff = await account('staff@cooper.dev', 'Cooper Staff')
-  await access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
+  await access.admit({ userId: staff.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
 
   const ana = await account('ana@cooper.dev', 'Ana García')
 // …
@@ -1207,10 +1212,10 @@ workspace y sus tarjetas los cuentan los workers de métricas como los de cualqu
 
 ## Compruébalo
 
-La puerta:
+La comprobación:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
 ```
 
 Los tests del backoffice y los del adaptador:

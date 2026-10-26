@@ -10,7 +10,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 3. **Only the entity changes itself**, with methods that say what happened. ([2](./02-first-module))
 4. **Only the repository touches the store.** ([2](./02-first-module))
 5. **A transaction is one save**, never a whole use case. ([6](./06-rules-over-rows))
-6. **A use case writes into another module only from a worker**, reacting to an event; an exception says `writesTo`, with its reason. ([8](./08-two-people-one-card), [13](./13-another-context))
+6. **A use case writes into another module only from a worker**, reacting to an event, and a transaction saves one module, a worker's too; an exception says `writesTo`, with its reason. ([8](./08-two-people-one-card), [13](./13-another-context))
 7. **What cannot be undone leaves from a worker** (an email, a call to another system), never from the use case that makes the change. ([12](./12-failures))
 8. **A job may run more than once**, so a second run must find nothing to do. ([11](./11-reacting))
 9. **Modules and contexts never depend on each other in a cycle.** ([1](./01-project-and-context), [20](./20-wiring-contexts))
@@ -22,7 +22,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 - The backend is a TypeScript project of its own, importing newt by its name; standard decorators, never `experimentalDecorators`. ([1](./01-project-and-context))
 - A context opens its store, creates its base and initializes its modules; it receives its config and never reads the environment. ([1](./01-project-and-context))
 - Every module has the same files, named after it ([appendix B](./b-module-anatomy)); the lint keeps them so. ([2](./02-first-module))
-- A module's `*.schema.ts` is its contract: input schemas take only what a client sends, and reuse the rules of the whole one. ([2](./02-first-module), [23](./23-frontends))
+- A module's `*.schema.ts` is its contract: input schemas take only what a client sends, and reuse the rules of the whole one; from newt it takes only `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - A value object keeps a value's rules in one place: `from` forgives what someone typed, `schema` is strict about what is kept. ([2](./02-first-module))
 - A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`). ([6](./06-rules-over-rows))
 - A module checks its references by calling the other module's use cases, never its tables. ([7](./07-cards-and-a-counter))
@@ -66,6 +66,8 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 - A handler's queue is `<module>.<use case>.on.<module>.<event>`; renaming it leaves its pending jobs behind. ([11](./11-reacting))
 - A job runs with no actor and no scope: it reads who from the payload and enters the workspace itself. ([11](./11-reacting), [13](./13-another-context))
 - A worker that runs late reads again what it is about before acting. ([12](./12-failures))
+- What leaves the process carries a key from its event's id (an email's `key`), so a job run twice sends it once. ([12](./12-failures))
+- A module that follows another follows its own events too: each follower checks the other side after its own commit, so whichever runs last sees both. ([13](./13-another-context))
 - `when` decides from the payload which events get a job; business rules stay in the use case. ([12](./12-failures), [13](./13-another-context))
 - Work over several modules is a saga from a worker: each step finds what an earlier run did, and the saga only goes forward. ([14](./14-sagas))
 - A dead job is work stuck halfway: fix the cause, then retry it. ([12](./12-failures), [26](./26-dead-jobs-and-analytics))
@@ -97,16 +99,17 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 - A client acts on `code`, which never changes; `setMessages`, once at startup, puts newt's messages in your words. ([3](./03-pages-and-errors))
 - Routes nobody can be signed in for say `{ public: true }`; a session lives in an `httpOnly` cookie. ([17](./17-auth))
 - A router has one authenticator, set by the module that knows the sessions. ([22](./22-web-session))
-- Addresses with a format of their own are a router at the root (`prefix: ''`), answering errors their way with `onError`. ([21](./21-oauth-server), [24](./24-mcp-server))
+- Addresses with a format of their own are a router at the root (`prefix: ''`), answering errors their way with `onError`, a 405 for a method the path lacks included. ([21](./21-oauth-server), [24](./24-mcp-server))
 - A route other origins call says so with `cors`, and never with cookies. ([21](./21-oauth-server))
 - The browser loads `newt/contract`, never `newt/core`. ([23](./23-frontends))
 - An MCP tool is another door to the same use cases; it adds no rules. ([24](./24-mcp-server))
 
 ## Migrations and production
 
-- A change of shape is a new migration; an applied one is never edited (its checksum is checked). ([5](./05-sqlite), [18](./18-tenants-and-access))
+- A change of shape is a new migration; an applied one is never edited (its checksum is checked, and `status` names one that changed). ([5](./05-sqlite), [18](./18-tenants-and-access), [27](./27-postgres))
 - Each dialect has its own migrations folder; `open` migrates, `connect` does not. ([27](./27-postgres))
 - One tracer for every context of a process. ([28](./28-observability))
+- A server drains as it stops: its health answers 503 for `drainMs` before it closes. ([29](./29-shipping))
 
 ## Tests
 

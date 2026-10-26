@@ -102,8 +102,20 @@ en una sola transacción. `tenant.create` y `tenant.delete` de auth son la otra 
 de excepción: dos guardados a propósito, cada uno con un worker que termina el segundo
 si falla ([capítulo 18](./18-tenants-and-access)).
 
-Todo lo demás que escribe en otro módulo se ejecuta desde un worker, donde la regla no
-se aplica: un job que falla a medias se ejecuta otra vez hasta completarse.
+Todo lo demás que escribe en otro módulo se ejecuta desde un worker, donde la regla lo
+permite. Aun así no deja que dos módulos compartan una transacción, en un worker o
+fuera de él: el guardado de un segundo módulo en una transacción que ya guardó otro
+(desde un hook de guardado, o con dos guardados dentro de un `store.transaction`)
+también se rechaza, salvo que el caso de uso con el que empezó la cadena liste los dos
+en su `writesTo` (de nuevo con los nombres de quien la rompa):
+
+```text
+[write rule] card.create saves boards.board in the transaction that saved boards.card: one module per transaction; save it after that one commits, from a worker reacting to an event, or list it in its writesTo
+```
+
+Así que un worker guarda un módulo tras otro, cada uno en su propia transacción, y un
+job que falla a medias se ejecuta otra vez hasta completarse. Es la regla práctica de
+Vernon en su forma estricta: un agregado por transacción, lo ejecute quien lo ejecute.
 
 ### La versión: concurrencia optimista en el límite
 
@@ -172,16 +184,41 @@ Las tarjetas siguen a las columnas así:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
-  // A card points at its column: when a column goes, no card is left in it.
+  // A card points at its column: when a column goes, no card is left in it. A card
+  // checks its column before its save, so the column may go in between: a card
+  // created in one, or moved to one, looks again once saved. Whichever looks last finds it.
   deps.column.events.removed.subscribe(column => cards.leaveRemovedColumn(column), {
     strategy: 'handler',
     queue: 'card.leaveRemovedColumn.on.column.removed',
   })
+  cards.events.created.subscribe(card => cards.leaveRemovedColumn({ id: card.columnId, boardId: card.boardId, workspaceId: card.workspaceId }), {
+    strategy: 'handler',
+    queue: 'card.leaveRemovedColumn.on.card.created',
+  })
+  cards.events.moved.subscribe(({ dto }) => cards.leaveRemovedColumn({ id: dto.columnId, boardId: dto.boardId, workspaceId: dto.workspaceId }), {
+    strategy: 'handler',
+    queue: 'card.leaveRemovedColumn.on.card.moved',
+    when: ({ changes }) => changes.columnId !== undefined,
+  })
 ```
+
+Seguir solo el evento de la columna dejaría un hueco. Una tarjeta comprueba su columna
+antes de su guardado, fuera de la transacción de la columna, así que la columna puede
+quitarse entre medias: su worker se ejecuta después del commit de la columna, busca
+tarjetas en ella y no encuentra ninguna, porque el guardado de la tarjeta aún no ha
+hecho commit. Después la tarjeta hace commit, en una columna que ya no está. Por eso la
+tarjeta sigue también sus propios eventos: cuando se crea una tarjeta en una columna,
+o se mueve a una, un job vuelve a mirar. Cada seguidor se ejecuta después de su propio
+commit y comprueba el estado del otro lado, no lo que dijo el evento; el que corre el
+último ve los dos commits, así que los dos convergen en cualquier orden.
+`leaveRemovedColumn` no hace nada mientras la columna sigue ahí.
 
 Un job puede ejecutarse más de una vez, así que toda reacción es idempotente: la
 segunda vez, `leaveRemovedColumn` no encuentra ninguna tarjeta en la columna quitada y
-no hace nada ([capítulo 13](./13-another-context)). Lo mismo funciona entre contextos:
+no hace nada ([capítulo 13](./13-another-context)). A un asignado se le sigue igual:
+`unassignMember` se ejecuta con el `access.revoked` de auth y con una tarjeta creada
+para alguien o asignada a alguien, y no hace nada mientras esa persona siga
+perteneciendo al workspace, así que quien vuelve a entrar conserva sus tarjetas. Lo mismo funciona entre contextos:
 boards sigue el `access.revoked` de auth a través de un puerto, y el job está en el
 outbox de auth ([capítulo 20](./20-wiring-contexts)).
 
@@ -363,10 +400,12 @@ Sé claro con el intercambio:
   columnas salvo la cadena. Dos repositorios podrían usar el mismo nombre y esperarse
   entre sí, o dos guardados de una misma regla podrían usar nombres distintos y no
   esperarse en absoluto.
-- **Un seguidor debe venir después de lo que sigue.** Una referencia comprobada antes
-  del cambio del dueño y guardada después se arregla solo con un seguidor que se
-  ejecute después de ese guardado. La consistencia eventual es tan buena como la
-  reacción que la cierra.
+- **Un seguidor vigila los dos lados.** Una referencia comprobada antes del cambio del
+  dueño, y guardada después, se le escapa al seguidor del dueño si este corre
+  primero. cooper lo cierra siguiendo también sus propios eventos (`card.created`,
+  `card.moved`, `card.assigned`), con cada reacción comprobando el estado del otro
+  lado: una suscripción por lado, y reacciones que leen en vez de fiarse del evento.
+  La consistencia eventual es tan buena como las reacciones que la cierran.
 - **Sigue siendo un solo store.** Un guard funciona porque las filas están en una
   base de datos. No es una forma de saltarse la regla 4: una regla sobre datos de dos
   contextos es consistente a la larga, por eventos, como dice Vernon.
@@ -614,7 +653,8 @@ bajo un guard. La comprobación de antes es solo para dar una respuesta clara.
 
 **Llamar a otro módulo desde el hook de un guardado.** Un hook se ejecuta dentro de la
 transacción; un caso de uso llamado desde él leería, o escribiría, en esa transacción,
-así que dos agregados la compartirían. Un hook lee solo las filas de su propio módulo.
+así que dos agregados la compartirían; la regla de escritura rechaza un guardado ahí.
+Un hook lee solo las filas de su propio módulo.
 
 **Un evento sin cambio.** Una entidad que anota `card.assigned` cuando la tarjeta ya
 tenía ese asignado cuenta algo que no ocurrió. El guardado lo rechaza antes de
@@ -635,8 +675,10 @@ las dos pasan el recuento. Nombra exactamente lo que lee la regla, en la forma e
 lo compara.
 
 **Un worker que da por cierto el evento.** Un job se ejecuta más tarde, quizá después
-de otros cambios. Lee de nuevo aquello de lo que trata antes de actuar, como
-`notifyAssignee` lee otra vez la tarjeta ([capítulo 12](./12-failures)).
+de otros cambios, y quizá dos veces. Lee de nuevo aquello de lo que trata antes de
+actuar, como `notifyAssignee` lee otra vez la tarjeta, y lo que no puede deshacer
+lleva una clave, como el email de `notifyAssignee` lleva el id de su evento, para que
+enviado dos veces salga una ([capítulo 12](./12-failures)).
 
 ## En resumen
 
@@ -644,9 +686,10 @@ de otros cambios. Lee de nuevo aquello de lo que trata antes de actuar, como
   misma.
 - Un guardado es de un solo módulo, todo o nada; la regla de escritura hace que un
   caso de uso escriba en otro módulo solo desde un worker, o con `writesTo` y su
-  motivo.
+  motivo, y nunca dos módulos en una transacción, tampoco en un worker.
 - Una versión protege una fila; un guard protege una regla sobre varias filas, con un
   nombre tan estrecho como la regla.
 - Los demás agregados son ids, comprobados preguntando a su módulo, y seguidos por
-  sus eventos.
+  sus eventos y por los tuyos: cada seguidor comprueba el otro lado después de su
+  propio commit, así que el que corre el último ve los dos.
 - Lo que pasa en otro sitio pasa después, desde el outbox, seguro de repetir.
