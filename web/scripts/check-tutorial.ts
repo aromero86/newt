@@ -32,6 +32,12 @@ for (const folder of folders) {
   for (const name of (await readdir(join(root, folder))).filter(each => each.endsWith('.md')).sort()) {
     const text = await Bun.file(join(root, folder, name)).text()
     pages.push(text)
+    // Outside code, a line that starts with `<` is HTML to the site's Vue compiler, which then fails to build.
+    let fenced = false
+    for (const [index, line] of text.split('\n').entries()) {
+      if (line.trimStart().startsWith('```')) fenced = !fenced
+      else if (!fenced && /^\s*<[A-Za-z/]/.test(line)) problems.push(`${folder}/${name}:${index + 1}: a line starts with \`<\`, which the site reads as HTML: move it into the line before`)
+    }
     const chapter = /^(\d\d)-/.exec(name)?.[1]
     const ref = chapter ? `tutorial/${chapter}` : 'HEAD'
     for (const [, path, body] of text.matchAll(BLOCK) as IterableIterator<[string, string, string]>) {
