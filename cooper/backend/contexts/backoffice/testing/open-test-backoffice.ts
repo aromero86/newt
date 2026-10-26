@@ -1,9 +1,9 @@
 import { runAsActor } from 'newt/core'
 import { config, type Config } from '../../../config'
 import { openContexts, stopContexts } from '../../../open-contexts'
+import { PRODUCTS } from '../../auth/modules/product/product.schema'
 import type { UserDTO } from '../../auth/modules/user/user.schema'
 import { runInWorkspace } from '../../boards/workspace-scope'
-import { BACKOFFICE_PRODUCT } from '../initialize-modules'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
@@ -38,7 +38,7 @@ export async function openTestBackoffice() {
     /** Someone of the staff, as the seed makes the first one. */
     async staffMember(name: string): Promise<UserDTO> {
       const user = await signUp(name)
-      await auth.modules.access.admit({ userId: user.id, productId: BACKOFFICE_PRODUCT, tenantId: null, role: 'member' })
+      await auth.modules.access.admit({ userId: user.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
       return user
     },
     as<T>(user: UserDTO, fn: () => Promise<T>): Promise<T> {

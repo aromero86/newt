@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { config, type Config } from '../../config'
 import { openContexts, stopContexts } from '../../open-contexts'
-import { BACKOFFICE_PRODUCT } from './initialize-modules'
+import { PRODUCTS } from '../auth/modules/product/product.schema'
 
 /** A port nobody listens on now: each context must know the other's address before it opens. */
 function freePort(): number {
@@ -78,7 +78,7 @@ describe('signing in to the backoffice', () => {
   test('lets the staff in, and refuses at auth whoever is not', async () => {
     const { user, access } = contexts.auth.modules
     const sam = await user.signUp({ email: 'sam@cooper.test', name: 'Sam', password: 'a long password' })
-    await access.admit({ userId: sam.id, productId: BACKOFFICE_PRODUCT, tenantId: null, role: 'member' })
+    await access.admit({ userId: sam.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
     await user.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
 
     const staff = await signIn('sam@cooper.test')

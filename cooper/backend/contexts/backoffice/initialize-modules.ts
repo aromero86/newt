@@ -3,7 +3,7 @@ import type { CooperBase } from '../../shared/cooper-base'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
 import type { Auth_Modules } from '../auth/initialize-modules'
-import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
+import { PRODUCTS, WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 import type { Boards_Modules } from '../boards/initialize-modules'
 import type { Backoffice_Config } from './backoffice-config'
 import { Job_Module } from './modules/job/job.module'
@@ -22,9 +22,6 @@ export type Backoffice_ModuleDeps = {
   boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
 }
 
-/** The backoffice as a product of auth's: its OAuth client, and what its staff have access to. */
-export const BACKOFFICE_PRODUCT = 'backoffice'
-
 /** How many days the metrics' overview goes back, today included. */
 const METRIC_DAYS = 30
 
@@ -36,10 +33,10 @@ const METRIC_DAYS = 30
 export function initializeModules(base: CooperBase, config: Backoffice_Config, deps: Backoffice_ModuleDeps) {
   const { auth, boards } = deps
 
-  const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: BACKOFFICE_PRODUCT })
+  const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: PRODUCTS.backoffice })
   const session = WebSession_Module.initialize(base, {
     context: 'backoffice',
-    clientId: BACKOFFICE_PRODUCT,
+    clientId: PRODUCTS.backoffice,
     clientSecret: config.clientSecret,
     publicUrl: config.publicUrl,
     authUrl: config.authPublicUrl,
