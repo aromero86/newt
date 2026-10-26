@@ -891,8 +891,12 @@ entero.
   Una página hecha a partir de otra (los miembros de un espacio de trabajo, a partir de
   sus accesos) deja fuera los elementos que `mapPage` convierte en `undefined`, y dice
   dónde empieza la siguiente, `nextCursor`: después del último elemento de la página de
-  la que se hizo. `allPages(read)` lee todas las páginas de una lista que nunca es
-  larga, de cien en cien.
+  la que se hizo. `allPages(read)` lee todas las páginas, de cien en cien, y las
+  guarda todas: para el todo de algo que se va a tener entero de todos modos, una
+  lista que nunca es larga (los miembros de un espacio de trabajo) o una que se guarda
+  entera (todas las tarjetas, para la búsqueda en memoria de boards). Cuesta una
+  lectura por cada cien y memoria para todas, y crece con la lista; lo que recorre una
+  lista elemento a elemento la lee página a página.
 
   Una lista que el dominio acota puede venir entera, y dice por qué (las columnas de
   un tablero, como mucho diez).

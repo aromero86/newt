@@ -855,7 +855,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   A page made from another (a workspace's members, from its accesses) leaves out an
   item `mapPage` makes `undefined`, and says where the next one starts, `nextCursor`:
   after the last item of the page it was made from. `allPages(read)` reads every
-  page of a list that is never long, a hundred at a time.
+  page, a hundred at a time, and holds them all: for the whole of something held
+  whole anyway, a list that is never long (a workspace's members) or one kept entire
+  (every card, for boards' search in memory). It costs a read for each hundred and
+  memory for all of them, growing with the list; what goes through a list item by
+  item reads it a page at a time instead.
 
   A list bounded by the domain may come whole, and says why (a board's columns, at
   most ten).
