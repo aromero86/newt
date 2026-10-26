@@ -11,7 +11,7 @@ import { StaffGrantSchema, type StaffGrantDTO, type StaffMemberDTO } from './sta
 
 /**
  * Who the staff are: whoever has access to the backoffice for no tenant, as auth keeps
- * it. It keeps nothing: it asks auth every time (ch. 7.4), so an access taken away
+ * it. It keeps nothing: it asks auth every time, so an access taken away
  * counts at once, and gives or takes it away through auth's own use cases.
  */
 export class Staff_Module extends Module {

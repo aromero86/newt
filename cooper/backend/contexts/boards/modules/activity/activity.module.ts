@@ -17,11 +17,11 @@ import { registerActivityRoutes } from './activity.routes'
 import { registerActivityWorkers } from './activity.workers'
 
 /**
- * What happened to each card, and who did it: a log that only grows (ch. 11), one
- * entry per event a card tells, written by a worker reacting to it (ch. 13). An entry
+ * What happened to each card, and who did it: a log that only grows, one
+ * entry per event a card tells, written by a worker reacting to it. An entry
  * is never changed: a card edited twice has two entries, and none of them collides
  * with another, nor with the card. Each one takes its event's id, so a job that runs
- * twice records it once (ch. 15).
+ * twice records it once.
  */
 export class Activity_Module extends Module {
 
@@ -73,7 +73,7 @@ export class Activity_Module extends Module {
     await this.append(card, card, 'deleted', { number: card.number, title: card.title })
   }
 
-  /** A workspace was deleted in auth: its log goes. A step of that deletion, safe to run again (ch. 18). */
+  /** A workspace was deleted in auth: its log goes. A step of that deletion, safe to run again. */
   @UseCase()
   async purgeWorkspace(workspaceId: string): Promise<void> {
     await this.repo.purgeWorkspace(workspaceId)

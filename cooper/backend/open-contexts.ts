@@ -21,7 +21,7 @@ export type OpenContextsOptions = {
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   // One tracer for every context: a use case that calls another context's shows that
-  // call inside it, since they run in one process (ch. 30).
+  // call inside it, since they run in one process.
   const tracer = config.trace ? new ConsoleTracer() : undefined
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)

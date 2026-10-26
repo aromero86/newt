@@ -4,7 +4,7 @@ import { setMessages, type Messages } from 'newt/core'
  * What cooper says when something newt owns goes wrong, in cooper's words: newt's
  * defaults are plain and right, these speak to the person using the app. Its own
  * errors' messages each module writes itself (`errors/`); the `code` a client acts
- * on never changes (ch. 22.2).
+ * on never changes.
  */
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',

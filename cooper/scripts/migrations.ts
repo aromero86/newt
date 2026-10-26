@@ -1,5 +1,5 @@
 // bun run cooper:migrations <status|up|down> [--context auth|boards|backoffice]: each
-// context's database migrated by hand (ch. 31.4). The server migrates on its own as it
+// context's database migrated by hand. The server migrates on its own as it
 // opens each context; this is for looking at what is pending, applying it before a
 // deploy, or reverting the last one. `status` and `up` go through every context unless
 // one is named; `down` reverts one context's last migration, so it needs its name.

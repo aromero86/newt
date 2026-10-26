@@ -19,7 +19,7 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given. */
   static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
     const base = new BoardsBase({ name: 'boards', store, tracer })

@@ -20,7 +20,7 @@ const RECENT_BOARDS = 8
 /**
  * cooper's workspaces, as the staff look at them: auth keeps who they are and who
  * belongs to each, boards what is in them. This module keeps nothing: each screen is
- * put together from the use cases of the modules that know (ch. 26), a handful of
+ * put together from the use cases of the modules that know, a handful of
  * calls per page, never one per row.
  */
 export class Workspace_Module extends Module {

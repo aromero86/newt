@@ -8,8 +8,8 @@ import { UserSearchSchema, type UserDetailDTO, type UserSearchDTO, type UserSumm
 
 /**
  * cooper's accounts, as the staff look them up. auth keeps them; this module only
- * reads, through auth's use cases, and puts together what one screen shows (ch. 26:
- * what a query of one table cannot say, composed from the modules that know).
+ * reads, through auth's use cases, and puts together what one screen shows
+ * (what a query of one table cannot say, composed from the modules that know).
  */
 export class User_Module extends Module {
 

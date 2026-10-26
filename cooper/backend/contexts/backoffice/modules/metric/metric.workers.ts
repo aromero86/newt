@@ -6,7 +6,7 @@ import type { Metric_Module } from './metric.module'
  * saved with what happened, in that context's outbox and run by its worker until it
  * succeeds. Not `fireAndForget`: a number lost when the server stops would be wrong
  * for good. Each one appends a row by the id of what it counts, so running it twice
- * counts once (ch. 28).
+ * counts once.
  */
 export function registerMetricWorkers(metrics: Metric_Module, deps: Metric_Deps): void {
   deps.card.events.created.subscribe(card => metrics.recordCard(card), {

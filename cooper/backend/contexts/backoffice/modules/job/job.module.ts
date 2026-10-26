@@ -5,7 +5,7 @@ import { registerJobRoutes } from './job.routes'
 import { JobContextSchema, type ContextJobDTO, type JobContext } from './job.schema'
 
 /**
- * The jobs that died in each context of cooper (ch. 17.2): a reaction that failed
+ * The jobs that died in each context of cooper: a reaction that failed
  * every attempt waits, with its last error, for someone to look. The staff see them
  * here and, once what killed one is fixed, put it back to run. Each context keeps
  * and runs its own jobs: this module only asks each one, through its use cases.

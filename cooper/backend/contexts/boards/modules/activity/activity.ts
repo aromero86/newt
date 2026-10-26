@@ -5,7 +5,7 @@ export * from './activity.schema'
 
 /**
  * An entry of a card's activity. Recorded once and never changed: a log only grows,
- * so two entries written at once never collide (ch. 11). It tells nothing: it is
+ * so two entries written at once never collide. It tells nothing: it is
  * itself what a card's events told.
  */
 export class Activity extends Entity<typeof ActivitySchema> {

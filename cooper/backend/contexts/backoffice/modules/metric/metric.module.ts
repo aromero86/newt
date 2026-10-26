@@ -16,7 +16,7 @@ const dayOf = (iso: string) => iso.slice(0, 10)
 
 /**
  * cooper's numbers: cards made, workspaces opened, people signed up. They are a
- * projection (ch. 28): the truth lives in auth and boards, with their transactions;
+ * projection: the truth lives in auth and boards, with their transactions;
  * workers follow their events and append a row for each to the analytics, which
  * this module reads back added up. It is a moment behind, and never in the way of
  * what it counts.

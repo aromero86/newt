@@ -9,7 +9,7 @@ export type ActorVia = 'web' | 'mcp'
 // newt knows one thing of the actor, its user. cooper adds how they came in, once,
 // here: every program loads it through `CooperBase`. Required, so every place that
 // says who acts says it too (`authenticateWith`, `runAsActor`): who someone is, never
-// what they may do (ch. 7.2).
+// what they may do.
 declare module 'newt/core' {
   interface Actor {
     via: ActorVia

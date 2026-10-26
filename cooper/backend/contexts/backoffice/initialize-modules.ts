@@ -15,7 +15,7 @@ import { Workspace_Module } from './modules/workspace/workspace.module'
 /**
  * What `backoffice`'s modules are given besides its base: the use cases of the
  * contexts it reads, those it needs and nothing else. Never a context's base nor its
- * store: another context is reached through its use cases and its events (ch. 23).
+ * store: another context is reached through its use cases and its events.
  */
 export type Backoffice_ModuleDeps = {
   auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>

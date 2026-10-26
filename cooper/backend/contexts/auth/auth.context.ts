@@ -22,7 +22,7 @@ export class Auth_Context extends ServedContext {
   /**
    * Opening it brings its database up to date before any module reads it, and the
    * OAuth clients of the products in step with cooper's code and configuration. Watched
-   * by `tracer`, if one is given (ch. 30).
+   * by `tracer`, if one is given.
    */
   static async open(config: Auth_Config, deps: Auth_ModuleDeps, tracer?: Tracer): Promise<Auth_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })

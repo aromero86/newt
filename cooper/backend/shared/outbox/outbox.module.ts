@@ -20,7 +20,7 @@ function toDTO(job: Job): DeadJobDTO {
 }
 
 /**
- * A context's own jobs, for whoever looks after them (ch. 17.2): those that ran out of
+ * A context's own jobs, for whoever looks after them: those that ran out of
  * attempts, and putting one back to run once what killed it is fixed. Each context
  * initializes one over its own store's outbox, and the staff's backoffice reaches
  * them through these use cases, never through another context's base or store.

@@ -17,7 +17,7 @@ export class Backoffice_Context extends ServedContext {
     super('backoffice', base, config)
   }
 
-  /** Opened after `auth` and `boards`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  /** Opened after `auth` and `boards`, which it uses; watched by `tracer`, if one is given. */
   static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, tracer?: Tracer): Promise<Backoffice_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
     const base = new CooperBase({ name: 'backoffice', store, tracer })

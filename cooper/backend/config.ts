@@ -96,7 +96,7 @@ export const config = {
   },
   /**
    * `COOPER_TRACE=1`: each use case any context runs written to the console, with
-   * those it calls, in its context or another, and how long each took (ch. 30).
+   * those it calls, in its context or another, and how long each took.
    */
   trace: env.COOPER_TRACE === '1',
 }
