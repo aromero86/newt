@@ -1,5 +1,5 @@
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
-import type { Card_Deps } from './card.deps'
+import type { Card_Deps, RevokedAccess } from './card.deps'
 import type { Card_Module } from './card.module'
 
 /**
@@ -8,11 +8,10 @@ import type { Card_Module } from './card.module'
  */
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
-  cards.events.created.subscribe(async ({ by, ...card }) => {
-    if (card.assigneeId !== null) await cards.notifyAssignee(card, by)
-  }, {
+  cards.events.created.subscribe(({ by, ...card }) => cards.notifyAssignee(card, by), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
+    when: card => card.assigneeId !== null,
   })
   cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
     strategy: 'handler',
@@ -27,10 +26,9 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
 
   // auth took someone's access to a workspace: their cards there are left unassigned.
   // auth tells every access it takes away, to any product: only a workspace's is boards'.
-  deps.access.revoked.subscribe(async access => {
-    if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-  }, {
+  deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',
+    when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
   })
 }

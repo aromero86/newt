@@ -1,3 +1,5 @@
+import type { DomainEvent } from './domain-event'
+
 /**
  * How a handler hears an event.
  *
@@ -8,8 +10,9 @@
  *   Its `name` is its queue's, which finds the handler again after a restart:
  *   `<handler's module>.<use case it calls>.on.<event>`.
  *   The payload is stored: an event that carries a secret cannot use it. The handler
- *   may run more than once, so it must be idempotent.
+ *   may run more than once, so it must be idempotent. An event `when` does not take
+ *   writes no job.
  */
 export type SubscribeOptions =
   | { mode: 'fireAndForget' }
-  | { mode: 'handler', name: string, attempts?: number }
+  | { mode: 'handler', name: string, attempts?: number, when?: (event: DomainEvent) => boolean }

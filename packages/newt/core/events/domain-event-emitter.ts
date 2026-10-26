@@ -1,3 +1,4 @@
+import type { DomainEvent } from './domain-event'
 import type { DomainEventClass } from './domain-event-class'
 import type { EventBus } from './event-bus'
 import { eventOfQueue } from './event-of-queue'
@@ -28,14 +29,15 @@ export class DomainEventEmitter<TPayload extends Json> {
   }
 
   /** Runs `handler` after each commit that tells the event, as `subscription` says. */
-  subscribe(handler: (payload: TPayload) => unknown, subscription: Subscription): () => void {
-    const run = async (payload: TPayload) => { await handler(payload) }
-    if (subscription.strategy === 'fire-and-forget') return this.bus.subscribe(this.name, event => run(event.payload as TPayload))
+  subscribe<TSeen extends TPayload = TPayload>(handler: (payload: TSeen) => unknown, subscription: Subscription<TPayload, TSeen>): () => void {
+    const run = async (payload: TPayload) => { await handler(payload as TSeen) }
+    const takes = (event: DomainEvent) => subscription.when?.(event.payload as TPayload) ?? true
+    if (subscription.strategy === 'fire-and-forget') return this.bus.subscribe(this.name, event => (takes(event) ? run(event.payload as TPayload) : undefined))
 
     const { queue, attempts } = subscription
     if (eventOfQueue(queue) !== this.name) {
       throw new Error(`A handler's queue is '<module>.<use case>.on.${this.name}': '${queue}' is not`)
     }
-    return this.bus.subscribe(this.name, event => run(event.payload as TPayload), { mode: 'handler', name: queue, attempts })
+    return this.bus.subscribe(this.name, event => run(event.payload as TPayload), { mode: 'handler', name: queue, attempts, when: subscription.when && takes })
   }
 }

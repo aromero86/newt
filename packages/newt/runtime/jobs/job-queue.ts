@@ -5,7 +5,7 @@ import { eventNameMatches } from '../events/event-name-matches'
 import type { JobQueueOptions } from './job-queue-options'
 import type { Job, JobClosing, Outbox } from '../../port-outbox'
 
-type Registration = { pattern: string, handler: EventHandler, attempts: number }
+type Registration = { pattern: string, handler: EventHandler, attempts: number, when?: (event: DomainEvent) => boolean }
 
 const DEFAULTS: JobQueueOptions = {
   concurrency: 10,
@@ -72,19 +72,20 @@ export class JobQueue {
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`A job queue runs at least one job at a time: its concurrency is a whole number from 1, not ${concurrency}`)
   }
 
-  register(name: string, pattern: string, handler: EventHandler, attempts = DEFAULT_ATTEMPTS): () => void {
+  /** A handler of the events `pattern` takes, as a queue: `when` says which of them get a job, all by default. */
+  register(name: string, pattern: string, handler: EventHandler, attempts = DEFAULT_ATTEMPTS, when?: (event: DomainEvent) => boolean): () => void {
     if (eventOfQueue(name) !== pattern) throw new Error(`A handler of '${pattern}' is named '<handler's module>.<use case it calls>.on.${pattern}', not '${name}'`)
     if (!Number.isInteger(attempts) || attempts < 1) throw new Error(`The handler '${name}' runs at least once: its attempts are a whole number from 1, not ${attempts}`)
     if (this.registrations.has(name)) throw new Error(`A handler named '${name}' is subscribed already`)
-    this.registrations.set(name, { pattern, handler, attempts })
+    this.registrations.set(name, { pattern, handler, attempts, when })
     return () => { this.registrations.delete(name) }
   }
 
-  /** One job for each handler the event concerns, in the transaction of the save that publishes it. */
+  /** One job for each handler the event concerns and takes, in the transaction of the save that publishes it. */
   async enqueue(event: DomainEvent): Promise<void> {
     const now = new Date().toISOString()
     const jobs: Job[] = [...this.registrations]
-      .filter(([, registration]) => eventNameMatches(registration.pattern, event.name))
+      .filter(([, registration]) => eventNameMatches(registration.pattern, event.name) && (registration.when?.(event) ?? true))
       .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(event), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
     if (jobs.length > 0) await this.store.add(jobs)
   }

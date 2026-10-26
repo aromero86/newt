@@ -883,17 +883,19 @@ entero.
       queue: 'card.leaveRemovedColumn.on.column.removed',
     })
 
-    deps.access.revoked.subscribe(async access => {
-      if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-    }, {
+    deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
       strategy: 'handler',
       queue: 'card.unassignMember.on.access.revoked',
+      when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
     })
     ```
 
     El callback solo llama a un caso de uso del módulo que reacciona, con lo que toma
-    del evento; una condición sobre el evento (un acceso a un espacio de trabajo, no al
-    backoffice) puede decidir si lo llama o no, nunca lógica de negocio. Renombrar la
+    del evento. Qué eventos toma (un acceso a un espacio de trabajo, no al backoffice)
+    lo dice `when`, nunca lógica de negocio: mira el payload en la transacción del
+    guardado que cuenta el evento, antes de escribir ningún trabajo, así que un evento
+    que no toma no deja trabajo. Un type guard, con su parámetro tipado, estrecha lo que
+    recibe el callback. `fire-and-forget` también acepta `when`. Renombrar la
     cola deja los trabajos pendientes con el nombre antiguo; el worker lo comprueba al
     arrancar y cada minuto después, y avisa una vez de una cola con trabajos que ningún
     worker atiende desde hace cinco minutos (unos minutos después de un despliegue,

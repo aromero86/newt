@@ -37,7 +37,7 @@ export class Base<S extends Store = Store> {
       // Whoever publishes on the bus gets what a repository gets: the outbox, and the commit.
       publish: event => this.publisher.publish(event),
       subscribe: (pattern, handler, subscription) => subscription?.mode === 'handler'
-        ? this.jobs.register(subscription.name, pattern, handler, subscription.attempts)
+        ? this.jobs.register(subscription.name, pattern, handler, subscription.attempts, subscription.when)
         : memory.subscribe(pattern, handler),
     }
     this.publisher = {

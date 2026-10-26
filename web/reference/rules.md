@@ -851,17 +851,19 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
       queue: 'card.leaveRemovedColumn.on.column.removed',
     })
 
-    deps.access.revoked.subscribe(async access => {
-      if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-    }, {
+    deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
       strategy: 'handler',
       queue: 'card.unassignMember.on.access.revoked',
+      when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
     })
     ```
 
     The callback only calls one use case of the module that reacts, with what it takes
-    from the event; a condition on the event (an access to a workspace, not to the
-    backoffice) may decide whether it calls it at all, never business logic. Renaming
+    from the event. Which events it takes at all (an access to a workspace, not to the
+    backoffice) is `when`'s, never business logic: it looks at the payload in the
+    transaction of the save that tells the event, before any job is written, so an
+    event it does not take leaves no job. A type guard, its parameter typed, narrows
+    what the callback gets. `fire-and-forget` takes `when` too. Renaming
     the queue leaves the pending jobs under the old name; the worker checks at start
     and every minute after, and warns once about a queue with jobs that no worker has
     served for five minutes (a few minutes after a deploy, since the old process served

@@ -151,6 +151,16 @@ describe('enqueue', () => {
     expect(outbox.job(QUEUE)).toMatchObject({ status: 'pending', attempts: 0, lockedBy: null, lockedUntil: null, lastError: null, event: JSON.stringify(created()) })
   })
 
+  test('writes no job for an event a handler does not take', async () => {
+    const { outbox, queue } = setup()
+    queue.register(QUEUE, 'user.created', () => {}, undefined, event => (event.payload as { id: string }).id !== 'u2')
+
+    await queue.enqueue(created('u1'))
+    await queue.enqueue(created('u2'))
+
+    expect(outbox.jobs.map(job => JSON.parse(job.event).payload)).toEqual([{ id: 'u1' }])
+  })
+
   test('writes nothing when no handler is concerned', async () => {
     const { outbox, queue } = setup()
     let added = 0

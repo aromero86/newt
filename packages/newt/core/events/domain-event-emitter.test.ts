@@ -79,6 +79,51 @@ describe('DomainEventEmitter.subscribe', () => {
   })
 })
 
+describe('DomainEventEmitter.subscribe, when', () => {
+  test('a fire-and-forget subscription skips the events it does not take', async () => {
+    const { bus, subscriptions } = recordingBus()
+    const seen: unknown[] = []
+
+    eventsOf(bus, { placed: Placed }).placed.subscribe(order => seen.push(order.id), { strategy: 'fire-and-forget', when: order => order.id !== 'o2' })
+    for (const id of ['o1', 'o2', 'o3']) await subscriptions[0]!.handler(new Placed({ id }))
+
+    expect(seen).toEqual(['o1', 'o3'])
+  })
+
+  test("a handler's is handed to the bus, which writes no job for the events it does not take", () => {
+    const { bus, subscriptions } = recordingBus()
+    const { placed } = eventsOf(bus, { placed: Placed })
+
+    placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.orderPlaced.on.order.placed', when: order => order.id !== 'o2' })
+    placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.remind.on.order.placed' })
+    const [taking, all] = subscriptions.map(each => each.options as Extract<SubscribeOptions, { mode: 'handler' }>)
+
+    expect([taking!.when?.(new Placed({ id: 'o1' })), taking!.when?.(new Placed({ id: 'o2' }))]).toEqual([true, false])
+    expect(all!.when).toBeUndefined()
+  })
+
+  test('a type guard narrows what the handler gets', async () => {
+    type Line = { sku: string, giftNote: string | null }
+    class Added implements DomainEvent<Line> {
+      static readonly eventName = 'cart.added'
+      readonly name = Added.eventName
+      readonly occurredAt = ''
+      constructor(readonly payload: Line) {}
+    }
+    const { bus, subscriptions } = recordingBus()
+    const notes: string[] = []
+
+    eventsOf(bus, { added: Added }).added.subscribe(line => notes.push(line.giftNote.toUpperCase()), {
+      strategy: 'fire-and-forget',
+      when: (line: Line): line is Line & { giftNote: string } => line.giftNote !== null,
+    })
+    await subscriptions[0]!.handler(new Added({ sku: 'a', giftNote: null }))
+    await subscriptions[0]!.handler(new Added({ sku: 'b', giftNote: 'enjoy' }))
+
+    expect(notes).toEqual(['ENJOY'])
+  })
+})
+
 describe('DomainEventEmitter.subscribe, further', () => {
   test('hands back what unsubscribes it, whatever the strategy', () => {
     const { bus, unsubscribes } = recordingBus()
