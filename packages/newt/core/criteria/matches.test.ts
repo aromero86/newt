@@ -60,6 +60,7 @@ describe('matches', () => {
 
   test('what is left undefined is no condition', () => {
     expect(matches(row, { name: undefined, price: { gt: undefined, lt: 1000 } })).toBe(true)
+    expect(matches(row, { price: {} })).toBe(true)
     expect(matches(row, {})).toBe(true)
     expect(matches(row)).toBe(true)
   })

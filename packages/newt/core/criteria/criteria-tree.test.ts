@@ -22,16 +22,21 @@ describe('criteriaTree', () => {
     expect(criteriaTree<Record<string, unknown>>({ a: undefined, b: { gt: undefined, lt: 3 }, c: { gt: undefined } })).toEqual({ kind: 'field', field: 'b', condition: { lt: 3 } })
     expect(criteriaTree()).toEqual({ kind: 'all', of: [] })
   })
+
+  test('an empty condition is no condition, as one whose operators are all undefined', () => {
+    expect(criteriaTree<Record<string, unknown>>({ a: {}, b: 2 })).toEqual({ kind: 'field', field: 'b', condition: { eq: 2 } })
+  })
 })
 
 describe('isCondition', () => {
   test('an object of operators only', () => {
     expect(isCondition({ lt: 1, gte: 0 })).toBe(true)
-    expect(isCondition({})).toBe(false)
+    expect(isCondition({})).toBe(true)
     expect(isCondition({ lt: 1, label: 'x' })).toBe(false)
     expect(isCondition(null)).toBe(false)
     expect(isCondition([1])).toBe(false)
     expect(isCondition('lt')).toBe(false)
+    expect(isCondition(new Date())).toBe(false)
   })
 })
 
