@@ -121,7 +121,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   en un token bearer.
 
   ```ts
-  // cooper/backend/contexts/auth/modules/token/token.routes.ts
+  // cooper/backend/contexts/auth/modules/oauth-client/oauth-client.routes.ts
   base.oauth.post('/oauth/register', async request => { … }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
   ```
 - **Toda ruta necesita una sesión**, salvo que se registre con `{ public: true }`. El

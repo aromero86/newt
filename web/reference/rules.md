@@ -116,7 +116,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   Never with cookies: who calls goes in a bearer token.
 
   ```ts
-  // cooper/backend/contexts/auth/modules/token/token.routes.ts
+  // cooper/backend/contexts/auth/modules/oauth-client/oauth-client.routes.ts
   base.oauth.post('/oauth/register', async request => { … }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
   ```
 - **Every route needs a session** unless it is registered with `{ public: true }`.
