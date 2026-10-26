@@ -8,10 +8,16 @@ type CooperApp = {
   name: 'auth' | 'boards' | 'backoffice'
   /** The dev server's port. */
   port: number
-  /** The context's backend in dev, which the proxied paths go to. */
-  backend: string
   /** Paths the dev server hands to the backend: the app reaches it through its own origin. */
   proxy: string[]
+}
+
+/** Each context's port in dev, as the backend reads it (`COOPER_<NAME>_PORT`), with its defaults. */
+const BACKEND_PORTS = { auth: 3001, boards: 3002, backoffice: 3003 } as const
+
+/** The app's context in dev, which the proxied paths go to. */
+function backendOf(name: CooperApp['name']): string {
+  return `http://localhost:${Number(process.env[`COOPER_${name.toUpperCase()}_PORT`] ?? BACKEND_PORTS[name])}`
 }
 
 const libs = (name: string) => fileURLToPath(new URL(`../libs/${name}`, import.meta.url))
@@ -21,7 +27,7 @@ const libs = (name: string) => fileURLToPath(new URL(`../libs/${name}`, import.m
  * a fixed dev port that proxies to the app's context, and the build in
  * `dist/cooper/<name>`, which that context serves in production.
  */
-export function cooperApp({ name, port, backend, proxy }: CooperApp): UserConfig {
+export function cooperApp({ name, port, proxy }: CooperApp): UserConfig {
   return defineConfig({
     plugins: [react(), tailwindcss()],
     resolve: {
@@ -39,7 +45,7 @@ export function cooperApp({ name, port, backend, proxy }: CooperApp): UserConfig
     server: {
       port,
       strictPort: true,
-      proxy: Object.fromEntries(proxy.map(path => [path, backend])),
+      proxy: Object.fromEntries(proxy.map(path => [path, backendOf(name)])),
     },
     build: {
       outDir: fileURLToPath(new URL(`../../dist/cooper/${name}`, import.meta.url)),
