@@ -90,11 +90,15 @@ describe('workspace', () => {
     expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done'])
   })
 
-  test('refuses to prepare a workspace outside a worker: it writes in other modules', async () => {
+  test('refuses to prepare a workspace outside a worker, since it writes in other modules, and prepares it in one', async () => {
     t.auth.join('acme', 'ana')
 
     await expect(inAcme(() => t.modules.workspace.prepare('acme'))).rejects.toThrow('[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo')
     expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+
+    // What a script does by hand, as the worker of `tenant.created` would.
+    await t.boards.base.jobs.runAsWorker(() => t.modules.workspace.prepare('acme'))
+    expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(1)
   })
 
   test('removes all a workspace has once auth deletes it, and nothing of any other', async () => {

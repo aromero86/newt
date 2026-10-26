@@ -93,6 +93,15 @@ export class JobQueue {
     if (jobs.length > 0) await this.store.add(jobs)
   }
 
+  /**
+   * Runs `fn` as a job runs: in a worker, so its use cases may write to any module,
+   * and with no actor nor scope but the ones it sets itself. For a test or a script
+   * that does by hand what a worker would.
+   */
+  runAsWorker<T>(fn: () => T | Promise<T>): Promise<T> {
+    return detached(() => inWorker.run(true, async () => fn()))
+  }
+
   /** Starts the worker: the server does; a script that wants its jobs run does too, and waits for `idle`. */
   start(): void {
     if (this.loop) return

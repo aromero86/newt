@@ -322,7 +322,9 @@ always converges.
 The framework checks it as it runs: a use case of module B that saves, called under a
 use case of module A outside a worker, is an error (the default), or a warning
 (`writeRule: 'warn'` in a context's `Base`, while an application moves to the rule;
-`'off'` checks nothing). Reaching B's repository from A, past its use cases, is what
+`'off'` checks nothing). A test or a script that does by hand what a worker would
+runs it as one: `base.jobs.runAsWorker(() => workspaces.prepare(id))`, with no actor
+nor scope but the ones it sets. Reaching B's repository from A, past its use cases, is what
 `newt-eslint` refuses. An exception that is justified is said where it is seen, with
 the reason beside it:
 

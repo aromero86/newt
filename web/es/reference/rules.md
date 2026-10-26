@@ -330,7 +330,10 @@ puede repetir sin efecto (es idempotente), así que el flujo siempre converge.
 El framework lo vigila mientras se ejecuta: que un caso de uso del módulo B guarde
 cuando lo ha llamado un caso de uso del módulo A fuera de un worker es un error (por
 defecto) o un aviso (`writeRule: 'warn'` en la `Base` de un contexto, mientras una
-aplicación se adapta a la regla; `'off'` no comprueba nada). Llegar al repositorio de
+aplicación se adapta a la regla; `'off'` no comprueba nada). Un test o un script que
+hace a mano lo que haría un worker lo ejecuta como uno:
+`base.jobs.runAsWorker(() => workspaces.prepare(id))`, sin actor ni ámbito salvo los
+que ponga él. Llegar al repositorio de
 B desde A, saltándose sus casos de uso, es lo que `newt-eslint` rechaza. Una excepción
 justificada se dice donde se vea, con el motivo al lado:
 

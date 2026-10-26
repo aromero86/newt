@@ -478,6 +478,23 @@ describe('the worker', () => {
     expect(warnings).toHaveLength(2)
   })
 
+  test('runAsWorker runs code as a job runs: in a worker, with no actor, handing back what it gives', async () => {
+    const { queue } = setup()
+    const invocations = new Invocations(undefined, {}, 'error')
+    const write = () => invocations.run('order.place', () => invocations.run('stock.reserve', async () => invocations.checkWrite()))
+    await expect(write()).rejects.toThrow('outside a worker')
+
+    const seen = await runAsActor({ userId: 'ana' }, () => queue.runAsWorker(async () => {
+      await write()
+      let actor = 'none'
+      try { actor = currentActor().userId } catch { /* nobody */ }
+      return [inWorker.find(), actor]
+    }))
+
+    expect(seen).toEqual([true, 'none'])
+    expect(inWorker.find()).toBeUndefined()
+  })
+
   test('runs a job with no actor, even when whoever waits for it has one', async () => {
     const { queue } = setup()
     let seen = 'not run'
