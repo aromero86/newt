@@ -1,5 +1,5 @@
 import type { ActivityDTO } from '../../../backend/contexts/boards/modules/activity/activity.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 

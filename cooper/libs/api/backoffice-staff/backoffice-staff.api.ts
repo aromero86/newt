@@ -1,5 +1,5 @@
 import type { StaffGrantDTO, StaffMemberDTO } from '../../../backend/contexts/backoffice/modules/staff/staff.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 

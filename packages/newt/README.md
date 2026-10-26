@@ -18,6 +18,7 @@ bun add newt zod
 | Import | What it has |
 |---|---|
 | `newt/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, what to find (`Criteria`) and the filters a client may send (`defineFilter`), pagination, value objects, observability. |
+| `newt/contract` | What a backend and its clients share, safe in a browser: value objects and their errors, `defineFilter`, `Page`, `PageRequest` and `ErrorBody`, the body of a failed request. |
 | `newt/repository` | Where a module reads and writes its entities: `TableRepository`, `Repository`. |
 | `newt/port-store` | The port a store implements: `Store`, `Table`, `Migrations`, `TransactionScope`. |
 | `newt/port-store/contract` | `describeStoreContract`: the suite that checks a store keeps every promise. |
@@ -74,6 +75,7 @@ Each piece is a folder and a subpath; a piece reaches another only through its
 
 ```
 core/              what a module is made of, and the criteria it is found by; knows nothing else
+contract/          core's files a browser may load, re-exported: nothing in it keeps a scope
 port-outbox/       the port of the jobs; knows nothing else
 port-analytics/    the port of analytics; knows nothing else (its contract/ knows it)
 port-store/        the port of a store; knows core, port-outbox (its contract/ knows repository and runtime)

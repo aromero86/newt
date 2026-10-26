@@ -1,4 +1,4 @@
-import { Email } from 'newt/core'
+import { Email } from 'newt/contract'
 import { z } from 'zod'
 import type { BoardDTO } from '../board/board.schema'
 import type { CardDTO } from '../card/card.schema'

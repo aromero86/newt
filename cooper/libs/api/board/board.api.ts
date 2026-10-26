@@ -1,6 +1,6 @@
 import type { BoardCreateDTO, BoardDTO, BoardUpdateDTO } from '../../../backend/contexts/boards/modules/board/board.schema'
 import type { BoardViewDTO } from '../../../backend/contexts/boards/modules/workspace/workspace.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 

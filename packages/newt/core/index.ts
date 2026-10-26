@@ -28,6 +28,7 @@ export type { Scope } from './scope/scope'
 
 // Errors, and what they say
 export { DomainError } from './errors/domain-error'
+export type { ErrorBody } from './errors/error-body'
 export { ValidationError } from './errors/validation-error'
 export { UnauthorizedError } from './errors/unauthorized-error'
 export { ForbiddenError } from './errors/forbidden-error'

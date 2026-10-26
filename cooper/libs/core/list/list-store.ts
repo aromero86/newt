@@ -1,4 +1,4 @@
-import type { Page } from '../../api/core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../../api/core/page-request'
 import { Store } from '../store/store'
 

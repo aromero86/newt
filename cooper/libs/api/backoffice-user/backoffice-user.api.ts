@@ -1,5 +1,5 @@
 import type { UserDetailDTO, UserSummaryDTO, UserWorkspaceDTO } from '../../../backend/contexts/backoffice/modules/user/user.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 
