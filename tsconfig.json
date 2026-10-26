@@ -1,14 +1,20 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["bun"],
+    "jsx": "react-jsx",
+    "types": ["bun", "vite/client"],
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
-    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+    "paths": {
+      "newt/*": ["./packages/newt/*/index.ts"],
+      "@cooper/ui/*": ["./cooper/libs/ui/*"],
+      "@cooper/api/*": ["./cooper/libs/api/*"],
+      "@cooper/core/*": ["./cooper/libs/core/*"]
+    }
   },
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }
