@@ -7,8 +7,9 @@ import { init } from './init'
 
 const USAGE = `newt init
   In an application's folder: an AGENTS.md of its own (which sends agents to
-  node_modules/newt/AGENTS.md), a CLAUDE.md that imports both, and an
-  eslint.config.js with newt's lint if it has none. Never overwrites a file.
+  node_modules/newt/AGENTS.md, here or in a folder above), a CLAUDE.md that
+  imports both, and an eslint.config.js with newt's lint if neither this folder
+  nor one above has an ESLint configuration. Never overwrites a file.
 
 newt add module <context-folder> <name>
   A module's skeleton in <context-folder>/modules/<name>/, named as newt's lint

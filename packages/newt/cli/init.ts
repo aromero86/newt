@@ -1,10 +1,10 @@
-import { join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { writeNew } from './write-new'
 
-/** The application's own AGENTS.md: what is its, and where newt's rules are. */
-const AGENTS = `# AGENTS.md
+/** The application's own AGENTS.md: what is its, and where newt's rules are (`rules`). */
+const agents = (rules: string) => `# AGENTS.md
 
-Before writing code, read node_modules/newt/AGENTS.md: it is the rules of the
+Before writing code, read ${rules}: it is the rules of the
 framework, versioned with it. What follows is this project's own.
 
 ## This project
@@ -30,9 +30,9 @@ bunx eslint      # newt's lint
 \`\`\`
 `
 
-/** Claude Code's memory: it imports both, the project's and newt's. */
-const CLAUDE = `@AGENTS.md
-@node_modules/newt/AGENTS.md
+/** Claude Code's memory: it imports both, the project's and newt's (`rules`). */
+const claude = (rules: string) => `@AGENTS.md
+@${rules}
 `
 
 const ESLINT = `import { newt } from 'newt-eslint'
@@ -44,14 +44,20 @@ export default newt()
 
 const ESLINT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts']
 
+const NEWT_AGENTS = 'node_modules/newt/AGENTS.md'
+
 /**
  * Sets an application up for coding agents: an AGENTS.md of its own that sends them to
  * newt's, a CLAUDE.md that imports both, and newt's lint if it has no ESLint
- * configuration. Never overwrites a file: what was there is said and left.
+ * configuration. Both are looked for here and in the folders above, as Bun installs
+ * and ESLint looks for its configuration: an application inside a monorepo points at
+ * the root's node_modules and keeps the root's lint. Never overwrites a file: what was
+ * there is said and left.
  */
 export async function init(cwd: string): Promise<string[]> {
-  const files: Record<string, string> = { 'AGENTS.md': AGENTS, 'CLAUDE.md': CLAUDE }
-  const eslint = await existing(cwd, ESLINT_CONFIGS)
+  const rules = await above(cwd, [NEWT_AGENTS]) ?? NEWT_AGENTS
+  const files: Record<string, string> = { 'AGENTS.md': agents(rules), 'CLAUDE.md': claude(rules) }
+  const eslint = await above(cwd, ESLINT_CONFIGS)
   if (!eslint) files['eslint.config.js'] = ESLINT
   const { written, skipped } = await writeNew(cwd, files)
   return [
@@ -67,7 +73,10 @@ export async function init(cwd: string): Promise<string[]> {
   ]
 }
 
-async function existing(cwd: string, names: string[]): Promise<string | undefined> {
-  for (const name of names) if (await Bun.file(join(cwd, name)).exists()) return name
-  return undefined
+/** The first of `names` found in `cwd` or the nearest folder above that has one, as a path from `cwd`. */
+async function above(cwd: string, names: string[]): Promise<string | undefined> {
+  for (let folder = cwd; ; folder = dirname(folder)) {
+    for (const name of names) if (await Bun.file(join(folder, name)).exists()) return relative(cwd, join(folder, name))
+    if (dirname(folder) === folder) return undefined
+  }
 }

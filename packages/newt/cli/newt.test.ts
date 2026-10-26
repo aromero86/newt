@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtemp, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { moduleNames } from './module-names'
@@ -53,6 +53,22 @@ describe('newt init', () => {
     expect(lines).toContain('skipped  AGENTS.md (it is there already: left as it was)')
     expect(lines).toContain('skipped  CLAUDE.md (it is there already: left as it was)')
     expect(await Bun.file(join(app, 'AGENTS.md')).text()).toBe('# Ours\n')
+  })
+
+  test('in an application inside a monorepo, points at the root\'s node_modules and keeps the root\'s lint', async () => {
+    const root = join(app, 'monorepo')
+    await Bun.write(join(root, 'eslint.config.js'), 'export default []\n')
+    await symlink(NODE_MODULES, join(root, 'node_modules'), 'dir')
+    const web = join(root, 'apps/web')
+    await mkdir(web, { recursive: true })
+
+    const { lines, code } = await run(['init'], web)
+
+    expect(code).toBe(0)
+    expect(lines).toContain('skipped  eslint.config.js (../../eslint.config.js is there: add newt-eslint\'s preset to it, `newt()`)')
+    expect(await Bun.file(join(web, 'eslint.config.js')).exists()).toBe(false)
+    expect(await Bun.file(join(web, 'AGENTS.md')).text()).toContain('read ../../node_modules/newt/AGENTS.md')
+    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@../../node_modules/newt/AGENTS.md\n')
   })
 })
 
