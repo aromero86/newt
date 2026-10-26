@@ -42,24 +42,33 @@ describe('boards, through its API', () => {
     expect(await call('GET', '/acme/boards')).toMatchObject({ status: 200, body: { items: [], total: 0 } })
   })
 
-  test('keeps a board and its columns', async () => {
-    const board = await call<{ id: string, name: string }>('POST', '/acme/boards', { name: 'Roadmap' })
-    expect(board).toMatchObject({ status: 201, body: { name: 'Roadmap', description: '' } })
+  test('keeps a board, its columns and its cards', async () => {
+    const board = await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })
+    expect(board.status).toBe(201)
     const id = board.body.id
-    for (const name of ['To do', 'Done']) expect((await call('POST', `/acme/boards/${id}/columns`, { name })).status).toBe(201)
-    expect((await call<{ name: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.name)).toEqual(['To do', 'Done'])
-    expect(await call('POST', '/acme/boards', { name: 'ROADMAP' })).toMatchObject({ status: 409, body: { code: 'board.name_taken' } })
+    const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })
+    const card = await call<{ id: string, number: number }>('POST', `/acme/boards/${id}/cards`, { columnId: todo, title: 'Plan' })
+    expect(card).toMatchObject({ status: 201, body: { number: 1 } })
 
+    expect((await call('POST', `/acme/cards/${card.body.id}/assign`, { assigneeId: 'bea' })).body).toMatchObject({ code: 'card.assignee_not_member' })
+    expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
+
+    expect((await call<{ name: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.name)).toEqual(['To do', 'Done'])
+    expect((await call<{ title: string }[]>('GET', `/acme/boards/${id}/cards`)).body.map(each => each.title)).toEqual(['Plan'])
+
+    // Another workspace sees none of it.
+    expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)
+  })
+
+  test('renames a board, archives it, and gives its name once', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+
+    expect(await call('POST', '/acme/boards', { name: 'ROADMAP' })).toMatchObject({ status: 409, body: { code: 'board.name_taken' } })
     expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
     expect((await call('GET', `/acme/boards/${id}`)).body).toMatchObject({ id, name: 'Plans' })
     expect((await call('POST', `/acme/boards/${id}/archive`)).status).toBe(204)
     expect((await call('GET', `/acme/boards/${id}`)).body).toMatchObject({ code: 'board.not_found' })
-  })
-
-  test('shows a board to its workspace only', async () => {
-    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
-
-    expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)
   })
 
   test('lists boards by pages: ?size= and ?cursor=', async () => {

@@ -1,6 +1,6 @@
 import { currentActor, Module, UseCase } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
-import type { WorkspaceScope } from '../../workspace-scope'
+import { currentWorkspaceId, type WorkspaceScope } from '../../workspace-scope'
 import { WorkspaceNotFound } from './errors/workspace-not-found'
 import type { Member_Deps } from './member.deps'
 
@@ -28,5 +28,11 @@ export class Member_Module extends Module {
   async enter(workspaceId: string): Promise<WorkspaceScope> {
     if (!await this.deps.workspaces.isMember(workspaceId, currentActor().userId)) throw new WorkspaceNotFound(workspaceId)
     return { workspaceId }
+  }
+
+  /** Whether someone belongs to the current workspace. */
+  @UseCase()
+  async isMember(userId: string): Promise<boolean> {
+    return this.deps.workspaces.isMember(currentWorkspaceId(), userId)
   }
 }
