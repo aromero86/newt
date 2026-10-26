@@ -3,6 +3,7 @@ import { assertUsesTree, contextBoundaries } from './rules/context-boundaries.js
 import { moduleAnatomy } from './rules/module-anatomy.js'
 import { moduleBoundaries } from './rules/module-boundaries.js'
 import { queueName } from './rules/queue-name.js'
+import { routeBody } from './rules/route-body.js'
 import { schemaImports } from './rules/schema-imports.js'
 import { useCase } from './rules/use-case.js'
 
@@ -14,6 +15,7 @@ export const plugin = {
     'module-anatomy': moduleAnatomy,
     'module-boundaries': moduleBoundaries,
     'queue-name': queueName,
+    'route-body': routeBody,
     'schema-imports': schemaImports,
     'use-case': useCase,
   },
@@ -36,6 +38,8 @@ const MODULES = '**/modules/*/**/*.ts'
  *   which event;
  * - every public method of a class extending `Module` in a `*.module.ts` is a use
  *   case, marked `@UseCase` (`newt/use-case`), wherever the module is;
+ * - a route passes a body to a use case as it came, never asserting its type
+ *   (`newt/route-body`): the use case parses it;
  * - nothing saved is left unawaited;
  * - with `contexts`, each context imports only the ones it says it uses, so they
  *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
@@ -68,8 +72,9 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
       plugins: { newt: plugin, '@typescript-eslint': tseslint.plugin },
       rules: {
         '@typescript-eslint/no-floating-promises': 'error',
-        // By the file's name, wherever it is: a module outside modules/ (one every context shares) too.
+        // By the file's name, wherever it is: a module (or its routes) outside modules/, one every context shares, too.
         'newt/use-case': 'error',
+        'newt/route-body': 'error',
       },
     },
     ...contextRules,

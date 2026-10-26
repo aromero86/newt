@@ -7,10 +7,7 @@ import {
   ColumnMoveSchema,
   ColumnRenameSchema,
   MAX_COLUMNS,
-  type ColumnAddDTO,
   type ColumnDTO,
-  type ColumnMoveDTO,
-  type ColumnRenameDTO,
 } from './column'
 import type { Column_Deps } from './column.deps'
 import { Column_Repository } from './column.repository'
@@ -58,7 +55,7 @@ export class Column_Module extends Module {
 
   /** A new column, at the end of the board: a board has at most `MAX_COLUMNS`. */
   @UseCase()
-  async add(boardId: string, input: ColumnAddDTO): Promise<ColumnDTO> {
+  async add(boardId: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnAddSchema.parse(input)
     await this.deps.board.get(boardId)
     const count = await this.repo.count({ boardId })
@@ -92,7 +89,7 @@ export class Column_Module extends Module {
   }
 
   @UseCase()
-  async rename(id: string, input: ColumnRenameDTO): Promise<ColumnDTO> {
+  async rename(id: string, input: unknown): Promise<ColumnDTO> {
     const { name } = ColumnRenameSchema.parse(input)
     const column = await this.load(id)
     column.rename(name)
@@ -106,7 +103,7 @@ export class Column_Module extends Module {
    * meanwhile makes it run again, from the start, with the board as it is then.
    */
   @UseCase()
-  async move(id: string, input: ColumnMoveDTO): Promise<ColumnDTO> {
+  async move(id: string, input: unknown): Promise<ColumnDTO> {
     const { position } = ColumnMoveSchema.parse(input)
     const column = await this.load(id)
     const others = (await this.repo.ofBoard(column.boardId)).filter(each => each.id !== id)

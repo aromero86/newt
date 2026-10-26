@@ -7,7 +7,7 @@ import { StaffAccountNotFound } from './errors/staff-account-not-found'
 import type { Staff_Deps } from './staff.deps'
 import type { Staff_Options } from './staff-options'
 import { registerStaffRoutes } from './staff.routes'
-import { StaffGrantSchema, type StaffGrantDTO, type StaffMemberDTO } from './staff.schema'
+import { StaffGrantSchema, type StaffMemberDTO } from './staff.schema'
 
 /**
  * Who the staff are: whoever has access to the backoffice for no tenant, as auth keeps
@@ -63,7 +63,7 @@ export class Staff_Module extends Module {
    * signed-in person (auth checks they are staff too). Given twice, it is given once.
    */
   @UseCase()
-  async grant(input: StaffGrantDTO): Promise<StaffMemberDTO> {
+  async grant(input: unknown): Promise<StaffMemberDTO> {
     const { email } = StaffGrantSchema.parse(input)
     const user = await this.deps.user.findByEmail(email)
     if (!user) throw new StaffAccountNotFound(email)

@@ -99,13 +99,14 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock)
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.routes.ts
-  workspace.post('/boards', async request => {
-    const input = await request.json() as BoardCreateDTO
-    return Response.json(await boards.create(input), { status: 201 })
-  })
+  workspace.post('/boards', async request => Response.json(await boards.create(await request.json()), { status: 201 }))
 
   workspace.get('/boards/:boardId', async request => Response.json(await boards.get(request.params.boardId)))
   ```
+
+  The body reaches the use case as it came, `unknown`, and the use case parses it
+  with its input schema: a route never says what a body is before something checked
+  it (`await request.json() as X` is what `newt/route-body` refuses).
 - **Whatever a route throws becomes a response**: a domain error with its status and
   code (`{ error, code }`), an invalid input a 400 (a body that cannot be read,
   `malformed_body`, or one that fails the use case's schema, `validation`, with zod's
@@ -661,7 +662,7 @@ export type CardFilterDTO = z.infer<typeof CardFilter.schema>
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 @UseCase()
-async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
+async search(input: unknown, page: PageRequest): Promise<Page<CardDTO>> {
   const { text, filter } = CardSearchSchema.parse(input)
   const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
   const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
@@ -859,7 +860,8 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   It holds no transaction: each `persist` is one. A method only the module calls is
   `private`; one public without `@UseCase` is what `newt/use-case` refuses, since it
   would run outside the write rule, the retry on a conflict and the trace.
-- Validate the input at the door: `<M>CreateSchema.parse(input)`.
+- Validate the input at the door: `<M>CreateSchema.parse(input)`. What a client sends
+  comes in as `unknown` (`create(input: unknown)`), so nothing trusts it before then.
 - Shape: validate → load → decide → change the entity → `persist` → return DTOs. Save
   once, at the end. When a use case cannot avoid saving in steps (or calling another
   context), put first what may fail, and make every step safe to run again.
@@ -867,7 +869,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.module.ts
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)

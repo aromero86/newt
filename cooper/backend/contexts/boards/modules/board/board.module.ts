@@ -5,9 +5,7 @@ import {
   Board,
   BoardCreateSchema,
   BoardUpdateSchema,
-  type BoardCreateDTO,
   type BoardDTO,
-  type BoardUpdateDTO,
 } from './board'
 import type { Board_Deps } from './board.deps'
 import { Board_Repository } from './board.repository'
@@ -76,7 +74,7 @@ export class Board_Module extends Module {
   }
 
   @UseCase()
-  async create(input: BoardCreateDTO): Promise<BoardDTO> {
+  async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
     await this.assertNameFree(BoardName.from(name))
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
@@ -86,7 +84,7 @@ export class Board_Module extends Module {
 
   /** Renames it, describes it, or both. */
   @UseCase()
-  async update(id: string, input: BoardUpdateDTO): Promise<BoardDTO> {
+  async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
     if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)

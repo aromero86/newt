@@ -80,6 +80,12 @@ describe('the preset of newt', () => {
     expect(await complaints('src/shared/outbox/outbox.module.ts', module('async dead() {}'))).toEqual(['newt/use-case'])
   })
 
+  test("passes a route's body to a use case as it came", async () => {
+    const routes = call => `type OrderPlaceDTO = { item: string }\ndeclare const orders: { place(input: unknown): Promise<void> }\nexport const route = async (request: Request) => orders.place(${call})\n`
+    expect(await complaints('src/contexts/ws/modules/order/order.routes.ts', routes('await request.json()'))).toEqual([])
+    expect(await complaints('src/contexts/ws/modules/order/order.routes.ts', routes('await request.json() as OrderPlaceDTO'))).toEqual(['newt/route-body'])
+  })
+
   test('refuses a promise left unawaited', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.module.ts', 'async function save() {}\nexport function create() { save() }\n')).toEqual(['@typescript-eslint/no-floating-promises'])
   })
