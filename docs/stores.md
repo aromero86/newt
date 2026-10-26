@@ -113,7 +113,9 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
 - **Transactions run one at a time**, in the order they ask, on a connection that
   writes. Reads outside them go to a second connection, read only, which sees only
   what is committed (WAL). A `:memory:` store is a temporary file, removed on
-  `close`, so tests run with exactly the semantics of production.
+  `close`, so tests run with exactly the semantics of production. A transaction
+  SQLite rolls back on its own (`RAISE(ROLLBACK)` in a trigger, a full disk) fails
+  even if the code caught the error: nothing more runs in it, and nothing is stored.
 - **`store.connection`** is the handle for anything a table cannot say: a
   `bun:sqlite` database whose statements run on the right connection when they run
   (a statement prepared outside a transaction and run inside one reads what the

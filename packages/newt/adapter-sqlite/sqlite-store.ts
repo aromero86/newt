@@ -18,6 +18,15 @@ import type { SqliteTableOptions } from './sqlite-table-options'
  */
 const WRITE = /^\s*(insert|update|delete|replace|create|drop|alter|analyze|reindex)\b|^\s*with\b[\s\S]*\)\s*(insert|update|delete|replace)\b/i
 
+/** How long a connection waits for another process that holds the database. */
+const BUSY_TIMEOUT_MS = 5000
+
+/**
+ * What a transaction says once SQLite rolled it back on its own (`RAISE(ROLLBACK)` in
+ * a trigger, a full disk): it fails, whoever caught the error that rolled it back.
+ */
+const ROLLED_BACK = 'SQLite rolled the transaction back on its own, after an error inside it: nothing in it is stored'
+
 /**
  * The SQLite store, on `bun:sqlite`.
  *
@@ -91,8 +100,8 @@ export class SqliteStore implements Store {
 
   /** How the shared SQL code runs statements here: on the connection, in the transaction in progress. */
   private readonly executor: SqlExecutor = {
-    all: async (sql, params) => this.connection.prepare(sql).all(...params as SQLQueryBindings[]) as Record<string, unknown>[],
-    run: async (sql, params) => this.connection.prepare(sql).run(...params as SQLQueryBindings[]).changes,
+    all: async (sql, params) => this.connection.query(sql).all(...params as SQLQueryBindings[]) as Record<string, unknown>[],
+    run: async (sql, params) => this.connection.query(sql).run(...params as SQLQueryBindings[]).changes,
     transaction: fn => this.transaction(fn),
   }
 
@@ -100,7 +109,10 @@ export class SqliteStore implements Store {
     try {
       return await this.scope.run(fn, undefined, {
         begin: () => { this.writer.run('BEGIN IMMEDIATE') },
-        commit: () => { this.writer.run('COMMIT') },
+        commit: () => {
+          if (!this.writer.inTransaction) throw new Error(ROLLED_BACK)
+          this.writer.run('COMMIT')
+        },
         // An error SQLite rolled back on its own leaves nothing to roll back.
         rollback: () => { if (this.writer.inTransaction) this.writer.run('ROLLBACK') },
       })
@@ -132,22 +144,57 @@ export class SqliteStore implements Store {
    */
   private routedConnection(): Database {
     const pick = (sql: string): Database => {
-      if (this.scope.inTransaction) return this.writer
+      if (this.scope.inTransaction) {
+        // Nothing more runs in one SQLite rolled back: it would commit on its own.
+        if (!this.writer.inTransaction) throw new Error(ROLLED_BACK)
+        return this.writer
+      }
       if (WRITE.test(sql)) throw new Error('A write runs inside `store.transaction`')
       return this.reader
     }
-    const statement = (sql: string): Statement => new Proxy({} as Statement, {
-      get: (_, prop) => {
-        const compiled = pick(sql).query(sql)
-        const value = Reflect.get(compiled, prop, compiled) as unknown
-        return typeof value === 'function' ? value.bind(compiled) : value
-      },
-    })
+    // `query` is the connection's cached statement for its SQL, as in bun:sqlite;
+    // `prepare` a new one of its own, on each connection it runs on.
+    const statement = (sql: string, cached: boolean): Statement => {
+      const compiled = new Map<Database, Statement>()
+      const on = (db: Database): Statement => {
+        if (cached) return db.query(sql)
+        const existing = compiled.get(db)
+        if (existing) return existing
+        const created = db.prepare(sql)
+        compiled.set(db, created)
+        return created
+      }
+      return new Proxy({} as Statement, {
+        get: (_, prop) => {
+          if (prop === 'finalize' && !cached) return () => { for (const each of compiled.values()) each.finalize() }
+          const db = pick(sql)
+          const target = on(db)
+          if ((prop === 'iterate' || prop === Symbol.iterator) && !cached) {
+            // Left halfway, a statement keeps its read open, and the reading connection
+            // would go on seeing the database as it was: it is finalized, and made anew.
+            return function* (...params: SQLQueryBindings[]) {
+              let finished = false
+              try {
+                yield* target.iterate(...params)
+                finished = true
+              } finally {
+                if (!finished) {
+                  compiled.delete(db)
+                  target.finalize()
+                }
+              }
+            }
+          }
+          const value = Reflect.get(target, prop, target) as unknown
+          return typeof value === 'function' ? value.bind(target) : value
+        },
+      })
+    }
     return new Proxy(this.writer, {
       get: (writer, prop) => {
         switch (prop) {
-          case 'prepare':
-          case 'query': return statement
+          case 'prepare': return (sql: string) => statement(sql, false)
+          case 'query': return (sql: string) => statement(sql, true)
           case 'run':
           case 'exec': return (sql: string, ...params: never[]) => pick(sql).run(sql, ...params)
           case 'transaction': return () => { throw new Error('Transactions run with `store.transaction`') }
@@ -162,14 +209,33 @@ export class SqliteStore implements Store {
 
   private static database(path: string, readonly = false): Database {
     const db = new Database(path, readonly ? { readonly: true } : { create: true, readwrite: true })
+    // First: another process opening the same new database holds it for a moment.
+    db.run(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`)
     if (!readonly) {
       // WAL lets readers go on while a write is in progress, and NORMAL sync is safe
       // with WAL: together they make writes much faster.
-      db.run('PRAGMA journal_mode = WAL')
+      SqliteStore.whenNotBusy(() => db.run('PRAGMA journal_mode = WAL'))
       db.run('PRAGMA synchronous = NORMAL')
       db.run('PRAGMA foreign_keys = ON')
     }
-    db.run('PRAGMA busy_timeout = 5000')
     return db
+  }
+
+  /**
+   * Runs `fn` again while another process holds the database, for as long as the busy
+   * timeout: turning WAL on takes the whole database, and when another process is
+   * doing the same SQLite gives up at once instead of waiting.
+   */
+  private static whenNotBusy(fn: () => void): void {
+    const deadline = Date.now() + BUSY_TIMEOUT_MS
+    for (;;) {
+      try {
+        fn()
+        return
+      } catch (error) {
+        if ((error as { code?: unknown }).code !== 'SQLITE_BUSY' || Date.now() > deadline) throw error
+        Bun.sleepSync(10)
+      }
+    }
   }
 }
