@@ -167,6 +167,7 @@ export class FileStore implements Store {
 
   /** Inside a transaction it holds the lock already; outside, a read takes it for itself. */
   private reading<T>(fn: () => Promise<T>): Promise<T> {
+    this.scope.assertNotEnded()
     if (this.scope.inTransaction) return fn()
     return this.scope.exclusive(async () => {
       const release = await this.lock()

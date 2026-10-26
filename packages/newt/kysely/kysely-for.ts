@@ -50,7 +50,8 @@ function dialectFor(store: SqliteStore | SqlStore): Dialect {
     return {
       createAdapter: () => new SqliteAdapter(),
       createDriver: () => new StoreDriver(async query => {
-        const statement = store.connection.prepare(query.sql)
+        // The connection's cached statement for its SQL, run whole (`all`, `run`): never left halfway.
+        const statement = store.connection.query(query.sql)
         const params = query.parameters as SQLQueryBindings[]
         if (statement.columnNames.length > 0) return { rows: statement.all(...params) }
         const { changes, lastInsertRowid } = statement.run(...params)
