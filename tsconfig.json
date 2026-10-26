@@ -2,10 +2,10 @@
   // The whole repository, as four projects: the framework (newt), what runs on the
   // server (cooper's backend), what runs in the browser (cooper's frontends and their
   // libraries), and the tools around them (scripts, Vite's configs). `bun check` follows the references.
-  // The paths are here too because Bun and Vite resolve imports with this file.
+  // The paths are here too because Bun resolves imports with this file. newt is not among
+  // them: it is a workspace package, reached through its `exports` as any application reaches it.
   "compilerOptions": {
     "paths": {
-      "newt/*": ["./packages/newt/*/index.ts"],
       "@cooper/ui/*": ["./cooper/libs/ui/*"],
       "@cooper/api/*": ["./cooper/libs/api/*"],
       "@cooper/core/*": ["./cooper/libs/core/*"]

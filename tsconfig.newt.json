@@ -9,8 +9,7 @@
     "types": ["bun"],
     "noEmit": true,
     "skipLibCheck": true,
-    "strict": true,
-    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+    "strict": true
   },
   "include": ["packages/**/*.ts"],
   "exclude": ["**/node_modules"]
