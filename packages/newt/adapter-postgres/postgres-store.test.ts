@@ -241,6 +241,39 @@ if (url) {
       }
     })
 
+    test('reads a json field kept in a domain over JSONB as JSONB', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE DOMAIN doc_data AS JSONB; CREATE TABLE doc (id TEXT PRIMARY KEY, version INTEGER NOT NULL, data doc_data)')
+        const docs = store.table<{ id: string, version: number, data: unknown }>('doc', { types: { data: 'json' } })
+        await docs.insert({ id: 'a', data: 'hello' })
+        await docs.insert({ id: 'b', data: '123' })
+
+        expect((await docs.find()).map(doc => doc.data)).toEqual(['hello', '123'])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('learns its columns again once its store migrated them', async () => {
+      await empty()
+      const folder = await migrations({ '00002_note_up.sql': 'ALTER TABLE thing ALTER COLUMN note SET NOT NULL', '00002_note_down.sql': '' })
+      const store = await PostgresStore.open({ url: url!, migrations: folder, connections: 5 })
+      try {
+        const things = store.table<{ id: string, version: number, note: string | null }>('thing', { columns: {} })
+        await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, 'x', '[]', '', '', NULL, 1)")
+        await things.find({}, { orderBy: [{ field: 'note' }] })
+        await Bun.write(join(folder, '00003_note_up.sql'), 'ALTER TABLE thing ALTER COLUMN note DROP NOT NULL')
+        await Bun.write(join(folder, '00003_note_down.sql'), '')
+        await store.migrations.up()
+        await store.query("INSERT INTO thing VALUES ('b', 'w', 'b', false, 0, NULL, '[]', '', '', NULL, 1)")
+
+        expect((await things.find({}, { orderBy: [{ field: 'note' }] })).map(thing => thing.id)).toEqual(['b', 'a'])
+      } finally {
+        await store.close()
+      }
+    })
+
     test('reads a json field kept in a text column as it was written', async () => {
       const store = await open()
       try {

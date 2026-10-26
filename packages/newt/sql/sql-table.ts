@@ -24,6 +24,8 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     private readonly dialect: SqlDialect,
     private readonly name: string,
     private readonly options: TableOptions<Row> & SqlTableOptions<Row> = {},
+    /** Its store's schema, which moves on when the store migrates it. */
+    private readonly schema: { readonly generation: number } = { generation: 0 },
   ) {
     for (const [field, column] of Object.entries(options.columns ?? {})) this.fieldOf.set(column as string, field)
   }
@@ -123,11 +125,13 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
 
   /**
    * What the table learned of its columns, where its dialect asks (Postgres): once,
-   * unless the table is not there yet, or `again` (a column it has not seen came back).
+   * unless the table is not there yet, its store migrated since, or `again` (a column
+   * it has not seen came back: another process migrated it).
    */
   private columns(again = false): Promise<Columns> {
     if (!this.dialect.columns) return Promise.resolve(NOTHING_LEARNED)
-    if (again) this.learning = undefined
+    if (again || this.learnedAt !== this.schema.generation) this.learning = undefined
+    this.learnedAt = this.schema.generation
     this.learning ??= this.executor.all(this.dialect.columns, [this.dialect.quote(this.name)]).then(rows => {
       if (rows.length === 0) this.learning = undefined
       const which = (key: string) => new Set(rows.filter(row => row[key]).map(row => String(row.name)))
@@ -140,6 +144,7 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
   }
 
   private learning?: Promise<Columns>
+  private learnedAt = 0
 
   private column(field: string): string {
     return (this.options.columns as Record<string, string> | undefined)?.[field] ?? field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)

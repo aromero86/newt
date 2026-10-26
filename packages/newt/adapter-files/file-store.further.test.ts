@@ -267,6 +267,48 @@ describe('a files store', () => {
     expect((await store.collection('counter').get('c'))?.value).toBe(2)
   }, 20_000)
 
+  test('a read outside a transaction, stopped while another commits, reads again: one commit, never half of two', async () => {
+    const path = await folder()
+    const worker = join(path, 'worker.ts')
+    await Bun.write(worker, `
+      import { FileStore } from ${JSON.stringify(join(import.meta.dir, 'file-store.ts'))}
+      self.onmessage = async () => {
+        const store = await FileStore.connect({ folder: ${JSON.stringify(join(path, 'store'))} })
+        const accounts = store.collection('account')
+        await store.transaction(async () => {
+          const a = (await accounts.get('a'))!, b = (await accounts.get('b'))!
+          await accounts.put({ ...a, value: a.value - 10 })
+          await accounts.put({ ...b, value: b.value + 10 })
+        })
+        postMessage('done')
+      }`)
+    const store = await FileStore.connect({ folder: join(path, 'store') })
+    await store.collection('account').put({ id: 'a', value: 50 })
+    await store.collection('account').put({ id: 'b', value: 50 })
+    const each = new Worker(worker)
+    const done = new Promise<void>(ok => each.addEventListener('message', () => ok()))
+    const reading = store as unknown as { readRecord: (collection: string, id: string) => Promise<unknown> }
+    const read = reading.readRecord.bind(store)
+    let stopped = false
+    reading.readRecord = async (collection, id) => {
+      if (id === 'b' && !stopped) {
+        stopped = true
+        // The other record is read by then.
+        await Bun.sleep(50)
+        each.postMessage('go')
+        // Stopped longer than a lock goes untouched, halfway through the read.
+        Bun.sleepSync(6_000)
+        await done
+      }
+      return read(collection, id)
+    }
+
+    const accounts = await store.loadAll('account')
+    each.terminate()
+
+    expect(Object.fromEntries(accounts.map(account => [account.id, account.value]))).toEqual({ a: 40, b: 60 })
+  }, 20_000)
+
   test('closing waits for the transactions in progress', async () => {
     const store = await FileStore.open({ folder: await folder() })
     const log: string[] = []

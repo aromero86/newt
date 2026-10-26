@@ -187,8 +187,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   transaction is not refused: it runs at once, on its own. A `BIGINT` comes back as a
   number while it is exact (as text beyond 2^53), a `DECIMAL`/`NUMERIC` as text. A
   Postgres table learns its columns' types once, and again when a row brings a column
-  it has not seen (one a migration added): a column whose type or nullability
-  changed is seen as changed after a restart.
+  it has not seen (one a migration added), and every time its store migrates: a
+  column whose type or nullability another process changed is seen after a restart.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
   A batch runs in one transaction. Postgres applies it all or none. MySQL commits
   each change of structure (`CREATE`, `ALTER`, `DROP`…) at once, together with all
@@ -277,8 +277,9 @@ const store = await FileStore.open({ folder: 'data/notes', migrations: [/* FileM
   transaction taken over before its journal is in fails with a
   `ConcurrencyConflict` and writes nothing (a use case runs again); one taken over
   after it leaves its records to the new holder, which finishes the journal first.
-  A transaction that only read fails the same way: what it read may mix two. What
-  is left is a process stopped for 5 s right inside that check and rename.
+  A transaction that only read fails the same way: what it read may mix two; a read
+  outside a transaction reads again instead. What is left is a process stopped for
+  5 s right inside that check and rename.
 - **Once the journal is on the disk the transaction is committed**, even if writing
   the records fails: the next one to take the lock writes them. Until then every
   call fails, saying why: what it read would miss that transaction. Mend what the

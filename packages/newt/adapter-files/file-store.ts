@@ -169,16 +169,26 @@ export class FileStore implements Store {
     return result
   }
 
-  /** Inside a transaction it holds the lock already; outside, a read takes it for itself. */
+  /**
+   * Inside a transaction it holds the lock already; outside, a read takes it for itself,
+   * and reads again if the lock was taken over meanwhile (it stopped for too long): what
+   * it read could mix two commits.
+   */
   private reading<T>(fn: () => Promise<T>): Promise<T> {
     this.scope.assertNotEnded()
     if (this.scope.inTransaction) return fn()
     return this.scope.exclusive(async () => {
-      const held = await this.lock()
-      try {
-        return await fn()
-      } finally {
-        await held.release()
+      for (let attempt = 1; ; attempt++) {
+        const held = await this.lock()
+        try {
+          const read = await fn()
+          held.fenced(() => {})
+          return read
+        } catch (error) {
+          if (!(error instanceof ConcurrencyConflict) || attempt === 3) throw error
+        } finally {
+          await held.release()
+        }
       }
     })
   }

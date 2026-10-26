@@ -28,10 +28,12 @@ export const postgresDialect: SqlServerDialect = {
   json: param => `${param}::text::jsonb`,
   parsesJson: true,
   refusesNul: true,
-  // 20 is bigint; 114 json, 3802 jsonb.
+  // 20 is bigint; 114 json, 3802 jsonb. A domain is read as the type it is over.
   columns: `
-    SELECT attname AS name, NOT attnotnull AS nullable, atttypid = 20 AS big, atttypid IN (114, 3802) AS json
-    FROM pg_attribute WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped`,
+    SELECT attname AS name, NOT (attnotnull OR typnotnull) AS nullable,
+      coalesce(nullif(typbasetype, 0), atttypid) = 20 AS big, coalesce(nullif(typbasetype, 0), atttypid) IN (114, 3802) AS json
+    FROM pg_attribute JOIN pg_type ON pg_type.oid = atttypid
+    WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped`,
   // unique_violation
   isCollision: error => errorCode(error) === '23505',
   // serialization_failure, deadlock_detected

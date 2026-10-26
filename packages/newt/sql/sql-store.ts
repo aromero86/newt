@@ -39,6 +39,8 @@ export class SqlStore implements Store {
   private readonly scope: TransactionScope<State>
   /** The transaction whose turn this code holds: what it runs goes straight to the connection. */
   private readonly holding = new AsyncLocalStorage<State>()
+  /** Moves on when its migrations change the schema: its tables learn their columns again. */
+  private readonly schema = { generation: 0 }
 
   protected constructor(
     private readonly sql: SQL,
@@ -52,11 +54,21 @@ export class SqlStore implements Store {
     const framework = new SqlMigrationRunner(dialect, inTransaction, join(import.meta.dir, 'migrations', dialect.name), 'framework_migrations')
     this.migrations = {
       up: async () => {
-        const applied = await own.up()
-        await framework.up()
-        return applied
+        try {
+          const applied = await own.up()
+          await framework.up()
+          return applied
+        } finally {
+          this.schema.generation++
+        }
       },
-      down: () => own.down(),
+      down: async () => {
+        try {
+          return await own.down()
+        } finally {
+          this.schema.generation++
+        }
+      },
       status: () => own.status(),
     }
   }
@@ -71,7 +83,7 @@ export class SqlStore implements Store {
   }
 
   table<Row extends StoredRow>(name: string, options?: TableOptions<Row> & SqlTableOptions<Row>): SqlTable<Row> {
-    return new SqlTable<Row>(this.executor, this.dialect, name, options)
+    return new SqlTable<Row>(this.executor, this.dialect, name, options, this.schema)
   }
 
   async transaction<T>(fn: () => T | Promise<T>): Promise<T> {
