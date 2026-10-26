@@ -16,8 +16,8 @@ const url = process.env.FRAMEWORK_TEST_POSTGRES_URL
 
 const THING = `
 CREATE TABLE thing (
-  id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, name TEXT NOT NULL, archived BOOLEAN NOT NULL, rank DOUBLE PRECISION NOT NULL,
-  note TEXT, tags JSONB NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, version INTEGER NOT NULL
+  id TEXT COLLATE "C" PRIMARY KEY, workspace_id TEXT COLLATE "C" NOT NULL, name TEXT COLLATE "C" NOT NULL, archived BOOLEAN NOT NULL, rank DOUBLE PRECISION NOT NULL,
+  note TEXT COLLATE "C", tags JSONB NOT NULL, created_at TEXT COLLATE "C" NOT NULL, updated_at TEXT COLLATE "C" NOT NULL, deleted_at TEXT COLLATE "C", version INTEGER NOT NULL
 );
 CREATE UNIQUE INDEX thing_name ON thing (name) WHERE deleted_at IS NULL`
 
@@ -221,6 +221,61 @@ if (url) {
           { id: 'c', kind: 'array', x: null },
         ])
         expect((await docs.find()).map(doc => doc.data)).toEqual([{ x: 'one', n: [1, 2] }, '{"x":"two"}', [true]])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('learns of a column added after it first read', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE amount (id TEXT PRIMARY KEY, version INTEGER NOT NULL)')
+        const amounts = store.table<{ id: string, version: number, big?: number }>('amount')
+        await amounts.find()
+        await store.query('ALTER TABLE amount ADD COLUMN big BIGINT')
+        await amounts.insert({ id: 'a', big: 5 })
+
+        expect(await amounts.find()).toEqual([{ id: 'a', version: 1, big: 5 }])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('reads a json field kept in a text column as it was written', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE doc (id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT)')
+        const docs = store.table<{ id: string, version: number, data: unknown }>('doc', { types: { data: 'json' } })
+        await docs.insert({ id: 'a', data: { x: 1 } })
+        await docs.insert({ id: 'b', data: '{"x":"two"}' })
+
+        expect((await docs.find()).map(doc => doc.data)).toEqual([{ x: 1 }, '{"x":"two"}'])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('orders and pages by the primary key through its index, and a nullable column through one of the same NULLS order', async () => {
+      const store = await open()
+      try {
+        await store.query(`INSERT INTO thing SELECT lpad(g::text, 8, '0'), 'w', 'n' || g, false, 0, CASE WHEN g % 7 = 0 THEN NULL ELSE 'n' || g END, '[]', '', '', NULL, 1 FROM generate_series(1, 20000) g`)
+        await store.query('CREATE INDEX thing_note ON thing (note NULLS FIRST)')
+        await store.query('ANALYZE thing')
+        const things = store.table<{ id: string, version: number, note: string | null }>('thing')
+        const query = spyOn(store, 'query')
+        const plan = async (find: () => Promise<unknown>) => {
+          query.mockClear()
+          await find()
+          const [sql, params] = query.mock.calls.findLast(([sql]) => sql.startsWith('SELECT * FROM'))!
+          return (await store.query(`EXPLAIN ${sql}`, params)).map(row => Object.values(row)[0]).join('\n')
+        }
+
+        expect(await plan(() => things.find({}, { limit: 10 }))).toMatch(/Index (Only )?Scan using thing_pkey/)
+        expect(await plan(() => things.find({ id: { gt: '00010000' } }, { limit: 10 }))).toMatch(/Index (Only )?Scan using thing_pkey/)
+        expect(await plan(() => things.find({}, { orderBy: [{ field: 'id', direction: 'desc' }], limit: 10 }))).toMatch(/Index (Only )?Scan Backward using thing_pkey/)
+        expect(await plan(() => things.find({}, { orderBy: [{ field: 'note' }], limit: 10 }))).toMatch(/Index Scan using thing_note/)
+        expect(await plan(() => things.find({}, { orderBy: [{ field: 'note', direction: 'desc' }], limit: 10 }))).toMatch(/Index Scan Backward using thing_note/)
+        query.mockRestore()
       } finally {
         await store.close()
       }

@@ -4,7 +4,7 @@ import { postgresDialect } from './postgres-dialect'
 /**
  * The Postgres store, on `Bun.SQL`. Its migrations are Postgres SQL, applied all or
  * none; an entity's table has `id TEXT PRIMARY KEY` and `version INTEGER NOT NULL`, a
- * boolean is `BOOLEAN` and JSON is `JSONB`.
+ * boolean is `BOOLEAN` and JSON is `JSONB`; text columns are best `COLLATE "C"`.
  */
 export class PostgresStore extends SqlStore {
 

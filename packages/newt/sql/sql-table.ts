@@ -32,18 +32,22 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     if (options.limit !== undefined && !(Number.isInteger(options.limit) && options.limit >= 0)) throw new Error(`A limit is a whole number, 0 or more: not ${options.limit}`)
     const columns = await this.columns()
     const params: unknown[] = []
-    const nulls = (direction?: 'asc' | 'desc') => (this.dialect.nullsLast ? (direction === 'desc' ? ' NULLS LAST' : ' NULLS FIRST') : '')
+    // Null goes first going up, as in every store: said only where it may be, so a column that cannot hold it (a primary key) is ordered as its index is.
+    const nulls = (column: string, direction?: 'asc' | 'desc') =>
+      this.dialect.nullsLast && !(columns.all.has(column) && !columns.nullable.has(column)) ? (direction === 'desc' ? ' NULLS LAST' : ' NULLS FIRST') : ''
     const order = (options.orderBy ?? [{ field: 'id' }])
-      .map(({ field, direction }) => `${this.ordered(columns, this.column(field), this.dialect.quote(this.column(field)))} ${direction === 'desc' ? 'DESC' : 'ASC'}${nulls(direction)}`)
+      .map(({ field, direction }) => `${this.dialect.quote(this.column(field))} ${direction === 'desc' ? 'DESC' : 'ASC'}${nulls(this.column(field), direction)}`)
       .join(', ')
-    const sql = `SELECT * FROM ${this.dialect.quote(this.name)}${this.where(criteria, params, columns)} ORDER BY ${order}${options.limit === undefined ? '' : ` LIMIT ${options.limit}`}`
-    return (await this.executor.all(sql, params)).map(row => this.decode(row, columns))
+    const sql = `SELECT * FROM ${this.dialect.quote(this.name)}${this.where(criteria, params)} ORDER BY ${order}${options.limit === undefined ? '' : ` LIMIT ${options.limit}`}`
+    const rows = await this.executor.all(sql, params)
+    // A column it has not learned of was added since (a migration): it learns them again.
+    const learned = this.dialect.columns && rows[0] && Object.keys(rows[0]).some(column => !columns.all.has(column)) ? await this.columns(true) : columns
+    return rows.map(row => this.decode(row, learned))
   }
 
   async count(criteria?: Criteria<Row>): Promise<number> {
-    const columns = await this.columns()
     const params: unknown[] = []
-    const [row] = await this.executor.all(`SELECT count(*) AS total FROM ${this.dialect.quote(this.name)}${this.where(criteria, params, columns)}`, params)
+    const [row] = await this.executor.all(`SELECT count(*) AS total FROM ${this.dialect.quote(this.name)}${this.where(criteria, params)}`, params)
     return Number(row?.total ?? 0)
   }
 
@@ -108,30 +112,26 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     })
   }
 
-  private where(criteria: Criteria<Row> | undefined, params: unknown[], columns: Columns): string {
+  private where(criteria: Criteria<Row> | undefined, params: unknown[]): string {
     const clause = whereClause(criteriaTree(criteria), {
       dialect: this.dialect,
       column: field => this.column(field),
       value: (field, operand) => this.encodeValue(field, operand),
-      ordered: (field, quoted) => this.ordered(columns, this.column(field), quoted),
     }, params)
     return clause === this.dialect.always ? '' : ` WHERE ${clause}`
   }
 
-  /** A column as it is compared by order: by code point, where the database's own collation would not. */
-  private ordered(columns: Columns, column: string, quoted: string): string {
-    return columns.collated.has(column) && this.dialect.byCodePoint ? this.dialect.byCodePoint(quoted) : quoted
-  }
-
-  /** What the table learned of its columns, where its dialect asks (Postgres): once, unless the table is not there yet. */
-  private columns(): Promise<Columns> {
+  /**
+   * What the table learned of its columns, where its dialect asks (Postgres): once,
+   * unless the table is not there yet, or `again` (a column it has not seen came back).
+   */
+  private columns(again = false): Promise<Columns> {
     if (!this.dialect.columns) return Promise.resolve(NOTHING_LEARNED)
+    if (again) this.learning = undefined
     this.learning ??= this.executor.all(this.dialect.columns, [this.dialect.quote(this.name)]).then(rows => {
       if (rows.length === 0) this.learning = undefined
-      return {
-        collated: new Set(rows.filter(row => row.collated).map(row => String(row.name))),
-        big: new Set(rows.filter(row => row.big).map(row => String(row.name))),
-      }
+      const which = (key: string) => new Set(rows.filter(row => row[key]).map(row => String(row.name)))
+      return { all: new Set(rows.map(row => String(row.name))), nullable: which('nullable'), big: which('big'), json: which('json') }
     }, (error: unknown) => {
       this.learning = undefined
       throw error
@@ -181,18 +181,19 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
       if (value === null) return [field, null]
       switch (this.type(field)) {
         case 'boolean': return [field, value === 1 || value === true || value === '1']
-        // A driver that parses JSON already hands a JSON string back as a string: parsing it again would spoil it.
-        case 'json': return [field, typeof value === 'string' && !this.dialect.parsesJson ? JSON.parse(value) : value]
+        // A driver that parses JSON already hands a JSON string back as a string: parsing it again would spoil it. A column
+        // of text it hands back as it is: where the table knows its column is not JSON (Postgres), it parses it.
+        case 'json': return [field, typeof value === 'string' && (!this.dialect.parsesJson || (columns.all.has(column) && !columns.json.has(column))) ? JSON.parse(value) : value]
         default: return [field, columns.big.has(column) ? bigInteger(value) : typeof value === 'bigint' ? Number(value) : value]
       }
     })) as Row
   }
 }
 
-/** What a table knows of its columns: those it compares by code point, and its big integers. */
-type Columns = { collated: Set<string>, big: Set<string> }
+/** What a table knows of its columns: all of them, and those that may hold null, its big integers, its JSON. */
+type Columns = { all: Set<string>, nullable: Set<string>, big: Set<string>, json: Set<string> }
 
-const NOTHING_LEARNED: Columns = { collated: new Set(), big: new Set() }
+const NOTHING_LEARNED: Columns = { all: new Set(), nullable: new Set(), big: new Set(), json: new Set() }
 
 /** A big integer the driver hands back as text, as a number while it is exact (as MySQL's does); as text beyond. */
 function bigInteger(value: unknown): unknown {

@@ -2990,7 +2990,12 @@ Reglas:
 - `down` deshace exactamente lo que hizo `up`.
 
 Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
-(`BOOLEAN` y `JSONB` en Postgres; `VARCHAR(36)` y columnas `utf8mb4_0900_bin` en MySQL).
+(`BOOLEAN`, `JSONB` y columnas de texto `COLLATE "C"` en Postgres; `VARCHAR(36)`,
+`JSON` y columnas `utf8mb4_0900_bin` en MySQL). Con esas colaciones el texto se
+compara y se ordena por punto de código, como en SQLite y en ficheros; con la de
+siempre, Postgres ordena `Ana`, `bea`, `Bob`. Un índice que deba servir para ordenar
+una columna que admite nulos en Postgres se declara con `NULLS FIRST`, como ordena
+la tabla.
 [`stores.md`](stores.md) cuenta los detalles de cada uno.
 
 Un fichero puede tener varias sentencias, y también triggers y funciones con sus
@@ -3005,7 +3010,9 @@ MySQL cada cambio de estructura (`CREATE`, `ALTER`, `DROP`…) se confirma al mo
 con todo lo anterior: unas migraciones solo de datos (`INSERT`, `UPDATE`…) son todo o
 nada, pero si algo falla después de un cambio de estructura, lo confirmado se queda
 (las migraciones anteriores, anotadas como aplicadas, y los cambios de estructura de
-la que falló, sin anotar).
+la que falló, sin anotar). Pasa en cualquier transacción de MySQL, no solo en las
+migraciones: un cambio de estructura la confirma ahí mismo, y lo que viene después va
+suelto, fuera de ella.
 
 En SQLite, Postgres y MySQL, dos procesos que arrancan a la vez se turnan: el segundo espera
 al primero y encuentra sus migraciones aplicadas. Y dos ficheros con el mismo número

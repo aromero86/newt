@@ -148,6 +148,8 @@ export class SqliteStore implements Store {
    */
   private routedConnection(): Database {
     const pick = (sql: string): Database => {
+      // A call of a transaction that ended runs nowhere: outside it, it would read what it should not.
+      this.scope.assertNotEnded()
       if (this.scope.inTransaction) {
         // Nothing more runs in one SQLite rolled back: it would commit on its own.
         if (!this.writer.inTransaction) throw new Error(ROLLED_BACK)
@@ -173,9 +175,10 @@ export class SqliteStore implements Store {
           if (prop === 'finalize' && !cached) return () => { for (const each of compiled.values()) each.finalize() }
           const db = pick(sql)
           const target = on(db)
-          if ((prop === 'iterate' || prop === Symbol.iterator) && !cached) {
+          if (prop === 'iterate' || prop === Symbol.iterator) {
             // Left halfway, a statement keeps its read open, and the reading connection
-            // would go on seeing the database as it was: it is finalized, and made anew.
+            // would go on seeing the database as it was: it is finalized, and made anew
+            // (a cached one too: bun:sqlite then compiles it again).
             return function* (...params: SQLQueryBindings[]) {
               let finished = false
               try {

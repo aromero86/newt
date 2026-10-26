@@ -120,6 +120,16 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await late).toContain('a transaction that has ended')
         expect(await names()).toEqual(['ana'])
       })
+
+      test('a read of it that comes after it committed fails, and runs nowhere', async () => {
+        let late!: Promise<string>
+        await store.transaction(async () => {
+          await things.insert(thing({ name: 'ana' }))
+          late = Bun.sleep(5).then(() => things.find()).then(() => 'read', (error: Error) => error.message)
+        })
+
+        expect(await late).toContain('a transaction that has ended')
+      })
     })
 
     describe('isolation', () => {

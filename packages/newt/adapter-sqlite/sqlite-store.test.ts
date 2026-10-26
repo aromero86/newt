@@ -236,6 +236,7 @@ describe('SqliteStore, further', () => {
       await things.insert(thing('a'))
       await things.insert(thing('b'))
       for (const _ of store.connection.prepare('SELECT id FROM thing').iterate()) break
+      for (const _ of store.connection.query('SELECT id FROM thing').iterate()) break
 
       await things.insert(thing('c'))
 
