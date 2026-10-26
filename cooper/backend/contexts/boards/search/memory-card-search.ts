@@ -12,6 +12,8 @@ export class MemoryCardSearch implements CardSearch {
   private readonly cards = new Map<string, CardDTO>()
 
   async index(card: CardDTO): Promise<void> {
+    const kept = this.cards.get(card.id)
+    if (kept && kept.updatedAt > card.updatedAt) return
     this.cards.set(card.id, card)
   }
 

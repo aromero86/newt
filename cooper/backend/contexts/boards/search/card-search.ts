@@ -18,7 +18,11 @@ export type CardQuery = {
  * which passes `describeCardSearchContract`.
  */
 export interface CardSearch {
-  /** Keeps the card as it is now, in place of what it kept of it before. */
+  /**
+   * Keeps the card as it is now, in place of what it kept of it before, unless that
+   * is newer (a later `updatedAt`): two jobs indexing one card at once may hand it
+   * an older copy last.
+   */
   index(card: CardDTO): Promise<void>
   /** Forgets a card: nothing happens if it never had it. */
   remove(id: string): Promise<void>
