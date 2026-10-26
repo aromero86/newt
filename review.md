@@ -155,3 +155,24 @@ su test. La suite completa (958 tests) pasa en SQLite, ficheros, Postgres y MySQ
   el módulo.
 - Kysely en SQLite comparte la sentencia cacheada de bun con el código del usuario que
   recorre exactamente el mismo texto SQL.
+
+---
+
+# Decisiones (2026-10-26)
+
+Se revisaron los puntos abiertos de arriba y las propuestas de `framework-ideas.md`.
+
+## Hecho
+- **R1** Una colisión de único es `DuplicateValue` (409 `duplicate_value`, con los campos cuando el store los sabe), y un caso de uso la reintenta una sola vez.
+- **R4** Una entidad que registra un evento sin haber cambiado nunca lanza un error. Un cambio deshecho sigue sin publicar nada.
+- **R5** `orphansCheckEveryMs`, que por defecto vale `seenEveryMs`.
+- **R7** Un schema que guarda campos que no nombra (`looseObject`, `catchall`) se rechaza al construir la entidad.
+- **R8** Una entidad cuyo guardado se deshizo no se vuelve a guardar: hay que leerla otra vez.
+- **R9** `queue-name` pregunta al type checker si el objeto es el módulo.
+- **R10** Kysely en SQLite usa sentencias propias.
+
+## Descartado
+- **R2** Los ids del store de ficheros se quedan como están.
+- **R3** y **R6** Eran de despensa, que ya no está en el repositorio.
+
+Las propuestas de `framework-ideas.md` llevan su estado en ese fichero.

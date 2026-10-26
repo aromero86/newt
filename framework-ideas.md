@@ -2,8 +2,8 @@
 
 Building cooper (three contexts, an OAuth server, an MCP server, a backoffice) showed
 where newt makes an application write something every application would write again.
-Each item says where it hurt in cooper and what newt could offer. Nothing here is
-done: these are proposals to decide on.
+Each item says where it hurt in cooper and what newt could offer. They were decided
+on 2026-10-26; the status of each is in the table at the end.
 
 ## Queries and criteria
 
@@ -123,3 +123,48 @@ cooper: OpenAPI generated from the routes' zod schemas, scheduled jobs (cron) on
 outbox, idempotency keys for POSTs, configuration validated with zod at startup, an
 injectable clock for tests, an OpenTelemetry exporter, and a blob storage port with
 its contract suite.
+
+## Status (2026-10-26)
+
+| Proposal | Status |
+|---|---|
+| Text search | Not in criteria: search belongs in a specialized adapter. The guide shows a search port of the application's own, with an adapter in memory and its contract. |
+| Criteria into Kysely | Done: `whereOf(store, criteria)` in `newt/kysely`. |
+| Delete by criteria | Done: `Table.deleteMany`, and `purge` in `TableRepository`. |
+| Case-insensitive unique | Discarded. |
+| Paging | Done: `mapPage`, `allPages`, `Page.nextCursor`. |
+| Values decided inside the save | Documented in the guide: allocate in `before`. |
+| Stale rows | Done: `conflict()` in a repository. |
+| Secret fields | Done: a public schema, which is all `toDTO` gives. |
+| Synchronous rule across two modules | Documented in the guide. |
+| Filter before enqueueing | Done: `when` in a subscription. |
+| Event source as a port | Done: `EventSource<P>`. |
+| Queue name rules | Fixed: one rule. |
+| Running as a worker | Done: `jobs.runAsWorker(fn)`. |
+| Does this scope still exist | Discarded. |
+| Handler metadata | Done: `subscribe((payload, meta) => …)`. |
+| Outbox reads | Done: `list({ status, after, limit })` and `get(id)`. |
+| Messages put back | Done: `setMessages` gives back a restore function. |
+| CORS | Done: a `cors` option per router, group or route. |
+| Routes outside `/api` | Done: root routers, `onError`, `bearerAuthenticator`. |
+| Health | Done: `serve({ health })`, 503 while stopping. |
+| A group's own path | Discarded: `''` already does it. |
+| HTTP test helpers | Done: `newt/testing`. |
+| A served context | Done: `runContexts` in `newt/application`. |
+| One tracer | Done: `setTracer`, `filterSpans`. |
+| Optional actor | Done: `findCurrentActor()`. |
+| Extending `Actor` | Documented in the guide. |
+| Mail | Later. |
+| Analytics | Later. |
+| Migration checksums | Done. |
+| A context with no tables yet | Discarded: a missing folder stays an error. |
+| A browser-safe entry | Done: `newt/contract`. |
+| eslint `files` | Done: `newt({ files })`. |
+| The `newt/*` alias | Done: resolved through the package's `exports`. |
+| OpenAPI | Later. |
+| Cron | Done: `base.schedules.define(name, cron)`, an event source outside the outbox. |
+| Idempotency keys | Done: an `idempotency` option on POST routes. |
+| Configuration with zod | Discarded. |
+| Injectable clock | Done: `clock` in `BaseOptions`. |
+| OpenTelemetry exporter | Done: `newt/otel`. |
+| Blob storage port | Later. |

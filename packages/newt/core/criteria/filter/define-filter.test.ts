@@ -99,7 +99,7 @@ describe('the limits of a filter', () => {
   })
 
   test('say why in the application\'s language', () => {
-    setMessages({
+    const restore = setMessages({
       filter_too_many_conditions: ({ max }) => `Un filtro tiene como mucho ${max} condiciones`,
       filter_too_deep: ({ max }) => `Un filtro anida como mucho ${max} grupos`,
     })
@@ -108,5 +108,6 @@ describe('the limits of a filter', () => {
 
     expect(ProductFilter.schema.safeParse(many).error?.issues.map(issue => issue.message)).toEqual(['Un filtro tiene como mucho 3 condiciones'])
     expect(ProductFilter.schema.safeParse(deep).error?.issues.map(issue => issue.message)).toEqual(['Un filtro anida como mucho 2 grupos'])
+    restore()
   })
 })

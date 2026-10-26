@@ -20,6 +20,6 @@ export const cooperMessages: Partial<Messages> = {
  * Sets cooper's messages for the whole process: once, as the server starts
  * (`index.ts`), before any request. Every context answers with them.
  */
-export function setCooperMessages(): void {
-  setMessages(cooperMessages)
+export function setCooperMessages(): () => void {
+  return setMessages(cooperMessages)
 }

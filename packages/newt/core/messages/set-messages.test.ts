@@ -23,4 +23,15 @@ describe('setMessages', () => {
 
     expect(new ReferenceNotFound('city', 'c1').message).toBe('No existe')
   })
+
+  test('gives back what puts the messages before it back', () => {
+    const restore = setMessages({ internal: () => 'Algo salió mal' })
+    setMessages({ reference_not_found: () => 'No existe' })
+    expect(message('internal')).toBe('Algo salió mal')
+
+    restore()
+
+    expect(message('internal')).toBe('Something went wrong')
+    expect(message('reference_not_found', { resource: 'city', id: 'c1' })).not.toBe('No existe')
+  })
 })
