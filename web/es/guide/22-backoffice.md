@@ -22,12 +22,27 @@ miembro de Acme tiene acceso al producto `cooper` para el tenant Acme. Alguien d
 staff tiene acceso al producto `backoffice` para **ningún tenant**: su `tenantId` es
 `null`. El staff mira todo cooper, no un espacio de trabajo.
 
-El backoffice es un producto de auth, con su propio cliente OAuth, como boards:
+El backoffice es un producto de auth, con su propio cliente OAuth, como boards. Su id
+es un nombre que declara auth, junto a sus otros productos, y el backoffice lo importa
+de ahí: para el acceso de su staff, y como id de su cliente OAuth:
+
+```ts
+// cooper/backend/contexts/auth/modules/product/product.schema.ts
+/**
+ * The ids of cooper's products, which other contexts name when they ask auth about
+ * them: `cooper` (the boards) and `backoffice` (the staff's console).
+ */
+export const PRODUCTS = { cooper: 'cooper', backoffice: 'backoffice' } as const
+```
 
 ```ts
 // cooper/backend/contexts/backoffice/initialize-modules.ts
-/** The backoffice as a product of auth's: its OAuth client, and what its staff have access to. */
-export const BACKOFFICE_PRODUCT = 'backoffice'
+const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: PRODUCTS.backoffice })
+const session = WebSession_Module.initialize(base, {
+  context: 'backoffice',
+  clientId: PRODUCTS.backoffice,
+  // …
+})
 ```
 
 Su módulo `staff` no guarda nada. Para saber si alguien es del staff, se lo pregunta a
@@ -172,7 +187,7 @@ de nada de eso. Declara en sus deps los módulos que sí lo son:
 /**
  * What a workspace's page is made of, each part asked to the module that keeps it:
  * auth's tenants, accesses and accounts, and boards' boards and cards. Only their use
- * cases, never their repositories …
+ * cases, never their repositories.
  */
 export interface Workspace_Deps {
   /** That who asks is of the staff, before any route answers. */
@@ -181,7 +196,7 @@ export interface Workspace_Deps {
   access: Access_Module
   user: AuthUser_Module
   board: Board_Module
-  // …
+  /** How many cards each workspace and board has: Kysely's counts, in boards. */
   card: Card_Module
 }
 ```
@@ -617,9 +632,9 @@ Los workers se suscriben a eventos de auth y de boards, cada uno con un `handler
 /**
  * What the metrics count, each from an event of another context: a `handler`, a job
  * saved with what happened, in that context's outbox and run by its worker until it
- * succeeds. Not `fireAndForget`: a number lost when the server stops would be wrong
+ * succeeds. Not `fire-and-forget`: a number lost when the server stops would be wrong
  * for good. Each one appends a row by the id of what it counts, so running it twice
- * counts once …
+ * counts once.
  */
 export function registerMetricWorkers(metrics: Metric_Module, deps: Metric_Deps): void {
   deps.card.events.created.subscribe(card => metrics.recordCard(card), {
@@ -733,7 +748,11 @@ export class Outbox_Module extends Module {
     return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
   }
 
-  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  /**
+   * Puts a dead job back to wait, as new: its worker runs it again at once, with all its
+   * attempts. A plain use case: it writes no module's rows through a repository, which
+   * is what the write rule watches, but the store's outbox, in one step.
+   */
   @UseCase()
   async retry(id: string): Promise<void> {
     if (await this.base.store.outbox.retry(id)) return
@@ -776,21 +795,24 @@ async dead(context: JobContext, page: PageRequest): Promise<Page<ContextJobDTO>>
 /**
  * A dead job of a context runs again: what a person of the staff asks for, at once,
  * once they fixed what killed it. The context's own use case puts it back; its
- * worker runs it.
+ * worker runs it. No `writesTo`, not even for the backoffice's own outbox: the
+ * write rule watches what repositories save, and a job put back is the store's
+ * outbox, written by `outbox.retry` in one step.
  */
-@UseCase({ writesTo: ['outbox'] })
+@UseCase()
 async retry(context: JobContext, id: string): Promise<void> {
   await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
 }
 ```
 
-¿Por qué `writesTo: ['outbox']`? La regla de escritura es por contexto
-([capítulo 17](./17-modules-talk)). Reintentar un job de auth o de boards llama a un
-caso de uso de otro contexto: es la raíz de lo que pasa allí, y la regla no tiene nada
-que decir. Reintentar uno de los jobs del propio backoffice es escribir en otro módulo
-del **mismo** contexto, fuera de un worker. Es la única escritura que hace `retry`, así
-que un fallo no deja nada a medias, y el staff espera la respuesta. `writesTo` lo dice
-donde se lee.
+¿Por qué sin `writesTo`? Reintentar un job de auth o de boards llama a un caso de uso
+de otro contexto: es la raíz de lo que pasa allí, y la regla de escritura, que es por
+contexto ([capítulo 17](./17-modules-talk)), no tiene nada que decir. Reintentar uno de
+los jobs del propio backoffice llama a `outbox.retry` en el mismo contexto, y tampoco
+escribe filas de ningún módulo: la regla mira lo que guardan los repositorios, y
+`outbox.retry` no guarda nada con uno. Es una sola escritura en el outbox del store, la
+tabla en la que murió el job, así que un fallo no deja nada a medias, y `writesTo` no
+tiene nada que declarar.
 
 Las rutas toman el contexto de la ruta, y `JobContextSchema` rechaza cualquier otro
 nombre con un 400:
@@ -879,8 +901,8 @@ contextos:
 ```ts
 // cooper/backend/open-contexts.ts
 // One tracer for every context: a use case that calls another context's shows that
-// call inside it, since they run in one process …
-const tracer = config.trace ? new ConsoleTracer() : undefined
+// call inside it, since they run in one process.
+const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
 const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
 const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
 const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
@@ -941,7 +963,27 @@ expect(lines.map(line => line.replace(/\d+\.\d ms/, 'n ms'))).toEqual([
 ```
 
 Cada línea empieza por el contexto del span, así que un span de auth dentro de uno del
-backoffice dice `auth`, con su propia sangría.
+backoffice dice `auth`, con su propia sangría. Un test de `openContexts` le pasa un
+tracer que guarda sus líneas (`options.tracer`; si no hay ninguno, decide
+`COOPER_TRACE`), y le pregunta al backoffice quién es la persona del staff que ha
+entrado. Una sola traza cruza los dos contextos:
+
+```ts
+// cooper/backend/open-contexts.test.ts
+const contexts = await openContexts(testConfig(), { tracer: new ConsoleTracer(line => lines.push(line)) })
+// …
+await runAsActor({ userId: sam.id, via: 'web' }, () => contexts.backoffice.modules.staff.me())
+expect(lines.map(line => line.replace(/ \d+\.\d ms$/, ''))).toEqual([
+  '[trace] backoffice staff.me',
+  '[trace]   backoffice staff.enter',
+  '[trace]     backoffice staff.isStaff',
+  '[trace]       auth access.check',
+  '[trace]   auth user.get',
+])
+```
+
+`staff.isStaff` pregunta al `access.check` de auth, y `staff.me` al `user.get` de auth:
+los dos caen dentro de los spans del backoffice que los llamaron.
 
 `COOPER_TRACE` enciende una cosa más, en boards: una línea en la consola cada vez que
 se mueve una card. Es una reacción `fire-and-forget` ([capítulo 11](./11-reacting)), la

@@ -62,7 +62,8 @@ La columna se comprueba con el módulo que es su dueño. La persona asignada se
 comprueba con auth, en dos pasos:
 
 1. `member.isMember` pregunta al puerto `Workspaces`, por el espacio actual.
-2. El puerto, conectado al abrir los contextos, pregunta a `access.check` de auth.
+2. El puerto, conectado al abrir los contextos, pregunta a `access.check` de auth, y
+   si el espacio sigue ahí (`tenant.getMany`): uno borrado no tiene miembros.
 
 ```ts
 // cooper/backend/contexts/boards/modules/member/member.module.ts
@@ -75,7 +76,12 @@ async isMember(userId: string): Promise<boolean> {
 
 ```ts
 // cooper/backend/open-contexts.ts
-isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
+// An access and a tenant still there: a deleted workspace's accesses go a moment
+// after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+const isMember = async (workspaceId: string, userId: string) => {
+  const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+  return granted !== null && alive
+}
 ```
 
 Se pregunta **cada vez**: nunca se guarda en la tarjeta ni en el actor. A alguien a

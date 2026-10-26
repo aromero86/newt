@@ -61,7 +61,8 @@ The column is checked against the module that owns it. The assignee is checked
 against auth, through two steps:
 
 1. `member.isMember` asks the `Workspaces` port, for the current workspace.
-2. The port, wired when the contexts open, asks auth's `access.check`.
+2. The port, wired when the contexts open, asks auth's `access.check`, and whether
+   the workspace is still there (`tenant.getMany`): a deleted one has no members.
 
 ```ts
 // cooper/backend/contexts/boards/modules/member/member.module.ts
@@ -74,7 +75,12 @@ async isMember(userId: string): Promise<boolean> {
 
 ```ts
 // cooper/backend/open-contexts.ts
-isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
+// An access and a tenant still there: a deleted workspace's accesses go a moment
+// after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+const isMember = async (workspaceId: string, userId: string) => {
+  const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+  return granted !== null && alive
+}
 ```
 
 It is asked **every time**, never cached in the card or the actor. Someone removed

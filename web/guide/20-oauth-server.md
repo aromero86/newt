@@ -118,7 +118,7 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
     },
     {
       id: PRODUCTS.backoffice,
-      name: 'Cooper backoffice',
+      name: 'Cooper Backoffice',
       publicUrl: config.backofficePublicUrl,
       signUp: false,
       access: 'granted',
@@ -242,7 +242,9 @@ async delete(tenantId: string): Promise<void> {
 ```
 
 The worker's `removeAccesses` stays as the fallback, and `revokeTenant` is safe to
-run twice. The test stops auth's worker, deletes, and checks nobody gets in:
+run twice. Between the two saves, or if the second one fails, boards still lets
+nobody in: its membership asks auth for the access *and* whether the tenant is still
+there ([chapter 16](./16-sagas)). The test stops auth's worker, deletes, and checks nobody gets in:
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
@@ -647,14 +649,22 @@ next, auth's logout, with the way back:
 
 ```ts
 // cooper/backend/shared/web-session/web-session.routes.ts
+// Public: signing out with a session already gone still clears the cookie. The
+// browser goes on to auth, to sign out there too and come back: otherwise signing
+// in again would sign the same person in, with no way to switch accounts. It comes
+// back to `?returnTo=` (a path of this context: an invitation, say) or to the start.
 base.http.post('/session/sign-out', async request => {
   await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
   request.cookies.delete({ name: cookies.session, path: '/' })
-  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  const returnTo = new URL(request.url).searchParams.get('returnTo')
+  const back = returnTo ? new URL(ownPath(returnTo), options.publicUrl).toString() : options.publicUrl
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: back })}`
   return Response.json({ next } satisfies WebSessionSignOutDTO)
 }, { public: true })
 ```
 
+The way back is this context's start, or a path of its own the page asks for
+(`ownPath` turns anything that is not one, such as `//evil.test`, into `/`).
 auth ends its session and sends the browser back. `redirect` comes from the URL, so
 anyone can write one: `session.returnAddress` only accepts the origin of one of
 cooper's products, and sends anything else to auth's start. An open redirect on a

@@ -191,7 +191,8 @@ auth tiene cinco más, cada uno con su porqué en el código:
   `tenant.created` da igualmente el administrador (`ensureAdmin`).
 - `tenant.delete` escribe en `access`: nadie puede entrar en un espacio desde que su
   borrado responde. Si quitar los accesos falla, el worker de `tenant.deleted` los
-  quita (`removeAccesses`).
+  quita (`removeAccesses`); mientras tanto boards no deja entrar a nadie, porque
+  pregunta también si el espacio sigue ahí.
 - `invitation.accept` escribe en `access`: quien acepta entra al momento. El acceso
   va primero y se puede dar otra vez sin daño, así que aceptar de nuevo termina una
   aceptación a medias.
@@ -266,7 +267,7 @@ sus palabras, para algo que necesita de fuera de su contexto.
  * module of auth. The context is handed one when it opens; a test, a fake.
  */
 export type Workspaces = {
-  /** Whether someone belongs to a workspace now: asked each time, so who leaves counts at once. */
+  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>

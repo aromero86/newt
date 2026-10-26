@@ -102,7 +102,7 @@ comes, look for a dead `activity.*` job among boards'.
 
 ## Who and where
 
-**"Your session has ended: sign in again to go on" / "Sign in to continue" (`not_signed_in`, 401)**
+**"You are not signed in, or your session has ended: sign in to go on" / "Sign in to continue" (`not_signed_in`, 401)**
 A route that is not `public` was called without a session, or a use case that reads
 `currentActor()` ran without an actor: a script or a test calling it outside
 `runAsActor`.
@@ -159,7 +159,8 @@ Write a new one. ([chapter 24](./24-migrations))
 **"…: port 3002 is already in use" and "Nothing was started."**
 `bun run cooper` checks every port first. Another cooper, or something else, is
 listening. Stop it, or move cooper with the `COOPER_*_PORT` and `COOPER_*_PUBLIC_URL`
-variables. ([chapter 26](./26-production))
+variables; in development, the Vite servers' proxies read the same `COOPER_*_PORT`.
+([chapter 26](./26-production))
 
 **A page answers "The frontend is not built: its folder has no index.html".**
 You opened a context's own port without building the frontends. In development, open

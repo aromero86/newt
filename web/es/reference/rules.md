@@ -53,7 +53,7 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
@@ -337,10 +337,13 @@ justificada se dice donde se vea, con el motivo al lado:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
- * …
+ * Removes a column of a board, only if no card is in it. The cards answer, since a
+ * card points at its column and a column knows nothing of the cards: the column
+ * module cannot ask them without the two needing each other. So this use
  * case asks, and has the column module remove it: a write to another module outside
  * a worker, said where it is seen. It is the only write it makes, so a failure leaves
- * nothing halfway …
+ * nothing halfway; a card moved into the column at that very moment is taken to
+ * another one by `leaveRemovedColumn`.
  */
 @UseCase({ writesTo: ['column'] })
 async removeColumn(columnId: string): Promise<void> {
@@ -513,26 +516,28 @@ store:
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.module.ts
-this.repo.find({ id })
-this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } })
-this.repo.page({}, page, { newestFirst: true })   // los más nuevos primero, el cursor hacia atrás
+return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
+if (await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } }) > 0) throw new BoardNameTaken(name)
+const found = await this.repo.page({}, page, { newestFirst: true })
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
-this.repo.find({ id: { in: [...new Set(ids)] } })
+return (await this.repo.find({ id: { in: [...new Set(ids)] } })).map(tenant => tenant.toDTO())
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/access/access.module.ts
-this.repo.page({ userId, productId }, page, { newestFirst: true })   // productId puede ser undefined: sin condición
+return toDTOs(await this.repo.page({ userId, productId }, page, { newestFirst: true }))
 ```
 
 Un campo con un valor tiene que ser igual a él (`null` es "no tiene"). Los operadores
 son `eq`, `ne`, `in`, `gt`, `gte`, `lt`, `lte` e `ieq` (igual, sea cual sea la caja de
 la A a la Z); varios en un campo deben cumplirse todos, y un campo o un operador que
 queda en `undefined` no es ninguna condición, así que un filtro opcional no necesita
-`if`. Los grupos se anidan: `and` (todos) y `or` (al menos uno). `find` y `first`
+`if` (el `productId` de arriba puede ser undefined). `page` admite
+`{ newestFirst: true }` para los más nuevos primero, con el cursor hacia atrás. Los
+grupos se anidan: `and` (todos) y `or` (al menos uno). `find` y `first`
 admiten también `{ orderBy, limit }` (`{ orderBy: [{ field: 'position' }] }`), y si
 no, van por id. Los criterios se combinan con `allOf(a, b)`.
 
@@ -681,7 +686,8 @@ entero.
   ```ts
   // cooper/backend/contexts/auth/modules/token/token.module.ts
   /**
-   * …
+   * A client trades its code for tokens. It writes to `oauthGrant` without being a
+   * worker, on purpose: the client waits for its tokens in this answer. The code is
    * spent first, then the tokens saved; should that fail, the client signs the person
    * in again. It never runs again on a conflict: the code it spent would look copied.
    */
@@ -764,7 +770,9 @@ entero.
     return board.toDTO()
   }
   ```
-- **Ninguna lista se devuelve entera.** Un caso de uso que lista recibe un
+- **Ninguna lista se devuelve entera salvo que una regla del dominio la acote** (como
+  mucho 10 columnas, `MAX_COLUMNS`; 500 cards, `MAX_CARDS`); las demás van por
+  páginas. Un caso de uso que lista recibe un
   `PageRequest` (`size`, `cursor`) y devuelve un `Page` (`items`, `hasMore`, `total`).
   El cursor es el id del último elemento mostrado: los ids son v7, así que se ordenan
   por tiempo. `TableRepository.page` lo hace todo; las rutas leen la página con
@@ -792,7 +800,8 @@ entero.
   trabajo de cooper converge así: `tenant.delete` retira él mismo los accesos del
   espacio justo después de guardar el borrado, para que nadie entre desde el momento en
   que responde; después `tenant.deleted` pone en marcha `tenant.removeAccesses` en
-  auth, por si ese segundo guardado falló, y `workspace.purge` y
+  auth, por si ese segundo guardado falló (la pertenencia de boards pregunta también
+  si el tenant sigue ahí, así que mientras tanto no entra nadie), y `workspace.purge` y
   `activity.purgeWorkspace` en boards, cada uno un trabajo que se repite hasta
   completarse.) Un trabajo que agota sus intentos es un flujo
   atascado a mitad: alguien tiene que mirarlo, arreglar la causa y relanzarlo con
@@ -957,7 +966,7 @@ quedan. cooper lo hace en `index.ts`, antes de abrir nada:
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
-  not_signed_in: () => 'Your session has ended: sign in again to go on',
+  not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
   route_not_found: ({ method, path }) => `Cooper has nothing at ${method} ${path}`,
   internal: () => 'Something went wrong on our side. Try again in a moment.',

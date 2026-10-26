@@ -147,7 +147,11 @@ export class Outbox_Module extends Module {
     return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
   }
 
-  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  /**
+   * Puts a dead job back to wait, as new: its worker runs it again at once, with all its
+   * attempts. A plain use case: it writes no module's rows through a repository, which
+   * is what the write rule watches, but the store's outbox, in one step.
+   */
   @UseCase()
   async retry(id: string): Promise<void> {
     if (await this.base.store.outbox.retry(id)) return
@@ -201,17 +205,22 @@ async dead(context: JobContext, page: PageRequest): Promise<Page<ContextJobDTO>>
 /**
  * A dead job of a context runs again: what a person of the staff asks for, at once,
  * once they fixed what killed it. The context's own use case puts it back; its
- * worker runs it.
+ * worker runs it. No `writesTo`, not even for the backoffice's own outbox: the
+ * write rule watches what repositories save, and a job put back is the store's
+ * outbox, written by `outbox.retry` in one step.
  */
-@UseCase({ writesTo: ['outbox'] })
+@UseCase()
 async retry(context: JobContext, id: string): Promise<void> {
   await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
 }
 ```
 
-`retry` escribe en otro módulo, `outbox`, desde una petición: lo dice con `writesTo`
-([módulos que hablan](./17-modules-talk)). Lo pide una persona del equipo, que espera
-la respuesta, así que no puede esperar a un worker. Dos rutas, tras la comprobación
+`retry` llama al `outbox.retry` de cada contexto desde una petición, y no declara
+`writesTo`. La regla de escritura ([módulos que hablan](./17-modules-talk)) vigila las
+filas que un caso de uso guarda con repositorios, y devolver un job no guarda
+ninguna: es una sola escritura en el outbox del store, la misma tabla en la que murió
+el job. Lo pide una persona del equipo, que espera la respuesta, así que no puede
+esperar a un worker. Dos rutas, tras la comprobación
 del equipo, son la API a la que llama la página:
 
 ```ts
