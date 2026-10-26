@@ -2,6 +2,7 @@ import { TableRepository } from 'newt/repository'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Board, type BoardDTO } from './board'
+import { BoardNameTaken } from './errors/board-name-taken'
 
 /** Its row: the board, its version, and when it was archived (soft deleted). */
 export type BoardRow = BoardDTO & { version: number, deletedAt: string | null }
@@ -9,8 +10,8 @@ export type BoardRow = BoardDTO & { version: number, deletedAt: string | null }
 export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBase> {
 
   constructor(base: BoardsBase) {
-    super(base, base.store.table<BoardRow>('board'), {
-      // Archiving stamps `deletedAt`: an archived board is in no list.
+    super(base, base.store.table<BoardRow>('board', { unique: [['workspaceId', 'name']] }), {
+      // Archiving stamps `deletedAt`: an archived board is in no list, and its name is free again.
       softDelete: true,
       // Every find, count and page sees the current workspace's boards only.
       scope: { field: 'workspaceId', current: currentWorkspaceId },
@@ -19,6 +20,23 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
 
   protected toEntity(row: BoardRow): Board {
     return Board.fromDTO(row)
+  }
+
+  /**
+   * Saves a board only if no other one of its workspace has its name, whatever the
+   * case: counted again after writing it, in its transaction, guarding the name in
+   * lower case, so no other save of that name slips in between. `Roadmap` and
+   * `ROADMAP` created at once cannot both have it. Only A to Z are folded, as `ieq`
+   * and the table's unique index compare: `Ärger` and `ärger` are two names.
+   */
+  async persistWithNameFree(board: Board): Promise<void> {
+    const { workspaceId, name } = board
+    await this.save([board], each => this.write(each), {
+      guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
+      after: async () => {
+        if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
+      },
+    })
   }
 
   /**

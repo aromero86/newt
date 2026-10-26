@@ -1,6 +1,7 @@
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Board_Module } from './modules/board/board.module'
+import { Column_Module } from './modules/column/column.module'
 import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
 
@@ -16,7 +17,8 @@ export type Boards_ModuleDeps = {
 export function initializeModules(base: BoardsBase, config: Boards_Config, deps: Boards_ModuleDeps) {
   const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
   const board = Board_Module.initialize(base, { member })
-  return { member, board }
+  const column = Column_Module.initialize(base, { board, member })
+  return { member, board, column }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>

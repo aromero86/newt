@@ -42,10 +42,13 @@ describe('boards, through its API', () => {
     expect(await call('GET', '/acme/boards')).toMatchObject({ status: 200, body: { items: [], total: 0 } })
   })
 
-  test('keeps a board, and gives it back', async () => {
+  test('keeps a board and its columns', async () => {
     const board = await call<{ id: string, name: string }>('POST', '/acme/boards', { name: 'Roadmap' })
     expect(board).toMatchObject({ status: 201, body: { name: 'Roadmap', description: '' } })
     const id = board.body.id
+    for (const name of ['To do', 'Done']) expect((await call('POST', `/acme/boards/${id}/columns`, { name })).status).toBe(201)
+    expect((await call<{ name: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.name)).toEqual(['To do', 'Done'])
+    expect(await call('POST', '/acme/boards', { name: 'ROADMAP' })).toMatchObject({ status: 409, body: { code: 'board.name_taken' } })
 
     expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
     expect((await call('GET', `/acme/boards/${id}`)).body).toMatchObject({ id, name: 'Plans' })

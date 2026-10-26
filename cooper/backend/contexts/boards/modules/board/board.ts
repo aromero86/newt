@@ -35,7 +35,7 @@ export class Board extends Entity<typeof BoardSchema> {
     })
   }
 
-  /** Out of every list; its row stays, with what points at it. */
+  /** Out of every list, its name free again; its row stays, with what points at it. */
   archive(): void {
     this.markAsDeleted()
   }

@@ -10,7 +10,9 @@ import {
 import type { Board_Deps } from './board.deps'
 import { Board_Repository } from './board.repository'
 import { registerBoardRoutes } from './board.routes'
+import { BoardNameTaken } from './errors/board-name-taken'
 import { BoardNotFound } from './errors/board-not-found'
+import { BoardName } from './value-objects/board-name'
 
 /**
  * The boards of each workspace. Every use case works in the current workspace (the
@@ -58,11 +60,19 @@ export class Board_Module extends Module {
     return (await this.load(id)).toDTO()
   }
 
+  /** For other modules: the board with this name, whatever its case, if there is one. */
+  @UseCase()
+  async findByName(name: string): Promise<BoardDTO | null> {
+    const board = await this.repo.first({ name: { ieq: BoardName.from(name) } })
+    return board?.toDTO() ?? null
+  }
+
   @UseCase()
   async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
+    await this.assertNameFree(BoardName.from(name))
     const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
-    await this.repo.persist(board)
+    await this.repo.persistWithNameFree(board)
     return board.toDTO()
   }
 
@@ -71,8 +81,9 @@ export class Board_Module extends Module {
   async update(id: string, input: unknown): Promise<BoardDTO> {
     const changes = BoardUpdateSchema.parse(input)
     const board = await this.load(id)
+    if (changes.name !== undefined) await this.assertNameFree(BoardName.from(changes.name), id)
     board.update(changes)
-    await this.repo.persist(board)
+    await this.repo.persistWithNameFree(board)
     return board.toDTO()
   }
 
@@ -86,5 +97,10 @@ export class Board_Module extends Module {
 
   private load(id: string): Promise<Board> {
     return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
+  }
+
+  /** For a clear answer in the usual case: the save checks it again, where nothing can slip in between. */
+  private async assertNameFree(name: BoardName, exceptId?: string): Promise<void> {
+    if (await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } }) > 0) throw new BoardNameTaken(name)
   }
 }
