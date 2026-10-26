@@ -1,5 +1,6 @@
 import { sql, type RawBuilder } from 'kysely'
-import type { SqliteStore } from 'newt/adapter-sqlite'
+import { SqliteStore } from 'newt/adapter-sqlite'
+import type { PostgresStore } from 'newt/adapter-postgres'
 import { kyselyFor } from 'newt/kysely'
 import type { Analytics, AnalyticsRow } from 'newt/port-analytics'
 import type { AnalyticsCount, AnalyticsCounts } from './analytics-counts'
@@ -13,11 +14,12 @@ type AnalyticsDatabase = {
 }
 
 /**
- * newt's analytics port on the context's own SQL database, SQLite, for an
+ * newt's analytics port on the context's own SQL database, SQLite or Postgres, for an
  * application whose numbers are small enough for it: newt brings no adapter yet
  * (ClickHouse and DuckDB will come). Every dataset is in one table, `analytics_row`,
  * each row whole as JSON, in the database of the context that reads it: it copies
- * `migrations/sqlite/00001_analytics_up.sql` into its own. Its queries are Kysely's.
+ * `migrations/<sqlite|postgres>/00001_analytics_up.sql` into its own. Its queries are
+ * Kysely's, the same on both, but for reading a field of the JSON.
  *
  * It keeps the port's promises (`describeAnalyticsContract`): rows are only added, and
  * one whose id is in already is left out, so the worker that appends may run twice.
@@ -28,7 +30,7 @@ export class SqlAnalytics implements Analytics, AnalyticsCounts {
 
   private readonly db
 
-  constructor(private readonly store: SqliteStore) {
+  constructor(private readonly store: SqliteStore | PostgresStore) {
     this.db = kyselyFor<AnalyticsDatabase>(store)
   }
 
@@ -71,9 +73,13 @@ export class SqlAnalytics implements Analytics, AnalyticsCounts {
 
   /**
    * A field of the JSON, as text: each database says it its own way (DuckDB or
-   * ClickHouse would read a column). It is a name, checked above, never a piece of SQL.
+   * ClickHouse would read a column). The field's name is written in the query, not
+   * sent apart: Postgres groups by an expression only if it is written the same. It is
+   * a name, checked above, never a piece of SQL.
    */
   private fieldOf(field: string): RawBuilder<string> {
-    return sql<string>`json_extract(data, ${sql.lit(`$.${field}`)})`
+    return this.store instanceof SqliteStore
+      ? sql<string>`json_extract(data, ${sql.lit(`$.${field}`)})`
+      : sql<string>`(data::jsonb ->> ${sql.lit(field)})`
   }
 }
