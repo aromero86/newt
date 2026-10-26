@@ -3,6 +3,8 @@ import { BoardName } from './value-objects/board-name'
 
 export const BoardSchema = z.object({
   id: z.uuidv7(),
+  /** The workspace it is in: an auth tenant, by id. */
+  workspaceId: z.string(),
   name: BoardName.schema,
   description: z.string().max(500),
   createdAt: z.string().default(''),

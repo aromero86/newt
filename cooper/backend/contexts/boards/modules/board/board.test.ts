@@ -6,20 +6,23 @@ describe('board', () => {
 
   beforeEach(async () => {
     t = await openTestBoards()
+    t.auth.join('acme', 'ana')
+    t.auth.join('globex', 'bea')
   })
 
   afterEach(() => t.close())
 
-  const create = (name: string) => t.modules.board.create({ name })
+  const inAcme = <T>(fn: () => Promise<T>) => t.as('ana', 'acme', fn)
+  const create = (name: string) => inAcme(() => t.modules.board.create({ name }))
 
-  test('lists boards by pages, the newest first', async () => {
+  test('lists a workspace\'s boards by pages, the newest first', async () => {
     for (const name of ['Roadmap', 'Bugs', 'Launch']) await create(name)
 
-    const first = await t.modules.board.list({ size: 2 })
+    const first = await inAcme(() => t.modules.board.list({ size: 2 }))
     expect(first.items.map(board => String(board.name))).toEqual(['Launch', 'Bugs'])
     expect(first).toMatchObject({ hasMore: true, total: 3 })
 
-    const next = await t.modules.board.list({ size: 2, cursor: first.items[1]!.id })
+    const next = await inAcme(() => t.modules.board.list({ size: 2, cursor: first.items[1]!.id }))
     expect(next.items.map(board => String(board.name))).toEqual(['Roadmap'])
     expect(next.hasMore).toBe(false)
   })
@@ -33,17 +36,24 @@ describe('board', () => {
   test('renames a board, describes it, or both', async () => {
     const bugs = await create('Bugs')
 
-    expect(await t.modules.board.update(bugs.id, { description: 'What is broken' })).toMatchObject({ name: 'Bugs', description: 'What is broken' })
-    expect(String((await t.modules.board.update(bugs.id, { name: ' Known  bugs ' })).name)).toBe('Known bugs')
-    expect(String((await t.modules.board.get(bugs.id)).name)).toBe('Known bugs')
+    expect(await inAcme(() => t.modules.board.update(bugs.id, { description: 'What is broken' }))).toMatchObject({ name: 'Bugs', description: 'What is broken' })
+    expect(String((await inAcme(() => t.modules.board.update(bugs.id, { name: ' Known  bugs ' }))).name)).toBe('Known bugs')
   })
 
   test('archives a board: out of every list', async () => {
     const roadmap = await create('Roadmap')
 
-    await t.modules.board.archive(roadmap.id)
+    await inAcme(() => t.modules.board.archive(roadmap.id))
 
-    await expect(t.modules.board.get(roadmap.id)).rejects.toMatchObject({ code: 'board.not_found' })
-    expect((await t.modules.board.list({ size: 10 })).total).toBe(0)
+    await expect(inAcme(() => t.modules.board.get(roadmap.id))).rejects.toMatchObject({ code: 'board.not_found' })
+    expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+  })
+
+  test('shows a workspace\'s boards to its members only, and nobody else\'s', async () => {
+    const roadmap = await create('Roadmap')
+
+    await expect(t.as('bea', 'globex', () => t.modules.board.get(roadmap.id))).rejects.toMatchObject({ code: 'board.not_found' })
+    await expect(t.as('bea', 'acme', () => t.modules.board.list({ size: 10 }))).rejects.toMatchObject({ code: 'workspace.not_found' })
+    expect((await t.modules.board.listOf('acme', { size: 10 })).items.map(board => board.id)).toEqual([roadmap.id])
   })
 })

@@ -19,6 +19,7 @@ is said in the root's eslint.config.js, and the lint keeps it.
 
 - Every context's base is a `CooperBase` (shared/cooper-base.ts); a module registers
   its routes on `base.http`, in its `<m>.routes.ts`.
+- boards' repositories are scoped by workspace (contexts/boards/workspace-scope.ts).
 
 ## Commands
 

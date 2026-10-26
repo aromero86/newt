@@ -1,6 +1,7 @@
 import type { FileStore } from 'newt/adapter-files'
 import { Base } from 'newt/runtime'
 import { HttpRouter } from 'newt/http'
+import './actor'
 
 /**
  * What every module of cooper receives: newt's base, on plain files for now, with the

@@ -1,21 +1,27 @@
 import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
+import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import {
   Board,
   BoardCreateSchema,
   BoardUpdateSchema,
   type BoardDTO,
 } from './board'
+import type { Board_Deps } from './board.deps'
 import { Board_Repository } from './board.repository'
 import { registerBoardRoutes } from './board.routes'
 import { BoardNotFound } from './errors/board-not-found'
 
-/** The boards. */
+/**
+ * The boards of each workspace. Every use case works in the current workspace (the
+ * scope its route, worker or script entered): the repository sees no other. Those
+ * another context calls name their workspace instead, and enter it.
+ */
 export class Board_Module extends Module {
 
-  static initialize(base: BoardsBase): Board_Module {
+  static initialize(base: BoardsBase, deps: Board_Deps): Board_Module {
     const module = new Board_Module(base, new Board_Repository(base))
-    registerBoardRoutes(base, module)
+    registerBoardRoutes(base, module, deps)
     return module
   }
 
@@ -23,10 +29,28 @@ export class Board_Module extends Module {
     super('board', base.invocations)
   }
 
-  /** A page of the boards, the newest first. */
+  /** A page of the workspace's boards, the newest first. */
   @UseCase()
   async list(page: PageRequest): Promise<Page<BoardDTO>> {
     return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
+  }
+
+  /** For other contexts (the backoffice): a page of a workspace's boards, the newest first. */
+  @UseCase()
+  async listOf(workspaceId: string, page: PageRequest): Promise<Page<BoardDTO>> {
+    return runInWorkspace(workspaceId, () => this.list(page))
+  }
+
+  /**
+   * For the staff's backoffice: the boards created last, whatever their workspace. It
+   * reads every workspace on purpose, so it does not run in one: no person of a
+   * workspace reaches it (no route of boards calls it), and its repository says so by
+   * name (`findInEveryScope`), where a review sees it.
+   */
+  @UseCase()
+  async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+    const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+    return boards.map(board => board.toDTO())
   }
 
   @UseCase()
@@ -37,7 +61,7 @@ export class Board_Module extends Module {
   @UseCase()
   async create(input: unknown): Promise<BoardDTO> {
     const { name, description } = BoardCreateSchema.parse(input)
-    const board = Board.create({ name, description })
+    const board = Board.create({ workspaceId: currentWorkspaceId(), name, description })
     await this.repo.persist(board)
     return board.toDTO()
   }

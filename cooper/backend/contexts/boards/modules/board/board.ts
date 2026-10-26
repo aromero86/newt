@@ -15,9 +15,13 @@ export class Board extends Entity<typeof BoardSchema> {
     return new Board(dto, false)
   }
 
-  /** A new one: the name as someone typed it becomes a `BoardName`. */
-  static create(input: { name: string, description: string }): Board {
+  /** A new one, in its workspace: the name as someone typed it becomes a `BoardName`. */
+  static create(input: { workspaceId: string, name: string, description: string }): Board {
     return new Board({ ...input, name: BoardName.from(input.name) }, true)
+  }
+
+  get workspaceId(): string {
+    return this.data.workspaceId
   }
 
   get name(): BoardName {
