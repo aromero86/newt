@@ -13,6 +13,7 @@
     "docs:build": "vitepress build web",
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",
+    "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     "cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice"
   },
   "dependencies": {
