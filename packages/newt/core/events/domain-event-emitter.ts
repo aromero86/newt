@@ -1,10 +1,8 @@
 import type { DomainEventClass } from './domain-event-class'
 import type { EventBus } from './event-bus'
+import { eventOfQueue } from './event-of-queue'
 import type { Json } from './json'
 import type { Subscription } from './subscription'
-
-/** `<module>.<use case>.on.`, then the event's own name. */
-const QUEUE = /^[A-Za-z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*\.on\./
 
 /**
  * One kind of event a module tells. Others react to it by subscribing, always saying
@@ -35,7 +33,7 @@ export class DomainEventEmitter<TPayload extends Json> {
     if (subscription.strategy === 'fire-and-forget') return this.bus.subscribe(this.name, event => run(event.payload as TPayload))
 
     const { queue, attempts } = subscription
-    if (!QUEUE.test(queue) || !queue.endsWith(`.on.${this.name}`)) {
+    if (eventOfQueue(queue) !== this.name) {
       throw new Error(`A handler's queue is '<module>.<use case>.on.${this.name}': '${queue}' is not`)
     }
     return this.bus.subscribe(this.name, event => run(event.payload as TPayload), { mode: 'handler', name: queue, attempts })

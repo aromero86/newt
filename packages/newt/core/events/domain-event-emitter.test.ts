@@ -69,6 +69,13 @@ describe('DomainEventEmitter.subscribe', () => {
     expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.orderPlaced.on.order.confirmed' })).toThrow('<module>.<use case>.on.order.placed')
     expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.order.placed.on.order.placed' })).toThrow()
   })
+
+  test('refuses the queue the worker would refuse: a module or use case in upper case', () => {
+    const { placed } = eventsOf(recordingBus().bus, { placed: Placed })
+
+    expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'Notification.orderPlaced.on.order.placed' })).toThrow()
+    expect(() => placed.subscribe(() => {}, { strategy: 'handler', queue: 'notification.OrderPlaced.on.order.placed' })).toThrow()
+  })
 })
 
 describe('DomainEventEmitter.subscribe, further', () => {

@@ -10,6 +10,8 @@ export { restoreSaved, savedState } from './entity/saved-state'
 /** The runtime builds each context's invocations, and runs its jobs as a worker. */
 export { Invocations } from './use-case/invocations'
 export { inWorker } from './use-case/invocation-chain'
+/** A subscription and the worker check a handler's queue by one rule. */
+export { eventOfQueue } from './events/event-of-queue'
 
 /** HTTP answers with the framework's messages: what a route that is not there says, and the like. */
 export { message } from './messages/message'

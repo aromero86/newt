@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DomainEvent, EventHandler, Invocations } from '../../core'
-import { inWorker } from '../../core/internal'
+import { eventOfQueue, inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
 import type { JobQueueOptions } from './job-queue-options'
 import type { Job, JobClosing, Outbox } from '../../port-outbox'
@@ -28,9 +28,6 @@ const PURGE_EVERY_MS = 60 * 60_000
  * a handler has no actor nor scope but the ones it sets itself.
  */
 const detached = AsyncLocalStorage.snapshot()
-
-/** `<handler's module>.<use case it calls>.on.<event>`: `mail.sendWelcome.on.user.created`. */
-const NAME = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.on\.(.+)$/
 
 /**
  * The handlers subscribed in `handler` mode, each one a queue, and the worker that
@@ -76,7 +73,7 @@ export class JobQueue {
   }
 
   register(name: string, pattern: string, handler: EventHandler, attempts = DEFAULT_ATTEMPTS): () => void {
-    if (NAME.exec(name)?.[1] !== pattern) throw new Error(`A handler of '${pattern}' is named '<handler's module>.<use case it calls>.on.${pattern}', not '${name}'`)
+    if (eventOfQueue(name) !== pattern) throw new Error(`A handler of '${pattern}' is named '<handler's module>.<use case it calls>.on.${pattern}', not '${name}'`)
     if (!Number.isInteger(attempts) || attempts < 1) throw new Error(`The handler '${name}' runs at least once: its attempts are a whole number from 1, not ${attempts}`)
     if (this.registrations.has(name)) throw new Error(`A handler named '${name}' is subscribed already`)
     this.registrations.set(name, { pattern, handler, attempts })
