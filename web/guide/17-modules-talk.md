@@ -189,7 +189,8 @@ auth has five more, each with its reason in the code:
   `tenant.created` gives the admin anyway (`ensureAdmin`).
 - `tenant.delete` writes to `access`: nobody may enter a workspace from the moment
   its deletion answers. If revoking fails, the worker of `tenant.deleted` takes the
-  accesses away (`removeAccesses`).
+  accesses away (`removeAccesses`); meanwhile boards lets nobody in, since it asks
+  whether the workspace is still there too.
 - `invitation.accept` writes to `access`: whoever accepts enters at once. The access
   goes first and is safe to give again, so accepting again finishes a half-done one.
 - `session.signUp` writes to `user`: the person waits for their account and their
@@ -263,7 +264,7 @@ something it needs from outside its context.
  * module of auth. The context is handed one when it opens; a test, a fake.
  */
 export type Workspaces = {
-  /** Whether someone belongs to a workspace now: asked each time, so who leaves counts at once. */
+  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>

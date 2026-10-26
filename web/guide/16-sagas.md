@@ -67,21 +67,38 @@ Then the request takes the accesses away itself, in a second transaction. Why no
 leave that to a worker too? Ask the question of [eventual
 consistency](./12-eventual-consistency): does the person need it now? Here the answer
 is yes, the other way round: from the moment the admin sees "deleted", nobody may
-enter the workspace, its admin neither. boards lets someone into a workspace by
-asking auth for their access, so the accesses have to be gone when the request
-answers. A use case that writes to another module outside a worker says so with
-`writesTo`, and `retryOnConflict: false` stops it from running again on a conflict:
+enter the workspace, its admin neither, and no access to it should be left. So the
+accesses go in the request, and the worker is only the fallback. A use case that
+writes to another module outside a worker says so with `writesTo`, and `retryOnConflict: false` stops it from running again on a conflict:
 the second run would find the workspace deleted and answer 404 to a deletion that
 worked.
 
-The second save can still fail after the first one committed. So that step keeps its
-worker too, as a fallback. The event says what it starts:
+The second save can still fail after the first one committed, and between the two
+saves, for a few milliseconds, the accesses are still there. They let nobody in:
+boards lets someone into a workspace only if auth has an access for them *and* the
+workspace is still there ([several contexts](./19-several-contexts)):
+
+```ts
+// cooper/backend/open-contexts.ts
+// A deleted tenant is not among them.
+const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
+// An access and a tenant still there: a deleted workspace's accesses go a moment
+// after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+const isMember = async (workspaceId: string, userId: string) => {
+  const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+  return granted !== null && alive
+}
+```
+
+So the step keeps its worker too, as a fallback for a second save that failed. The
+event says what it starts:
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-deleted.ts
 /**
- * A workspace was deleted: the start of a saga. auth takes every access to it away
- * and revokes its invitations; boards deletes its boards. Each from a worker.
+ * A workspace was deleted: the start of a saga. auth revokes its invitations, and
+ * takes every access to it away once more (`delete` already did, in the request);
+ * boards deletes its boards. Each from a worker.
  */
 export class Tenant_Deleted implements DomainEvent<TenantDTO> {
   static readonly eventName = 'tenant.deleted'
@@ -273,6 +290,7 @@ gap, and this is what cooper does about it:
 | What happens | How it ends |
 |---|---|
 | Someone lists their workspaces right after the deletion. | Their access went with the request. Should that second save have failed, the workspace is gone anyway: `workspace.mine` (and auth's `tenant.listForUser`) leave it out until the worker takes the access. |
+| A member opens a board, or creates a card, between the two saves of the request. | boards asks auth for the access and for the workspace: the workspace is already deleted, so they are not a member, and nothing is created after `workspace.purge`. |
 | Someone accepts an invitation to the workspace before `invitation.revokeForTenant` runs. | `invitation.accept` checks the workspace first: a deleted one makes the invitation not open (`invitation.not_open`), and no access is given. |
 | An invitation's email job runs after the workspace was deleted. | `invitation.send` finds no workspace and returns: no email leaves. |
 | The welcome board's job (`workspace.prepare`) runs after the workspace was deleted, or while it is. | It asks auth whether the workspace exists: if not, it writes nothing; if it went while it ran, it purges what it wrote. |
@@ -295,14 +313,12 @@ async accept(token: string): Promise<InvitationDTO> {
 }
 ```
 
-::: warning
-One gap is left, and it is small. The deletion and the accesses are two saves. Between
-them, a few milliseconds, or longer if the second one fails and its worker has not
-run yet, a member still has an access, and boards still lets them in
-(`member.enter` asks auth for the access, not for the workspace). A board or card
-created in that gap, after `workspace.purge` ran, would stay in boards. To close it
-for good, the check that lets someone into a workspace would have to fail for a
-deleted workspace too.
+::: tip
+The check that lets someone in is where a gap between two saves closes. Had boards
+asked only for the access, a member could still enter between the deletion and the
+accesses (longer, if the second save failed and its worker had not run yet), and a
+board created then, after `workspace.purge`, would stay in boards for good. Asking
+for the workspace too costs one more read, and leaves no such gap.
 :::
 
 ## The four rules

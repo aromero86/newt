@@ -119,7 +119,7 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
     },
     {
       id: PRODUCTS.backoffice,
-      name: 'Cooper backoffice',
+      name: 'Cooper Backoffice',
       publicUrl: config.backofficePublicUrl,
       signUp: false,
       access: 'granted',
@@ -244,7 +244,9 @@ async delete(tenantId: string): Promise<void> {
 ```
 
 El `removeAccesses` del worker se queda como respaldo, y `revokeTenant` se puede
-repetir sin daño. El test para el worker de auth, borra y comprueba que no entra
+repetir sin daño. Entre los dos guardados, o si el segundo falla, boards sigue sin
+dejar entrar a nadie: su pertenencia le pregunta a auth por el acceso *y* por si el
+tenant sigue ahí ([capítulo 16](./16-sagas)). El test para el worker de auth, borra y comprueba que no entra
 nadie:
 
 ```ts
@@ -655,14 +657,22 @@ responde adónde va el navegador después, al logout de auth, con el camino de v
 
 ```ts
 // cooper/backend/shared/web-session/web-session.routes.ts
+// Public: signing out with a session already gone still clears the cookie. The
+// browser goes on to auth, to sign out there too and come back: otherwise signing
+// in again would sign the same person in, with no way to switch accounts. It comes
+// back to `?returnTo=` (a path of this context: an invitation, say) or to the start.
 base.http.post('/session/sign-out', async request => {
   await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
   request.cookies.delete({ name: cookies.session, path: '/' })
-  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  const returnTo = new URL(request.url).searchParams.get('returnTo')
+  const back = returnTo ? new URL(ownPath(returnTo), options.publicUrl).toString() : options.publicUrl
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: back })}`
   return Response.json({ next } satisfies WebSessionSignOutDTO)
 }, { public: true })
 ```
 
+El camino de vuelta es el inicio de este contexto, o una ruta suya que pida la
+página (`ownPath` convierte en `/` cualquier cosa que no lo sea, como `//evil.test`).
 auth cierra su sesión y devuelve el navegador. `redirect` viene en la URL, así que
 cualquiera puede escribir uno: `session.returnAddress` solo acepta el origen de uno
 de los productos de cooper, y manda cualquier otra cosa al inicio de auth. Una

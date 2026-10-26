@@ -57,8 +57,6 @@ function sidebar(base: string, spanish: boolean): DefaultTheme.Sidebar {
 export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun',
-  // While the guide is written in parts: removed once every page is in.
-  ignoreDeadLinks: true,
   cleanUrls: true,
   locales: {
     root: {

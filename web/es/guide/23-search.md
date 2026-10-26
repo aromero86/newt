@@ -344,14 +344,17 @@ email **o** un nombre, entero, sin importar mayúsculas:
 
 ```ts
 // cooper/backend/contexts/backoffice/modules/user/user.module.ts
-/** Every account, the newest first; with a text, those whose email or name it is. */
+/** Every account, the newest first, each saying whether it is staff; with a text, those whose email or name it is. */
 @UseCase()
-async list(input: UserSearchDTO, page: PageRequest): Promise<Page<UserDTO>> {
+async list(input: UserSearchDTO, page: PageRequest): Promise<Page<UserSummaryDTO>> {
   const { text } = UserSearchSchema.parse(input)
   const filter: UserFilterDTO | undefined = text
     ? { or: [{ field: 'email', op: 'ieq', value: text }, { field: 'name', op: 'ieq', value: text }] }
     : undefined
-  return this.deps.user.list(filter, page)
+  const users = await this.deps.user.list(filter, page)
+  // One question to auth per account of the page: a page is short, and auth says it fresh.
+  const items = await Promise.all(users.items.map(async user => ({ ...user, staff: await this.deps.staff.isStaff(user.id) })))
+  return { ...users, items }
 }
 ```
 
