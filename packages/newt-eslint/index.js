@@ -27,7 +27,8 @@ const MODULES = ['**/modules/*/**/*.ts']
  *   transaction of its own, and a handler's queue names who reacts with what to
  *   which event;
  * - nothing saved is left unawaited;
- * - with `contexts`, the contexts use each other as a tree, never in a circle.
+ * - with `contexts`, each context imports only the ones it says it uses, so they
+ *   never form a cycle.
  *
  * ```js
  * // eslint.config.js
@@ -46,7 +47,7 @@ export function newt({ contexts } = {}) {
       rules: {
         'no-restricted-imports': ['error', { patterns: others.length ? [{
           regex: `^(\\.\\./)+(${others.join('|')})(/|$)`,
-          message: `${name} uses ${uses.length ? uses.join(', ') : 'no other context'}: contexts use each other as a tree, never in a circle.`,
+          message: `${name} uses ${uses.length ? uses.join(', ') : 'no other context'}: contexts use only the ones they say, never in a cycle.`,
         }] : [] }],
       },
     }

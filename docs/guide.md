@@ -31,8 +31,8 @@ const base = new AppBase({ name: 'shop', store: await SqliteStore.open({ path: '
 - **A context is a `BoundedContext`**: `start()` starts its job worker, `stop()`
   waits for the jobs in progress and closes its store. How it is served is the
   application's: `serve` from `newt/http` is one way.
-- **Contexts depend on each other as a tree**, never a circle: each one is opened
-  after the ones it uses and receives them.
+- **Contexts depend on each other without a cycle**: each one is opened after the
+  ones it uses and receives them.
 - A context reaches another only through that one's use cases and events, never
   its store. A call to another context is like a call to an outside API: what it
   saved stays saved whatever the caller does next, so the caller puts it after
@@ -186,17 +186,18 @@ writes is safe to run again (idempotent), so the flow always converges.
 
 | Writing to another module from… | If it fails halfway… |
 |---|---|
-| a use case a request called | it stays half done, and nothing finishes it |
+| a use case outside a worker (a request, a script, a test) | it stays half done, and nothing finishes it |
 | a use case a worker called (a `handler`) | its job runs again until it completes |
 
-The framework checks it as it runs: a save of module B under a use case of module A,
-outside a worker, is an error (the default), or a warning (`writeRule: 'warn'` in a
-context's `Base`, while an application moves to the rule). An exception that is justified is said
-where it is seen: `@UseCase({ writesTo: ['workspaceMember'] })`, with the reason
-beside it; it counts for whatever is written below that use case, whoever called
-it. The rule is per context: a use case called from another context is that
-context's API, the root of what it does in its own, where the rule holds as for any
-other.
+The framework checks it as it runs: a use case of module B that saves, called under a
+use case of module A outside a worker, is an error (the default), or a warning
+(`writeRule: 'warn'` in a context's `Base`, while an application moves to the rule).
+Reaching B's repository from A, past its use cases, is what `newt-eslint` refuses. An
+exception that is justified is said where it is seen:
+`@UseCase({ writesTo: ['workspaceMember'] })`, with the reason beside it; it counts for whatever is written
+below that use case, whoever called it. The rule is per context: a use case called
+from another context is that context's API, the root of what it does in its own,
+where the rule holds as for any other.
 
 **A module is one aggregate.** What must be saved together, all or nothing, is one
 module. Two modules whose data must always change together are one; otherwise one
@@ -205,7 +206,7 @@ of them follows the other through events.
 - A module that **knows** another (it is in its `<M>_Deps`) may call its use cases
   and subscribe to its events. Never its repository, its tables or its entity:
   reads go through the owner's use cases.
-- **Dependencies form a tree, never a cycle.** When two modules seem to need each
+- **Dependencies never form a cycle.** When two modules seem to need each
   other, one stops calling and starts listening.
 - A module never knows who depends on it.
 
@@ -358,9 +359,10 @@ class AppBase extends Base<SqliteStore> {
 }
 // in a repository
 const { level } = await this.base.db.selectFrom('stock_movement')
-  .select(eb => eb.fn.sum<number>('quantity').as('level'))
+  .select(eb => eb.fn.sum<number | string>('quantity').as('level'))
   .where('productId', '=', productId)
   .executeTakeFirstOrThrow()
+return Number(level ?? 0)   // a sum comes back as text on Postgres and MySQL
 ```
 
 **Keep repositories portable**: `TableRepository` by default, Kysely for what it
@@ -422,7 +424,8 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   })
   ```
 
-  Saves of other products never wait. A save with `after` must name its `guard`,
+  On Postgres and MySQL, saves of other products never wait (on SQLite and files
+  every save takes its turn anyway). A save with `after` must name its `guard`,
   or it does not compile: `guard: []` says, where it is read, that none is needed.
   `before` writes what must go first. The use case still checks first, for a clear
   answer in the usual case.
@@ -596,11 +599,12 @@ export const Email = {
 
 Data meant to be read a lot at once (sales by month, by product, by customer) goes to
 an analytical database through the `Analytics` port: only ever appended to, never
-changed. It has no transactions, so it is fed by `handler` workers after the events of
-what the store saved; each row carries an id of its own (the order line's), so a job
-that runs twice adds nothing. Reading it is each adapter's own query language. No
-adapter comes with the framework yet; `MemoryAnalytics` (in `newt/port-analytics/contract`) is the one for
-tests, and `describeAnalyticsContract` checks a new one.
+changed. It has no transactions, so it is fed by `handler` workers after the events
+of what the store saved; each row carries an id of its own (the order line's), so a
+job that runs twice adds nothing. Reading it is each adapter's own query language. No
+adapter comes with the framework yet; `MemoryAnalytics` (in
+`newt/port-analytics/contract`) is the one for tests, and `describeAnalyticsContract`
+checks a new one.
 
 ## Observability
 

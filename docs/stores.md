@@ -40,7 +40,12 @@ interface Store {
 - **A call waits its turn, but not forever**: 30 s by default (`waitTimeoutMs`),
   then it fails saying why. The usual cause is code inside a transaction that lost
   it (`AsyncLocalStorage.snapshot`, an `EventEmitter`) and asks for the store, so
-  it waits for the very transaction it is part of.
+  it waits for the very transaction it is part of. This holds where transactions
+  take turns (SQLite, and files within one process; files wait 10 s for another
+  process). On Postgres and MySQL `waitTimeoutMs` bounds a `guard`; code that lost
+  its transaction waits on the database's own row locks instead (by default, for
+  ever on Postgres and 50 s on MySQL, with the database's error). The contract suite does not
+  check this promise.
 
 ### Tables and criteria
 
@@ -64,12 +69,16 @@ they are (`boolean`, and `json` for objects and lists), and `unique` the fields 
 two rows share (a row deleted softly aside). A store that does not need one ignores
 it: SQLite's unique values are its indexes; files keep booleans as they are.
 
-Criteria nest in groups, `and` (every one) and `or` (at least one), and answer what
-SQL would, in every store: a comparison with `null` holds for
-nothing (`{ eq: null }` and `{ ne: null }` are how to ask for it), a `null` in an
-`in` list does match `null`, an operator left `undefined` is no condition, and
-`ieq` ignores the case of A to Z only, as SQL's `lower()` does: `Ñ` and `ñ` differ.
-Keep a lower-cased column for a search that must fold every letter.
+Criteria nest in groups, `and` (every one) and `or` (at least one), and answer the
+same in every store:
+- a comparison with `null` holds for nothing: `{ eq: null }` and `{ ne: null }` are
+  how to ask for it;
+- `ne` means "different, a missing value included" (SQL's `IS DISTINCT FROM`, not
+  `<>`): `{ ne: 'x' }` also matches the rows with no value;
+- a `null` in an `in` list does match `null`;
+- an operator left `undefined` is no condition;
+- `ieq` ignores the case of A to Z only, on every store: `Ñ` and `ñ` differ.
+  Keep a lower-cased column for a search that must fold every letter.
 
 A table is the common ground every store can offer. What a table cannot say (a
 join, an aggregate, a full-text search) a repository asks its store's own API:
@@ -179,11 +188,12 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
 MySQL): its statements run on the store's connections, in the transaction in
 progress, and field names are the rows' (`productId`), turned into the columns'
 (`product_id`) on their way. Kysely's own transactions are refused: they would not be
-the store's. On SQLite a boolean comes back as 0 or 1 and JSON as text:
-`SqliteRow<Row>` says so in the types. On Postgres and MySQL the store gives Kysely
-back only rows, so a write's `numUpdatedRows` and `numDeletedRows` are `0n` and there is
-no `insertId`: use `returning` (Postgres) or read again. Kysely is an optional peer
-dependency.
+the store's. A boolean comes back as 0 or 1 on SQLite and MySQL, and JSON as text
+on SQLite: `SqliteRow<Row>` says so in the types. A sum comes back as text on
+Postgres and MySQL, and a `COUNT` on Postgres: pass them through `Number(…)`. On
+Postgres and MySQL the store gives Kysely back only rows, so a write's
+`numUpdatedRows` and `numDeletedRows` are `0n` and there is no `insertId`: use
+`returning` (Postgres) or read again. Kysely is an optional peer dependency.
 
 ## Files: `newt/adapter-files`
 
@@ -247,16 +257,25 @@ adapter shares:
 - `isSameClaim(stored, claimed)` is the rule that fences a claimed job.
 - `migrationName(version, name)` names a migration as the others do.
 
-Then it runs the contract suite, which checks every promise above, the
-repositories and the job queue on it:
+Then it runs the contract suite, which checks the promises above (all but the
+bounded wait), the repositories and the job queue on it. Its fixture (`StoreFixture`)
+asks two things of `open`: a fresh, empty store each time, and a `thing` table for
+`ThingRow` (each field a column in snake case, `name` unique among the rows not
+deleted):
 
 ```ts
 import { describeStoreContract } from 'newt/port-store/contract'
 
 describeStoreContract('PostgresStore', {
-  open: () => PostgresStore.open({ url: process.env.TEST_DATABASE_URL!, migrations: 'test/migrations' }),
+  open: async () => {
+    await emptyTheTestDatabase()   // a database of the tests' own, emptied each time
+    return PostgresStore.open({ url: process.env.TEST_DATABASE_URL!, migrations: 'test/migrations' })
+  },
 })
 ```
+
+The `thing` migration is the adapter's to write: see
+`packages/newt/adapter-postgres/postgres-store.test.ts`.
 
 Two promises deserve care in a database with concurrent transactions:
 

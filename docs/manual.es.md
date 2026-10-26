@@ -121,7 +121,7 @@ y conviene volver a esta lista de vez en cuando.
    worker**, reaccionando a un evento.
 7. **Lo irreversible (un email, un cobro) sale de un worker**, nunca de un caso de uso.
 8. **Un worker puede ejecutarse más de una vez**, así que debe dar igual que lo haga.
-9. **Las dependencias entre módulos forman un árbol**, nunca un círculo.
+9. **Las dependencias entre módulos nunca forman un círculo.**
 10. **Un módulo apunta a lo de otro solo por su id**, nunca por la entidad ni por su tabla.
 11. **Ninguna lista se devuelve entera**: se pagina.
 
@@ -196,8 +196,10 @@ El framework se importa por estas puertas, y por ninguna más:
 | `newt/http` | El router HTTP y el servidor (opcional). |
 | `newt/port-store/contract`, `newt/port-analytics/contract` | Los contratos que comprueban un adaptador: para quien escriba uno. |
 
-De momento usarás `newt/core`, `newt/repository`, `newt/port-store`, `newt/runtime`, la de ficheros y la de HTTP.
-Las demás irán apareciendo cuando hagan falta (capítulos 24 y 26).
+De momento usarás `newt/core`, `newt/repository`, `newt/port-store`, `newt/runtime`,
+la de ficheros y la de HTTP. Las de los otros stores y la de Kysely aparecen en los
+capítulos 24 y 26; las de puertos y contratos son para quien escriba un adaptador
+(capítulo 28, y [`stores.md`](stores.md)).
 
 ## 4. El contexto y su base
 
@@ -299,9 +301,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 }
 ```
 
-`context.start()` arranca el proceso que ejecuta los workers. `context.stop()` espera
-a que terminen los que están en marcha antes de cerrar: así un reinicio no corta
-ningún trabajo a la mitad.
+`context.start()` arranca el bucle que ejecuta los workers, en este mismo proceso.
+`context.stop()` espera a que terminen los que están en marcha antes de cerrar: así
+un reinicio no corta ningún trabajo a la mitad.
 
 ## 5. Tu primer módulo: el catálogo
 
@@ -456,8 +458,8 @@ Las ideas que hay detrás:
   (capítulo 12).
 - **Fuera de su módulo, una entidad no existe.** Los casos de uso devuelven
   `toDTO()`, nunca la entidad.
-- **Tiene una versión**, que empieza en 0 y sube con cada guardado. No la toques
-  nunca: es la que protege de que dos personas se pisen (capítulo 9).
+- **Tiene una versión**, que empieza en 0 y sube con cada guardado que la escribe. No
+  la toques nunca: es la que protege de que dos personas se pisen (capítulo 9).
 
 #### Sus métodos reciben datos de negocio, no el DTO de entrada
 
@@ -627,14 +629,16 @@ export class Product_Repository
 Con eso ya tienes `find`, `first`, `count`, `page` y `persist`. Las opciones de la
 tabla se dicen **con las mismas palabras para cualquier store**: `types` avisa de los
 campos que algunos stores no guardan tal cual (SQLite guarda los booleanos como 0 y
-1), y `unique` dice qué campos no pueden repetirse.
+1), y `unique` dice qué campos no pueden repetirse. El store de ficheros lo comprueba
+él; uno SQL lo sabe por el índice único de su migración (capítulo 25), y esta opción
+la ignora.
 
 Para buscar se usan **criterios**, campo a campo:
 
 ```ts
 repo.find({ archived: false })                    // igual a
 repo.find({ id: { in: ids } })                    // uno de estos
-repo.count({ name: { ieq: 'aceite' } })           // sin mirar mayúsculas
+repo.count({ name: { ieq: 'aceite' } })           // sin mirar mayúsculas (de la A a la Z)
 repo.find({ priceCents: { gte: 100, lt: 500 } })  // entre 1 € y 5 €
 repo.page({ archived: false }, { size: 20 })      // una página
 ```
@@ -1048,7 +1052,7 @@ async whoIs(value: string): Promise<Actor | null> {
   const session = await this.repo.first({
     hash: SecretToken.hash(token.data),
   })
-  return session ? { userId: session.userId } : null
+  return session ? { userId: session.userId, sessionId: session.id } : null
 }
 ```
 
@@ -1274,10 +1278,10 @@ cambio de Ana desaparecería sin que nadie se enterase.
 
 ### 9.2 La versión
 
-Cada fila guardada tiene una **versión** que sube con cada guardado. Al guardar, el
-framework comprueba que la fila sigue en la versión que se leyó. Si alguien la ha
-guardado entre medias, la versión ya no coincide y el guardado falla con un
-**`ConcurrencyConflict`** (409), sin escribir nada.
+Cada fila guardada tiene una **versión** que sube con cada guardado que la escribe.
+Al guardar, el framework comprueba que la fila sigue en la versión que se leyó. Si
+alguien la ha guardado entre medias, la versión ya no coincide y el guardado falla
+con un **`ConcurrencyConflict`** (409), sin escribir nada.
 
 ```mermaid
 sequenceDiagram
@@ -1338,7 +1342,9 @@ un `ConcurrencyConflict`.
 
 Por eso en el catálogo hay dos defensas, y cada una tiene su papel:
 
-- el `unique` de la tabla es la **garantía** cuando dos llegan a la vez;
+- el `unique` de la tabla es la **garantía** cuando dos llegan a la vez, para el
+  valor exacto: `Arroz` y `ARROZ` a la vez pasarían las dos. Si eso importa, guarda
+  también el nombre normalizado (en minúsculas) y haz único ese;
 - `assertNameFree` comprueba antes de guardar y da un **error claro**
   (`product.name_taken`). Como el caso de uso se repite tras el choque, también la
   que llegó segunda acaba recibiendo ese error, no el conflicto.
@@ -1532,7 +1538,7 @@ Así nadie reacciona nunca a algo que no llegó a guardarse.
 Imagina un caso de uso que cambia el nombre de un producto y, dos líneas después, su
 precio, y lo guarda una vez. ¿Se cuentan dos `product.updated`? No:
 
-> **Cada entidad cuenta, como mucho, un evento de cada clase por guardado.**
+> **Cada entidad cuenta, como mucho, un evento de cada clase (de cada nombre) por guardado.**
 
 Si la entidad anota otra vez un evento de una clase que ya tenía anotado, el nuevo
 **sustituye** al anterior. Como el evento se construye con todo lo que ha cambiado
@@ -1985,10 +1991,10 @@ async reserve(
 ```
 
 Esa comprobación basta cuando las ejecuciones van una detrás de otra. Pero dos a la
-vez (un reintento que llega mientras la primera aún corre) pasan las dos por ella antes de
-que ninguna guarde. Por eso la de verdad va **dentro del guardado**, con un `guard`
-por operación, como el del stock del capítulo 10: la segunda espera a la primera, ve
-sus movimientos y se deshace sin apuntar nada.
+vez (un reintento que llega mientras la primera aún corre) pasan las dos por ella
+antes de que ninguna guarde. Por eso la de verdad va **dentro del guardado**, con un
+`guard` por operación, como el del stock del capítulo 10: la segunda espera a la
+primera, ve sus movimientos y se deshace sin apuntar nada.
 
 ```ts
 // stock-movement.repository.ts
@@ -2104,8 +2110,11 @@ de repetirlo. Es la técnica 2 del capítulo anterior.
 ### 17.1 Reintentos
 
 Si el caso de uso de un `handler` lanza un error, su trabajo vuelve a la cola y se
-reintenta más tarde, cada vez esperando más: 10 segundos, 20, 40… hasta 15 minutos.
-Por defecto tiene **5 intentos**. Puedes cambiarlo con `attempts`:
+reintenta más tarde, cada vez esperando más: 10 segundos, 20, 40, 80… hasta un máximo
+de 15 minutos entre uno y otro. Por defecto tiene **5 intentos**: un trabajo que falla
+siempre muere unos dos minutos y medio después del primer fallo, así que una caída
+corta de un servidor de correo ya lo mata. Para aguantar más, sube `attempts` (y,
+para todo el contexto, `jobs.backoffMs` y `jobs.maxBackoffMs` de la base):
 
 ```ts
 orders.events.placed.subscribe(order => orders.fulfil(order.id), {
@@ -2162,7 +2171,8 @@ transacción**:
 2. `this.repo.persist(order)` guarda el pedido confirmado.
 
 ¿Qué pasa si la primera va bien y la segunda falla? Por ejemplo, el servidor se cae
-justo entre las dos, o alguien ha tocado el pedido y el guardado choca. El stock está
+justo entre las dos, o alguien ha tocado el pedido y el guardado choca tantas veces
+que el caso de uso deja de reintentarlo. El stock está
 reservado, y el pedido sigue `pending`. Durante un rato, los datos no cuadran.
 
 No se pueden meter las dos en una transacción: son módulos distintos, y eso los
@@ -2171,7 +2181,9 @@ acaba llegando al final**.
 
 ### 18.2 Converger: reintentar hasta terminar
 
-`fulfil` se ejecuta desde un worker. Si falla, su trabajo se reintenta (capítulo 17).
+`fulfil` se ejecuta desde un worker. Un conflicto lo reintenta primero el propio caso
+de uso (capítulo 9); si aun así falla, o falla por otra cosa, su trabajo se reintenta
+(capítulo 17).
 En el reintento:
 
 - `reserve` ve que ya hay movimientos con la referencia del pedido, y no hace nada
@@ -2348,7 +2360,8 @@ async place(input: OrderPlaceDTO): Promise<OrderDTO> {
 ```
 
 La reserva ya está guardada cuando se intenta guardar el pedido. Si ese segundo
-guardado falla (un conflicto, un disco lleno, el servidor que se reinicia), queda
+guardado falla (un disco lleno, el servidor que se reinicia, un conflicto que se
+repite tras los reintentos), queda
 stock reservado para un pedido que no existe. Y nadie lo arregla: la petición ya
 devolvió su error, y nada la vuelve a intentar.
 
@@ -2369,7 +2382,7 @@ es inofensivo, y el pedido acaba confirmado o rechazado. Siempre.
 
 | Escribir en otro módulo desde… | Si falla a la mitad… |
 |---|---|
-| un caso de uso que llamó una petición | queda a medias, y nadie lo termina |
+| un caso de uso fuera de un worker (una petición, un script, un test) | queda a medias, y nadie lo termina |
 | un caso de uso que llamó un worker | su trabajo se repite hasta que termina |
 
 Por eso lo que un worker escribe en otro módulo debe poder repetirse sin daño: es
@@ -2379,7 +2392,7 @@ cuando lo que falla es un paso que ya no se puede repetir.
 ### 19.2 El framework lo vigila
 
 No hace falta que te acuerdes de la regla: el framework la comprueba mientras la
-aplicación funciona. Si un caso de uso de `order`, llamado por una petición, acaba
+aplicación funciona. Si un caso de uso de `order`, fuera de un worker, acaba
 guardando algo de `stockMovement`, falla con:
 
 ```
@@ -2399,8 +2412,8 @@ Lo que hace al encontrarlo lo decide la opción `writeRule` de la base:
 const base = new ShopBase({ name: 'shop', store, writeRule: 'warn' })  // mientras te pasas a la regla
 ```
 
-Como por defecto es un error, una escritura fuera de sitio rompe un test en lugar de esconderse
-en un aviso.
+Como por defecto es un error, una escritura fuera de sitio rompe un test en lugar de
+esconderse en un aviso.
 
 A veces saltarse la regla está justificado: dos módulos que, por lo que sea, deben
 escribirse en la misma petición, aceptando el riesgo. Entonces se dice **donde se
@@ -2449,7 +2462,7 @@ function initializeModules(base: ShopBase, mailer: Mailer) {
 }
 ```
 
-Las dependencias de La Despensa forman un árbol:
+Las dependencias de La Despensa no forman ningún círculo (son un grafo sin ciclos):
 
 ```mermaid
 flowchart BT
@@ -2468,7 +2481,7 @@ flowchart BT
   datos de otro módulo, pregúntale con un caso de uso.
 - **Lee de otro cuando quieras; escribe en otro solo desde un worker.** La regla es
   de cada contexto: un caso de uso de otro contexto es su API (capítulo 23).
-- **Las dependencias forman un árbol, nunca un círculo.** Si dos módulos parecen
+- **Las dependencias nunca forman un círculo.** Si dos módulos parecen
   necesitarse mutuamente, uno de los dos deja de llamar y pasa a escuchar.
 - **Un módulo no sabe quién depende de él.** `order` no sabe que existe
   `notification`; es `notification` quien conoce a `order` y escucha sus eventos.
@@ -2803,7 +2816,7 @@ para las cuentas (`auth`), uno para la trastienda, uno para los clientes…
 
 - **Cada contexto tiene su store**, sus módulos y su servidor (en su puerto y, en
   producción, en su dominio).
-- **Los contextos dependen entre sí como un árbol**: cada uno se abre después de los
+- **Los contextos dependen entre sí sin círculos**: cada uno se abre después de los
   que usa, y los recibe.
 - **Un contexto llega a otro solo por sus casos de uso y sus eventos**, nunca por su
   store.
@@ -2811,7 +2824,7 @@ para las cuentas (`auth`), uno para la trastienda, uno para los clientes…
 ```ts
 // Una aplicación con dos contextos: cada uno recibe su configuración y los que usa.
 const auth = await Auth_Context.open(config.auth)
-const shop = await Shop_Context.open(config.shop, auth)      // shop usa auth
+const backoffice = await Backoffice_Context.open(config.backoffice, auth)   // usa auth
 ```
 
 Llamar a otro contexto es como llamar a una API externa. Lo que él guarda queda
@@ -2867,15 +2880,16 @@ Cuando una máquina se queda pequeña, o quieres varios servidores sobre los mis
 datos, el framework trae dos stores más. Se abren con una URL:
 
 ```ts
+import { join } from 'node:path'
 import { PostgresStore } from 'newt/adapter-postgres'
 import { MySqlStore } from 'newt/adapter-mysql'
 
-const store = await PostgresStore.open({
+const postgres = await PostgresStore.open({
   url: 'postgres://user:password@host:5432/despensa',
   migrations: join(import.meta.dir, 'migrations/postgres'),
 })
 
-const store = await MySqlStore.open({
+const mysql = await MySqlStore.open({
   // MySQL 8.4 solo acepta conexiones por TLS.
   url: 'mysql://user:password@host:3306/despensa?sslmode=require',
   migrations: join(import.meta.dir, 'migrations/mysql'),
@@ -2994,8 +3008,9 @@ Añade Kysely a tu proyecto (`bun add kysely`) y dale a tu base una instancia co
 `kyselyFor`:
 
 ```ts
-// shop-base.ts
+// shop-base.ts, en una variante de La Despensa solo con SQLite
 import { Base } from 'newt/runtime'
+import { HttpRouter } from 'newt/http'
 import { kyselyFor } from 'newt/kysely'
 import type { SqliteStore } from 'newt/adapter-sqlite'
 
@@ -3004,9 +3019,13 @@ type ShopDatabase = {
 }
 
 export class ShopBase extends Base<SqliteStore> {
+  readonly http = new HttpRouter()
   readonly db = kyselyFor<ShopDatabase>(this.store)
 }
 ```
+
+Kysely pide un store SQL (SQLite, Postgres o MySQL): con él, el contexto deja de
+poder abrirse sobre ficheros. Es el segundo escalón de la lista del 26.1.
 
 Y un repositorio la usa:
 
@@ -3031,8 +3050,10 @@ Tres cosas que saber:
   repositorio. Las transacciones de Kysely están prohibidas: las transacciones
   siempre son las del store. En un repositorio, una escritura con Kysely va dentro de
   `saveRows` (o del `save` de sus entidades); fuera, en `store.transaction`.
-- **La misma consulta vale en SQLite, Postgres y MySQL.** En SQLite, un booleano
-  vuelve como 0 o 1: `SqliteRow<Row>` lo dice en los tipos. Lo que no es igual es
+- **La misma consulta vale en SQLite, Postgres y MySQL.** En SQLite y en MySQL, un
+  booleano vuelve como 0 o 1, y en SQLite una lista o un objeto vuelve como su texto
+  JSON: `SqliteRow<Row>` lo dice en los tipos. Una suma vuelve como texto en Postgres
+  y MySQL (`'5'`), y un `COUNT` en Postgres: pásalos por `Number(…)`. Lo que no es igual es
   lo que cuenta una escritura: en Postgres y MySQL, `numUpdatedRows` y
   `numDeletedRows` valen `0n` y no hay `insertId`. Si necesitas saber si escribió
   algo, pídelo con `returning` (Postgres) o vuelve a leer.
@@ -3050,9 +3071,11 @@ un guardado: en una transacción, bajo la regla de escritura (capítulo 19) y
 protegiendo lo que diga su `guard`:
 
 ```ts
-// Simplificado del ejemplo de notes
+// note.repository.ts, en el ejemplo de notes
 async recordActivity(noteId: string, what: string, at: string): Promise<void> {
-  await this.saveRows(() => this.store.collection('activity').put({ id: `${noteId}.${what}.${at}`, noteId, what, at }))
+  // El id de un registro en ficheros es letras, números, '.', '-' y '_': la fecha, en dígitos.
+  const id = `${noteId}.${what}.${at.replace(/[^0-9]/g, '')}`
+  await this.saveRows(() => this.store.collection('activity').put({ id, noteId, what, at }))
 }
 ```
 
@@ -3223,12 +3246,13 @@ export interface Analytics {
 - **Leer es cosa de cada adaptador**, en el lenguaje de su base de datos: las
   consultas analíticas no caben en unos criterios.
 
-Un worker la alimenta a partir de los eventos:
+Un worker la alimenta a partir de los eventos. El módulo recibe el `Analytics` en sus
+opciones (`<m>-options.ts`), como `notification` recibe su `mailer`:
 
 ```ts
 @UseCase()
 async recordSale(order: OrderDTO): Promise<void> {
-  await this.analytics.append('sale_line', order.lines.map((line, index) => ({
+  await this.options.analytics.append('sale_line', order.lines.map((line, index) => ({
     id: `${order.id}:${index}`,
     productId: line.productId,
     quantity: line.quantity,
@@ -3288,6 +3312,9 @@ confirmado. En un test, **espera a que no quede trabajo listo**:
 
 ```ts
 test('takes an order at once, and confirms it in the background', async () => {
+  const oil = await product('Olive oil', 1_000)
+  await call('POST', `/stock/${oil}/received`, { quantity: 5 })
+
   const placed = await order(oil, 3)
   expect(placed.body).toMatchObject({ status: 'pending' })
 
@@ -3298,11 +3325,12 @@ test('takes an order at once, and confirms it in the background', async () => {
 })
 ```
 
-`jobs.idle()` es la herramienta de los tests y de los scripts. Nunca esperes con un
-`sleep`. Espera a que no quede ningún trabajo **listo** ni en marcha: uno que falló y
-espera su reintento (a los 10 s, y después más) sigue pendiente cuando `idle()`
-vuelve. Si un test provoca fallos, mira el estado de sus trabajos con
-`shop.base.store.outbox.list()`.
+`jobs.idle()` es la herramienta de los tests y de los scripts. Nunca esperes a un
+worker con un `sleep`. (Una reacción `'fire-and-forget'` no es un trabajo, e `idle()`
+no la espera: un test que la escucha sí necesita un instante.) Espera a que no quede
+ningún trabajo **listo** ni en marcha: uno que falló y espera su reintento (a los 10
+segundos, y después más) sigue pendiente cuando `idle()` vuelve. Si un test provoca fallos,
+mira el estado de sus trabajos con `shop.base.store.outbox.list()`.
 
 ### 29.3 Probar lo difícil
 
@@ -3339,8 +3367,8 @@ dentro del suyo. Los reintentos por conflicto quedan anotados, y un error que no
 de negocio marca el span.
 
 El worker también deja los suyos, con nombres que empiezan por `job.`: `job.claim`
-cada vez que busca trabajo (tras cada confirmación y, al menos, cada 5 s mientras
-haya algún `handler`), `job.renew`,
+cada vez que busca trabajo (tras cada guardado que publica un evento, tras cada
+trabajo que acaba y, al menos, cada 5 s mientras haya algún `handler`), `job.renew`,
 `job.close`, `job.seen` y `job.purge`. Un tracer que no los quiera ver los filtra
 por el nombre.
 
@@ -3433,7 +3461,8 @@ await store.close()
 ```
 
 Una carpeta de migraciones que no existe es un error al migrar (al abrir con `open`),
-no una base de datos sin migraciones: una ruta mal escrita no deja un store vacío sin avisar.
+no una base de datos sin migraciones: una ruta mal escrita no deja un store vacío sin
+avisar.
 
 ---
 
@@ -3447,7 +3476,7 @@ temas y añade las que han ido saliendo.
 **Diseño**
 - Un módulo, una responsabilidad. Su entidad tiene su nombre.
 - Lo que se guarda junto es un módulo. Lo demás se sigue por eventos.
-- Las dependencias entre módulos y entre contextos forman un árbol.
+- Las dependencias entre módulos y entre contextos nunca forman un círculo.
 - Un módulo apunta a lo de otro solo por su id: nunca la entidad, nunca su tabla, ni
   un `JOIN` a ella.
 
@@ -3472,7 +3501,8 @@ temas y añade las que han ido saliendo.
 - Un evento de cada tipo por entidad y guardado. Dos tipos en un guardado suelen ser
   un caso de uso que hace dos cosas.
 - Lo que importa, con `strategy: 'handler'`; lo prescindible, con `'fire-and-forget'`.
-- Un worker llama a un caso de uso, sin actor (lo que necesite lo lee del evento) y puede repetirse.
+- Un worker llama a un caso de uso, sin actor (lo que necesite lo lee del evento) y
+  puede repetirse.
 - Lo irreversible sale de un worker.
 - Lo que falla a mitad se arregla hacia delante: reintentos o una compensación.
 - Un evento solo crece.
@@ -3510,6 +3540,9 @@ temas y añade las que han ido saliendo.
 
 [`newt-eslint`](../packages/newt-eslint) lo comprueba: la anatomía, que un módulo
 solo llegue a otro por lo que ofrece, y el nombre de la cola de cada `handler`.
+También que un módulo no abra transacciones propias, que ninguna promesa se quede
+sin `await` y, si le dices tus contextos, que cada uno solo importe los que dice
+usar.
 
 Nombres: carpeta `purchase-order`, clase `PurchaseOrder_Module`, entidad
 `PurchaseOrder`, tabla `purchase_order`, caso de uso `purchaseOrder.confirm`, evento
@@ -3529,11 +3562,11 @@ protección funcionando: el usuario debe elegir otro valor.
 
 **"N job(s) of '…' wait, and no worker serves that queue".**
 Hay trabajos pendientes en una cola que ningún worker atiende desde hace cinco
-minutos. El nombre de la cola dice el
-módulo, el caso de uso y el evento (`notification.orderConfirmed.on.order.confirmed`),
-así que cambiarlo al renombrar cualquiera de los tres deja los trabajos viejos
-esperando con el nombre antiguo. Vuelve a poner el nombre, o escribe un script que haga lo que debían
-hacer esos trabajos.
+minutos. El nombre de la cola dice el módulo, el caso de uso y el evento
+(`notification.orderConfirmed.on.order.confirmed`), así que cambiarlo al renombrar
+cualquiera de los tres deja los trabajos viejos esperando con el nombre antiguo.
+Vuelve a poner el nombre, o escribe un script que haga lo que debían hacer esos
+trabajos.
 
 **"[write rule] … writes to … outside a worker".**
 Un caso de uso de un módulo ha guardado en otro sin pasar por un worker. Si falla a
@@ -3550,7 +3583,8 @@ porque todo va por turnos; en Postgres y MySQL, no.
 **Un trabajo está `dead`.**
 Agotó sus intentos. Mira su `lastError` en `store.outbox.list()`, corrige la causa y
 relánzalo con `store.outbox.retry(id)` (o escribe un script que haga lo que debía
-hacer). Un trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo pensarlo.
+hacer). Un trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo
+pensarlo.
 
 **"A write runs inside `store.transaction`".**
 Has intentado escribir con la conexión de un `SqliteStore` fuera de un guardado. En

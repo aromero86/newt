@@ -24,7 +24,7 @@ A module is a folder in a `modules/` folder, and its context is the folder that 
 |---|---|
 | `newt/module-anatomy` | A module is made of the files every module has, named after it: `<m>.module.ts`, `<m>.ts`, `<m>.schema.ts`, `<m>.repository.ts`, `<m>.routes.ts`, `<m>.workers.ts`, `<m>.deps.ts`, `<m>-options.ts`, its tests, and the folders `events`, `errors`, `value-objects` and `services`. |
 | `newt/module-boundaries` | A module imports from another only its module, schema, events, errors and value objects: never its entity, repository, tables, routes or workers. |
-| `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<event>`: the module of the workers file, a use case its callback calls, and the event it subscribes to. |
+| `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<event>`: the module of the workers file, a use case its callback calls, and an event that ends with the name it is subscribed under (`events.confirmed` → `….confirmed`); the module that tells it is checked at startup, by the framework. |
 
 The preset also refuses `transaction(…)` inside a module (it writes through its
 repository's `save` or `saveRows`), and a promise left unawaited
