@@ -405,5 +405,7 @@ lint or newt as it runs.
 From here, the appendices are for looking things up:
 [A. The golden rules](./a-golden-rules), [B. Module anatomy and lint](./b-module-anatomy),
 [C. Common problems](./c-common-problems), [D. Writing a store](./d-writing-a-store),
-and [E. Index](./e-index), which says which chapter teaches each of newt's exports.
+[E. Index](./e-index), which says which chapter teaches each of newt's exports,
+[F. Aggregates](./f-aggregates), how newt keeps an aggregate compared with other ways, and
+[G. The command line](./g-command-line), `newt init` and `newt add module`.
 The [reference](../reference/rules) has every detail the chapters left out.

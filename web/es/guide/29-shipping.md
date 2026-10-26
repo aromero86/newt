@@ -417,5 +417,7 @@ compilador, el lint o newt mientras se ejecuta.
 A partir de aquí, los apéndices son para consultar:
 [A. Las reglas de oro](./a-golden-rules), [B. Anatomía de un módulo y lint](./b-module-anatomy),
 [C. Problemas comunes](./c-common-problems), [D. Escribir un store](./d-writing-a-store),
-y [E. Índice](./e-index), que dice qué capítulo enseña cada export de newt.
+[E. Índice](./e-index), que dice qué capítulo enseña cada export de newt,
+[F. Agregados](./f-aggregates), cómo guarda newt un agregado frente a otras formas, y
+[G. La línea de comandos](./g-command-line), `newt init` y `newt add module`.
 La [referencia](../reference/rules) tiene cada detalle que los capítulos dejaron fuera.

@@ -41,6 +41,7 @@ const APPENDICES: [string, string, string][] = [
   ['d-writing-a-store', 'D. Writing a store', 'D. Escribir un store'],
   ['e-index', 'E. Index of newt\'s exports', 'E. Índice de los exports de newt'],
   ['f-aggregates', 'F. Aggregates', 'F. Agregados'],
+  ['g-command-line', 'G. The command line', 'G. La línea de comandos'],
 ]
 
 const REFERENCE: [string, string, string][] = [
