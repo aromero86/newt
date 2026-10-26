@@ -5,6 +5,7 @@ import { TransactionScope, type FindOptions, type NewRow, type Store, type Table
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 import { TableRepository } from './table-repository'
+import { currentClock } from '../core/clock/current-clock'
 import { takeEvents } from '../core/internal'
 import { SaveRolledBack } from '../core/entity/errors/save-rolled-back'
 import type { TableRepositoryOptions } from './table-repository-options'
@@ -44,6 +45,7 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
   const log: string[] = []
   const scope = new TransactionScope()
   let failNextWrite = false
+  const updates: Partial<NewRow<ThingRow>>[] = []
 
   const table: Table<ThingRow> = {
     async find(criteria?: Criteria<ThingRow>, findOptions?: FindOptions<ThingRow>) {
@@ -60,6 +62,7 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
     async update(id: string, version: number, changes: Partial<NewRow<ThingRow>>) {
       if (failNextWrite) throw new ConcurrencyConflict()
       log.push(`update ${id}@${version} ${JSON.stringify(Object.keys(changes).sort())}`)
+      updates.push(changes)
     },
     async patch() {},
     async delete(id: string, version: number) {
@@ -130,6 +133,7 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
 
   return {
     log,
+    updates,
     store,
     repo: new Things(base, table, options),
     failNextWrite: () => { failNextWrite = true },
@@ -207,6 +211,16 @@ describe('persist', () => {
 
     expect(hard.log).toContain('delete t1@2')
     expect(soft.log).toContain('update t1@2 ["deletedAt","updatedAt"]')
+  })
+
+  test('stamps a soft deletion by the clock of the context at work', async () => {
+    const { updates, repo } = world({ softDelete: true })
+    const thing = Thing.fromRow(stored({ deletedAt: null }))
+    thing.remove()
+
+    await currentClock.run({ now: () => new Date('2031-01-02T03:04:05.000Z') }, () => repo.persist(thing))
+
+    expect(updates).toEqual([{ deletedAt: '2031-01-02T03:04:05.000Z', updatedAt: '2031-01-02T03:04:05.000Z' }])
   })
 
   test('a new row deleted softly is stored with deletedAt null', async () => {

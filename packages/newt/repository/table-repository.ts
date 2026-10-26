@@ -1,4 +1,4 @@
-import { allOf, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
+import { allOf, now, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
 import { savedState, storedFields } from '../core/internal'
 import type { FindOptions, NewRow, StoredRow, Table } from '../port-store'
 import { Repository } from './repository'
@@ -110,8 +110,8 @@ export abstract class TableRepository<
     if (entity.isNew) return this.table.insert(this.toRow(entity))
     if (entity.isDeleted) {
       if (!this.options.softDelete) return this.table.delete(entity.id, entity.version)
-      const now = new Date().toISOString()
-      return this.table.update(entity.id, entity.version, { deletedAt: now, updatedAt: now } as unknown as Partial<NewRow<Row>>)
+      const at = now().toISOString()
+      return this.table.update(entity.id, entity.version, { deletedAt: at, updatedAt: at } as unknown as Partial<NewRow<Row>>)
     }
     return this.table.update(entity.id, entity.version, this.toChanges(entity))
   }
