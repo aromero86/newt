@@ -12,6 +12,7 @@ function testConfig(): Config {
     auth: { ...config.auth, database: ':memory:', port: 0 },
     boards: { ...config.boards, database: ':memory:', port: 0 },
     backoffice: { ...config.backoffice, database: ':memory:', port: 0 },
+    trace: false,
   }
 }
 

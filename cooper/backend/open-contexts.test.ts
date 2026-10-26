@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test'
 import { runContexts } from 'newt/application'
-import { runAsActor } from 'newt/core'
+import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
-import { openContexts, stopContexts } from './open-contexts'
+import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
+import { cooperTracer, openContexts, stopContexts } from './open-contexts'
 import { RecordingMailer } from './shared/mail/recording-mailer'
+import { ConsoleTracer } from './shared/observability/console-tracer'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
@@ -62,4 +64,50 @@ test('lets no member into a deleted workspace whose accesses are not taken away 
   } finally {
     await stopContexts(contexts)
   }
+})
+
+test('traces a use case across contexts: auth\'s calls inside the backoffice\'s that made them', async () => {
+  const lines: string[] = []
+  const contexts = await openContexts(testConfig())
+  setTracer(new ConsoleTracer(line => lines.push(line)))
+  try {
+    const { access, user } = contexts.auth.modules
+    const sam = await user.signUp({ email: 'sam@cooper.test', name: 'Sam', password: 'a long password' })
+    await access.admit({ userId: sam.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
+    lines.length = 0
+
+    await runAsActor({ userId: sam.id, via: 'web' }, () => contexts.backoffice.modules.staff.me())
+    expect(lines.map(line => line.replace(/ \d+\.\d ms$/, ''))).toEqual([
+      '[trace] backoffice staff.me',
+      '[trace]   backoffice staff.enter',
+      '[trace]     backoffice staff.isStaff',
+      '[trace]       auth access.check',
+      '[trace]   auth user.get',
+    ])
+  } finally {
+    setTracer(new NoopTracer())
+    await stopContexts(contexts)
+  }
+})
+
+test('traces to OpenTelemetry\'s collector when COOPER_OTLP_URL says where, to the console under COOPER_TRACE, or nowhere', async () => {
+  const exported: string[] = []
+  const collector = Bun.serve({ port: 0, fetch: async request => { exported.push(`${new URL(request.url).pathname} ${await request.text()}`); return new Response('{}') } })
+  try {
+    const tracer = cooperTracer({ ...testConfig(), otlpUrl: collector.url.origin, trace: true })!
+    await tracer.startActiveSpan('user.get', {}, async span => span.end())
+    await tracer.startActiveSpan('job.claim', {}, async span => span.end())
+    await tracer.flush!()
+
+    expect(exported).toHaveLength(1)
+    expect(exported[0]).toStartWith('/v1/traces ')
+    expect(exported[0]).toContain('"user.get"')
+    expect(exported[0]).toContain('"cooper"')
+    expect(exported[0]).not.toContain('job.claim')
+  } finally {
+    await collector.stop()
+  }
+
+  expect(cooperTracer({ ...testConfig(), otlpUrl: undefined, trace: true })).toBeDefined()
+  expect(cooperTracer({ ...testConfig(), otlpUrl: undefined, trace: false })).toBeUndefined()
 })

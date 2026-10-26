@@ -40,6 +40,7 @@ async function postgresConfig(): Promise<Config> {
     auth: { ...config.auth, database: await fresh('auth'), port: 0 },
     boards: { ...config.boards, database: await fresh('boards'), port: 0 },
     backoffice: { ...config.backoffice, database: await fresh('backoffice'), port: 0 },
+    trace: false,
   }
 }
 
