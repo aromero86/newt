@@ -550,7 +550,7 @@ more of `auth`:
 
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
-import { Email } from 'newt/core'
+import { Email } from 'newt/contract'
 import type { Workspaces } from '../modules/member/member.deps'
 import type { MemberDTO } from '../modules/member/member.schema'
 
@@ -829,7 +829,7 @@ its comment: chapter 20 takes it out.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Boards you created in earlier chapters have no workspace, so no workspace lists them.

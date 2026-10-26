@@ -193,7 +193,7 @@ board has one card. A new key is a new submit: a second card.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`): it runs migration

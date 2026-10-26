@@ -15,10 +15,13 @@ tiene tres: `auth`, `boards` y `backoffice`.
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
-  const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store })
-  return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
+static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock): Promise<Boards_Context> {
+  const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
+  const base = new BoardsBase({ name: 'boards', store, clock })
+  const modules = initializeModules(base, config, deps)
+  // The cards' search starts empty in memory: every card is indexed before anyone searches.
+  await modules.card.reindex()
+  return new Boards_Context(base, modules, config, deps.auth)
 }
 ```
 
@@ -31,13 +34,17 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   `guardRule` y un `clock`: por el que van el `createdAt` y el `updatedAt` de sus entidades, cuándo
   tocan sus trabajos y sus esperas entre reintentos, y `now()` en sus casos de uso y sus
   handlers (la hora real por defecto; un test mueve el suyo,
-  `{ now: () => new Date(time) }`, en vez de esperar).
+  `{ now: () => new Date(time) }`, en vez de esperar). El `openStore` de cooper
+  (`shared/open-store.ts`) elige el store por `config.<contexto>.database`, que viene
+  de `COOPER_<CONTEXTO>_DATABASE`: una dirección `postgres://` es Postgres, con las
+  `migrations/postgres` del contexto, y cualquier otra cosa un fichero de SQLite, con
+  sus `migrations/sqlite`.
 - **Una aplicación da más a sus módulos extendiendo `Base`**: un router HTTP, un
   mailer, un constructor de consultas sobre la conexión del store.
 
   ```ts
   // cooper/backend/shared/cooper-base.ts
-  export class CooperBase extends Base<SqliteStore> {
+  export class CooperBase extends Base<CooperStore> {
     readonly http = new HttpRouter()
   }
   ```
@@ -57,16 +64,16 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
 
   ```ts
   // cooper/backend/index.ts
-  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+  const app = runContexts(contexts.all.map(context => ({ context, serve: { ...context.serving(), drainMs: config.drainMs } })), { tracer: cooperTracer(config) })
   ```
 - **Los contextos dependen unos de otros sin formar un círculo**: cada uno se abre
   después de los que usa, y recibe sus módulos, o puertos hechos con ellos.
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
+  const auth = await Auth_Context.open(config.auth, { mailer }, clock)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined }, clock)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, clock)
   ```
 - Un contexto llega a otro solo a través de los casos de uso y los eventos de ese otro,
   nunca de su base ni de su store. El tipo de sus deps dice qué módulos, como un
@@ -226,7 +233,7 @@ la base de datos no abre nada:
 // cooper/backend/shared/web-session/web-session.ts
 static open(userId: string, days: number): { session: WebSession, token: SecretToken } {
   const token = SecretToken.generate()
-  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+  const expiresAt = new Date(now().getTime() + days * 24 * 60 * 60_000).toISOString()
   return { session: new WebSession({ userId, tokenHash: SecretToken.hash(token), expiresAt }, true), token }
 }
 ```
@@ -309,8 +316,10 @@ recentInEveryScope(limit: number): Promise<Board[]> {
 
 Lo que una subclase lee o escribe por su cuenta (`this.table`,
 Kysely, `saveRows`, el `after` de un guardado) añade el filtro ella misma, como hace
-la búsqueda de tarjetas de cooper con `.where('workspaceId', '=',
-currentWorkspaceId())`.
+el recuento de tarjetas por tablero de cooper con `.where('workspaceId', '=',
+currentWorkspaceId())`; y también lo que guarda las filas en otro sitio (a la búsqueda
+de tarjetas de cooper se le piden las de un espacio de trabajo,
+`search(currentWorkspaceId(), …)`).
 
 ## Módulos
 
@@ -334,7 +343,7 @@ uso `oauthGrant.redeem`), y cada uno sigue siendo un módulo por sí mismo.
 
 | Fichero | Qué contiene |
 |---|---|
-| `<m>.schema.ts` | Los esquemas de zod y los tipos de los DTOs: el **contrato público** del módulo, lo que entra y sale de sus casos de uso y sus eventos. Todo lo que exporta empieza por el nombre de la entidad (`BoardSchema`, `BoardCreateDTO`). |
+| `<m>.schema.ts` | Los esquemas de zod y los tipos de los DTOs: el **contrato público** del módulo, lo que entra y sale de sus casos de uso y sus eventos. Todo lo que exporta empieza por el nombre de la entidad (`BoardSchema`, `BoardCreateDTO`). Puede importarlo un frontend, así que de newt solo toma `newt/contract`. |
 | `<m>.ts` | La entidad: una clase que extiende `Entity<typeof <M>Schema>`. Reexporta el fichero del esquema. |
 | `<m>.repository.ts` | **Lo único que toca el store.** |
 | `<m>.module.ts` | `<M>_Module extends Module`: los casos de uso y sus `events`. `static initialize(base, deps?, options?)`. |
@@ -444,7 +453,8 @@ guardó cada transacción (lo hace `TransactionScope`); un adaptador que no se a
   tarjetas; `card` conoce las columnas y sigue a `column.removed`.)
 - Un módulo nunca sabe quién depende de él.
 - Lo que un módulo necesita de otro contexto es un puerto, con sus propias palabras,
-  tipado en su fichero de dependencias (`AccessEvents`, arriba); el contexto le da los
+  tipado en su fichero de dependencias (`AccessEvents`, arriba, con cada evento un
+  `EventSource<Payload>`: a lo que puede suscribirse, nada más); el contexto le da los
   casos de uso o los emisores del otro contexto al abrirse.
 
 ## La entidad
@@ -501,7 +511,10 @@ export class Board extends Entity<typeof BoardSchema> {
 
   ```ts
   // cooper/backend/contexts/auth/modules/user/user.ts
-  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+  const UserEntitySchema = UserSchema.extend({
+    /** `Bun.password`'s hash (argon2id): the password itself is never kept. */
+    passwordHash: z.string().min(1),
+  })
 
   export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
     private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
@@ -604,7 +617,7 @@ store:
 // cooper/backend/contexts/boards/modules/board/board.module.ts
 return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
 if (await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } }) > 0) throw new BoardNameTaken(name)
-const found = await this.repo.page({}, page, { newestFirst: true })
+return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
 ```
 
 ```ts
@@ -661,18 +674,22 @@ export type CardFilterDTO = z.infer<typeof CardFilter.schema>
 @UseCase()
 async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
   const { text, filter } = CardSearchSchema.parse(input)
-  const criteria = filter ? CardFilter.toCriteria<CardRow>(filter) : {}
-  const found = await this.repo.search(criteria, text, page)
+  const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
+  const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
   // …
 }
 ```
 
 Un campo u operador no declarado es un 400; lo que impone el sistema va al lado del
 filtro del cliente, en un `and` (`allOf`, o un `where` al lado de los criterios), de
-donde no se puede escapar. En cooper el espacio de trabajo lo impone el propio
-`where('workspaceId', '=', currentWorkspaceId())` de la búsqueda, y los criterios del
-cliente se unen a él gracias a `criteriaTree`, que convierte unos criterios en un árbol
-(`all`, `any`, `field`) que un query builder puede traducir. Cada operador que ofreces es
+donde no se puede escapar. En cooper el espacio de trabajo se impone al lado de los
+criterios del cliente: a la búsqueda se le piden las tarjetas de
+`currentWorkspaceId()`, y los criterios solo las acotan. cooper busca a través de un
+puerto propio, `CardSearch` (`contexts/boards/search/`), un índice que un worker
+mantiene a medida que cambia cada tarjeta; `MemoryCardSearch` responde a los criterios
+en memoria con `matches(card, criteria)`, y un adaptador para un servidor de búsqueda
+los traduciría con `criteriaTree`, que convierte unos criterios en un árbol (`all`,
+`any`, `field`). Cada operador que ofreces es
 una consulta que cualquiera puede lanzar: un `or` entre campos impide a una base de
 datos usar sus índices, así que ofrece lo que los datos puedan responder rápido. Un
 árbol de filtros viaja en el cuerpo (`POST /api/workspaces/:workspaceId/cards/search`),
@@ -704,10 +721,11 @@ En Postgres un `COUNT` llega como texto: `Number(…)` hace que valga en los tre
 **Mantén los repositorios portables**: `TableRepository` por defecto, Kysely para lo
 que no sabe decir, y el SQL de un solo store solo cuando no haya otro camino (la
 búsqueda de texto completo de SQLite, por ejemplo), en un solo sitio y marcado. Nunca
-pidas unos ids para devolverlos en un `in`: una consulta admite un número limitado de
-parámetros (250.000 en SQLite con Bun), y una sola consulta con todo dentro no tiene
-ese problema. La búsqueda de tarjetas de cooper es una consulta de Kysely, con la
-página y el total. Así,
+pidas una lista de ids sin límite para devolverlos en un `in`: una consulta admite un
+número limitado de parámetros (250.000 en SQLite con Bun), y una sola consulta con todo
+dentro no tiene ese problema. Una página de ellos sí tiene límite: la búsqueda de
+tarjetas de cooper lee sus tarjetas por los ids que encontró su índice, una página como
+mucho. Así,
 pasar a otro store es un store nuevo y sus migraciones, no repositorios nuevos.
 
 **Las referencias entre módulos** (la columna de una tarjeta, la persona asignada) son
@@ -1041,7 +1059,7 @@ entero.
   vez: es idempotente.
 - Un handler recibe el payload y lo demás que se sabe del evento:
   `subscribe((payload, event) => …)`, siendo `event` su `id`, su `name` y su
-  `occurredAt`. El publicador da a cada evento su id, el mismo para cada uno de sus
+  `occurredAt` (un `EventMeta`). El publicador da a cada evento su id, el mismo para cada uno de sus
   handlers y cada ejecución de sus trabajos: aquello en lo que se apoya un handler que
   debe hacer algo una sola vez por evento (el registro de actividad de cooper lo toma
   como id de cada entrada).
@@ -1173,7 +1191,8 @@ export const BoardName = {
   comprobar.
 - El framework trae `Email` (recortado y en minúsculas, hasta 254 caracteres; un
   `InvalidEmail` es un 400) y `SecretToken` (32 bytes aleatorios en base64url, con
-  `generate()` y `hash(token)`; un `InvalidSecretToken` es un 400). El esquema de la
+  `generate()` y `hash(token)`; un `InvalidSecretToken` es un 400), los dos en
+  `newt/contract`, de donde los importa un fichero de esquema. El esquema de la
   entidad usa `X.schema`; un esquema de entrada sigue siendo flexible (un `z.email()`
   normal), y la entidad o el caso de uso lo pasa por `X.from` antes de guardarlo.
 
@@ -1207,7 +1226,7 @@ export const BoardName = {
   entre las filas no borradas: en SQLite, un índice único parcial.
 
   ```sql
-  -- cooper/backend/contexts/boards/migrations/00001_boards_up.sql
+  -- cooper/backend/contexts/boards/migrations/sqlite/00001_board_up.sql
   CREATE UNIQUE INDEX board_name ON board (workspace_id, lower(name)) WHERE deleted_at IS NULL;
   ```
 - No diseñes alrededor del store: primero la entidad y los casos de uso; las tablas
@@ -1224,8 +1243,9 @@ propio (el del evento, el de la tarjeta), de modo que un trabajo que se ejecuta 
 veces no añade nada. Se lee con el lenguaje de consulta de cada adaptador. El
 framework aún no trae ningún adaptador; `MemoryAnalytics` (en
 `newt/port-analytics/contract`) es el de los tests, y `describeAnalyticsContract`
-comprueba uno nuevo. cooper escribe uno pequeño sobre SQLite
-(`shared/analytics/sqlite-analytics.ts`, en la base de datos del propio backoffice),
+comprueba uno nuevo. cooper escribe uno pequeño sobre SQL, SQLite o Postgres
+(`shared/analytics/sql-analytics.ts`, en la base de datos del propio backoffice, con
+Kysely),
 declara las lecturas que necesita en una interfaz suya, y lo alimenta con workers
 `handler` sobre los eventos de auth y de boards, cada fila con el id de lo que cuenta:
 
@@ -1253,13 +1273,18 @@ nada (`NoopTracer`). Un contexto aún puede dar a su `Base` un `tracer` propio, 
 antes que el de la aplicación para sus casos de uso.
 
 `filterSpans(tracer, keep)` pasa a un tracer solo los spans cuyo nombre se queda.
-cooper fija un `ConsoleTracer` (`shared/observability`) cuando `COOPER_TRACE=1`, sin
-los spans `job.…` del worker; escribe cada traza cuando termina. Para enviarlos a
-OpenTelemetry, `new OtlpTracer({ endpoint, service })`, de `newt/otel`, los exporta a
-un colector por OTLP/HTTP, sin su SDK: cada pocos segundos, y el resto cuando
-`runContexts` para (el `flush` de un tracer).
+Para enviarlos a OpenTelemetry, `new OtlpTracer({ endpoint, service })`, de
+`newt/otel`, los exporta a un colector por OTLP/HTTP, sin su SDK: cada pocos segundos,
+y el resto cuando `runContexts` para (el `flush` de un tracer). cooper los envía allí
+cuando `COOPER_OTLP_URL` dice dónde está el colector, o si no escribe cada traza en la
+consola cuando termina (un `ConsoleTracer`, `shared/observability`) cuando
+`COOPER_TRACE=1`; en los dos casos sin los spans `job.…` del worker.
 
 ```ts
 // cooper/backend/open-contexts.ts
-return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+export function cooperTracer(config: Config): Tracer | undefined {
+  const tracer = config.otlpUrl ? new OtlpTracer({ endpoint: config.otlpUrl, service: 'cooper' })
+    : config.trace ? new ConsoleTracer() : undefined
+  return tracer && filterSpans(tracer, name => !name.startsWith('job.'))
+}
 ```

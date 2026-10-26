@@ -209,7 +209,8 @@ export class Activity_Repository extends TableRepository<Activity, ActivityRow, 
 ## Los casos de uso
 
 El módulo recibe un repositorio, sus rutas, un caso de uso que lee, y seis que
-registran. Este es el `activity.module.ts` entero ahora:
+registran, y su comentario dice lo que es ahora: un log que solo crece. Este es el
+`activity.module.ts` entero:
 
 ```ts
 // cooper/backend/contexts/boards/modules/activity/activity.module.ts
@@ -404,8 +405,9 @@ del módulo que reacciona con lo que necesita. No hace nada más: la lógica viv
 de uso, donde se puede probar y trazar.
 
 `strategy: 'handler'` recibe el nombre de la cola, `queue`, y no hace falta nada más. El
-comentario del principio del archivo, escrito en el capítulo [10](./10-events), lo
-describe ahora.
+comentario del principio del archivo dice ahora lo que dan los handlers, y el de la
+línea del log dice por qué perder una línea no importa: el log de arriba guarda el
+movimiento para siempre.
 
 ### El nombre de la cola
 
@@ -594,7 +596,7 @@ actividad mientras el worker aún puede estar escribiéndola.
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`): ejecuta la migración

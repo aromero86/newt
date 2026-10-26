@@ -5,7 +5,8 @@ Where a context keeps its data is a **store**: an object that implements the
 may keep its data in SQLite, in files, or anywhere an adapter can reach. Four adapters
 come with the framework (SQLite, files, Postgres and MySQL); any other is a class you
 write and check with the contract suite. Each of cooper's contexts keeps its data in a
-SQLite file of its own.
+database of its own: a SQLite file, or a Postgres database when its
+`COOPER_<CONTEXT>_DATABASE` is a `postgres://` address.
 
 ## What a store promises
 
@@ -136,21 +137,22 @@ be read is an error, never "no migrations". cooper's is `cooper/scripts/migratio
 ```ts
 // cooper/scripts/migrations.ts
 // `connect` opens the database as it is: `open` would migrate it first.
-const store = await SqliteStore.connect({
-  path: config[context].dbPath,
-  migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
-})
+const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
 ```
+
+`connectStore`, like `openStore`, is cooper's (`shared/open-store.ts`): a
+`postgres://` address is a `PostgresStore` with the context's `migrations/postgres`,
+anything else a `SqliteStore` with its `migrations/sqlite`.
 
 ## SQLite: `newt/adapter-sqlite`
 
 ```ts
-// cooper/backend/contexts/boards/boards.context.ts
-const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
+// cooper/backend/shared/open-store.ts
+SqliteStore.open({ path: database, migrations: join(migrations, 'sqlite') })
 ```
 
-`config.dbPath` is `data/cooper-boards.db` unless `COOPER_BOARDS_DB_PATH` says
-otherwise; the tests give `:memory:`.
+For boards, `database` is `config.boards.database`: `data/cooper-boards.db` unless
+`COOPER_BOARDS_DATABASE` says otherwise; the tests give `:memory:`.
 
 - **Transactions run one at a time**, in the order they ask, on a connection that
   writes. Reads outside them go to a second connection, read only, which sees only
@@ -288,7 +290,13 @@ tables say them: every operator and group, null, case and the rest answered as
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
-this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+const rows = await this.base.db
+  .selectFrom('card')
+  .select(eb => ['workspaceId', eb.fn.countAll<number>().as('cards')])
+  // Criteria, as a table takes them, said in Kysely's query by `whereOf`.
+  .where(whereOf(this.store, { workspaceId: { in: workspaceIds } }))
+  .groupBy('workspaceId')
+  .execute()
 ```
 
 ## Files: `newt/adapter-files`
@@ -417,6 +425,7 @@ rows)`, only ever adding, each row with an id of its own so a repeated job never
 duplicates it; reading is each adapter's own language. No adapter comes yet:
 `MemoryAnalytics` is for tests and as the plainest example, and
 `describeAnalyticsContract` checks one written for ClickHouse or DuckDB. cooper
-writes a small one on SQLite, `shared/analytics/sqlite-analytics.ts`, its SQL kept in
-that one file and marked as SQLite's. DuckDB can
+writes a small one on its SQL store, SQLite or Postgres,
+`shared/analytics/sql-analytics.ts`, its queries Kysely's, the same on both but for
+reading a field of the JSON, kept in that one file. DuckDB can
 also read a context's SQLite file as it is, for reports, without copying it.

@@ -5,8 +5,9 @@ Donde un contexto guarda sus datos es un **store**: un objeto que implementa el 
 contexto puede guardar sus datos en SQLite, en ficheros o en cualquier sitio al que
 llegue un adaptador. Con el framework vienen cuatro adaptadores (SQLite, ficheros,
 Postgres y MySQL); cualquier otro es una clase que escribes tú y compruebas con la
-batería de contrato. Cada contexto de cooper guarda sus datos en un fichero SQLite
-propio.
+batería de contrato. Cada contexto de cooper guarda sus datos en una base de datos
+propia: un fichero SQLite, o una base de datos de Postgres cuando su
+`COOPER_<CONTEXTO>_DATABASE` es una dirección `postgres://`.
 
 ## Lo que promete un store
 
@@ -148,21 +149,22 @@ leer es un error, nunca "no hay migraciones". El de cooper es
 ```ts
 // cooper/scripts/migrations.ts
 // `connect` opens the database as it is: `open` would migrate it first.
-const store = await SqliteStore.connect({
-  path: config[context].dbPath,
-  migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
-})
+const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
 ```
+
+`connectStore`, como `openStore`, es de cooper (`shared/open-store.ts`): una dirección
+`postgres://` es un `PostgresStore` con las `migrations/postgres` del contexto, y
+cualquier otra cosa un `SqliteStore` con sus `migrations/sqlite`.
 
 ## SQLite: `newt/adapter-sqlite`
 
 ```ts
-// cooper/backend/contexts/boards/boards.context.ts
-const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
+// cooper/backend/shared/open-store.ts
+SqliteStore.open({ path: database, migrations: join(migrations, 'sqlite') })
 ```
 
-`config.dbPath` es `data/cooper-boards.db` salvo que `COOPER_BOARDS_DB_PATH` diga
-otra cosa; los tests le dan `:memory:`.
+Para boards, `database` es `config.boards.database`: `data/cooper-boards.db` salvo
+que `COOPER_BOARDS_DATABASE` diga otra cosa; los tests le dan `:memory:`.
 
 - **Las transacciones van de una en una**, en el orden en que se piden, en una
   conexión que escribe. Las lecturas fuera de ellas van a una segunda conexión, de
@@ -312,7 +314,13 @@ consultada.
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.repository.ts
-this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+const rows = await this.base.db
+  .selectFrom('card')
+  .select(eb => ['workspaceId', eb.fn.countAll<number>().as('cards')])
+  // Criteria, as a table takes them, said in Kysely's query by `whereOf`.
+  .where(whereOf(this.store, { workspaceId: { in: workspaceIds } }))
+  .groupBy('workspaceId')
+  .execute()
 ```
 
 ## Ficheros: `newt/adapter-files`
@@ -447,6 +455,7 @@ Para la analítica el framework tiene un puerto propio, `Analytics`:
 trabajo repetido nunca la duplique; se lee con el lenguaje de cada adaptador. Aún no
 viene ningún adaptador: `MemoryAnalytics` es para los tests y como el ejemplo más
 sencillo, y `describeAnalyticsContract` comprueba uno escrito para ClickHouse o
-DuckDB. cooper escribe uno pequeño sobre SQLite, `shared/analytics/sqlite-analytics.ts`,
-con su SQL en ese único fichero y marcado como de SQLite. DuckDB también puede leer el fichero SQLite de un contexto tal cual, para
+DuckDB. cooper escribe uno pequeño sobre su store SQL, SQLite o Postgres,
+`shared/analytics/sql-analytics.ts`, con sus consultas de Kysely, las mismas en los
+dos salvo para leer un campo del JSON, en ese único fichero. DuckDB también puede leer el fichero SQLite de un contexto tal cual, para
 informes, sin copiarlo.

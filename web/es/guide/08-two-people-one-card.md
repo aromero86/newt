@@ -110,25 +110,52 @@ da al primero un evento y deja el segundo en silencio.
 `remove` marca la columna como borrada. El repositorio de columnas no tiene
 `softDelete`, así que su guardado quita la fila de verdad, en la versión leída.
 
+### Un tablero conserva una columna
+
+Un tablero sin columnas no tiene dónde poner una tarjeta. Y el capítulo
+[13](./13-another-context) lleva las tarjetas que quedan en una columna quitada a la
+primera columna del tablero, así que siempre tiene que haber una. Quitar la última
+columna de un tablero es un conflicto con el estado de las cosas, un 409:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/errors/last-column.ts
+import { ConflictError } from 'newt/core'
+
+/** A board keeps one column at least: where its cards go when another column is removed. */
+export class LastColumn extends ConflictError {
+  readonly code = 'column.last'
+  constructor(boardId: string) {
+    super(`Board ${boardId} has only this column: a board keeps one at least`)
+  }
+}
+```
+
 ### Guardar un orden
 
 El repositorio recibe `persistOrder`: las columnas de un tablero en su nuevo orden,
-guardadas a la vez, todas o ninguna. Añádelo después de `persistAdded`:
+guardadas a la vez, todas o ninguna. Importa `LastColumn`, y añádelo después de
+`persistAdded`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/column.repository.ts
+import { Column, MAX_COLUMNS, type ColumnDTO } from './column'
+import { LastColumn } from './errors/last-column'
+import { TooManyColumns } from './errors/too-many-columns'
+// …
   /**
    * Saves a board's columns in their new order, all of them or none: each
    * one moved, and the one removed. Each was read at a version, so a column moved by
    * someone else meanwhile makes it a conflict, and the use case runs again with what
    * there is now. One added meanwhile has no version here: the order is checked
-   * whole after writing, guarding the board's columns, so it is a conflict too.
+   * whole after writing, guarding the board's columns, so it is a conflict too. And
+   * the board keeps one column at least: two of its last two removed at once, one is.
    */
   async persistOrder(columns: Column[], boardId: string): Promise<void> {
     await this.save(columns, each => this.write(each), {
       guard: [`columns:${boardId}`],
       after: async () => {
         const positions = (await this.ofBoard(boardId)).map(each => each.position)
+        if (positions.length === 0) throw new LastColumn(boardId)
         if (positions.some((position, index) => position !== index)) this.conflict()
       },
     })
@@ -152,10 +179,19 @@ El guard `columns:<board id>` es el que toma `persistAdded` (capítulo
 [6](./06-rules-over-rows)): ninguna columna del tablero se añade, se mueve ni se quita
 entre las escrituras y la comprobación, en ningún store.
 
+La misma lectura conserva la última columna del tablero. El caso de uso de abajo se
+niega a quitarla, pero decide sobre lo que leyó: si Ana quita *To do* mientras Bob
+quita *Done*, las dos últimas, cada uno ve que queda otra columna y sigue adelante.
+Después de escribir, bajo el guard, nadie se cuela, así que lo que cuenta `after` es
+seguro: un tablero sin ninguna columna lanza `LastColumn`, esa transacción se deshace,
+y uno de los dos borrados responde 409. Lanza la respuesta él mismo en vez de
+`this.conflict()`: ejecutado otra vez, el caso de uso encontraría una columna y se
+negaría igual.
+
 ### Los casos de uso
 
 Añade `ColumnMoveSchema` y `ColumnMoveDTO` a los imports de `column.module.ts` (los dos
-están ya en `column.schema.ts`: una posición):
+están ya en `column.schema.ts`: una posición), e importa `LastColumn`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/column.module.ts
@@ -170,6 +206,12 @@ import {
   type ColumnMoveDTO,
   type ColumnRenameDTO,
 } from './column'
+import type { Column_Deps } from './column.deps'
+import { Column_Repository } from './column.repository'
+import { registerColumnRoutes } from './column.routes'
+import { ColumnNotFound } from './errors/column-not-found'
+import { LastColumn } from './errors/last-column'
+import { TooManyColumns } from './errors/too-many-columns'
 ```
 
 y dos casos de uso después de `rename`:
@@ -196,12 +238,15 @@ y dos casos de uso después de `rename`:
   /**
    * Removes a column, and the ones to its right move one place left. Whether it is
    * empty is not known here, where cards are not: `card.removeColumn` asks the cards
-   * first, and is what the API calls.
+   * first, and is what the API calls. A board keeps one column at least: its last one
+   * is not removed.
    */
   @UseCase()
   async remove(id: string): Promise<void> {
     const column = await this.load(id)
     const others = (await this.repo.ofBoard(column.boardId)).filter(each => each.id !== id)
+    // For a clear answer in the usual case: the save counts again, where nothing slips in.
+    if (others.length === 0) throw new LastColumn(column.boardId)
     others.forEach((each, index) => each.reposition(index))
     column.remove()
     await this.repo.persistOrder([column, ...others], column.boardId)
@@ -211,6 +256,11 @@ y dos casos de uso después de `rename`:
 `move` construye el nuevo orden en memoria, da a cada columna su índice y las guarda
 todas. Una columna cuya posición no cambió no tiene nada que guardar: `save` no la
 escribe, y no comprueba su versión. Una posición más allá del final es el final.
+
+`remove` saca la columna, y las demás cierran el hueco. Si no queda ninguna otra columna,
+lanza `LastColumn` antes de guardar: la respuesta clara para el caso habitual, una
+persona quitando la última columna. Para dos a la vez está el recuento de
+`persistOrder`.
 
 `remove` es un caso de uso del módulo de columnas, pero la API no lo llama: una columna
 se quita solo cuando no hay ninguna tarjeta en ella, y el módulo de columnas no conoce
@@ -491,9 +541,10 @@ fallo no deja nada a medias.
 de arriba. Vale para todo lo que se escriba por debajo de ese caso de uso, a la
 profundidad que sea.
 
-Queda un hueco. Una tarjeta movida a la columna entre el recuento y el borrado apunta a
-una columna que ya no existe; el capítulo [13](./13-another-context) lo cierra con un
-worker que saca esas tarjetas de ahí.
+Queda un hueco. Una tarjeta movida a la columna, o creada en ella, entre el recuento y
+el borrado apunta a una columna que ya no existe; el capítulo
+[13](./13-another-context) lo cierra con un worker que lleva esas tarjetas a la primera
+columna del tablero, que siempre está ahí.
 
 ### Las rutas
 
@@ -600,6 +651,26 @@ y uno después de `renames a column`:
   })
 ```
 
+y, después de él, uno para la última columna. Dos borrados de las dos últimas columnas
+de un tablero a la vez: una de ellas se va, la otra responde `column.last`, y la que
+queda no se quita nunca:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/column.test.ts
+  test('keeps a board\'s last column, where its cards go when another one is removed', async () => {
+    const [todo, doing] = [await add('To do'), await add('Doing')]
+
+    // Its last two removed at once: one of them is.
+    const removed = await Promise.allSettled([todo, doing].map(column => inAcme(() => t.modules.card.removeColumn(column.id))))
+
+    expect(removed.filter(each => each.status === 'fulfilled')).toHaveLength(1)
+    expect(removed.find(each => each.status === 'rejected')?.reason).toMatchObject({ code: 'column.last' })
+    const [last] = await inAcme(() => t.modules.column.list(boardId))
+    expect(await names()).toEqual([`0:${last!.name}`])
+    await expect(inAcme(() => t.modules.card.removeColumn(last!.id))).rejects.toMatchObject({ code: 'column.last' })
+  })
+```
+
 En `card.test.ts`, el test del contador ahora también borra la última tarjeta y
 comprueba que su número no se da otra vez. Añade las líneas al final, y dos tests
 después:
@@ -690,26 +761,29 @@ En `boards.context.test.ts`, el primer test de tarjetas guarda el id de la colum
     expect((await call('POST', `/acme/cards/${card.body.id}/move`, { columnId: done })).body).toMatchObject({ columnId: done, position: 0 })
 ```
 
-y un test después quita una columna por HTTP:
+y un test después quita columnas por HTTP: una con una tarjeta se rechaza, después se
+vacía y se quita, y la última que queda responde 409 `column.last`:
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.test.ts
-  test('removes a column only when it is empty', async () => {
+  test('removes a column only when it is empty, and never the board\'s last', async () => {
     const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
     const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    const done = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })).body.id
     const card = (await call<{ id: string }>('POST', `/acme/boards/${id}/cards`, { columnId: todo, title: 'Plan' })).body.id
 
     expect(await call('DELETE', `/acme/columns/${todo}`)).toMatchObject({ status: 409, body: { code: 'card.column_not_empty' } })
     expect((await call('DELETE', `/acme/cards/${card}`)).status).toBe(204)
     expect((await call('DELETE', `/acme/columns/${todo}`)).status).toBe(204)
-    expect((await call<unknown[]>('GET', `/acme/boards/${id}/columns`)).body).toEqual([])
+    expect((await call<{ id: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.id)).toEqual([done])
+    expect(await call('DELETE', `/acme/columns/${done}`)).toMatchObject({ status: 409, body: { code: 'column.last' } })
   })
 ```
 
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Luego, a mano, con el backend en marcha (`bun cooper/backend/index.ts`). Crea un
@@ -753,7 +827,9 @@ si la tarjeta está ahí, y nada (un 204) si no.
   caso de uso carga, decide y guarda al final, y no hace nada que no se pueda deshacer
   antes de guardar; `retryOnConflict: false`, con su motivo, es para el que no puede.
 - Una fila creada entre medias no tiene versión: comprueba el orden entero en `after`,
-  bajo un guard, y llama a `this.conflict()` cuando alguien se haya colado.
+  bajo un guard, y llama a `this.conflict()` cuando alguien se haya colado. Una regla
+  que dos personas pueden romper a la vez (un tablero conserva una columna) se cuenta
+  ahí también, después de escribir.
 - Varias entidades de un módulo guardadas a la vez son un solo `save`: todas o ninguna.
 - Un caso de uso escribe en otro módulo solo desde un worker. Una excepción justificada
   dice `writesTo`, con el motivo al lado.

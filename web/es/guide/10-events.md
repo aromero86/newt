@@ -31,19 +31,23 @@ en la carpeta `events` de su módulo. Este es el primero:
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/events/board-created.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { BoardDTO } from '../board.schema'
 
 export class Board_Created implements DomainEvent<BoardDTO> {
   static readonly eventName = 'board.created'
   readonly name = Board_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: BoardDTO) {}
 }
 ```
 
 - `eventName` es estático, para que un módulo pueda decir qué eventos cuenta sin crear
   ninguno (más abajo). `name` es la misma cadena en cada evento.
+- `occurredAt` es `now()`, de `newt/core`, no `new Date()`: la hora según el reloj del
+  contexto en marcha. Hasta el capítulo [19](./19-invitations-and-time) ese reloj es el
+  real, así que da lo mismo; allí un contexto recibe un reloj propio, y un test que lo
+  mueve ve también sus eventos a esa hora.
 - El nombre es `<módulo>.<qué pasó>`. La clase es `<Módulo>_<Verbo>`, en el archivo
   `events/<módulo>-<verbo>.ts`.
 - El payload son datos planos, nunca una entidad: aquí el DTO del tablero. newt lo tipa
@@ -58,7 +62,7 @@ Un tablero se crea, se actualiza y se archiva. Dos clases más, en la misma carp
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/events/board-updated.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { BoardDTO } from '../board.schema'
 
 /** The whole board as it is now, the fields that changed (`changes`) and what they were (`previous`). */
@@ -67,21 +71,21 @@ type BoardChange = { dto: BoardDTO, changes: Partial<BoardDTO>, previous: Partia
 export class Board_Updated implements DomainEvent<BoardChange> {
   static readonly eventName = 'board.updated'
   readonly name = Board_Updated.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: BoardChange) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/events/board-archived.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { BoardDTO } from '../board.schema'
 
 /** The board as it was when it was archived: it is kept, out of every list. */
 export class Board_Archived implements DomainEvent<BoardDTO> {
   static readonly eventName = 'board.archived'
   readonly name = Board_Archived.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: BoardDTO) {}
 }
 ```
@@ -220,20 +224,20 @@ Una columna se añade, se renombra, se mueve y se quita. Cuatro clases, de la mi
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/events/column-added.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 export class Column_Added implements DomainEvent<ColumnDTO> {
   static readonly eventName = 'column.added'
   readonly name = Column_Added.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: ColumnDTO) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/events/column-renamed.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 /** The column as it is now, and the name it had (`previous`). */
@@ -242,14 +246,14 @@ type ColumnRename = { dto: ColumnDTO, changes: Partial<ColumnDTO>, previous: Par
 export class Column_Renamed implements DomainEvent<ColumnRename> {
   static readonly eventName = 'column.renamed'
   readonly name = Column_Renamed.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: ColumnRename) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/events/column-moved.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 /**
@@ -261,21 +265,21 @@ type ColumnMove = { dto: ColumnDTO, changes: Partial<ColumnDTO>, previous: Parti
 export class Column_Moved implements DomainEvent<ColumnMove> {
   static readonly eventName = 'column.moved'
   readonly name = Column_Moved.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: ColumnMove) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/column/events/column-removed.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 /** The column as it was when it was removed. */
 export class Column_Removed implements DomainEvent<ColumnDTO> {
   static readonly eventName = 'column.removed'
   readonly name = Column_Removed.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: ColumnDTO) {}
 }
 ```
@@ -438,7 +442,7 @@ oyente:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-created.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The new card, with its number and its place, and who created it: nobody for boards' own work (a welcome card). */
@@ -447,14 +451,14 @@ type CardCreation = CardDTO & CardAuthor
 export class Card_Created implements DomainEvent<CardCreation> {
   static readonly eventName = 'card.created'
   readonly name = Card_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardCreation) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-edited.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card as it is now, its title or description as they are (`changes`) and as they were (`previous`), and who edited it. */
@@ -463,14 +467,14 @@ type CardEdit = { dto: CardDTO, changes: Partial<CardDTO>, previous: Partial<Car
 export class Card_Edited implements DomainEvent<CardEdit> {
   static readonly eventName = 'card.edited'
   readonly name = Card_Edited.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardEdit) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-moved.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /**
@@ -483,14 +487,14 @@ type CardMove = { dto: CardDTO, changes: Partial<CardDTO>, previous: Partial<Car
 export class Card_Moved implements DomainEvent<CardMove> {
   static readonly eventName = 'card.moved'
   readonly name = Card_Moved.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardMove) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-assigned.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card, now assigned to `dto.assigneeId`, who had it before, if anyone, and who assigned it. */
@@ -499,14 +503,14 @@ type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null } & Card
 export class Card_Assigned implements DomainEvent<CardAssignment> {
   static readonly eventName = 'card.assigned'
   readonly name = Card_Assigned.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardAssignment) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-unassigned.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card, assigned to nobody now, who had it, and who took it from them: nobody when a member left the workspace. */
@@ -515,14 +519,14 @@ type CardUnassignment = { dto: CardDTO, previousAssigneeId: string } & CardAutho
 export class Card_Unassigned implements DomainEvent<CardUnassignment> {
   static readonly eventName = 'card.unassigned'
   readonly name = Card_Unassigned.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardUnassignment) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/events/card-deleted.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card as it was when it was deleted, and who deleted it. */
@@ -531,7 +535,7 @@ type CardDeletion = CardDTO & CardAuthor
 export class Card_Deleted implements DomainEvent<CardDeletion> {
   static readonly eventName = 'card.deleted'
   readonly name = Card_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardDeletion) {}
 }
 ```
@@ -837,11 +841,8 @@ import type { Activity_Options } from './activity-options'
 import { registerActivityWorkers } from './activity.workers'
 
 /**
- * What happened to each card, and who did it: a log that only grows, one
- * entry per event a card tells, written by a worker reacting to it. An entry
- * is never changed: a card edited twice has two entries, and none of them collides
- * with another, nor with the card. Each one takes its event's id, so a job that runs
- * twice records it once.
+ * What happened to each card, and who did it. For now, a line in the server's log
+ * as each card moves, told by the card's own event.
  */
 export class Activity_Module extends Module {
 
@@ -857,9 +858,9 @@ export class Activity_Module extends Module {
 }
 ```
 
-Su comentario ya dice para qué sirve el módulo, el historial que escribe el
-[capítulo siguiente](./11-reacting). Hoy el módulo es solo la línea. Las reacciones de un
-módulo viven en `<módulo>.workers.ts`, una función a la que llama su `initialize`:
+Hoy el módulo es solo la línea; el [capítulo siguiente](./11-reacting) le da un
+historial de cada tarjeta, y un comentario a juego. Las reacciones de un módulo viven en
+`<módulo>.workers.ts`, una función a la que llama su `initialize`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/activity/activity.workers.ts
@@ -867,18 +868,14 @@ import type { Activity_Deps } from './activity.deps'
 import type { Activity_Module } from './activity.module'
 import type { Activity_Options } from './activity-options'
 
-/**
- * What the activity does when something happens to a card: each event a `handler`,
- * a job saved with the change, so no entry is ever missing, run until it succeeds
- * and safe to run again (keyed on the event's id).
- */
+/** What the activity does when something happens to a card. */
 export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
   const { events } = deps.card
 
   // A line in the server's log as each card moves, to watch a board live while
   // tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
   // or the server stops before it runs, the line is lost, and nothing is wrong: no
-  // one needs it later, and the log above keeps the move for good.
+  // one needs it later.
   events.moved.subscribe(({ dto, previous, by, via }) => {
     options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
   }, { strategy: 'fire-and-forget' })
@@ -898,8 +895,7 @@ Un módulo reacciona a un evento suscribiéndose a él en el módulo que lo cuen
 
 Esta es **`fire-and-forget`**: newt ejecuta el callback en memoria, en este proceso,
 justo después de que confirme la transacción que contó el evento. Sin job, sin nada
-escrito, sin nada que esperar. (Su comentario habla de "the log above": el historial que
-añade el [capítulo siguiente](./11-reacting) en el mismo archivo.)
+escrito, sin nada que esperar.
 
 ### Lo que pierde fire-and-forget
 
@@ -1068,7 +1064,7 @@ confirmación, en este proceso.
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`), y en otra terminal

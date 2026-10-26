@@ -14,10 +14,13 @@ and, if it has any, its entry points. cooper has three: `auth`, `boards` and
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
-  const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store })
-  return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
+static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock): Promise<Boards_Context> {
+  const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
+  const base = new BoardsBase({ name: 'boards', store, clock })
+  const modules = initializeModules(base, config, deps)
+  // The cards' search starts empty in memory: every card is indexed before anyone searches.
+  await modules.card.reindex()
+  return new Boards_Context(base, modules, config, deps.auth)
 }
 ```
 
@@ -29,13 +32,16 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   `tracer`, the `jobs` settings, the `writeRule`, the `guardRule` and a `clock`: what its entities'
   `createdAt` and `updatedAt`, its jobs' due times and backoffs, and `now()` in its
   use cases and handlers go by (the real time by default; a test moves its own,
-  `{ now: () => new Date(time) }`, instead of waiting).
+  `{ now: () => new Date(time) }`, instead of waiting). cooper's `openStore`
+  (`shared/open-store.ts`) picks the store by `config.<context>.database`, from
+  `COOPER_<CONTEXT>_DATABASE`: a `postgres://` address is Postgres, with the context's
+  `migrations/postgres`, and anything else a SQLite file, with its `migrations/sqlite`.
 - **An application gives its modules more by extending `Base`**: an HTTP router, a
   mailer, a query builder on the store's connection.
 
   ```ts
   // cooper/backend/shared/cooper-base.ts
-  export class CooperBase extends Base<SqliteStore> {
+  export class CooperBase extends Base<CooperStore> {
     readonly http = new HttpRouter()
   }
   ```
@@ -55,16 +61,16 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
 
   ```ts
   // cooper/backend/index.ts
-  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+  const app = runContexts(contexts.all.map(context => ({ context, serve: { ...context.serving(), drainMs: config.drainMs } })), { tracer: cooperTracer(config) })
   ```
 - **Contexts depend on each other without a cycle**: each one is opened after the ones
   it uses and receives their modules, or ports made of them.
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
+  const auth = await Auth_Context.open(config.auth, { mailer }, clock)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined }, clock)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, clock)
   ```
 - A context reaches another only through that one's use cases and events, never its
   base or its store. Its deps type says which modules, as a `Pick`, so nothing else is
@@ -215,7 +221,7 @@ database opens nothing:
 // cooper/backend/shared/web-session/web-session.ts
 static open(userId: string, days: number): { session: WebSession, token: SecretToken } {
   const token = SecretToken.generate()
-  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
+  const expiresAt = new Date(now().getTime() + days * 24 * 60 * 60_000).toISOString()
   return { session: new WebSession({ userId, tokenHash: SecretToken.hash(token), expiresAt }, true), token }
 }
 ```
@@ -295,8 +301,10 @@ recentInEveryScope(limit: number): Promise<Board[]> {
 ```
 
 What a subclass reads or writes on its own (`this.table`, Kysely, `saveRows`, a save's
-`after`) adds the filter itself, as cooper's card search does with
-`.where('workspaceId', '=', currentWorkspaceId())`.
+`after`) adds the filter itself, as cooper's cards counted by board do with
+`.where('workspaceId', '=', currentWorkspaceId())`; and so does whatever keeps the
+rows elsewhere (cooper's card search is asked for one workspace's cards,
+`search(currentWorkspaceId(), …)`).
 
 ## Modules
 
@@ -320,7 +328,7 @@ auth, `oauth-client` and `oauth-grant`. The prefix is part of the name everywher
 
 | File | What it holds |
 |---|---|
-| `<m>.schema.ts` | Zod schemas and DTO types: the module's **public contract**, what goes in and out of its use cases and events. Everything it exports starts with the entity's name (`BoardSchema`, `BoardCreateDTO`). |
+| `<m>.schema.ts` | Zod schemas and DTO types: the module's **public contract**, what goes in and out of its use cases and events. Everything it exports starts with the entity's name (`BoardSchema`, `BoardCreateDTO`). A frontend may import it, so it takes from newt only `newt/contract`. |
 | `<m>.ts` | The entity: a class extending `Entity<typeof <M>Schema>`. Re-exports the schema file. |
 | `<m>.repository.ts` | **The only file that touches the store.** |
 | `<m>.module.ts` | `<M>_Module extends Module`: the use cases and its `events`. `static initialize(base, deps?, options?)`. |
@@ -427,7 +435,8 @@ adapter that does not build on it is not checked for this.
   the columns and follows `column.removed`.)
 - A module never knows who depends on it.
 - What a module needs of another context is a port, in its own words, typed in its
-  deps file (`AccessEvents` above); the context hands it the other context's use cases
+  deps file (`AccessEvents` above, each event an `EventSource<Payload>`: what it may
+  subscribe to, nothing more); the context hands it the other context's use cases
   or emitters when it opens.
 
 ## The entity
@@ -484,7 +493,10 @@ export class Board extends Entity<typeof BoardSchema> {
 
   ```ts
   // cooper/backend/contexts/auth/modules/user/user.ts
-  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+  const UserEntitySchema = UserSchema.extend({
+    /** `Bun.password`'s hash (argon2id): the password itself is never kept. */
+    passwordHash: z.string().min(1),
+  })
 
   export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
     private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
@@ -583,7 +595,7 @@ understands:
 // cooper/backend/contexts/boards/modules/board/board.module.ts
 return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
 if (await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } }) > 0) throw new BoardNameTaken(name)
-const found = await this.repo.page({}, page, { newestFirst: true })
+return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
 ```
 
 ```ts
@@ -638,18 +650,21 @@ export type CardFilterDTO = z.infer<typeof CardFilter.schema>
 @UseCase()
 async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
   const { text, filter } = CardSearchSchema.parse(input)
-  const criteria = filter ? CardFilter.toCriteria<CardRow>(filter) : {}
-  const found = await this.repo.search(criteria, text, page)
+  const criteria = filter ? CardFilter.toCriteria<CardDTO>(filter) : {}
+  const found = await this.options.search.search(currentWorkspaceId(), { text, criteria }, page)
   // …
 }
 ```
 
 A field or operator not declared is a 400; what the system imposes goes beside the
 client's filter, in an `and` (`allOf`, or a `where` beside the criteria), where it
-cannot be escaped. In cooper the workspace is imposed by the search's own
-`where('workspaceId', '=', currentWorkspaceId())`, and the client's criteria join it
-through `criteriaTree`, which turns criteria into a tree (`all`, `any`, `field`) a
-query builder can translate. Every operator offered is a query
+cannot be escaped. In cooper the workspace is imposed beside the client's criteria:
+the search is asked for `currentWorkspaceId()`'s cards, and the criteria only narrow
+them. cooper searches through a port of its own, `CardSearch`
+(`contexts/boards/search/`), an index a worker keeps as each card changes;
+`MemoryCardSearch` answers the criteria in memory with `matches(card, criteria)`, and
+an adapter for a search server would translate them with `criteriaTree`, which turns
+criteria into a tree (`all`, `any`, `field`). Every operator offered is a query
 anyone can run: an `or` across fields keeps a database from using its indexes, so
 offer what the data can answer quickly. A filter tree travels in a body
 (`POST /api/workspaces/:workspaceId/cards/search`), not a URL.
@@ -678,10 +693,11 @@ A `COUNT` comes back as text on Postgres: `Number(…)` makes it work on all thr
 
 **Keep repositories portable**: `TableRepository` by default, Kysely for what it
 cannot say, and SQL of one store only when there is no other way (SQLite's full-text
-search, say), kept in one place and flagged. Never fetch ids to send them back in an
-`in`: a query takes a limited number of parameters (250,000 on SQLite in Bun), and one
-query with everything in it does not. cooper's card search is one Kysely query, page
-and total included. Then moving to another store is a new
+search, say), kept in one place and flagged. Never fetch an unbounded list of ids to
+send them back in an `in`: a query takes a limited number of parameters (250,000 on
+SQLite in Bun), and one query with everything in it does not. A page of them is
+bounded: cooper's card search reads its cards by the ids its index found, a page at
+most. Then moving to another store is a new
 store and its migrations, not new repositories.
 
 **References between modules** (a card's column, its assignee) are ids only, as Vaughn
@@ -998,7 +1014,7 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   more than once: it is idempotent.
 - A handler gets the payload, and what else is known of the event:
   `subscribe((payload, event) => …)`, `event` being its `id`, `name` and
-  `occurredAt`. The publisher gives every event its id, the same for each of its
+  `occurredAt` (an `EventMeta`). The publisher gives every event its id, the same for each of its
   handlers and each run of their jobs: what a handler that must do something once
   per event keys on (cooper's activity log takes it as each entry's id).
 
@@ -1125,7 +1141,8 @@ export const BoardName = {
   cannot be handed an unchecked string by mistake.
 - The framework has `Email` (trimmed and in lower case, up to 254 characters; an
   `InvalidEmail` is a 400) and `SecretToken` (32 random bytes in base64url, with
-  `generate()` and `hash(token)`; an `InvalidSecretToken` is a 400). The entity's
+  `generate()` and `hash(token)`; an `InvalidSecretToken` is a 400), both in
+  `newt/contract`, which a schema file imports them from. The entity's
   schema uses `X.schema`; an input schema stays lenient (a plain `z.email()`), and the
   entity or the use case runs it through `X.from` before keeping it.
 
@@ -1158,7 +1175,7 @@ export const BoardName = {
   deleted: on SQLite, a partial unique index.
 
   ```sql
-  -- cooper/backend/contexts/boards/migrations/00001_boards_up.sql
+  -- cooper/backend/contexts/boards/migrations/sqlite/00001_board_up.sql
   CREATE UNIQUE INDEX board_name ON board (workspace_id, lower(name)) WHERE deleted_at IS NULL;
   ```
 - Do not design around the store: the entity and the use cases come first, the tables
@@ -1173,8 +1190,9 @@ fed by `handler` workers after the events of what the store saved; each row carr
 id of its own (the event's, the card's), so a job that runs twice adds nothing.
 Reading it is each adapter's own query language. No adapter comes with the framework
 yet; `MemoryAnalytics` (in `newt/port-analytics/contract`) is the one for tests, and
-`describeAnalyticsContract` checks a new one. cooper writes a small one on SQLite
-(`shared/analytics/sqlite-analytics.ts`, in the backoffice's own database), declares
+`describeAnalyticsContract` checks a new one. cooper writes a small one on SQL,
+SQLite or Postgres (`shared/analytics/sql-analytics.ts`, in the backoffice's own
+database, with Kysely), declares
 the reads it needs in an interface of its own, and feeds it from `handler` workers on
 auth's and boards' events, each row by the id of what it counts:
 
@@ -1200,14 +1218,19 @@ the whole request, across contexts. Without a tracer, nothing is recorded
 (`NoopTracer`). A context may still hand its `Base` a `tracer` of its own, which goes
 before the application's for its use cases.
 
-`filterSpans(tracer, keep)` hands a tracer only the spans whose name it keeps. cooper
-sets a `ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1`, without the
-worker's `job.…` spans; it writes each trace once it ends. To send them to
-OpenTelemetry, `new OtlpTracer({ endpoint, service })` from `newt/otel` exports them
-to a collector over OTLP/HTTP, without its SDK: every few seconds, and the rest when
-`runContexts` stops (a tracer's `flush`).
+`filterSpans(tracer, keep)` hands a tracer only the spans whose name it keeps. To
+send them to OpenTelemetry, `new OtlpTracer({ endpoint, service })` from `newt/otel`
+exports them to a collector over OTLP/HTTP, without its SDK: every few seconds, and
+the rest when `runContexts` stops (a tracer's `flush`). cooper sends them there when
+`COOPER_OTLP_URL` says where the collector is, or else writes each trace to the
+console once it ends (a `ConsoleTracer`, `shared/observability`) when
+`COOPER_TRACE=1`; either way without the worker's `job.…` spans.
 
 ```ts
 // cooper/backend/open-contexts.ts
-return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+export function cooperTracer(config: Config): Tracer | undefined {
+  const tracer = config.otlpUrl ? new OtlpTracer({ endpoint: config.otlpUrl, service: 'cooper' })
+    : config.trace ? new ConsoleTracer() : undefined
+  return tracer && filterSpans(tracer, name => !name.startsWith('job.'))
+}
 ```

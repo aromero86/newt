@@ -839,7 +839,7 @@ tries a taken name:
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Start the server (`bun cooper/backend/index.ts`; the new migration is applied as it

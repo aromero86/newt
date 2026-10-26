@@ -46,7 +46,7 @@ const BACKEND = newt({
 })
 
 export default [
-  { ignores: ['packages/**', 'docs/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
   // …
 ]

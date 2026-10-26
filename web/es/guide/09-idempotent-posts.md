@@ -201,7 +201,7 @@ tablero tiene una tarjeta. Una clave nueva es un envío nuevo: una segunda tarje
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`): ejecuta la migración

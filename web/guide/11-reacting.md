@@ -204,8 +204,9 @@ export class Activity_Repository extends TableRepository<Activity, ActivityRow, 
 
 ## The use cases
 
-The module gets a repository, its routes, a use case that reads, and six that record.
-This is the whole `activity.module.ts` now:
+The module gets a repository, its routes, a use case that reads, and six that record,
+and its comment says what it is now: a log that only grows. This is the whole
+`activity.module.ts`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/activity/activity.module.ts
@@ -401,8 +402,8 @@ the module that reacts with what it needs. It does nothing else: the logic lives
 the use case, where it can be tested and traced.
 
 `strategy: 'handler'` takes the queue's name, `queue`, and nothing else is needed.
-The comment at the top of the file, written in chapter [10](./10-events), describes
-it now.
+The comment at the top of the file now says what the handlers give, and the log
+line's comment says why losing a line is fine: the log above keeps the move for good.
 
 ### The queue's name
 
@@ -591,7 +592,7 @@ activity while the worker may still be writing it.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`): it runs migration

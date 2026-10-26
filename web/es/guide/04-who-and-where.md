@@ -558,7 +558,7 @@ memoria. Vive en la carpeta `testing` de `boards`, y crece capítulo a capítulo
 
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
-import { Email } from 'newt/core'
+import { Email } from 'newt/contract'
 import type { Workspaces } from '../modules/member/member.deps'
 import type { MemberDTO } from '../modules/member/member.schema'
 
@@ -838,7 +838,7 @@ dice en su comentario: el capítulo 20 lo quita.
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Los tableros que creaste en capítulos anteriores no tienen espacio de trabajo, así que

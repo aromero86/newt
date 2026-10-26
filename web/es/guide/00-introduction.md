@@ -168,9 +168,9 @@ y [E. Índice](./e-index), que dice qué capítulo enseña cada export de newt.
 
 ## Cómo trabajas
 
-Necesitas [git](https://git-scm.com) y [Bun](https://bun.sh) 1.4 o posterior. newt solo
-funciona con Bun: sus stores se construyen sobre `bun:sqlite` y `Bun.SQL`, y su servidor
-sobre `Bun.serve`.
+Necesitas [git](https://git-scm.com) y [Bun](https://bun.sh) 1.4.4 o posterior (la
+comprobación de abajo usa su `bun check`). newt solo funciona con Bun: sus stores se
+construyen sobre `bun:sqlite` y `Bun.SQL`, y su servidor sobre `Bun.serve`.
 
 Clona el repositorio de newt y ve al comienzo del tutorial:
 
@@ -252,17 +252,18 @@ Unos pocos capítulos copian ficheros del repositorio en vez de hacerte escribir
 frontends, código de protocolo que el capítulo resume). Dicen exactamente qué rutas, y
 de qué etiqueta.
 
-### La puerta
+### La comprobación
 
 Todos los capítulos terminan con las mismas cuatro comprobaciones:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
-- `bunx tsc -b --noEmit` comprueba los tipos de cada proyecto al que hace referencia el
-  `tsconfig.json` de la raíz: el de newt y, desde el capítulo 1, el del backend de
-  cooper. No imprime nada si todo va bien.
+- `bun check` comprueba los tipos de cada proyecto al que hace referencia el
+  `tsconfig.json` de la raíz, como haría `tsc -b`: el de newt y, desde el capítulo 1, el
+  del backend de cooper. Da los mismos errores que `tsc`, y termina con
+  `✓ No type errors` si todo va bien.
 - `bun test cooper` ejecuta los tests de cooper. La comprobación de cada capítulo es
   también un test, así que lo que pruebas a mano se vuelve a comprobar cada vez.
 - `bun run lint` ejecuta ESLint con el preset de newt sobre el backend de cooper.
@@ -282,7 +283,7 @@ unas líneas de `curl` con lo que responden.
 - Clona, `git checkout tutorial/00`, `bun install`. Cada capítulo termina en
   `tutorial/NN`; `git diff tutorial/NN-1 tutorial/NN` lo enseña,
   `git checkout tutorial/NN -- cooper` te pone al día.
-- La puerta, al final de cada capítulo:
-  `bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint`.
+- La comprobación, al final de cada capítulo:
+  `bun install && bun check && bun test cooper && bun run lint`.
 
 Empieza por el [capítulo 1: el proyecto y un contexto](./01-project-and-context).

@@ -853,7 +853,7 @@ columnas y prueba un nombre ocupado:
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Arranca el servidor (`bun cooper/backend/index.ts`; la migración nueva se aplica al

@@ -311,10 +311,10 @@ mensajes: el código es lo que usa un cliente.
 
 ## Compruébalo
 
-Ejecuta la puerta:
+Ejecuta la comprobación:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```

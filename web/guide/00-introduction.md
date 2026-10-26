@@ -169,9 +169,9 @@ and [E. Index](./e-index), which says which chapter teaches each of newt's expor
 
 ## How you work
 
-You need [git](https://git-scm.com) and [Bun](https://bun.sh) 1.4 or later. newt runs
-only on Bun: its stores are built on `bun:sqlite` and `Bun.SQL`, and its server on
-`Bun.serve`.
+You need [git](https://git-scm.com) and [Bun](https://bun.sh) 1.4.4 or later (the gate
+below uses its `bun check`). newt runs only on Bun: its stores are built on `bun:sqlite`
+and `Bun.SQL`, and its server on `Bun.serve`.
 
 Clone the newt repository and go to the start of the tutorial:
 
@@ -258,11 +258,12 @@ tag.
 Every chapter ends with the same four checks:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
-- `bunx tsc -b --noEmit` typechecks every project the root `tsconfig.json` references:
-  newt's, and from chapter 1 cooper's backend. It prints nothing when all is well.
+- `bun check` typechecks every project the root `tsconfig.json` references, as
+  `tsc -b` would: newt's, and from chapter 1 cooper's backend. It reports the same
+  errors as `tsc`, and ends with `✓ No type errors` when all is well.
 - `bun test cooper` runs cooper's tests. Every chapter's check is also a test, so what
   you try by hand is checked again each time.
 - `bun run lint` runs ESLint with newt's preset over cooper's backend.
@@ -283,6 +284,6 @@ lines with what they answer.
   `tutorial/NN`; `git diff tutorial/NN-1 tutorial/NN` shows it,
   `git checkout tutorial/NN -- cooper` catches you up.
 - The gate, at the end of every chapter:
-  `bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint`.
+  `bun install && bun check && bun test cooper && bun run lint`.
 
 Start with [chapter 1: the project and a context](./01-project-and-context).

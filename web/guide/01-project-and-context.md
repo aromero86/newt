@@ -391,7 +391,7 @@ The order of `afterEach` matters: the server stops taking requests first, then
 Run the gate:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```
