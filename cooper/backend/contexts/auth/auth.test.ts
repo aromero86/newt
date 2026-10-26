@@ -102,7 +102,7 @@ describe('accounts', () => {
     expect(all.items.map(user => user.name)).toEqual(['Bob', 'Ana'])
     const found = await modules().user.list({ field: 'email', op: 'ieq', value: 'BOB@cooper.test' }, page)
     expect(found.items.map(user => user.name)).toEqual(['Bob'])
-    expect(() => modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).toThrow()
+    await expect(modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).rejects.toMatchObject({ name: 'ZodError' })
   })
 
   test('signs up, in and out through its API, the session in a cookie only auth reads', async () => {
