@@ -50,11 +50,14 @@ export function defineFilter<const Fields extends Record<string, FilterField>>(f
     z.strictObject({ or: z.array(node).min(1) }),
   ] as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]))
 
-  const schema = node.superRefine((filter, context) => {
-    const { depth, conditions } = measure(filter as Node)
-    if (depth > maxDepth) context.addIssue({ code: 'custom', message: message('filter_too_deep', { max: maxDepth }) })
-    if (conditions > maxConditions) context.addIssue({ code: 'custom', message: message('filter_too_many_conditions', { max: maxConditions }) })
-  }) as unknown as z.ZodType<FilterNode<Fields>>
+  // The limits are checked first, on the raw input and without recursion: a filter
+  // nested thousands deep, or with thousands of conditions, is refused before zod
+  // walks it, cheaply and with a 400.
+  const schema = z.unknown().superRefine((input, context) => {
+    const exceeded = beyond(input, maxDepth, maxConditions)
+    if (exceeded === 'depth') context.addIssue({ code: 'custom', message: message('filter_too_deep', { max: maxDepth }) })
+    if (exceeded === 'conditions') context.addIssue({ code: 'custom', message: message('filter_too_many_conditions', { max: maxConditions }) })
+  }).pipe(node) as unknown as z.ZodType<FilterNode<Fields>>
 
   const toCriteria = (filter: Node): Record<string, unknown> => {
     if ('and' in filter) return { and: filter.and.map(toCriteria) }
@@ -67,9 +70,30 @@ export function defineFilter<const Fields extends Record<string, FilterField>>(f
 
 type Node = { and: Node[] } | { or: Node[] } | { field: string, op: string, value: unknown }
 
-function measure(node: Node): { depth: number, conditions: number } {
+/**
+ * Which limit a filter, as it came, goes beyond, if any. Anything but a group counts
+ * as a condition, an empty group too (zod refuses it later), so whatever it lets
+ * through has at most `maxConditions` leaves and is a small tree.
+ */
+function beyond(input: unknown, maxDepth: number, maxConditions: number): 'depth' | 'conditions' | null {
+  const pending: { node: unknown, depth: number }[] = [{ node: input, depth: 0 }]
+  let conditions = 0
+  while (pending.length) {
+    const { node, depth } = pending.pop()!
+    const group = groupOf(node)
+    if (!group?.length) {
+      if (++conditions > maxConditions) return 'conditions'
+      continue
+    }
+    if (depth + 1 > maxDepth) return 'depth'
+    if (conditions + pending.length + group.length > maxConditions * (maxDepth + 1)) return 'conditions'
+    for (const each of group) pending.push({ node: each, depth: depth + 1 })
+  }
+  return null
+}
+
+function groupOf(node: unknown): unknown[] | null {
+  if (node === null || typeof node !== 'object') return null
   const group = 'and' in node ? node.and : 'or' in node ? node.or : null
-  if (!group) return { depth: 0, conditions: 1 }
-  const inside = group.map(measure)
-  return { depth: 1 + Math.max(0, ...inside.map(each => each.depth)), conditions: inside.reduce((sum, each) => sum + each.conditions, 0) }
+  return Array.isArray(group) ? group : null
 }

@@ -19,6 +19,15 @@ describe('compare', () => {
     expect(compare('2026-01-02', '2026-01-10')).toBeLessThan(0)
   })
 
+  test('text by code point, as SQL sorts UTF-8 bytes: upper case first, past U+FFFF last', () => {
+    expect(compare('B', 'a')).toBeLessThan(0)
+    expect(compare('ab', 'a')).toBeGreaterThan(0)
+    expect(compare('z', 'é')).toBeLessThan(0)
+    expect(compare('\u{1F600}', '～')).toBeGreaterThan(0)
+    expect(compare('～', '\u{1F600}')).toBeLessThan(0)
+    expect(compare('\u{1F600}', '\u{1F601}')).toBeLessThan(0)
+  })
+
   test('null and undefined first', () => {
     expect(compare(null, 0)).toBeLessThan(0)
     expect(compare(0, null)).toBeGreaterThan(0)

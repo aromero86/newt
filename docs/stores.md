@@ -76,9 +76,11 @@ same in every store:
 - `ne` means "different, a missing value included" (SQL's `IS DISTINCT FROM`, not
   `<>`): `{ ne: 'x' }` also matches the rows with no value;
 - a `null` in an `in` list does match `null`;
-- an operator left `undefined` is no condition;
+- an operator left `undefined`, or a condition with none in it (`{}`), is no condition;
 - `ieq` ignores the case of A to Z only, on every store: `Ñ` and `ñ` differ.
-  Keep a lower-cased column for a search that must fold every letter.
+  Keep a lower-cased column for a search that must fold every letter;
+- text compares and sorts by code point (UTF-8 byte order: `B` before `a`, `z`
+  before `é`), as `compare` does in memory.
 
 A table is the common ground every store can offer. What a table cannot say (a
 join, an aggregate, a full-text search) a repository asks its store's own API:

@@ -448,8 +448,9 @@ Las ideas que hay detrás:
   la puerta por la que entra, nunca si trae `id` o no.
 - **Solo la entidad se cambia a sí misma.** `change()` es protegido: desde fuera no
   se puede llamar. Un caso de uso llama a `update()`, `archive()`… métodos con
-  nombre de negocio. `change()` valida cada campo contra el esquema e ignora lo que
-  no cambia de verdad.
+  nombre de negocio. `change()` valida la entidad entera contra el esquema (también
+  sus `refine`), guarda los valores que este devuelve (recortados, por defecto…) e
+  ignora lo que no cambia de verdad.
 - **Sabe qué cambia.** `getChanges()` da los campos que cambiaron, tal como quedan;
   `getPrevious()`, esos mismos campos tal como estaban al leerla. Juntos son la
   transición que hará el guardado.

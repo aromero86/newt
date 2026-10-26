@@ -84,6 +84,20 @@ describe('the limits of a filter', () => {
   const english = currentMessages.value
   afterEach(() => { currentMessages.value = english })
 
+  test('are checked before the rest: a hostile filter is refused at once, not a stack overflow', () => {
+    const leaf = { field: 'price', op: 'eq', value: 1 }
+    let deep: unknown = leaf
+    for (let i = 0; i < 100_000; i++) deep = { and: [deep] }
+    const wide = { or: Array.from({ length: 200_000 }, () => leaf) }
+    const hollow = { or: Array.from({ length: 200_000 }, () => ({ and: [] })) }
+
+    const started = performance.now()
+    expect(ProductFilter.schema.safeParse(deep).error?.issues.map(issue => issue.message)).toEqual(['A filter nests at most 2 groups deep'])
+    expect(ProductFilter.schema.safeParse(wide).error?.issues.map(issue => issue.message)).toEqual(['A filter has at most 3 conditions'])
+    expect(ProductFilter.schema.safeParse(hollow).error?.issues.map(issue => issue.message)).toEqual(['A filter has at most 3 conditions'])
+    expect(performance.now() - started).toBeLessThan(50)
+  })
+
   test('say why in the application\'s language', () => {
     setMessages({
       filter_too_many_conditions: ({ max }) => `Un filtro tiene como mucho ${max} condiciones`,
