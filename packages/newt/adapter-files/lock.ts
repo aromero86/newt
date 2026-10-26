@@ -1,21 +1,35 @@
-import { link, open, rename, stat } from 'node:fs/promises'
+import { open, stat, utimes } from 'node:fs/promises'
 import { isMissing } from './is-missing'
 import { readIfAny } from './read-if-any'
 import { removeIfAny } from './remove-if-any'
 
 /** How long a process waits for the lock before it gives up. */
 const LOCK_TIMEOUT_MS = 10_000
+/** How often a holder touches its lock, to say it is still alive. */
+const HEARTBEAT_MS = 1_000
+/** A lock not touched for this long is left behind, whoever it names. */
+const STALE_MS = 5_000
+/** A lock naming nobody (not one of ours) is left behind once it is this old. */
+const FOREIGN_STALE_MS = 1_000
+/** A guard of a takeover is held for a read and a removal: one this old was left by a crash. */
+const GUARD_STALE_MS = 5_000
 
 /**
- * Takes the lock file, waiting while another process holds it, and gives back what
- * releases it. The file says who holds it: a process id and a token of this taking.
+ * Takes the lock file, waiting while another holder has it, and gives back what
+ * releases it. The file says who holds it: a process id and a token of this taking,
+ * so a holder only ever lets go of its own (two stores of one process, two Workers,
+ * share the process id and still wait for each other).
  *
- * A lock is left behind when its process dies, and is taken over: one naming a
- * process that is not alive, or this very process (which only asks once it let go of
- * its own, so a lock with its id is from an earlier life: a container restarts with
- * the same id), or nobody, if it is older than a second. Taking one over is a rename
- * to a name of one's own first, so only one of the processes waiting gets it; and if
- * what it renamed is not what it read (someone took it meanwhile) it puts it back.
+ * While held, its holder touches it every second. A lock is left behind, and taken
+ * over, when the process it names is not alive, or when it has not been touched for
+ * 5 s whatever it names (its process died and its id went to another one: a reboot, a
+ * container restart), or, naming nobody, once it is older than a second.
+ *
+ * Removing a lock (letting go of one's own, or taking over one left behind) is done
+ * holding a guard of that very token, made with an exclusive create, and only if the
+ * lock still holds that token once the guard is held. No one else can remove it
+ * meanwhile, so no new lock can take its place before it goes: two holders never
+ * both get it.
  *
  * Every process sharing the folder must see the others' ids: one host, one process
  * namespace.
@@ -24,14 +38,27 @@ export async function lock(path: string): Promise<() => Promise<void>> {
   const token = `${process.pid}:${Bun.randomUUIDv7()}`
   const deadline = Date.now() + LOCK_TIMEOUT_MS
   for (;;) {
-    if (await create(path, token)) return () => release(path, token)
+    if (await create(path, token)) return held(path, token)
     const seen = await readIfAny(path)
     if (seen !== undefined && await isLeft(path, seen)) {
-      await takeOver(path, seen)
+      await removeIfStill(path, seen)
       continue
     }
     if (Date.now() > deadline) throw new Error(`The store is locked by ${seen ?? 'another process'} (${path})`)
     await Bun.sleep(5)
+  }
+}
+
+/** Keeps the lock touched while held, and gives back what lets go of it. */
+function held(path: string, token: string): () => Promise<void> {
+  const heartbeat = setInterval(() => {
+    const now = new Date()
+    utimes(path, now, now).catch(() => {})
+  }, HEARTBEAT_MS)
+  heartbeat.unref()
+  return async () => {
+    clearInterval(heartbeat)
+    await removeIfStill(path, token)
   }
 }
 
@@ -50,36 +77,29 @@ async function create(path: string, token: string): Promise<boolean> {
   }
 }
 
-/** Lets go of the lock, if it is still this taking's. */
-async function release(path: string, token: string): Promise<void> {
-  if ((await readIfAny(path)) === token) await removeIfAny(path)
-}
-
 async function isLeft(path: string, seen: string): Promise<boolean> {
   const holder = Number.parseInt(seen.split(':')[0] ?? '', 10)
-  if (!Number.isInteger(holder)) return isOlderThan(path, 1_000)
-  return holder === process.pid || !isAlive(holder)
+  if (!Number.isInteger(holder)) return isOlderThan(path, FOREIGN_STALE_MS)
+  return !isAlive(holder) || isOlderThan(path, STALE_MS)
 }
 
-/** Moves a lock left behind out of the way, unless someone took it since it was read. */
-async function takeOver(path: string, seen: string): Promise<void> {
-  const aside = `${path}.${process.pid}.${Bun.randomUUIDv7()}.left`
+/**
+ * Removes the lock if it still holds `seen`, holding a guard of that token: whoever
+ * else would remove it (its holder letting go, another process taking it over) waits
+ * for the same guard, so between the check and the removal it stays as it was.
+ */
+async function removeIfStill(path: string, seen: string): Promise<void> {
+  const guard = `${path}.${Bun.hash(seen).toString(36)}.guard`
+  if (!await create(guard, `${process.pid}`)) {
+    // Someone else is removing it; a guard left by a crash halfway goes, to try again.
+    if (await isOlderThan(guard, GUARD_STALE_MS)) await removeIfAny(guard)
+    return
+  }
   try {
-    await rename(path, aside)
-  } catch (error) {
-    if (isMissing(error)) return
-    throw error
+    if ((await readIfAny(path)) === seen) await removeIfAny(path)
+  } finally {
+    await removeIfAny(guard)
   }
-  if ((await readIfAny(aside)) !== seen) {
-    // A live lock, taken between the read and the rename: back where it was, unless
-    // the place is taken again already, which only a live lock could do.
-    try {
-      await link(aside, path)
-    } catch (error) {
-      if ((error as { code?: string }).code !== 'EEXIST') throw error
-    }
-  }
-  await removeIfAny(aside)
 }
 
 async function isOlderThan(path: string, ms: number): Promise<boolean> {

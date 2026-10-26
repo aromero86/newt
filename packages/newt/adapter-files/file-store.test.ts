@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describeStoreContract, type ThingRow } from '../port-store/contract'
@@ -96,9 +96,11 @@ describe('FileStore', () => {
     expect(await readdir(join(path, 'note'))).toEqual(['n1.json'])
   })
 
-  test('takes over a lock naming this very process: left by an earlier life with the same id', async () => {
+  test('takes over a lock no one touches any more, even naming this very process: an earlier life with the same id', async () => {
     const path = await folder()
     await Bun.write(join(path, '_lock'), `${process.pid}:earlier`)
+    const old = new Date(Date.now() - 6_000)
+    await utimes(join(path, '_lock'), old, old)
 
     const store = await FileStore.open({ folder: path })
     await store.table('note').insert({ id: 'n1' })
