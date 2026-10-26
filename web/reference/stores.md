@@ -356,7 +356,8 @@ adapter shares:
 
 - `TransactionScope` is the machinery of transactions: the current one following
   the code, a call inside one joining it, a late call of one that ended failing
-  instead of running outside it, `afterCommit` and `afterRollback`, and, for a store
+  instead of running outside it, `afterCommit` and `afterRollback`, the modules saved
+  in each one (which the write rule checks: one per transaction), and, for a store
   whose transactions take turns (`serial`, the default), the queue and the wait that
   gives up saying why. An adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
   as every adapter here does.

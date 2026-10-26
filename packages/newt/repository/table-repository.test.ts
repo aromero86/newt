@@ -98,6 +98,7 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
         log.push('checkWrite')
         if (refuseWrites) throw new Error('write rule')
       },
+      checkTransaction: () => {},
     } as unknown as Invocations,
   }
 

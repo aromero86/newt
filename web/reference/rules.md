@@ -401,6 +401,14 @@ boards route that calls `auth.modules.tenant.create` starts a chain in auth.)
 module. Two modules whose data must always change together are one; otherwise one of
 them follows the other through events.
 
+The write rule checks it too, in a worker as well: a transaction saves one module. A
+save of module B in a transaction that already saved module A (from A's save hook,
+or with both saves inside one `store.transaction`) is an error, or a warning as above,
+unless the use case the chain started with lists B in its `writesTo`. One module
+after another, each in its own transaction, is what a worker does. The stores that
+come with newt keep what each transaction saved (`TransactionScope` does it); an
+adapter that does not build on it is not checked for this.
+
 - A module that **knows** another (it is in its `<M>_Deps`) may call its use cases and
   subscribe to its events. Never its repository, its tables or its entity: reads go
   through the owner's use cases.

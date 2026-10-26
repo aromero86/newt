@@ -383,7 +383,9 @@ comparten todos los adaptadores:
 
 - `TransactionScope` es la maquinaria de las transacciones: la actual siguiendo al
   código, una llamada dentro de otra uniéndose a ella, una llamada tardía a una que ya
-  terminó fallando en vez de ejecutarse fuera, `afterCommit` y `afterRollback` y, para
+  terminó fallando en vez de ejecutarse fuera, `afterCommit` y `afterRollback`, los
+  módulos guardados en cada una (que vigila la regla de escritura: uno por
+  transacción) y, para
   un store cuyas transacciones van por turnos (`serial`, lo normal), la cola y la
   espera que se rinde diciendo por qué. Un adaptador le da sus pasos (`begin`,
   `commit`, `rollback`, `end`) y construye sobre ella, como hacen todos los de aquí.

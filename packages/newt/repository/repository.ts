@@ -1,6 +1,6 @@
 import { ConcurrencyConflict, type Entity, type EntitySchema } from '../core'
 import { assertSavable, markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
-import { saveReads } from '../port-store/internal'
+import { saveReads, transactionSaves } from '../port-store/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 
@@ -91,11 +91,13 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
   }
 
   /**
-   * Runs a save's `fn` in a transaction, guarding `guard`, and checks the guard rule
-   * on what its tables read in it.
+   * Runs a save's `fn` in a transaction, guarding `guard`; checks the write rule on
+   * the modules saved in that transaction (one, unless `writesTo` says otherwise), and
+   * the guard rule on what its tables read in it.
    */
   private async transaction(guard: string[] = [], fn: () => void | Promise<void>): Promise<void> {
     await this.store.transaction(async () => {
+      this.base.invocations?.checkTransaction(transactionSaves.find())
       if (guard.length) await this.store.guard(guard)
       const reads = { guarded: guard.length > 0, tables: new Set<string>() }
       await saveReads.run(reads, fn)

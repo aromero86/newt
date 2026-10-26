@@ -417,6 +417,15 @@ donde la regla se cumple como en cualquier otro. (Una ruta de boards que llama a
 Dos módulos cuyos datos deben cambiar siempre a la vez son uno; si no, uno sigue al
 otro mediante eventos.
 
+La regla de escritura también lo vigila, y también en un worker: una transacción
+guarda un módulo. Guardar el módulo B en una transacción que ya guardó el módulo A
+(desde un hook del guardado de A, o con los dos guardados dentro de un mismo
+`store.transaction`) es un error, o un aviso como arriba, salvo que el caso de uso con
+el que empezó la cadena tenga B en su `writesTo`. Un módulo tras otro, cada uno en su
+transacción, es lo que hace un worker. Los stores que trae newt recuerdan lo que
+guardó cada transacción (lo hace `TransactionScope`); un adaptador que no se apoye en
+él no se comprueba en esto.
+
 - Un módulo que **conoce** a otro (está en su `<M>_Deps`) puede llamar a sus casos de
   uso y suscribirse a sus eventos. Nunca a su repositorio, sus tablas o su entidad:
   las lecturas pasan por los casos de uso de su dueño.

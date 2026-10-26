@@ -11,5 +11,5 @@ type Link = { context: string, module: string, useCase: string }
  */
 export const invocationChain = defineScope<{ root: Link & { writesTo: string[] }, current: Link, retry: { allowed: boolean } }>('invocation')
 
-/** Marks the work of a job: a worker may write to any module, since a failure halfway is retried. */
+/** Marks the work of a job: a worker may write to any module, since a failure halfway is retried; still one module per transaction. */
 export const inWorker = defineScope<true>('worker')
