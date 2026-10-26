@@ -80,6 +80,15 @@ export function describeCardSearchContract(name: string, open: () => CardSearch 
       expect(await ids('design')).toEqual([card.id])
     })
 
+    test('keeps a removed card out when a copy from before its removal comes late', async () => {
+      const card = cardOf({ title: 'Plan', updatedAt: new Date(Date.now() - 1000).toISOString() })
+      await search.index(card)
+      await search.remove(card.id)
+      await search.index(card)
+
+      expect(await ids()).toEqual([])
+    })
+
     test('forgets every card of a workspace, and only those', async () => {
       const theirs = cardOf({ title: 'Plan', workspaceId: 'globex' })
       await search.index(theirs)

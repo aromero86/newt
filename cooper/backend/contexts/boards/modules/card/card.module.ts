@@ -301,7 +301,8 @@ export class Card_Module extends Module {
    * The search finds a card as it is now: read again, it is indexed, or removed if it
    * is gone. What a worker calls on every change of a card, in any order, as many
    * times as it takes: each run indexes what is there then, and two at once that
-   * hand the search their copies in the wrong order leave it the newer one.
+   * hand the search their copies in the wrong order leave it the newer one, or none
+   * once the card is deleted.
    */
   @UseCase()
   async indexCard(workspaceId: string, id: string): Promise<void> {

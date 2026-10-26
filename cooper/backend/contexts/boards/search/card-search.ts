@@ -24,7 +24,11 @@ export interface CardSearch {
    * an older copy last.
    */
   index(card: CardDTO): Promise<void>
-  /** Forgets a card: nothing happens if it never had it. */
+  /**
+   * Forgets a card for good: nothing happens if it never had it, and a copy of it
+   * indexed afterwards is not kept if it is older than the removal, as a job that read
+   * the card before it was deleted may hand it over after.
+   */
   remove(id: string): Promise<void>
   /** Forgets every card of a workspace. */
   removeWorkspace(workspaceId: string): Promise<void>

@@ -1,24 +1,30 @@
-import { matches, toPage, type Page, type PageRequest } from 'newt/core'
+import { matches, now, toPage, type Page, type PageRequest } from 'newt/core'
 import type { CardDTO } from '../modules/card/card.schema'
 import type { CardQuery, CardSearch } from './card-search'
 
 /**
  * The cards' search in memory: every card in a map, each search a look at all of them.
  * Enough for one process; what it keeps is lost when the process ends, so boards
- * indexes every card again when it opens.
+ * indexes every card again when it opens. A removed card leaves its id and the time
+ * it went, so a copy from before that comes too late is not kept.
  */
 export class MemoryCardSearch implements CardSearch {
 
   private readonly cards = new Map<string, CardDTO>()
+  /** The cards removed, by id: when each went. */
+  private readonly removed = new Map<string, string>()
 
   async index(card: CardDTO): Promise<void> {
     const kept = this.cards.get(card.id)
     if (kept && kept.updatedAt > card.updatedAt) return
+    const removedAt = this.removed.get(card.id)
+    if (removedAt !== undefined && removedAt >= card.updatedAt) return
     this.cards.set(card.id, card)
   }
 
   async remove(id: string): Promise<void> {
     this.cards.delete(id)
+    this.removed.set(id, now().toISOString())
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
