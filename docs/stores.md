@@ -228,7 +228,8 @@ MySQL): its statements run on the store's connections, in the transaction in
 progress, and field names are the rows' (`productId`), turned into the columns'
 (`product_id`) on their way. Kysely's own transactions are refused: they would not be
 the store's. A boolean comes back as 0 or 1 on SQLite and MySQL, and JSON as text
-on SQLite: `SqliteRow<Row>` says so in the types. A sum comes back as text on
+on SQLite: `SqliteRow<Row>` says so in the types. A JSON column on Postgres takes
+the value itself (`tags: []`): its JSON text would be stored as a string. A sum comes back as text on
 Postgres and MySQL, and a `COUNT` on Postgres: pass them through `Number(…)`. On
 Postgres and MySQL the store gives Kysely back only rows, so a write's
 `numUpdatedRows` and `numDeletedRows` are `0n` and there is no `insertId`: use

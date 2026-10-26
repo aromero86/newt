@@ -3097,7 +3097,9 @@ Tres cosas que saber:
   `saveRows` (o del `save` de sus entidades); fuera, en `store.transaction`.
 - **La misma consulta vale en SQLite, Postgres y MySQL.** En SQLite y en MySQL, un
   booleano vuelve como 0 o 1, y en SQLite una lista o un objeto vuelve como su texto
-  JSON: `SqliteRow<Row>` lo dice en los tipos. Una suma vuelve como texto en Postgres
+  JSON: `SqliteRow<Row>` lo dice en los tipos. Al escribir una columna JSON en Postgres
+  se le pasa el valor (`tags: []`), no su texto: el texto se guardaría como un string.
+  Una suma vuelve como texto en Postgres
   y MySQL (`'5'`), y un `COUNT` en Postgres: pásalos por `Number(…)`. Lo que no es igual es
   lo que cuenta una escritura: en Postgres y MySQL, `numUpdatedRows` y
   `numDeletedRows` valen `0n` y no hay `insertId`. Si necesitas saber si escribió
