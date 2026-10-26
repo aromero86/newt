@@ -167,7 +167,11 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   documento `/.well-known`) son un router propio en la raíz, `new HttpRouter({ prefix:
   '' })`, que toma solo sus direcciones y deja el resto al frontend. Un router, un
   grupo o una ruta pueden responder a sus errores a su manera, `{ onError: (error,
-  request) => … }`, como hacen los endpoints de OAuth. `serve({ port, router, routes,
+  request) => … }`, como hacen los endpoints de OAuth. Un método que una dirección no
+  tiene también es un error de esa dirección: su 405 responde con el `onError` de la
+  primera ruta registrada en ella (sea cual sea su método; el del router si esa ruta
+  no tiene uno propio), con `Allow` y, en una dirección con `cors`, sus cabeceras CORS.
+  `serve({ port, router, routes,
   frontend })` sirve las rutas del router, las que se le dan en `routes` (las
   `routes()` de otro router) y un frontend compilado para cualquier otra dirección.
   Con `health: true` responde a `GET /api/health` sin sesión, con un 503 en cuanto
@@ -1109,7 +1113,8 @@ Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found
 
 Un endpoint OAuth responde en el formato de OAuth, `{ error, error_description }`:
 `toOauthErrorResponse(error, fallback, codes)`, de `newt/http`, traduce el código de
-cada error de dominio a uno de OAuth, como `onError` de cada ruta de OAuth.
+cada error de dominio a uno de OAuth, como `onError` de cada ruta de OAuth. Un método
+que el endpoint no tiene es un 405 con `invalid_request`, sea cual sea el fallback.
 
 ## Value objects
 

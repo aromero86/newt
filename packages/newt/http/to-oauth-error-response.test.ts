@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { UnauthorizedError, ValidationError } from '../core'
 import { MalformedBody } from './errors/malformed-body'
+import { MethodNotAllowed } from './errors/method-not-allowed'
 import { handle } from './handle'
 import { toOauthErrorResponse } from './to-oauth-error-response'
 
@@ -36,6 +37,13 @@ describe('toOauthErrorResponse', () => {
     const error = await new Request('http://app.test', { method: 'POST', body: 'not json' }).json().catch(caught => caught)
 
     expect(await toOauthErrorResponse(error, 'invalid_request').json()).toMatchObject({ error: 'invalid_request' })
+  })
+
+  test('a method the endpoint does not have is a 405, invalid_request whatever the fallback', async () => {
+    const response = toOauthErrorResponse(new MethodNotAllowed('GET', '/oauth/register'), 'invalid_client_metadata')
+
+    expect(response.status).toBe(405)
+    expect(await response.json()).toEqual({ error: 'invalid_request', error_description: 'GET is not allowed on /oauth/register' })
   })
 
   test('nobody caches an answer about tokens', () => {

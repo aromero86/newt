@@ -149,6 +149,17 @@ describe('the OAuth server', () => {
     expect(await elsewhere.json()).toMatchObject({ error: 'invalid_client_metadata' })
   })
 
+  test('answers a method its endpoints do not have in OAuth\'s format too', async () => {
+    const response = await fetch(new URL('/oauth/token', url))
+
+    expect(response.status).toBe(405)
+    expect(response.headers.get('allow')).toBe('POST')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ error: 'invalid_request', error_description: 'GET is not allowed on /oauth/token' })
+    const register = await fetch(new URL('/oauth/register', url), { method: 'DELETE' })
+    expect(await register.json()).toMatchObject({ error: 'invalid_request' })
+  })
+
   test('sends the browser back empty-handed when the person says no', async () => {
     const clientId = await register()
     const as = browser(url)

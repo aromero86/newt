@@ -56,6 +56,53 @@ describe('HttpRouter at the root, with errors of its own', () => {
     expect(await text('/a', 'POST')).toBe('router MethodNotAllowed /a')
   })
 
+  test('a method a path does not have answers through its routes\' onError, its Allow kept', async () => {
+    const asText = (prefix: string) => (error: unknown) => new Response(`${prefix} ${(error as Error).constructor.name}`, { status: 405 })
+    const router = new HttpRouter({ prefix: '' })
+    router.post('/oauth/token', () => new Response('token'), { public: true, onError: asText('oauth') })
+    const server = serve(router)
+
+    for (const method of ['GET', 'DELETE', 'OPTIONS']) {
+      const response = await fetch(new URL('/oauth/token', server.url), { method })
+      expect(response.status).toBe(405)
+      expect(response.headers.get('allow')).toBe('POST')
+      expect(await response.text()).toBe('oauth MethodNotAllowed')
+    }
+  })
+
+  test('routes of one path that disagree on onError: its 405s are the first registered one\'s', async () => {
+    const asText = (prefix: string) => (error: unknown) => new Response(`${prefix} ${(error as Error).constructor.name}`, { status: 405 })
+    const router = new HttpRouter({ prefix: '', onError: asText('router') })
+    router.put('/things/:id', () => new Response('put'), { public: true, onError: asText('first') })
+    router.get('/things/:thingId', () => new Response('get'), { public: true, onError: asText('second') })
+    router.patch('/other', () => new Response('patch'), { public: true })
+    router.post('/other', () => new Response('post'), { public: true, onError: asText('own') })
+    const server = serve(router)
+
+    expect(await (await fetch(new URL('/things/1', server.url), { method: 'DELETE' })).text()).toBe('first MethodNotAllowed')
+    // The first route took the router's: so do the path's 405s.
+    expect(await (await fetch(new URL('/other', server.url))).text()).toBe('router MethodNotAllowed')
+  })
+
+  test('a path open to other origins still answers its preflight, and its 405s by its onError, with CORS', async () => {
+    const router = new HttpRouter({ prefix: '' })
+    router.post('/oauth/token', () => new Response('token'), {
+      public: true,
+      cors: { origin: '*' },
+      onError: () => Response.json({ error: 'invalid_request' }, { status: 405 }),
+    })
+    const server = serve(router)
+    const headers = { origin: 'https://elsewhere.test', 'access-control-request-method': 'POST' }
+
+    const preflight = await fetch(new URL('/oauth/token', server.url), { method: 'OPTIONS', headers })
+    expect(preflight.status).toBe(204)
+    const notAllowed = await fetch(new URL('/oauth/token', server.url), { headers })
+    expect(notAllowed.status).toBe(405)
+    expect(notAllowed.headers.get('allow')).toBe('POST')
+    expect(notAllowed.headers.get('access-control-allow-origin')).toBe('*')
+    expect(await notAllowed.json()).toEqual({ error: 'invalid_request' })
+  })
+
   test('without onError, an error is toErrorResponse\'s', async () => {
     const router = new HttpRouter()
     router.get('/things/:id', () => { throw new ThingNotFound('There is no such thing') }, { public: true })
