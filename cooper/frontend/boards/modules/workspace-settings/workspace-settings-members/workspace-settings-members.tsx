@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { UserMinusIcon, UsersIcon } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { LogOutIcon, UserMinusIcon, UsersIcon } from 'lucide-react'
 import type { WorkspaceMemberDTO } from '@cooper/api/workspace-member'
 import { Alert } from '@cooper/ui/components/alert'
 import { Avatar } from '@cooper/ui/components/avatar'
@@ -18,7 +19,7 @@ import { useValue } from '@cooper/core/store/use-value'
 import { SessionService } from '../../../services/session/session.service'
 import { WorkspaceService } from '../../workspace/workspace.service'
 
-/** Who is in the workspace; its admin takes people out (never themselves). */
+/** Who is in the workspace; its admin takes people out (never themselves), and anyone else may leave. */
 export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
   const workspace = useService(WorkspaceService)
   const members = useValue(workspace.members)
@@ -28,6 +29,8 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
   // Who the admin asked to remove, waiting for them to confirm.
   const [removing, setRemoving] = useState<WorkspaceMemberDTO | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmingLeave, setConfirmingLeave] = useState(false)
+  const navigate = useNavigate()
 
   async function remove() {
     if (!removing) return
@@ -35,6 +38,17 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
     await workspace.remove(removing)
     setBusy(false)
     setRemoving(null)
+  }
+
+  async function leave() {
+    setBusy(true)
+    const left = await workspace.leave()
+    setBusy(false)
+    setConfirmingLeave(false)
+    if (!left) return
+    // Away first: the workspace's pages would say it is not found once it is forgotten.
+    navigate('/', { replace: true })
+    workspace.forgetLeft()
   }
 
   return (
@@ -71,6 +85,27 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
           </BoxRow>
         ))}
       </Box>
+      {!admin && (
+        <section>
+          <Subhead title="Leave" tone="danger" />
+          <Box label="Leave the workspace">
+            <BoxRow trailing={<Button size="sm" variant="destructive" onClick={() => setConfirmingLeave(true)}><Icon icon={LogOutIcon} size="sm" />Leave workspace</Button>}>
+              <Text size="sm" weight="semibold">Leave this workspace</Text>
+              <Text size="sm" tone="muted">You no longer see its boards, and your cards in it are left unassigned. Its admin can invite you again.</Text>
+            </BoxRow>
+          </Box>
+        </section>
+      )}
+      <ConfirmDialog
+        open={confirmingLeave}
+        onOpenChange={open => !open && setConfirmingLeave(false)}
+        title="Leave this workspace?"
+        description="You lose access to its boards, and your cards in it are left unassigned."
+        confirmLabel="Leave workspace"
+        tone="destructive"
+        loading={busy}
+        onConfirm={() => void leave()}
+      />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={open => !open && setRemoving(null)}

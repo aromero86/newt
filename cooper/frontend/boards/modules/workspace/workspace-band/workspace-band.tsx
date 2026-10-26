@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router'
-import { KanbanIcon, LayersIcon, SearchIcon, SettingsIcon } from 'lucide-react'
+import { KanbanIcon, LayersIcon, SearchIcon, SettingsIcon, UsersIcon } from 'lucide-react'
 import type { WorkspaceDTO } from '@cooper/api/workspace'
 import { Badge } from '@cooper/ui/components/badge'
 import { Breadcrumbs } from '@cooper/ui/components/breadcrumbs'
@@ -26,7 +26,10 @@ export function WorkspaceBand({ workspace }: { workspace: WorkspaceDTO }) {
         <UnderlineNav label={`${workspace.name} sections`}>
           <UnderlineNavItem {...tab('boards')} icon={KanbanIcon}>Boards</UnderlineNavItem>
           <UnderlineNavItem {...tab('search')} icon={SearchIcon}>Search cards</UnderlineNavItem>
-          <UnderlineNavItem {...tab('settings')} icon={SettingsIcon}>Settings</UnderlineNavItem>
+          {/* Its admin manages it; everyone else only sees who is in it, and may leave. */}
+          {workspace.isAdmin
+            ? <UnderlineNavItem {...tab('settings')} icon={SettingsIcon}>Settings</UnderlineNavItem>
+            : <UnderlineNavItem {...tab('settings/members')} icon={UsersIcon}>Members</UnderlineNavItem>}
         </UnderlineNav>
       )}
     />

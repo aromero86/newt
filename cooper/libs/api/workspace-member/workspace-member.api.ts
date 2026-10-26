@@ -14,4 +14,9 @@ export class WorkspaceMemberApi extends Requester {
   remove(workspaceId: string, userId: string) {
     return this.delete<void>(`/${workspaceId}/members/${userId}`)
   }
+
+  /** The signed-in member takes themselves out (`userId` is theirs); the admin cannot. Their cards are unassigned. */
+  leave(workspaceId: string, userId: string) {
+    return this.delete<void>(`/${workspaceId}/members/${userId}`)
+  }
 }
