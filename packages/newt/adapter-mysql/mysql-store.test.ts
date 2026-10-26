@@ -204,7 +204,7 @@ if (url) {
 
       const store = await MySqlStore.open({ url: url!, migrations: folder })
 
-      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_queues'], pending: [] })
+      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_queues'], pending: [], changed: [] })
       await store.close()
     })
 

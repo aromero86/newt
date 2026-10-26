@@ -8,5 +8,13 @@ export interface Migrations {
   up(): Promise<string[]>
   /** Reverts the last one applied; the one it reverted, if any. */
   down(): Promise<string | null>
-  status(): Promise<{ applied: string[], pending: string[] }>
+  /**
+   * What is applied and what is pending, in order; and `changed`, the applied ones
+   * whose script was changed since they were applied (which `up`, and opening the
+   * store, refuse). A store whose migrations are code, not files, has none.
+   */
+  status(): Promise<MigrationStatus>
 }
+
+/** What `Migrations.status` tells: every name is `<version>_<name>`. */
+export type MigrationStatus = { applied: string[], pending: string[], changed: string[] }

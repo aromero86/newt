@@ -80,6 +80,31 @@ export class Invocations {
   }
 
   /**
+   * Called in a save's transaction, with the modules saved in it so far (`saved`, as
+   * `<context>.<module>`), to which it adds its own: a transaction saves one module,
+   * in a worker too, unless the use case it started with lists the others in its
+   * `writesTo`. Without it, a save hook that calls another module's use case, or two
+   * saves wrapped in one `store.transaction`, would put two modules in one silently.
+   */
+  checkTransaction(saved: Set<string> | undefined): void {
+    const chain = invocationChain.find()
+    if (this.writeRule === 'off' || !chain || !saved) return
+    const { root, current } = chain
+    const named = (context: string, module: string) => context ? `${context}.${module}` : module
+    const module = named(current.context, current.module)
+    const others = [...saved].filter(each => each !== module)
+    saved.add(module)
+    if (others.length === 0) return
+    const mayWrite = new Set([root.module, ...root.writesTo].map(each => named(root.context, each)))
+    if (mayWrite.has(module) && others.every(each => mayWrite.has(each))) return
+    const message = `[write rule] ${root.useCase} saves ${module} in the transaction that saved ${others.join(', ')}: one module per transaction; save it after that one commits, from a worker reacting to an event, or list it in its writesTo`
+    if (this.writeRule === 'error') throw new Error(message)
+    if (this.warned.has(message)) return
+    this.warned.add(message)
+    console.warn(message)
+  }
+
+  /**
    * Called at the end of a save that guards nothing and read rows of `tables` in its
    * transaction, besides its own entities': a rule over several rows, which another
    * save may break in between on a store whose transactions run side by side.

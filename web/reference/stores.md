@@ -123,6 +123,10 @@ whole collections, does).
 
 `migrations` applies the changes to the store's structure, in order, and remembers
 them: `up()`, `down()`, `status()`. Each adapter decides what a migration is.
+`status()` gives the ones `applied` and the ones `pending`, by name, and `changed`:
+the applied ones whose up script was changed since, which `up()`, and so `open`,
+refuse (the database did not run what the folder says); the SQL stores tell it by
+the checksum they keep of each; the files store, whose migrations are code, has none.
 Opening a store with `open` applies the pending ones; `connect` opens it as it is,
 for the scripts that migrate it by hand, whose `up()` applies the store's own and
 then the framework's (its outbox), as `open` does. A migrations folder that cannot
@@ -352,7 +356,8 @@ adapter shares:
 
 - `TransactionScope` is the machinery of transactions: the current one following
   the code, a call inside one joining it, a late call of one that ended failing
-  instead of running outside it, `afterCommit` and `afterRollback`, and, for a store
+  instead of running outside it, `afterCommit` and `afterRollback`, the modules saved
+  in each one (which the write rule checks: one per transaction), and, for a store
   whose transactions take turns (`serial`, the default), the queue and the wait that
   gives up saying why. An adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
   as every adapter here does.

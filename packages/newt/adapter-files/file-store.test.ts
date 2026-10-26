@@ -153,7 +153,7 @@ describe('FileStore migrations', () => {
     const store = await FileStore.open({ folder: path, migrations: [archived] })
 
     expect(await store.collection('note').all()).toEqual([{ id: 'n1', version: 1, archived: false }])
-    expect(await store.migrations.status()).toEqual({ applied: ['00001_note-archived'], pending: [] })
+    expect(await store.migrations.status()).toEqual({ applied: ['00001_note-archived'], pending: [], changed: [] })
     expect(await store.migrations.up()).toEqual([])
   })
 
@@ -163,7 +163,7 @@ describe('FileStore migrations', () => {
 
     await expect(FileStore.open({ folder: path, migrations: [archived, broken] })).rejects.toThrow('boom')
 
-    expect(await (await FileStore.connect({ folder: path, migrations: [archived, broken] })).migrations.status()).toEqual({ applied: [], pending: ['00001_note-archived', '00002_broken'] })
+    expect(await (await FileStore.connect({ folder: path, migrations: [archived, broken] })).migrations.status()).toEqual({ applied: [], pending: ['00001_note-archived', '00002_broken'], changed: [] })
   })
 
   test('revert the last one applied', async () => {

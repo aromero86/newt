@@ -3,6 +3,7 @@ import { assertUsesTree, contextBoundaries } from './rules/context-boundaries.js
 import { moduleAnatomy } from './rules/module-anatomy.js'
 import { moduleBoundaries } from './rules/module-boundaries.js'
 import { queueName } from './rules/queue-name.js'
+import { schemaImports } from './rules/schema-imports.js'
 
 /** The rules of newt that no other plugin has. */
 export const plugin = {
@@ -12,6 +13,7 @@ export const plugin = {
     'module-anatomy': moduleAnatomy,
     'module-boundaries': moduleBoundaries,
     'queue-name': queueName,
+    'schema-imports': schemaImports,
   },
 }
 
@@ -25,6 +27,8 @@ const MODULES = '**/modules/*/**/*.ts'
  *
  * - a module is made of the files every module has, and reaches another only
  *   through its use cases, schema, events, errors and value objects;
+ * - a module's schema, which a frontend may import, takes from newt only
+ *   `newt/contract`;
  * - a module writes through its repository's `save` or `saveRows`, never in a
  *   transaction of its own, and a handler's queue names who reacts with what to
  *   which event;
@@ -68,6 +72,7 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
         'newt/module-anatomy': 'error',
         'newt/module-boundaries': 'error',
         'newt/queue-name': 'error',
+        'newt/schema-imports': 'error',
         'no-restricted-syntax': ['error', {
           // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, `const { transaction } = store`.
           selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",

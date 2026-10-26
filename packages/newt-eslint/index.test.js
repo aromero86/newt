@@ -63,6 +63,16 @@ describe('the preset of newt', () => {
     expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('untyped.fulfil(o.id)'))).toEqual([])
   })
 
+  test("keeps a module's schema to newt/contract, which a frontend may load", async () => {
+    const schema = 'src/contexts/ws/modules/order/order.schema.ts'
+    expect(await complaints(schema, "import { defineFilter } from 'newt/contract'\nimport { z } from 'zod'\nexport const x = [defineFilter, z]\n")).toEqual([])
+    expect(await complaints(schema, "import { ValidationError } from 'newt/core'\nexport const x = ValidationError\n")).toEqual(['newt/schema-imports'])
+    expect(await complaints(schema, "import type { Page } from 'newt/core'\nexport type X = Page<string>\n")).toEqual(['newt/schema-imports'])
+    expect(await complaints(schema, "export { HttpRouter } from 'newt/http'\n")).toEqual(['newt/schema-imports'])
+    // The rest of a module is the server's: it may.
+    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', "import { Module } from 'newt/core'\nexport const x = Module\n")).toEqual([])
+  })
+
   test('refuses a promise left unawaited', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.module.ts', 'async function save() {}\nexport function create() { save() }\n')).toEqual(['@typescript-eslint/no-floating-promises'])
   })

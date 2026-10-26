@@ -5,8 +5,12 @@ import type { PageRequest } from './page-request'
 const SIZE = 100
 
 /**
- * Every item of a list read in pages, a hundred at a time: for a list that is never
- * long (a person's workspaces, a workspace's members), never for one that grows.
+ * Every item of a list read in pages, a hundred at a time, held in memory at once:
+ * for the whole of something the caller holds whole anyway, a list that is never long
+ * (a person's workspaces, a workspace's members) or one it keeps entire (every card,
+ * for a search in memory). It costs a read for each hundred and memory for all of
+ * them, growing with the list: what goes through a list item by item, never needing
+ * it whole, reads it a page at a time instead.
  *
  * ```ts
  * const accesses = await allPages(page => access.listForTenant(workspaceId, page))

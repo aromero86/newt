@@ -5,6 +5,7 @@ import { assertUsesTree, contextBoundaries } from './context-boundaries.js'
 import { moduleAnatomy } from './module-anatomy.js'
 import { moduleBoundaries } from './module-boundaries.js'
 import { queueName } from './queue-name.js'
+import { schemaImports } from './schema-imports.js'
 
 RuleTester.describe = describe
 RuleTester.it = it
@@ -54,6 +55,22 @@ tester.run('module-boundaries', moduleBoundaries, {
     { code: "type R = import('../product/product.repository').Product_Repository", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "import R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "const R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
+  ],
+})
+
+tester.run('schema-imports', schemaImports, {
+  valid: [
+    { code: "import { defineFilter, Email } from 'newt/contract'", filename: `${MODULE}/price-change.schema.ts` },
+    { code: "import { z } from 'zod'", filename: `${MODULE}/price-change.schema.ts` },
+    { code: "import type { ProductDTO } from '../product/product.schema'", filename: `${MODULE}/price-change.schema.ts` },
+    { code: "import { Module } from 'newt/core'", filename: `${MODULE}/price-change.module.ts` },
+    { code: "import { newtish } from 'newt-extras'", filename: `${MODULE}/price-change.schema.ts` },
+  ],
+  invalid: [
+    { code: "import { ValidationError } from 'newt/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "import type { Page } from 'newt/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "export * from 'newt/runtime'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "const core = await import('newt/core')", filename: '/repo/examples/shop/modules/order/order.schema.ts', errors: [{ messageId: 'server' }] },
   ],
 })
 

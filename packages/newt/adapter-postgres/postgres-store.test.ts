@@ -342,7 +342,7 @@ if (url) {
       try {
         await expect(store.migrations.up()).rejects.toThrow()
 
-        expect(await store.migrations.status()).toEqual({ applied: [], pending: ['00001_thing', '00002_extra', '00003_broken'] })
+        expect(await store.migrations.status()).toEqual({ applied: [], pending: ['00001_thing', '00002_extra', '00003_broken'], changed: [] })
         expect(await store.query("SELECT to_regclass('extra') AS found")).toEqual([{ found: null }])
       } finally {
         await store.close()
@@ -358,7 +358,7 @@ if (url) {
 
       const store = await PostgresStore.open({ url: url!, migrations: folder })
 
-      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_queues'], pending: [] })
+      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_queues'], pending: [], changed: [] })
       await store.close()
     })
 
@@ -377,7 +377,7 @@ CREATE TRIGGER thing_stamp BEFORE INSERT ON thing FOR EACH ROW EXECUTE FUNCTION 
 
       const store = await PostgresStore.open({ url: url!, migrations: folder })
       try {
-        expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_stamp'], pending: [] })
+        expect(await store.migrations.status()).toEqual({ applied: ['00001_thing', '00002_stamp'], pending: [], changed: [] })
         expect(await store.migrations.down()).toBe('00002_stamp')
       } finally {
         await store.close()

@@ -26,6 +26,11 @@ class Notes extends TableRepository<Note, NoteRow, Base> {
   async stamp(text: string) {
     await this.saveRows(() => this.table.insert({ id: Bun.randomUUIDv7(), text, createdAt: '', updatedAt: '' }))
   }
+
+  /** Saves one, running `before` first in its transaction, as a save hook does. */
+  async persistAfter(before: () => Promise<void>, note: Note) {
+    await this.save([note], entity => this.write(entity), { before })
+  }
 }
 
 class Written implements DomainEvent<{ text: string }> {
@@ -161,5 +166,82 @@ describe('the write rule', () => {
 
     expect(warnings).toHaveLength(1)
     expect(await store.table('note').count()).toBe(2)
+  })
+})
+
+/** A module with notes of its own, that also saves `log`'s: after its own, in its save, or beside it in one transaction. */
+class Journal extends Module {
+  constructor(base: Base, private readonly notes: Notes, private readonly log: Log) {
+    super('journal', base.invocations)
+  }
+  @UseCase()
+  async writeThenLog(text: string) {
+    await this.notes.persist(Note.write(text))
+    await this.log.add(text)
+  }
+  @UseCase()
+  async logInItsSave(text: string) { await this.notes.persistAfter(() => this.log.add(text), Note.write(text)) }
+  @UseCase()
+  async logInOneTransaction(text: string) { await this.atOnce(text) }
+  @UseCase({ writesTo: ['log'] })
+  async logInOneTransactionOnPurpose(text: string) { await this.atOnce(text) }
+  private atOnce(text: string) {
+    return store.transaction(async () => {
+      await this.notes.persist(Note.write(text))
+      await this.log.add(text)
+    })
+  }
+}
+
+describe('the write rule, for one transaction', () => {
+  function openJournal(writeRule: WriteRule) {
+    const { base, log } = open(writeRule)
+    return { base, journal: new Journal(base, new Notes(base, store.table<NoteRow>('note')), log) }
+  }
+
+  test('lets a worker save one module after another, each in its own', async () => {
+    const { base, journal } = openJournal('error')
+
+    await base.jobs.runAsWorker(() => journal.writeThenLog('both'))
+    expect(await store.table('note').count()).toBe(2)
+  })
+
+  test("refuses a save hook that saves another module's in its transaction, in a worker too", async () => {
+    const { base, journal } = openJournal('error')
+
+    await expect(base.jobs.runAsWorker(() => journal.logInItsSave('both')))
+      .rejects.toThrow('[write rule] journal.logInItsSave saves test.log in the transaction that saved test.journal')
+    expect(await store.table('note').count()).toBe(0)
+  })
+
+  test('refuses two modules saved in one store.transaction, in a worker too', async () => {
+    const { base, journal } = openJournal('error')
+
+    await expect(base.jobs.runAsWorker(() => journal.logInOneTransaction('both'))).rejects.toThrow('saves test.log in the transaction that saved test.journal')
+    expect(await store.table('note').count()).toBe(0)
+  })
+
+  test('lets them when the use case lists the other in its writesTo', async () => {
+    const { journal } = openJournal('error')
+
+    await journal.logInOneTransactionOnPurpose('both')
+    expect(await store.table('note').count()).toBe(2)
+  })
+
+  test('warn only warns, and off checks nothing', async () => {
+    const warnings: string[] = []
+    const original = console.warn
+    console.warn = (message: string) => { warnings.push(message) }
+    try {
+      const warned = openJournal('warn')
+      await warned.base.jobs.runAsWorker(() => warned.journal.logInItsSave('one'))
+      const off = openJournal('off')
+      await off.base.jobs.runAsWorker(() => off.journal.logInItsSave('two'))
+    } finally {
+      console.warn = original
+    }
+
+    expect(warnings).toEqual([expect.stringContaining('journal.logInItsSave saves test.log')])
+    expect(await store.table('note').count()).toBe(4)
   })
 })

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { transactionSaves } from './transaction-saves'
 
 /** What a transaction does at each step, for the adapter that runs it. */
 type Steps = {
@@ -27,6 +28,8 @@ const WAIT_TIMEOUT_MS = 30_000
  *   another threw) fails, instead of running outside it;
  * - `afterCommit` runs once it commits, each callback on its own, never on a rollback;
  *   `afterRollback`, once it rolls back, latest first, never on a commit;
+ * - it keeps the modules the repositories save in it (`transactionSaves`), for the
+ *   write rule: one module per transaction;
  * - a call that waits too long fails saying why, instead of hanging: the usual cause
  *   is code inside a transaction that lost it (`AsyncLocalStorage.snapshot`, an
  *   `EventEmitter`) and so waits for the very transaction it is part of.
@@ -78,7 +81,7 @@ export class TransactionScope<State = undefined> {
       try {
         let value: T
         try {
-          value = await this.current.run(transaction, fn)
+          value = await this.current.run(transaction, () => transactionSaves.run(new Set(), fn))
         } catch (error) {
           transaction.open = false
           await rollback(steps)

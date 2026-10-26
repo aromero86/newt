@@ -417,6 +417,15 @@ donde la regla se cumple como en cualquier otro. (Una ruta de boards que llama a
 Dos módulos cuyos datos deben cambiar siempre a la vez son uno; si no, uno sigue al
 otro mediante eventos.
 
+La regla de escritura también lo vigila, y también en un worker: una transacción
+guarda un módulo. Guardar el módulo B en una transacción que ya guardó el módulo A
+(desde un hook del guardado de A, o con los dos guardados dentro de un mismo
+`store.transaction`) es un error, o un aviso como arriba, salvo que el caso de uso con
+el que empezó la cadena tenga B en su `writesTo`. Un módulo tras otro, cada uno en su
+transacción, es lo que hace un worker. Los stores que trae newt recuerdan lo que
+guardó cada transacción (lo hace `TransactionScope`); un adaptador que no se apoye en
+él no se comprueba en esto.
+
 - Un módulo que **conoce** a otro (está en su `<M>_Deps`) puede llamar a sus casos de
   uso y suscribirse a sus eventos. Nunca a su repositorio, sus tablas o su entidad:
   las lecturas pasan por los casos de uso de su dueño.
@@ -882,8 +891,12 @@ entero.
   Una página hecha a partir de otra (los miembros de un espacio de trabajo, a partir de
   sus accesos) deja fuera los elementos que `mapPage` convierte en `undefined`, y dice
   dónde empieza la siguiente, `nextCursor`: después del último elemento de la página de
-  la que se hizo. `allPages(read)` lee todas las páginas de una lista que nunca es
-  larga, de cien en cien.
+  la que se hizo. `allPages(read)` lee todas las páginas, de cien en cien, y las
+  guarda todas: para el todo de algo que se va a tener entero de todos modos, una
+  lista que nunca es larga (los miembros de un espacio de trabajo) o una que se guarda
+  entera (todas las tarjetas, para la búsqueda en memoria de boards). Cuesta una
+  lectura por cada cien y memoria para todas, y crece con la lista; lo que recorre una
+  lista elemento a elemento la lee página a página.
 
   Una lista que el dominio acota puede venir entera, y dice por qué (las columnas de
   un tablero, como mucho diez).

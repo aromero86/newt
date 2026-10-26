@@ -3,6 +3,8 @@
 // opens each context; this is for looking at what is pending, applying it before a
 // deploy, or reverting the last one. `status` and `up` go through every context unless
 // one is named; `down` reverts one context's last migration, so it needs its name.
+// `status` also names the migrations applied whose up file was changed since, which
+// `up` and the server's start refuse.
 // Each context's database is the one it opens (`COOPER_<CONTEXT>_DATABASE`): a SQLite
 // file, or a Postgres address, migrated with that database's own folder of migrations.
 import { join } from 'node:path'
@@ -34,8 +36,10 @@ for (const context of contexts) {
   const store = await connectStore(config[context].database, join(import.meta.dir, `../backend/contexts/${context}/migrations`))
   try {
     if (command === 'status') {
-      const { applied, pending } = await store.migrations.status()
+      const { applied, pending, changed } = await store.migrations.status()
       console.log(`${context}: ${applied.length} applied${applied.length ? ` (last ${applied.at(-1)})` : ''}, ${pending.length} pending${pending.length ? `: ${pending.join(', ')}` : ''}`)
+      // One changed after it was applied stops `up` and the server's start: say which, and what to do.
+      if (changed.length) console.log(`${context}: changed after they were applied: ${changed.join(', ')}; put their up files back as they were, and make the change a new migration`)
     } else if (command === 'up') {
       const applied = await store.migrations.up()
       console.log(`${context}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}`)

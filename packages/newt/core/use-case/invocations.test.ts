@@ -219,6 +219,44 @@ describe('checkWrite', () => {
   })
 })
 
+describe('checkTransaction', () => {
+  /** Saves by these use cases, one after another, in one transaction (`saved`), reached from `root`. */
+  const saveIn = (invocations: Invocations, saved: Set<string>, root: string, current: string[], writesTo?: string[]) =>
+    invocations.run(root, async () => {
+      for (const each of current) await invocations.run(each, async () => invocations.checkTransaction(saved))
+    }, { writesTo })
+
+  test('a transaction saves one module, as many times as it likes, and keeps which', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
+    const saved = new Set<string>()
+
+    await saveIn(invocations, saved, 'order.place', ['order.save', 'order.save'])
+    expect([...saved]).toEqual(['shop.order'])
+  })
+
+  test('a second module in it is an error, in a worker too', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
+
+    await expect(inWorker.run(true, () => saveIn(invocations, new Set(), 'order.place', ['order.save', 'stock.reserve'])))
+      .rejects.toThrow('[write rule] order.place saves shop.stock in the transaction that saved shop.order')
+  })
+
+  test('the modules its root lists in writesTo may share it, in either order', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
+
+    await saveIn(invocations, new Set(), 'order.place', ['order.save', 'stock.reserve'], ['stock'])
+    await saveIn(invocations, new Set(), 'order.place', ['stock.reserve', 'order.save'], ['stock'])
+    await expect(saveIn(invocations, new Set(), 'order.place', ['stock.reserve', 'invoice.create'], ['stock'])).rejects.toThrow('saves shop.invoice')
+  })
+
+  test('off, outside a use case, or on a store that keeps no saves, checks nothing', async () => {
+    await saveIn(new Invocations(undefined, { context: 'shop' }, 'off'), new Set(), 'order.place', ['order.save', 'stock.reserve'])
+    const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
+    invocations.checkTransaction(new Set(['shop.order']))
+    await invocations.run('stock.reserve', async () => invocations.checkTransaction(undefined))
+  })
+})
+
 describe('@UseCase', () => {
   test('hands the method its arguments', async () => {
     class Greeter {

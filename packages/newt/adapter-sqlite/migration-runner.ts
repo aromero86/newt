@@ -1,7 +1,7 @@
 import type { Database as Sqlite } from 'bun:sqlite'
 import { readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { migrationChecksum, migrationName, type Migrations } from '../port-store'
+import { migrationChecksum, migrationName, type Migrations, type MigrationStatus } from '../port-store'
 import type { MigrationFile } from './migration-file'
 import { splitStatements } from './split-statements'
 
@@ -111,16 +111,26 @@ export class MigrationRunner implements Migrations {
     for (const statement of splitStatements(sql)) this.sqlite.run(statement)
   }
 
-  async status(): Promise<{ applied: string[], pending: string[] }> {
+  /** What is applied, what is pending, and which applied ones had their up file changed since (which `up` refuses). */
+  async status(): Promise<MigrationStatus> {
     this.ensureMigrationsTable()
 
     const applied = this.applied()
+    const files = await this.migrationFiles()
     const appliedVersions = new Set(applied.map(record => record.version))
-    const pending = (await this.migrationFiles()).filter(file => !appliedVersions.has(file.version))
+    const pending = files.filter(file => !appliedVersions.has(file.version))
+    const changed: string[] = []
+    for (const record of applied) {
+      const file = files.find(each => each.version === record.version && each.name === record.name)
+      if (file && record.checksum !== null && record.checksum !== migrationChecksum(await Bun.file(file.upPath).text())) {
+        changed.push(migrationName(record.version, record.name))
+      }
+    }
 
     return {
       applied: applied.map(record => migrationName(record.version, record.name)),
       pending: pending.map(file => migrationName(file.version, file.name)),
+      changed,
     }
   }
 

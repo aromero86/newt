@@ -93,16 +93,22 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await names()).toEqual(['ana', 'bea', 'taken'])
       })
 
-      test('rolled back while writes of it are still in flight, keeps none of them: they fail', async () => {
+      test('rolled back while writes of it are still in flight, keeps none of them: one that comes after it ended fails', async () => {
         let late!: Promise<string>
-        await expect(store.transaction(async () => {
+        const transaction: Promise<void> = store.transaction(async () => {
           const writes = (async () => {
+            // A store that waits for its disk or its server still has this one in flight
+            // when the transaction rolls back, and it fails; one with nothing to wait for
+            // has written it in the transaction already, and the rollback undoes it.
             await things.insert(thing({ name: 'ana' }))
+            // This one comes once the transaction has ended, whatever the store.
+            await transaction.catch(() => {})
             await things.insert(thing({ name: 'bea' }))
           })()
           late = writes.then(() => 'written', (error: Error) => error.message)
           await Promise.all([writes, Promise.reject(new Error('boom'))])
-        })).rejects.toThrow('boom')
+        })
+        await expect(transaction).rejects.toThrow('boom')
 
         expect(await late).toContain('a transaction that has ended')
         await Bun.sleep(20)

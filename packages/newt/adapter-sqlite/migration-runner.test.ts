@@ -269,6 +269,13 @@ describe('checksums', () => {
     await expect(new MigrationRunner(sqlite, folder).up()).rejects.toThrow('Migration 00001_note was changed after it was applied')
   })
 
+  test('tell in status which applied migration was changed since', async () => {
+    await new MigrationRunner(sqlite, folder).up()
+    await write('00001_note_up.sql', 'CREATE TABLE note (id TEXT PRIMARY KEY, title TEXT);')
+
+    expect(await new MigrationRunner(sqlite, folder).status()).toEqual({ applied: ['00001_note'], pending: [], changed: ['00001_note'] })
+  })
+
   test('take its new script once it is reverted and applied again, and line ends that turn into CRLF change nothing', async () => {
     const runner = new MigrationRunner(sqlite, folder)
     await runner.up()

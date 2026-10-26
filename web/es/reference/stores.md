@@ -132,7 +132,12 @@ enteras, sí lo hace).
 ### Migraciones
 
 `migrations` aplica los cambios a la estructura del store, en orden, y los recuerda:
-`up()`, `down()`, `status()`. Cada adaptador decide qué es una migración. Abrir un
+`up()`, `down()`, `status()`. Cada adaptador decide qué es una migración.
+`status()` da las aplicadas (`applied`) y las pendientes (`pending`), por nombre, y
+`changed`: las aplicadas cuyo script de subida cambió desde entonces, que `up()`, y
+por tanto `open`, rechazan (la base de datos no ejecutó lo que dice la carpeta); los
+stores SQL lo saben por el checksum que guardan de cada una; el de ficheros, cuyas
+migraciones son código, no tiene ninguna. Abrir un
 store con `open` aplica las pendientes; `connect` lo abre tal como está, para los
 scripts que migran a mano, cuyo `up()` aplica primero las del store y luego las del
 framework (su outbox), igual que `open`. Una carpeta de migraciones que no se puede
@@ -378,7 +383,9 @@ comparten todos los adaptadores:
 
 - `TransactionScope` es la maquinaria de las transacciones: la actual siguiendo al
   código, una llamada dentro de otra uniéndose a ella, una llamada tardía a una que ya
-  terminó fallando en vez de ejecutarse fuera, `afterCommit` y `afterRollback` y, para
+  terminó fallando en vez de ejecutarse fuera, `afterCommit` y `afterRollback`, los
+  módulos guardados en cada una (que vigila la regla de escritura: uno por
+  transacción) y, para
   un store cuyas transacciones van por turnos (`serial`, lo normal), la cola y la
   espera que se rinde diciendo por qué. Un adaptador le da sus pasos (`begin`,
   `commit`, `rollback`, `end`) y construye sobre ella, como hacen todos los de aquí.
