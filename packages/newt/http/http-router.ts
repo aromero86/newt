@@ -33,6 +33,9 @@ type Answer = (request: BunRequest) => Promise<Response>
  *
  * Every route needs a session unless it is registered as public. A signed-in
  * request runs as its actor, so every use case it calls knows who is doing it.
+ *
+ * A context may have more than one: its API under `/api`, and another at the root
+ * for addresses with a format of their own (OAuth's, with its own `onError`).
  */
 export class HttpRouter {
 
@@ -84,8 +87,9 @@ export class HttpRouter {
 
   /**
    * The table for `Bun.serve({ routes })`. Anything else under the prefix, the prefix
-   * itself too, is a 404, never the frontend. Paths are case-sensitive: `/API/things`
-   * is not under `/api`, so it is the frontend's. A method a path does not have is a
+   * itself too, is a 404, never the frontend; at the root (`prefix: ''`) it is the
+   * frontend's. Paths are case-sensitive: `/API/things` is not under `/api`, so it is
+   * the frontend's. A method a path does not have is a
    * 405 that lists the ones it has in `Allow`; `OPTIONS` too, unless a route of the
    * path takes calls from other origins (`cors`): then it answers their preflight.
    */
@@ -98,7 +102,7 @@ export class HttpRouter {
       const cors = [...byMethod.values()].find(each => each.options.cors)?.options.cors
       const notAllowed = withCors(handle(request => {
         throw new MethodNotAllowed(request.method, path)
-      }), cors)
+      }, this.defaults.onError), cors)
       const answerNotAllowed = async (request: BunRequest) => {
         const response = await notAllowed(request)
         response.headers.set('allow', methods.join(', '))
@@ -108,15 +112,17 @@ export class HttpRouter {
         new Response(null, { status: 204, headers: corsHeaders(cors!, request, [...methods, 'OPTIONS']) })
 
       routes[path] = Object.fromEntries([
-        ...[...byMethod].map(([method, { route, options }]) => [method, withCors(handle(route), options.cors)]),
+        ...[...byMethod].map(([method, { route, options }]) => [method, withCors(handle(route, options.onError), options.cors)]),
         ...METHODS.filter(method => !byMethod.has(method)).map(method => [method, answerNotAllowed]),
         ['OPTIONS', cors ? preflight : answerNotAllowed],
       ])
     }
 
+    // At the root, any other address is the frontend's.
+    if (this.prefix === '') return routes as Bun.Serve.Routes<undefined, string>
     const notFound = handle(request => {
       throw new ApiRouteNotFound(request.method, new URL(request.url).pathname)
-    })
+    }, this.defaults.onError)
     // A route registered at '' is the prefix itself, and one at '/*' all under it: they keep their place.
     routes[this.prefix] ??= notFound
     routes[`${this.prefix}/*`] ??= notFound

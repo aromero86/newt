@@ -1,4 +1,5 @@
 import { DomainError, runAsActor } from 'newt/core'
+import { toErrorResponse } from 'newt/http'
 import type { AuthBase } from '../../auth-base'
 import { SessionCookie } from '../session/session.schema'
 import type { OauthGrant_Deps } from './oauth-grant.deps'
@@ -10,25 +11,24 @@ export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Modu
   // request is kept, and the browser goes on to auth's UI, which signs the person in
   // and asks them. A request auth cannot answer is shown there, never sent back to
   // an address nobody vouched for.
-  base.oauth.get('/authorize', async request => {
+  base.oauth.get('/oauth/authorize', async request => {
     const query = new URL(request.url).searchParams
     const field = (name: string) => query.get(name) ?? undefined
-    try {
-      const { id } = await grants.request({
-        responseType: field('response_type') ?? '',
-        clientId: field('client_id') ?? '',
-        redirectUri: field('redirect_uri') ?? '',
-        codeChallenge: field('code_challenge') ?? '',
-        codeChallengeMethod: field('code_challenge_method') ?? '',
-        state: field('state'),
-        resource: field('resource'),
-      })
-      return Response.redirect(`${options.publicUrl}/authorize/${id}`, 302)
-    } catch (error) {
-      if (!(error instanceof DomainError)) throw error
-      return Response.redirect(`${options.publicUrl}/error?${new URLSearchParams({ message: error.message })}`, 302)
-    }
-  }, { public: true })
+    const { id } = await grants.request({
+      responseType: field('response_type') ?? '',
+      clientId: field('client_id') ?? '',
+      redirectUri: field('redirect_uri') ?? '',
+      codeChallenge: field('code_challenge') ?? '',
+      codeChallengeMethod: field('code_challenge_method') ?? '',
+      state: field('state'),
+      resource: field('resource'),
+    })
+    return Response.redirect(`${options.publicUrl}/authorize/${id}`, 302)
+  }, {
+    onError: error => error instanceof DomainError
+      ? Response.redirect(`${options.publicUrl}/error?${new URLSearchParams({ message: error.message })}`, 302)
+      : toErrorResponse(error),
+  })
 
   // For auth's UI: what is asked, to anyone with its address; the answer, signed in.
   // Whoever is signed in to auth already is told upfront if the product refuses them.

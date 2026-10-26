@@ -112,14 +112,15 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
 
   ```ts
   // cooper/backend/contexts/auth/modules/token/token.routes.ts
-  base.oauth.post('/oauth/token', async request => { … }, { public: true, cors: OPEN_TO_BROWSERS })
+  base.oauth.post('/oauth/register', async request => { … }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
   ```
 - **Toda ruta necesita una sesión**, salvo que se registre con `{ public: true }`. El
   router pregunta a su `Authenticator` quién ha enviado la petición, y la ruta se
   ejecuta como ese actor: cualquier caso de uso al que llegue sabe quién lo hace con
-  `currentActor()`. Nunca pases el id del usuario a mano. Cualquier otro punto de
-  entrada (una CLI, un servidor MCP, un script) se ejecuta como un actor de la misma
-  forma, con `runAsActor`.
+  `currentActor()`. Nunca pases el id del usuario a mano. A un cliente que envía un
+  token bearer en vez de una cookie (un cliente MCP, otro servidor) lo reconoce
+  `bearerAuthenticator(verify)`. Cualquier otro punto de entrada (una CLI, un script)
+  se ejecuta como un actor de la misma forma, con `runAsActor`.
 
   ```ts
   // cooper/backend/shared/served-context.ts
@@ -128,7 +129,10 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
 
   ```ts
   // cooper/backend/contexts/boards/mcp/mcp.ts
-  return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
+  router.authenticateWith(bearerAuthenticator(async accessToken => {
+    const identity = await auth.token.verify(accessToken)
+    return identity?.resource === resource ? { userId: identity.userId, via: 'mcp' } : null
+  }))
   ```
 - **Las rutas que comparten prefijo pueden compartir un middleware**:
   `http.group(prefijo, middleware)`. Se ejecuta después de comprobar la sesión,
@@ -136,9 +140,13 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   normalmente dentro de un ámbito propio (ver
   [Quién y dónde](#quien-y-donde-el-actor-y-otros-ambitos) más abajo). Los parámetros
   de una ruta son los de su grupo más los suyos.
-- Las rutas que no son del router (una entrada MCP, un documento `/.well-known`) van a
-  su lado: `serve({ port, router, routes, frontend })` sirve las rutas del router, las
-  que se le dan en `routes` y un frontend compilado para cualquier otra dirección.
+- **Las direcciones fuera de `/api`** (los endpoints de OAuth, una entrada MCP, un
+  documento `/.well-known`) son un router propio en la raíz, `new HttpRouter({ prefix:
+  '' })`, que toma solo sus direcciones y deja el resto al frontend. Un router, un
+  grupo o una ruta pueden responder a sus errores a su manera, `{ onError: (error,
+  request) => … }`, como hacen los endpoints de OAuth. `serve({ port, router, routes,
+  frontend })` sirve las rutas del router, las que se le dan en `routes` (las
+  `routes()` de otro router) y un frontend compilado para cualquier otra dirección.
 
 ## Quién y dónde: el actor y otros ámbitos
 
@@ -1001,7 +1009,7 @@ Sus códigos son `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
 
 Un endpoint OAuth responde en el formato de OAuth, `{ error, error_description }`:
 `toOauthErrorResponse(error, fallback, codes)`, de `newt/http`, traduce el código de
-cada error de dominio a uno de OAuth.
+cada error de dominio a uno de OAuth, como `onError` de cada ruta de OAuth.
 
 ## Value objects
 

@@ -1,9 +1,12 @@
+import type { HttpRouter } from 'newt/http'
+import { OPEN_TO_BROWSERS } from '../../shared/cors'
+
 /**
  * How a client that only knows where auth is finds out the rest (RFC 8414): where to
  * send the person, get tokens, register and give tokens back. boards names auth in
  * its MCP server's own metadata (RFC 9728), and an MCP client follows it here.
  */
-export function oauthServerMetadataRoutes(publicUrl: string): Bun.Serve.Routes<undefined, string> {
+export function registerOauthServerMetadata(oauth: HttpRouter, publicUrl: string): void {
   const metadata = {
     issuer: publicUrl,
     authorization_endpoint: `${publicUrl}/oauth/authorize`,
@@ -17,8 +20,6 @@ export function oauthServerMetadataRoutes(publicUrl: string): Bun.Serve.Routes<u
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
     revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
   }
-  // Read by clients in a browser too, such as the MCP inspector: the context opens it to them.
-  return {
-    '/.well-known/oauth-authorization-server': () => Response.json(metadata),
-  }
+  // Read by clients in a browser too, such as the MCP inspector.
+  oauth.get('/.well-known/oauth-authorization-server', () => Response.json(metadata), { cors: OPEN_TO_BROWSERS })
 }
