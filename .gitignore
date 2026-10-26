@@ -36,3 +36,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # what the examples keep when they run
 data
+
+# the docs site: vitepress cache and build
+web/.vitepress/cache
