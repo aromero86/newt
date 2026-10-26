@@ -408,9 +408,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   nothing. A new one that collides with a key or a unique value throws it too.
 - **A use case runs again on a `ConcurrencyConflict`**, up to three times, reloading
   and applying the change to what is stored now: a use case loads, changes and saves,
-  and what cannot be undone leaves from a worker. One that does something before
-  saving that must not happen twice (a call to another context that already saved)
-  says `@UseCase({ retryOnConflict: false })`, with the reason beside it.
+  and what cannot be undone leaves from a worker. Only the first use case of a chain
+  runs again, with all it calls; one called by another lets the conflict through to
+  it. One that does something before saving that must not happen twice (a call to
+  another context that already saved) says `@UseCase({ retryOnConflict: false })`,
+  with the reason beside it: then nothing in its chain runs again, not even its callers.
 - **A rule over several rows** (a workspace keeps an admin, a stock never below
   zero) is not protected by a version: `save`'s `after` hook checks it, in the same
   transaction, after the writes; throwing rolls it all back. The save names what the

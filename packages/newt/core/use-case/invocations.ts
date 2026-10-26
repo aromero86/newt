@@ -7,7 +7,7 @@ import { invocationChain, inWorker } from './invocation-chain'
 import type { UseCaseOptions } from './use-case-options'
 import type { WriteRule } from './write-rule'
 
-/** How many more times a use case runs after a conflict (unless `retryOnConflict: false`). */
+/** How many more times the first use case of a chain runs after a conflict (unless one in it says `retryOnConflict: false`). */
 const RETRIES = 3
 
 /**
@@ -39,7 +39,12 @@ export class Invocations {
     const root = chain && chain.root.context === link.context
       ? (writesTo.length ? { ...chain.root, writesTo: [...chain.root.writesTo, ...writesTo] } : chain.root)
       : { ...link, writesTo }
-    return invocationChain.run({ root, current: link }, () => this.traced(name, attributes, fn, options))
+    // Only the first use case of the chain runs again on a conflict, everything below it
+    // with it: one below that did too would repeat what its caller then repeats again.
+    // One that must not run twice says so for the whole chain, whatever context it is of.
+    const retry = chain?.retry ?? { allowed: true }
+    if (options?.retryOnConflict === false) retry.allowed = false
+    return invocationChain.run({ root, current: link, retry }, () => this.traced(name, attributes, fn, chain ? undefined : retry))
   }
 
   /**
@@ -63,14 +68,15 @@ export class Invocations {
     console.warn(message)
   }
 
-  private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {
+  /** Runs it in its span; `retry`, only for the first of a chain, says whether a conflict runs it again. */
+  private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry?: { allowed: boolean }): Promise<T> {
     return this.tracer.startActiveSpan(name, attributes, async span => {
       try {
         for (let attempt = 0; ; attempt++) {
           try {
             return await fn()
           } catch (error) {
-            if (options?.retryOnConflict === false || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
+            if (!retry?.allowed || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
             span.addEvent('conflict.retry', { attempt: attempt + 1 })
             await Bun.sleep(Math.random() * 10 * (attempt + 1))
           }
