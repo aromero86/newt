@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { runAsActor } from 'newt/core'
 import { serve } from 'newt/http'
+import { browser, freePort, type Browser } from 'newt/testing'
 import { config, type Config } from './config'
 import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
@@ -13,14 +14,6 @@ import type { Mail } from './shared/mail/mailer'
  * cooper end to end: auth, boards and backoffice open as the server opens them, on
  * SQLite in memory, and boards used as its UI and an MCP client use it, over HTTP.
  */
-
-/** A port nobody listens on now: each context must know the other's address before it opens. */
-function freePort(): number {
-  const probe = Bun.serve({ port: 0, fetch: () => new Response() })
-  const port = probe.port!
-  void probe.stop()
-  return port
-}
 
 function testConfig(authPort: number, boardsPort: number): Config {
   const [authUrl, boardsUrl] = [`http://localhost:${authPort}`, `http://localhost:${boardsPort}`]
@@ -54,33 +47,6 @@ const boardsUrl = (path: string) => new URL(path, contexts.boards.config.publicU
 async function settled() {
   await contexts.auth.base.jobs.idle()
   await contexts.boards.base.jobs.idle()
-}
-
-type Browser = ReturnType<typeof browser>
-
-/** A browser: it keeps each origin's cookies, and never follows a redirect on its own. */
-function browser() {
-  const jars = new Map<string, Map<string, string>>()
-  return async (address: string, init: RequestInit & { json?: unknown } = {}) => {
-    const { json, ...rest } = init
-    const target = new URL(address)
-    const jar = jars.get(target.host) ?? new Map<string, string>()
-    jars.set(target.host, jar)
-    const response = await fetch(target, {
-      ...rest,
-      redirect: 'manual',
-      headers: { cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '), ...(json === undefined ? {} : { 'content-type': 'application/json' }) },
-      body: json === undefined ? rest.body : JSON.stringify(json),
-    })
-    for (const each of response.headers.getSetCookie()) {
-      const [pair, ...attributes] = each.split(';')
-      const [name, value = ''] = pair!.split('=')
-      const gone = value === '' || attributes.some(attribute => /max-age=0\b/i.test(attribute.trim()))
-      if (gone) jar.delete(name!.trim())
-      else jar.set(name!.trim(), value)
-    }
-    return response
-  }
 }
 
 /** Someone signs up to cooper from boards, as its UI does it: boards' sign-in, auth's pages, back to boards. */

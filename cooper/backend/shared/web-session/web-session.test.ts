@@ -4,19 +4,12 @@ import type { Server } from 'bun'
 import { SqliteStore } from 'newt/adapter-sqlite'
 import { currentActor } from 'newt/core'
 import { serve } from 'newt/http'
+import { browser, freePort } from 'newt/testing'
 import { config } from '../../config'
 import { Auth_Context } from '../../contexts/auth/auth.context'
 import { CooperBase } from '../cooper-base'
 import { ServedContext } from '../served-context'
 import { WebSession_Module } from './web-session.module'
-
-/** A port nobody listens on now: each context must know the other's address before it opens. */
-function freePort(): number {
-  const probe = Bun.serve({ port: 0, fetch: () => new Response() })
-  const port = probe.port!
-  void probe.stop()
-  return port
-}
 
 /**
  * A context that signs its people in through auth, as boards does: the product
@@ -63,31 +56,6 @@ afterEach(async () => {
   await client.stop()
   await auth.stop()
 })
-
-/** A browser: it keeps each origin's cookies, and never follows a redirect on its own. */
-function browser() {
-  const jars = new Map<string, Map<string, string>>()
-  return async (address: string, init: RequestInit & { json?: unknown } = {}) => {
-    const { json, ...rest } = init
-    const target = new URL(address)
-    const jar = jars.get(target.host) ?? new Map<string, string>()
-    jars.set(target.host, jar)
-    const response = await fetch(target, {
-      ...rest,
-      redirect: 'manual',
-      headers: { cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '), ...(json === undefined ? {} : { 'content-type': 'application/json' }) },
-      body: json === undefined ? rest.body : JSON.stringify(json),
-    })
-    for (const each of response.headers.getSetCookie()) {
-      const [pair, ...attributes] = each.split(';')
-      const [name, value = ''] = pair!.split('=')
-      const gone = value === '' || attributes.some(attribute => /max-age=0\b/i.test(attribute.trim()) || /expires=thu, 01 jan 1970/i.test(attribute.trim()))
-      if (gone) jar.delete(name!.trim())
-      else jar.set(name!.trim(), value)
-    }
-    return response
-  }
-}
 
 const authUrl = (path: string) => new URL(path, auth.config.publicUrl).toString()
 const clientUrl = (path: string) => new URL(path, `http://localhost:${servers[1]!.port}`).toString()

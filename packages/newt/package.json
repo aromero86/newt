@@ -22,7 +22,8 @@
     "./kysely": "./kysely/index.ts",
     "./http": "./http/index.ts",
     "./application": "./application/index.ts",
-    "./otel": "./otel/index.ts"
+    "./otel": "./otel/index.ts",
+    "./testing": "./testing/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"

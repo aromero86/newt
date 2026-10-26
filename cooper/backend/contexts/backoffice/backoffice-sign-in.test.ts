@@ -1,41 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { serve } from 'newt/http'
+import { browser, freePort, type Browser } from 'newt/testing'
 import { config, type Config } from '../../config'
 import { openContexts, stopContexts } from '../../open-contexts'
 import { PRODUCTS } from '../auth/modules/product/product.schema'
-
-/** A port nobody listens on now: each context must know the other's address before it opens. */
-function freePort(): number {
-  const probe = Bun.serve({ port: 0, fetch: () => new Response() })
-  const port = probe.port!
-  void probe.stop()
-  return port
-}
-
-/** A browser: it keeps each origin's cookies, and never follows a redirect on its own. */
-function browser() {
-  const jars = new Map<string, Map<string, string>>()
-  return async (address: string, init: { method?: string, json?: unknown } = {}) => {
-    const target = new URL(address)
-    const jar = jars.get(target.host) ?? new Map<string, string>()
-    jars.set(target.host, jar)
-    const response = await fetch(target, {
-      method: init.method,
-      redirect: 'manual',
-      headers: { cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '), ...(init.json === undefined ? {} : { 'content-type': 'application/json' }) },
-      body: init.json === undefined ? undefined : JSON.stringify(init.json),
-    })
-    for (const each of response.headers.getSetCookie()) {
-      const [pair, ...attributes] = each.split(';')
-      const [name, value = ''] = pair!.split('=')
-      const gone = value === '' || attributes.some(attribute => /max-age=0\b/i.test(attribute.trim()))
-      if (gone) jar.delete(name!.trim())
-      else jar.set(name!.trim(), value)
-    }
-    return response
-  }
-}
 
 describe('signing in to the backoffice', () => {
   let contexts: Awaited<ReturnType<typeof openContexts>>
@@ -74,7 +43,7 @@ describe('signing in to the backoffice', () => {
   }
 
   /** Where auth sends the browser back to the backoffice. */
-  const back = async (as: ReturnType<typeof browser>, answer: Response) => as(((await answer.json()) as { redirectTo: string }).redirectTo)
+  const back = async (as: Browser, answer: Response) => as(((await answer.json()) as { redirectTo: string }).redirectTo)
 
   test('lets the staff in, and refuses at auth whoever is not', async () => {
     const { user, access } = contexts.auth.modules

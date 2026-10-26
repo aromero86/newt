@@ -33,6 +33,7 @@ bun add newt zod
 | `newt/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
 | `newt/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
 | `newt/otel` | `OtlpTracer`: the tracer that sends spans to an OpenTelemetry collector (OTLP/HTTP, JSON), with no SDK. Optional. |
+| `newt/testing` | For a test of an HTTP entry: `freePort`, and `browser`, a `fetch` that keeps its cookies and never follows a redirect. |
 | `newt/http` | `HttpRouter`, groups with middleware and `serve`: routes per module, sessions, errors as responses. Optional. |
 | `newt/kysely` | `kyselyFor`: Kysely on any SQL store, for queries of one's own. Optional (needs `kysely`). |
 
@@ -92,6 +93,7 @@ kysely/            Kysely on the SQL stores; knows them
 http/              the HTTP entry; knows core
 application/       an application's contexts, run; knows core, runtime and http
 otel/              a tracer for OpenTelemetry's collectors; knows core
+testing/           helpers for a test over HTTP; knows nothing else
 ```
 
 What a piece needs from another that applications must not reach goes through that
