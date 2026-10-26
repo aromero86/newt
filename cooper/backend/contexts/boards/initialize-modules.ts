@@ -1,4 +1,5 @@
 import type { Mailer } from '../../shared/mail/mailer'
+import { Outbox_Module } from '../../shared/outbox/outbox.module'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
 import { WORKSPACES_PRODUCT, type Auth_Modules } from '../auth/initialize-modules'
 import type { Boards_Config } from './boards-config'
@@ -55,7 +56,9 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
   const { tenant, access, invitation, user } = deps.auth
   const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
-  return { session, member, board, column, card, workspace }
+  // Its dead jobs, for the staff's backoffice to look at and retry.
+  const outbox = Outbox_Module.initialize(base)
+  return { session, member, board, column, card, workspace, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>

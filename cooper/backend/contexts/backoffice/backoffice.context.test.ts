@@ -27,7 +27,7 @@ describe('the backoffice API', () => {
     const sam = await t.staffMember('Sam')
     const ana = await t.staffMember('Ana')
 
-    for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff', '/api/metrics']) {
+    for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff', '/api/metrics', '/api/jobs/boards']) {
       expect((await get(path)).status).toBe(401)
       expect((await get(path, ana.id)).status).toBe(200)
     }

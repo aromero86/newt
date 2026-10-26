@@ -1,19 +1,24 @@
 import { SqliteAnalytics } from '../../shared/analytics/sqlite-analytics'
 import type { CooperBase } from '../../shared/cooper-base'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
-import type { Auth_Context } from '../auth/auth.context'
-import { WORKSPACES_PRODUCT } from '../auth/initialize-modules'
-import type { Boards_Context } from '../boards/boards.context'
+import { Outbox_Module } from '../../shared/outbox/outbox.module'
+import { WORKSPACES_PRODUCT, type Auth_Modules } from '../auth/initialize-modules'
+import type { Boards_Modules } from '../boards/initialize-modules'
 import type { Backoffice_Config } from './backoffice-config'
+import { Job_Module } from './modules/job/job.module'
 import { Metric_Module } from './modules/metric/metric.module'
 import { Staff_Module } from './modules/staff/staff.module'
 import { User_Module } from './modules/user/user.module'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 
-/** What `backoffice`'s modules are given besides its base: the contexts it reads. */
+/**
+ * What `backoffice`'s modules are given besides its base: the use cases of the
+ * contexts it reads, those it needs and nothing else. Never a context's base nor its
+ * store: another context is reached through its use cases and its events (ch. 23).
+ */
 export type Backoffice_ModuleDeps = {
-  auth: Auth_Context
-  boards: Boards_Context
+  auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
+  boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
 }
 
 /** The backoffice as a product of auth's: its OAuth client, and what its staff have access to. */
@@ -28,8 +33,7 @@ const METRIC_DAYS = 30
  * analytics, in the context's own database.
  */
 export function initializeModules(base: CooperBase, config: Backoffice_Config, deps: Backoffice_ModuleDeps) {
-  const auth = deps.auth.modules
-  const boards = deps.boards.modules
+  const { auth, boards } = deps
 
   const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: BACKOFFICE_PRODUCT })
   const session = WebSession_Module.initialize(base, {
@@ -50,7 +54,10 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
     analytics: new SqliteAnalytics(base.store),
     days: METRIC_DAYS,
   })
-  return { session, staff, user, workspace, metric }
+  const outbox = Outbox_Module.initialize(base)
+  // Each context's dead jobs, through its own use cases.
+  const job = Job_Module.initialize(base, { staff, outboxes: { auth: auth.outbox, boards: boards.outbox, backoffice: outbox } })
+  return { session, staff, user, workspace, metric, outbox, job }
 }
 
 export type Backoffice_Modules = ReturnType<typeof initializeModules>

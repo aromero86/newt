@@ -1,4 +1,5 @@
 import type { Mailer } from '../../shared/mail/mailer'
+import { Outbox_Module } from '../../shared/outbox/outbox.module'
 import { WEB_SESSION_CALLBACK } from '../../shared/web-session/web-session.schema'
 import type { Auth_Config } from './auth-config'
 import type { AuthBase } from './auth-base'
@@ -65,7 +66,9 @@ export function initializeModules(base: AuthBase, config: Auth_Config, deps: Aut
   const oauthClient = OauthClient_Module.initialize(base, { product }, { secrets: config.clientSecrets })
   const oauthGrant = OauthGrant_Module.initialize(base, { oauthClient, product, access }, { publicUrl: config.publicUrl })
   const token = Token_Module.initialize(base, { oauthClient, oauthGrant }, config.oauth)
-  return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token }
+  // Its dead jobs, for the staff's backoffice to look at and retry.
+  const outbox = Outbox_Module.initialize(base)
+  return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token, outbox }
 }
 
 export type Auth_Modules = ReturnType<typeof initializeModules>

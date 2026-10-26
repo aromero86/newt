@@ -27,6 +27,7 @@ export const router = createBrowserRouter([
               { path: 'workspaces/*', lazy: () => import('./modules/workspaces/workspaces.routes').then(zone => ({ Component: zone.WorkspacesRoutes })) },
               { path: 'users/*', lazy: () => import('./modules/users/users.routes').then(zone => ({ Component: zone.UsersRoutes })) },
               { path: 'staff', lazy: () => import('./modules/staff/staff').then(zone => ({ Component: zone.Staff })) },
+              { path: 'jobs', lazy: () => import('./modules/jobs/jobs').then(zone => ({ Component: zone.Jobs })) },
               // Not lazy: the zones and the error page use it too, so it ships with the shell.
               { path: '*', Component: NotFound },
             ],

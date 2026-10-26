@@ -21,7 +21,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   const auth = await Auth_Context.open(config.auth, { mailer })
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth, boards })
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
