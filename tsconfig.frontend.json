@@ -14,7 +14,8 @@
     "paths": {
       "newt/*": ["./packages/newt/*/index.ts"],
       "@cooper/ui/*": ["./cooper/libs/ui/*"],
-      "@cooper/api/*": ["./cooper/libs/api/*"]
+      "@cooper/api/*": ["./cooper/libs/api/*"],
+      "@cooper/core/*": ["./cooper/libs/core/*"]
     }
   },
   "include": [
