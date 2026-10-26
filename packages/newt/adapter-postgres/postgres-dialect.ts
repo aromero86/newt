@@ -7,9 +7,10 @@ const RETURNING = 'id, queue, event, status, attempts, run_after, locked_by, loc
 /**
  * Postgres's SQL: `$1` parameters, real booleans, and advisory locks for guards. Its
  * `lower()` folds every letter, so `ieq` uses `translate`, to fold A to Z only, as
- * every store does. Text of the database's own collation sorts by its locale (`Ana`,
- * `bea`, `Bob`), so a table compares and sorts it `COLLATE "C"`, by code point, as the
- * other stores; and null, which Postgres sorts last, goes first going up, as theirs.
+ * every store does. Text columns are best `COLLATE "C"` (or the database's own
+ * collation `C`), so they compare and sort by code point, as the other stores: the
+ * database's usual locale sorts `Ana`, `bea`, `Bob`. Null, which Postgres sorts last,
+ * goes first going up, as in theirs, on a column that may hold it.
  */
 export const postgresDialect: SqlServerDialect = {
   name: 'postgres',
@@ -27,11 +28,10 @@ export const postgresDialect: SqlServerDialect = {
   json: param => `${param}::text::jsonb`,
   parsesJson: true,
   refusesNul: true,
-  // 100 is the database's own collation; 20 is bigint.
+  // 20 is bigint; 114 json, 3802 jsonb.
   columns: `
-    SELECT attname AS name, attcollation = 100 AS collated, atttypid = 20 AS big
+    SELECT attname AS name, NOT attnotnull AS nullable, atttypid = 20 AS big, atttypid IN (114, 3802) AS json
     FROM pg_attribute WHERE attrelid = to_regclass($1) AND attnum > 0 AND NOT attisdropped`,
-  byCodePoint: column => `${column} COLLATE "C"`,
   // unique_violation
   isCollision: error => errorCode(error) === '23505',
   // serialization_failure, deadlock_detected

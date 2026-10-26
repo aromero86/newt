@@ -15,8 +15,8 @@ async function open(): Promise<PostgresStore> {
   const admin = new SQL(url!)
   await admin.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public')
   await admin.unsafe(`CREATE TABLE thing (
-    id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, name TEXT NOT NULL, archived BOOLEAN NOT NULL, rank DOUBLE PRECISION NOT NULL,
-    note TEXT, tags JSONB NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, version INTEGER NOT NULL
+    id TEXT COLLATE "C" PRIMARY KEY, workspace_id TEXT COLLATE "C" NOT NULL, name TEXT COLLATE "C" NOT NULL, archived BOOLEAN NOT NULL, rank DOUBLE PRECISION NOT NULL,
+    note TEXT COLLATE "C", tags JSONB NOT NULL, created_at TEXT COLLATE "C" NOT NULL, updated_at TEXT COLLATE "C" NOT NULL, deleted_at TEXT COLLATE "C", version INTEGER NOT NULL
   )`)
   await admin.close()
   return PostgresStore.open({ url: url!, connections: 5 })

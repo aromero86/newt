@@ -147,6 +147,35 @@ if (url) {
       }
     })
 
+    test('reads a json field back as written only from a JSON column: from one of text, as its text', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE doc (id VARCHAR(36) PRIMARY KEY, version INTEGER NOT NULL, data JSON, text LONGTEXT)')
+        const docs = store.table<{ id: string, version: number, data: unknown, text: unknown }>('doc', { types: { data: 'json', text: 'json' } })
+        await docs.insert({ id: 'a', data: { x: 1 }, text: { x: 1 } })
+
+        expect(await docs.find()).toEqual([{ id: 'a', version: 1, data: { x: 1 }, text: '{"x":1}' }])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('a change of structure inside a transaction commits it there and then: what comes after runs on its own', async () => {
+      const store = await open()
+      try {
+        await expect(store.transaction(async () => {
+          await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', 0, 0, NULL, '[]', '', '', NULL, 1)")
+          await store.query('CREATE TABLE extra (id VARCHAR(36) PRIMARY KEY)')
+          await store.query("INSERT INTO thing VALUES ('b', 'w', 'b', 0, 0, NULL, '[]', '', '', NULL, 1)")
+          throw new Error('boom')
+        })).rejects.toThrow('boom')
+
+        expect(await store.query('SELECT id FROM thing ORDER BY id')).toEqual([{ id: 'a' }, { id: 'b' }])
+      } finally {
+        await store.close()
+      }
+    })
+
     test('runs transactions that guard different keys side by side', async () => {
       const store = await open()
       try {

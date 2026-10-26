@@ -91,7 +91,8 @@ same in every store:
   Keep a lower-cased column for a search that must fold every letter;
 - text sorts and compares (`gt`, `lt`…) by code point (UTF-8 byte order: `Bob`
   before `bea`, `z` before `é`), as `compare` does in memory, and a trailing space
-  makes another value; null sorts first going up, last going down;
+  makes another value (on Postgres and MySQL, where the column's collation is binary:
+  see below); null sorts first going up, last going down;
 - a value with NUL (`\u0000`) matches only what holds it: nothing on Postgres, whose
   text cannot hold one (writing one there is a `ValidationError`, a 400).
 
@@ -184,7 +185,10 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   too. `store.query(sql, params)` runs a statement of one's own in the transaction in
   progress; Kysely runs on it as on SQLite. Unlike SQLite, a write outside a
   transaction is not refused: it runs at once, on its own. A `BIGINT` comes back as a
-  number while it is exact (as text beyond 2^53), a `DECIMAL`/`NUMERIC` as text.
+  number while it is exact (as text beyond 2^53), a `DECIMAL`/`NUMERIC` as text. A
+  Postgres table learns its columns' types once, and again when a row brings a column
+  it has not seen (one a migration added): a column whose type or nullability
+  changed is seen as changed after a restart.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
   A batch runs in one transaction. Postgres applies it all or none. MySQL commits
   each change of structure (`CREATE`, `ALTER`, `DROP`…) at once, together with all
@@ -201,9 +205,14 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   …`), with no `BEGIN … END`.
 - **Postgres**: an entity table has `id TEXT PRIMARY KEY` and `version INTEGER NOT
   NULL`; booleans are `BOOLEAN`, JSON is `JSONB`; a unique value among the rows not
-  deleted is a partial unique index. Text of the database's own collation is compared
-  and sorted `COLLATE "C"`, by code point, as in the other stores (a column given a
-  collation of its own in its migration keeps it), and null sorts as in theirs. A
+  deleted is a partial unique index. Text columns are best `COLLATE "C"` (or a
+  database created with `LC_COLLATE 'C'`), so they compare and sort by code point, as
+  in the other stores: the usual locale sorts `Ana`, `bea`, `Bob`. A column is
+  compared and sorted by its own collation, so its indexes serve. Null sorts as in
+  the other stores (first going up): on a column that may hold it the table says
+  `NULLS FIRST`/`NULLS LAST`, so an index meant to serve that ordering is declared
+  the same (`CREATE INDEX … (note NULLS FIRST)`); a `NOT NULL` one (a primary key) is
+  ordered plainly. A
   statement that fails inside a transaction spoils it in Postgres, so a write that
   may collide runs under a savepoint: a collision is a `ConcurrencyConflict` and the
   transaction goes on; a transaction spoiled by a statement of one's own that failed
@@ -211,8 +220,12 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
 - **MySQL** (8.4): `id VARCHAR(36) PRIMARY KEY`; text columns are best
   `utf8mb4_0900_bin`, so `=`, unique indexes and sorting treat case and a trailing
   space as the other stores do (`utf8mb4_bin` pads: `'ana' = 'ana '`); booleans are
-  0 and 1, JSON is `JSON`; a unique value among the rows not deleted is a functional
-  unique index on `(IF(deleted_at IS NULL, col, NULL))`. MySQL 8.4 signs in over TLS
+  0 and 1, JSON is `JSON` (a json field lives in a `JSON` column: from one of text it
+  reads back as its text); a unique value among the rows not deleted is a functional
+  unique index on `(IF(deleted_at IS NULL, col, NULL))`. A change of structure
+  (`CREATE`, `ALTER`, `DROP`…) inside any transaction, not only a migration's, commits
+  it there and then: what comes after it runs on its own, outside it, and a rollback
+  undoes none of it. MySQL 8.4 signs in over TLS
   only: a URL without `?sslmode=require` fails with
   `ERR_MYSQL_PUBLIC_KEY_RETRIEVAL_NOT_ALLOWED`.
 - Their tests run the contract suite against real databases when

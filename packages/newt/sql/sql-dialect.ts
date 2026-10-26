@@ -17,7 +17,11 @@ export type SqlDialect = {
   boolean(value: boolean): unknown
   /** A write refused because a key or a unique value was taken. */
   isCollision(error: unknown): boolean
-  /** Whether null sorts above every value (Postgres): ordering then puts it first going up, as the other stores do. */
+  /**
+   * Whether null sorts above every value (Postgres): ordering then puts it first going
+   * up, as the other stores do, on a column that may hold null (one that cannot is
+   * ordered plainly, so its index serves).
+   */
   nullsLast?: boolean
   /** Whether its driver hands a JSON column back parsed already (MySQL, Postgres), not as the text it was given. */
   parsesJson?: boolean
@@ -28,12 +32,10 @@ export type SqlDialect = {
   /**
    * Where a table learns of its columns from the database (Postgres): the query that
    * lists, for the table its one parameter names (quoted), each column's `name`,
-   * whether it is text of the database's own collation (`collated`), which sorts by its
-   * locale, and whether it is a big integer (`big`), which the driver hands back as text.
+   * whether it may hold null (`nullable`), whether it is a big integer (`big`), which
+   * the driver hands back as text, and whether it is JSON (`json`), which it parses.
    */
   columns?: string
-  /** A column `collated` as `columns` says, compared and sorted by code point, as the other stores do. */
-  byCodePoint?(column: string): string
   /** A transaction the database gave up to keep others apart (a deadlock, a serialization failure): try again. */
   isConflict(error: unknown): boolean
 }

@@ -6,8 +6,6 @@ export type WhereContext = {
   dialect: SqlDialect
   column(field: string): string
   value(field: string, operand: unknown): unknown
-  /** The column, quoted, as compared by order (`gt`, `lt`…), when not as it is: by code point. */
-  ordered?(field: string, quoted: string): string
 }
 
 /** Criteria as a SQL condition, its values pushed to `params` in order; `dialect.always` when it asks nothing. */
@@ -32,7 +30,6 @@ export function whereClause(node: CriteriaNode, context: WhereContext, params: u
 function conditions(field: string, condition: Condition<unknown>, context: WhereContext, params: unknown[]): string[] {
   const { dialect } = context
   const column = dialect.quote(context.column(field))
-  const ordered = context.ordered?.(field, column) ?? column
   const value = (operand: unknown) => {
     params.push(context.value(field, operand))
     return dialect.param(params.length)
@@ -51,10 +48,10 @@ function conditions(field: string, condition: Condition<unknown>, context: Where
         const among = list.length === 0 ? dialect.never : `${column} IN (${list.map(value).join(', ')})`
         return values.length === (operand as unknown[]).length ? among : `(${among} OR ${column} IS NULL)`
       }
-      case 'gt': return nul(operand) ? `${ordered} > ${beforeNul(operand)}` : `${ordered} > ${value(operand)}`
-      case 'gte': return nul(operand) ? `${ordered} > ${beforeNul(operand)}` : `${ordered} >= ${value(operand)}`
-      case 'lt': return nul(operand) ? `${ordered} <= ${beforeNul(operand)}` : `${ordered} < ${value(operand)}`
-      case 'lte': return nul(operand) ? `${ordered} <= ${beforeNul(operand)}` : `${ordered} <= ${value(operand)}`
+      case 'gt': return nul(operand) ? `${column} > ${beforeNul(operand)}` : `${column} > ${value(operand)}`
+      case 'gte': return nul(operand) ? `${column} > ${beforeNul(operand)}` : `${column} >= ${value(operand)}`
+      case 'lt': return nul(operand) ? `${column} <= ${beforeNul(operand)}` : `${column} < ${value(operand)}`
+      case 'lte': return nul(operand) ? `${column} <= ${beforeNul(operand)}` : `${column} <= ${value(operand)}`
       case 'ieq': return nul(operand) ? dialect.never : dialect.ieq(column, () => value(operand))
       default: throw new Error(`Unknown operator '${operator}' on '${field}'`)
     }
