@@ -4,9 +4,12 @@ import { inject } from '@cooper/core/injector/inject'
 import { Store } from '@cooper/core/store/store'
 import { toast } from '@cooper/ui/components/toast'
 import { BoardService } from '../board.service'
-import { CardFormSchema } from '../board-card-form'
+import { CARD_FORM_MESSAGES, CARD_NOBODY, CardDialogFormSchema } from '../board-card-form'
 
-/** One card, opened: editing its title and description, and deleting it after asking. */
+/**
+ * One card, opened: its title, description, column and assignee, edited together and
+ * saved with one Save; and deleting it after asking.
+ */
 export class BoardCardDialogService {
 
   private readonly board = inject(BoardService)
@@ -16,20 +19,24 @@ export class BoardCardDialogService {
   readonly confirmingDelete = this.store.select('confirmingDelete')
   readonly deleting = this.store.select('deleting')
 
-  readonly form = new FormStore(CardFormSchema, { title: '', description: '' }, {
+  readonly form = new FormStore(CardDialogFormSchema, { title: '', description: '', columnId: '', assigneeId: CARD_NOBODY }, {
     errorFields: { validation: 'title' },
+    messages: CARD_FORM_MESSAGES,
   })
 
   /** Starts editing this card, unless it is the one being edited already. */
   edit(card: CardDTO): void {
     if (this.cardId === card.id) return
     this.cardId = card.id
-    this.form.reset({ title: card.title, description: card.description })
+    this.form.reset({ title: card.title, description: card.description, columnId: card.columnId, assigneeId: card.assigneeId ?? CARD_NOBODY })
     this.store.patch({ confirmingDelete: false })
   }
 
-  async save(card: CardDTO): Promise<void> {
-    if (await this.form.submit(input => this.board.editCard(card, input))) toast.success(`#${card.number} is saved`)
+  /** Saves whatever changed. Resolves to whether it was saved. */
+  async save(card: CardDTO): Promise<boolean> {
+    const saved = await this.form.submit(({ assigneeId, ...input }) => this.board.updateCard(card, { ...input, assigneeId: assigneeId === CARD_NOBODY ? null : assigneeId }))
+    if (saved) toast.success(`#${card.number} is saved`)
+    return saved
   }
 
   askDelete(): void {

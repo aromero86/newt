@@ -1,7 +1,7 @@
 import { FormStore } from '@cooper/core/form/form-store'
 import { inject } from '@cooper/core/injector/inject'
 import { BoardService } from '../board.service'
-import { CardFormSchema } from '../board-card-form'
+import { CARD_FORM_MESSAGES, CardFormSchema } from '../board-card-form'
 
 /** A new card at the bottom of a column. */
 export class BoardCardNewService {
@@ -11,6 +11,7 @@ export class BoardCardNewService {
 
   readonly form = new FormStore(CardFormSchema, { title: '', description: '' }, {
     errorFields: { validation: 'title' },
+    messages: CARD_FORM_MESSAGES,
   })
 
   start(columnId: string): void {

@@ -101,25 +101,33 @@ export class BoardService {
     return card
   }
 
-  /** Throws, for the form to show why. */
-  async editCard(card: CardDTO, input: CardEditDTO): Promise<void> {
-    this.replaceCard(await this.cardApi.edit(this.workspaceId, card.id, input))
+  /**
+   * Saves what changed of an opened card: its words, its assignee, its column (at the
+   * bottom). Throws, for the form to show why; a move reads the board again, so what
+   * shows is what was saved.
+   */
+  async updateCard(card: CardDTO, input: CardEditDTO & { columnId: string, assigneeId: string | null }): Promise<void> {
+    const { title, description, columnId, assigneeId } = input
+    if (title !== card.title || description !== card.description) {
+      this.replaceCard(await this.cardApi.edit(this.workspaceId, card.id, { title, description }))
+    }
+    if (assigneeId !== card.assigneeId) {
+      this.replaceCard(assigneeId
+        ? await this.cardApi.assign(this.workspaceId, card.id, { assigneeId })
+        : await this.cardApi.unassign(this.workspaceId, card.id))
+    }
+    if (columnId !== card.columnId) {
+      try {
+        await this.cardApi.move(this.workspaceId, card.id, { columnId })
+      } finally {
+        await this.refresh()
+      }
+    }
   }
 
   /** To a column, at a position: at the bottom when none is given. */
   async moveCard(card: CardDTO, columnId: string, position?: number): Promise<void> {
     await this.attempt(() => this.cardApi.move(this.workspaceId, card.id, { columnId, position }))
-  }
-
-  /** To a member of the workspace, or to nobody with `null`. */
-  async assignCard(card: CardDTO, assigneeId: string | null): Promise<void> {
-    try {
-      this.replaceCard(assigneeId
-        ? await this.cardApi.assign(this.workspaceId, card.id, { assigneeId })
-        : await this.cardApi.unassign(this.workspaceId, card.id))
-    } catch (error) {
-      toast.error((error as Error).message)
-    }
   }
 
   /** Resolves to whether it is gone. */

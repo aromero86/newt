@@ -5,12 +5,10 @@ import { Alert } from '@cooper/ui/components/alert'
 import { Button } from '@cooper/ui/components/button'
 import { ConfirmDialog } from '@cooper/ui/components/confirm-dialog'
 import { Dialog } from '@cooper/ui/components/dialog'
-import { Field } from '@cooper/ui/components/field'
 import { Grid } from '@cooper/ui/components/grid'
 import { Icon } from '@cooper/ui/components/icon'
 import { Inline } from '@cooper/ui/components/inline'
 import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Select } from '@cooper/ui/components/select'
 import { Stack } from '@cooper/ui/components/stack'
 import { Mono, Text } from '@cooper/ui/components/text'
 import { FormField } from '@cooper/core/form/form-field'
@@ -19,11 +17,9 @@ import { useService } from '@cooper/core/injector/use-service'
 import { useValue } from '@cooper/core/store/use-value'
 import { WorkspaceService } from '../../../workspace/workspace.service'
 import { BoardService } from '../board.service'
+import { CARD_NOBODY } from '../board-card-form'
 import { BoardCardDialogActivity } from './board-card-dialog-activity/board-card-dialog-activity'
 import { BoardCardDialogService } from './board-card-dialog.service'
-
-/** What the assignee picker says for nobody: Radix's select takes no empty value. */
-const NOBODY = 'nobody'
 
 type BoardCardDialogProps = {
   card: CardDTO
@@ -39,11 +35,13 @@ export function BoardCardDialog(props: BoardCardDialogProps) {
   )
 }
 
-/** A card, opened: its title and description, its column, who it is assigned to, and deleting it. */
+/**
+ * A card, opened: its title and description, its column and who it is assigned to,
+ * all saved together with Save, which closes it; and deleting it.
+ */
 function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
   const service = useService(BoardCardDialogService)
-  const board = useService(BoardService)
-  const columns = useValue(board.columns)
+  const columns = useValue(useService(BoardService).columns)
   const members = useValue(useService(WorkspaceService).members)
   const submitting = useValue(service.form.submitting)
   const failure = useValue(service.form.failure)
@@ -54,9 +52,9 @@ function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
     service.edit(card)
   }, [service, card])
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void service.save(card)
+    if (await service.save(card)) onClose()
   }
 
   async function remove() {
@@ -64,7 +62,7 @@ function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
   }
 
   const assignees = [
-    { value: NOBODY, label: 'Nobody' },
+    { value: CARD_NOBODY, label: 'Nobody' },
     ...members.map(member => ({ value: member.id, label: member.name })),
   ]
 
@@ -77,31 +75,20 @@ function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
         size="lg"
       >
         <Stack gap={6}>
-          <Grid columns={{ base: 1, sm: 2 }} gap={4}>
-            <Field label="Column">
-              <Select
-                value={card.columnId}
-                options={columns.map(column => ({ value: column.id, label: column.name }))}
-                onValueChange={columnId => columnId !== card.columnId && void board.moveCard(card, columnId)}
-              />
-            </Field>
-            <Field label="Assignee">
-              <Select
-                value={card.assigneeId ?? NOBODY}
-                options={assignees}
-                onValueChange={value => void board.assignCard(card, value === NOBODY ? null : value)}
-              />
-            </Field>
-          </Grid>
-          <form onSubmit={onSubmit} noValidate>
+          <form onSubmit={event => void onSubmit(event)} noValidate>
             <Stack gap={4}>
               {failure && <Alert tone="bad" title="Could not save it">{failure}</Alert>}
               <FormField form={service.form} name="title" label="Title" />
               <FormField form={service.form} name="description" label="Description" rows={6} />
+              <Grid columns={{ base: 1, sm: 2 }} gap={4}>
+                <FormField form={service.form} name="columnId" label="Column" options={columns.map(column => ({ value: column.id, label: column.name }))} />
+                <FormField form={service.form} name="assigneeId" label="Assignee" options={assignees} />
+              </Grid>
+              <Text size="xs" tone="muted">{'Created '}<RelativeTime date={card.createdAt} />{' · updated '}<RelativeTime date={card.updatedAt} /></Text>
               <Inline justify="between" wrap>
-                <Text size="xs" tone="muted">{'Created '}<RelativeTime date={card.createdAt} />{' · updated '}<RelativeTime date={card.updatedAt} /></Text>
+                <Button variant="ghost" onClick={() => service.askDelete()}><Icon icon={Trash2Icon} size="sm" />Delete</Button>
                 <Inline gap={2}>
-                  <Button variant="ghost" onClick={() => service.askDelete()}><Icon icon={Trash2Icon} size="sm" />Delete</Button>
+                  <Button variant="outline" onClick={onClose}>Cancel</Button>
                   <Button type="submit" loading={submitting}>Save</Button>
                 </Inline>
               </Inline>
