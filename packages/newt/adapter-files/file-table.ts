@@ -69,7 +69,15 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
     })
   }
 
-  private inTurn(fn: () => Promise<void>): Promise<void> {
+  deleteMany(criteria: Criteria<Row>): Promise<number> {
+    return this.inTurn(async () => {
+      const gone = (await this.rows()).filter(row => matches(row, criteria))
+      for (const row of gone) await this.records.remove(row.id)
+      return gone.length
+    })
+  }
+
+  private inTurn<T>(fn: () => Promise<T>): Promise<T> {
     const store = this.records.store
     return store.transaction(() => store.serially(fn))
   }

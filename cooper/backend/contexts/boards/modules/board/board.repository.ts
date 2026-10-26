@@ -49,12 +49,10 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
 
   /**
    * Removes every board of a workspace, archived ones too, for good: rows that will
-   * tell nothing, so written with `saveRows`, by Kysely, inside its transaction. The
-   * workspace is named, not the current one: auth deleted it, and nobody is in it.
+   * tell nothing, so `purge` removes them. The workspace is named, not the current
+   * one: auth deleted it, and nobody is in it.
    */
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('board').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
 }

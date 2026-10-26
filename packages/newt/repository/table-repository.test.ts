@@ -59,6 +59,10 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
     async delete(id: string, version: number) {
       log.push(`delete ${id}@${version}`)
     },
+    async deleteMany(criteria: Criteria<ThingRow>) {
+      log.push(`deleteMany ${JSON.stringify(criteria)}`)
+      return rows.filter(row => matches(row, criteria)).length
+    },
   }
 
   const store: Store = {
@@ -99,6 +103,10 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
 
     everywhere(criteria: Criteria<ThingRow> = {}) {
       return this.findInEveryScope(criteria)
+    }
+
+    purgeNamed(name: string) {
+      return this.purge({ name })
     }
 
     stamp(guard?: string[]) {
@@ -344,6 +352,23 @@ describe('saveRows', () => {
     await repo.stamp()
 
     expect(log.some(line => line.startsWith('guard'))).toBe(false)
+  })
+})
+
+describe('purge', () => {
+  test('removes the rows the criteria name, whatever the scope or deletedAt, as saveRows writes; how many', async () => {
+    const { log, repo } = world({ softDelete: true, scope: { field: 'name', current: () => 'one' } }, [stored({ name: 'two' }), stored({ id: 't2', name: 'two', deletedAt: 'd' })])
+
+    expect(await repo.purgeNamed('two')).toBe(2)
+    expect(log).toEqual(['checkWrite', 'begin', 'deleteMany {"name":"two"}', 'commit'])
+  })
+
+  test('is refused by the write rule, removing nothing', async () => {
+    const { log, repo, refuseWrites } = world()
+    refuseWrites()
+
+    await expect(repo.purgeNamed('one')).rejects.toThrow('write rule')
+    expect(log).toEqual(['checkWrite'])
   })
 })
 

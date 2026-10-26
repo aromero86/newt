@@ -73,6 +73,7 @@ interface Table<Row extends StoredRow> {
   update(id: string, version: number, changes: Partial<NewRow<Row>>): Promise<void>  // una versión más
   patch(id: string, changes: Partial<NewRow<Row>>): Promise<void>           // sea cual sea su versión
   delete(id: string, version: number): Promise<void>
+  deleteMany(criteria: Criteria<Row>): Promise<number>                     // sea cual sea su versión; cuántas
 }
 ```
 

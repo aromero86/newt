@@ -148,8 +148,8 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
   /** Removes every card of a workspace, and its boards' counters, for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
   async purgeWorkspace(workspaceId: string): Promise<void> {
     await this.saveRows(async () => {
-      await this.base.db.deleteFrom('card').where('workspaceId', '=', workspaceId).execute()
-      await this.base.db.deleteFrom('card_counter').where('workspaceId', '=', workspaceId).execute()
+      await this.purge({ workspaceId })
+      await this.counters.deleteMany({ workspaceId })
     })
   }
 

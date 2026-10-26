@@ -23,4 +23,10 @@ export interface Table<Row extends StoredRow> {
   patch(id: string, changes: Partial<NewRow<Row>>): Promise<void>
   /** Removes a row still at `version`; `ConcurrencyConflict` otherwise. */
   delete(id: string, version: number): Promise<void>
+  /**
+   * Removes for good every row that meets the criteria, whatever its version (`{}`:
+   * every row); how many it removed. For rows that tell nothing, as a whole
+   * workspace's when it goes.
+   */
+  deleteMany(criteria: Criteria<Row>): Promise<number>
 }

@@ -700,14 +700,13 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   whole, a purge) are written with `saveRows(write, { guard })`: in one transaction,
   under the write rule, guarding what it names. A repository writes through `save` or
   `saveRows`, never in a transaction of its own; `table.patch`, above, is the one
-  exception.
+  exception. A `TableRepository` removes its rows for good with `purge(criteria)`,
+  which writes as `saveRows` does: in every scope, the ones deleted softly too.
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.repository.ts
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('board').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
   ```
 - **A value many change at once (a stock, a balance, a counter) is not a field read

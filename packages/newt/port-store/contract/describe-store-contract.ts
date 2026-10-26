@@ -354,6 +354,31 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         await expect(things.delete(row.id, 1)).rejects.toBeInstanceOf(ConcurrencyConflict)
       })
 
+      test('deletes the rows that meet the criteria, whatever their version, and tells how many', async () => {
+        await things.insert(thing({ name: 'ana', workspaceId: 'w1' }))
+        const bea = thing({ name: 'bea', workspaceId: 'w1' })
+        await things.insert(bea)
+        await things.update(bea.id, 1, { deletedAt: new Date().toISOString() })
+        await things.insert(thing({ name: 'cris', workspaceId: 'w2' }))
+
+        expect(await things.deleteMany({ workspaceId: 'w1' })).toBe(2)
+        expect(await names()).toEqual(['cris'])
+        expect(await things.deleteMany({ workspaceId: 'w1' })).toBe(0)
+        expect(await things.deleteMany({})).toBe(1)
+        expect(await names()).toEqual([])
+      })
+
+      test('deletes many in the transaction in progress: undone with it', async () => {
+        await things.insert(thing({ name: 'ana' }))
+
+        await expect(store.transaction(async () => {
+          expect(await things.deleteMany({ name: 'ana' })).toBe(1)
+          expect(await names()).toEqual([])
+          throw new Error('boom')
+        })).rejects.toThrow('boom')
+        expect(await names()).toEqual(['ana'])
+      })
+
       test('finds by every operator', async () => {
         await things.insert(thing({ id: '01', name: 'Ana', rank: 1, archived: false, note: null }))
         await things.insert(thing({ id: '02', name: 'bea', rank: 2, archived: true, note: 'x' }))
@@ -646,6 +671,10 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         unarchived(): Promise<Thing[]> {
           return this.findInEveryScope({ archived: false })
         }
+
+        purgeWorkspace(workspaceId: string): Promise<number> {
+          return this.purge({ workspaceId })
+        }
       }
 
       let current: string | undefined
@@ -697,6 +726,19 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         current = undefined
 
         expect((await repo.unarchived()).map(each => each.toDTO().workspaceId).sort()).toEqual(['w1', 'w2'])
+      })
+
+      test('purges a scope\'s rows from outside it, the deleted ones too, and leaves the others', async () => {
+        const repo = repository()
+        current = 'w1'
+        await repo.persist(Thing.create('ana', 'w1'))
+        await things.insert(thing({ name: 'bea', workspaceId: 'w1', deletedAt: new Date().toISOString() }))
+        current = 'w2'
+        await repo.persist(Thing.create('cris', 'w2'))
+        current = undefined
+
+        expect(await repo.purgeWorkspace('w1')).toBe(2)
+        expect(await names()).toEqual(['cris'])
       })
 
       test('cannot be used outside a scope', async () => {

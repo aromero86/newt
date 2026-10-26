@@ -727,14 +727,14 @@ entero.
   tabla de enlaces que se reescribe entera, una purga) se escriben con
   `saveRows(write, { guard })`: en una transacción, bajo la regla de escritura y
   protegiendo lo que nombra. Un repositorio escribe con `save` o `saveRows`, nunca en
-  una transacción propia; `table.patch`, arriba, es la única excepción.
+  una transacción propia; `table.patch`, arriba, es la única excepción. Un
+  `TableRepository` borra sus filas para siempre con `purge(criterios)`, que escribe
+  como `saveRows`: en todos los ámbitos, también las borradas de forma suave.
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.repository.ts
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('board').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
   ```
 - **Un valor que muchos cambian a la vez (un stock, un saldo, un contador) no es un
