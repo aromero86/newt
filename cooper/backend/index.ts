@@ -9,11 +9,5 @@ import { setCooperMessages } from './shared/messages'
 setCooperMessages()
 const contexts = await openContexts(config)
 
-// For now, who sends a request to boards says who they are in an `x-user` header (chapter 22 signs them in).
-contexts.boards.base.http.authenticateWith(async request => {
-  const userId = request.headers.get('x-user')
-  return userId ? { userId, via: 'web' as const } : null
-})
-
 const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })))
 for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)

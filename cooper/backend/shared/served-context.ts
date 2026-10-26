@@ -9,7 +9,8 @@ export type ServedContextConfig = {
 
 /**
  * A context of cooper's: its own server, on its own port and, in production, its own
- * domain. It answers `GET /api/health` without a session, for whoever watches it is up.
+ * domain, so its sessions (cookies) are its own too. It answers `GET /api/health`
+ * without a session, for whoever watches it is up.
  */
 export abstract class ServedContext extends BoundedContext<CooperBase> {
 

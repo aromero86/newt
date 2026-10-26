@@ -12,7 +12,7 @@ import { FakeAuth } from './fake-auth'
 /**
  * `boards` for a test: its database and its cards' search in memory, a fake auth
  * behind its ports, its emails and its log's lines in lists, and who sends a request
- * told by an `x-user` header.
+ * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()

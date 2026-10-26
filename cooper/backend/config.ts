@@ -72,6 +72,11 @@ export const config = {
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
+    /** Where its people sign in. */
+    authPublicUrl: publicUrls.auth,
+    /** Its OAuth client's secret: boards is the product `cooper` in auth. */
+    clientSecret: clientSecrets.cooper,
+    sessionDays,
   },
 }
 

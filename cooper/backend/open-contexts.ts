@@ -24,7 +24,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const { clock } = options
   const auth = await Auth_Context.open(config.auth, { mailer }, clock)
   // For now each card's move is a line on the console (chapter 28 writes it only while tracing).
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
   return { auth, boards, all: [auth, boards] as const }
 }
 
@@ -36,7 +36,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */
 function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'search' | 'log'> {
-  const { access, user, tenant, invitation } = auth.modules
+  const { access, user, tenant, token, invitation } = auth.modules
   // A deleted tenant is not among them.
   const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
   // An access and a tenant still there: a deleted workspace's accesses go a moment
@@ -57,7 +57,7 @@ function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 's
     },
     tenants: tenant.events,
     access: access.events,
-    auth: { user, tenant, access, invitation },
+    auth: { token, user, tenant, access, invitation },
   }
 }
 

@@ -13,11 +13,11 @@ import { RecordingMailer } from './shared/mail/recording-mailer'
  */
 
 function testConfig(authPort: number, boardsPort: number): Config {
-  const boardsUrl = `http://localhost:${boardsPort}`
+  const [authUrl, boardsUrl] = [`http://localhost:${authPort}`, `http://localhost:${boardsPort}`]
   return {
     ...config,
-    auth: { ...config.auth, database: ':memory:', port: authPort, boardsPublicUrl: boardsUrl },
-    boards: { ...config.boards, database: ':memory:', port: boardsPort, publicUrl: boardsUrl },
+    auth: { ...config.auth, database: ':memory:', port: authPort, publicUrl: authUrl, boardsPublicUrl: boardsUrl },
+    boards: { ...config.boards, database: ':memory:', port: boardsPort, publicUrl: boardsUrl, authPublicUrl: authUrl },
   }
 }
 
@@ -29,11 +29,6 @@ beforeEach(async () => {
   const mailer = new RecordingMailer()
   mails = mailer.mails
   contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
-  // For now boards is told who sends a request by an `x-user` header (chapter 22 signs them in through auth).
-  contexts.boards.base.http.authenticateWith(async request => {
-    const userId = request.headers.get('x-user')
-    return userId ? { userId, via: 'web' as const } : null
-  })
   servers = [serve(contexts.auth.serving()), serve(contexts.boards.serving())]
 })
 
@@ -42,6 +37,7 @@ afterEach(async () => {
   await stopContexts(contexts)
 })
 
+const authUrl = (path: string) => new URL(path, contexts.auth.config.publicUrl).toString()
 const boardsUrl = (path: string) => new URL(path, contexts.boards.config.publicUrl).toString()
 
 /** Until the background work is done: auth's jobs (boards' reactions to auth's events among them), then boards'. */
@@ -50,14 +46,16 @@ async function settled() {
   await contexts.boards.base.jobs.idle()
 }
 
-/**
- * Someone signs up to cooper. For now boards is told who they are by an `x-user`
- * header on each request (chapter 22 signs them in through auth's pages).
- */
+/** Someone signs up to cooper from boards, as its UI does it: boards' sign-in, auth's pages, back to boards. */
 async function signUp(email: string, name: string): Promise<{ as: Browser, id: string }> {
-  const { id } = await contexts.auth.modules.user.signUp({ email, name, password: 'a long password' })
   const as = browser()
-  return { as: (address, init) => as(address, { ...init, headers: { 'x-user': id } }), id }
+  const started = await as(boardsUrl('/api/session/sign-in?returnTo=/'))
+  const kept = await as(started.headers.get('location')!)
+  const request = kept.headers.get('location')!.split('/authorize/')[1]!
+  const user = (await (await as(authUrl('/api/session/sign-up'), { method: 'POST', json: { email, name, password: 'a long password' } })).json()) as { id: string }
+  const { redirectTo } = (await (await as(authUrl(`/api/authorizations/${request}/approve`), { method: 'POST' })).json()) as { redirectTo: string }
+  expect((await as(redirectTo)).headers.get('location')).toBe('/')
+  return { as, id: user.id }
 }
 
 /** boards' API, as its UI calls it. */
@@ -92,6 +90,7 @@ async function welcomeOf(as: Browser, workspaceId: string): Promise<View> {
 describe('workspaces, through boards', () => {
   test('a new workspace is its maker\'s, and gets its welcome board a moment later', async () => {
     const { as, id } = await signUp('ana@cooper.test', 'Ana')
+    expect(await call(as, 'GET', '/session')).toEqual({ status: 200, body: { user: { id, name: 'Ana', email: 'ana@cooper.test' } } })
     expect(await call(as, 'POST', '/workspaces', { name: '' })).toMatchObject({ status: 400, body: { code: 'validation' } })
 
     const created = await call<Workspace>(as, 'POST', '/workspaces', { name: 'Acme' })

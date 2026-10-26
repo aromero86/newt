@@ -1,5 +1,8 @@
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
+import { WebSession_Module } from '../../shared/web-session/web-session.module'
+import type { Auth_Modules } from '../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
@@ -14,11 +17,12 @@ import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
- * auth's use cases `boards` calls besides its ports: what its workspace module asks
- * of auth (who someone is, and what boards' routes for workspaces, members and
- * invitations manage in auth).
+ * auth's use cases `boards` calls besides its ports: who an access token is for (the
+ * web session, the MCP server), and what its workspace module asks of auth (who
+ * someone is, and what boards' routes for workspaces, members and invitations manage
+ * in auth).
  */
-export type Boards_Auth = WorkspaceAuth
+export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
 
 /**
  * What `boards`' modules are given besides its base: what they need of auth, as ports
@@ -39,6 +43,21 @@ export type Boards_ModuleDeps = {
 
 /** Every module of `boards`, each one after the modules it uses. */
 export function initializeModules(base: BoardsBase, config: Boards_Config, deps: Boards_ModuleDeps) {
+  // Its people sign in through auth: boards is the OAuth client of the product `cooper`.
+  const session = WebSession_Module.initialize(base, {
+    context: 'boards',
+    clientId: WORKSPACES_PRODUCT,
+    clientSecret: config.clientSecret,
+    publicUrl: config.publicUrl,
+    authUrl: config.authPublicUrl,
+    days: config.sessionDays,
+    identify: accessToken => deps.auth.token.verify(accessToken),
+    // `GET /api/session`: who is signed in, and only what boards' UI shows of them.
+    profile: async userId => {
+      const { id, name, email } = await deps.auth.user.get(userId)
+      return { user: { id, name, email } }
+    },
+  })
   const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
@@ -47,7 +66,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
-  return { member, board, column, card, workspace, activity, outbox }
+  return { session, member, board, column, card, workspace, activity, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>
