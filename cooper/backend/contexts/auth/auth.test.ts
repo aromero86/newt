@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { runAsActor } from 'newt/core'
+import { serve } from 'newt/http'
 import { config } from '../../config'
 import type { Mail } from '../../shared/mail/mailer'
 import { Auth_Context } from './auth.context'
@@ -90,6 +91,29 @@ describe('accounts', () => {
     const found = await modules().user.list({ field: 'email', op: 'ieq', value: 'BOB@cooper.test' }, page)
     expect(found.items.map(user => user.name)).toEqual(['Bob'])
     expect(() => modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).toThrow()
+  })
+
+  test('signs up, in and out through its API, the session in a cookie only auth reads', async () => {
+    const server = serve(auth.serving())
+    try {
+      const call = (method: string, path: string, body?: unknown, cookie = '') => fetch(new URL(`/api${path}`, server.url), {
+        method,
+        headers: { 'content-type': 'application/json', cookie },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+      const signedUp = await call('POST', '/session/sign-up', { email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
+      expect(signedUp.status).toBe(201)
+      expect(signedUp.headers.get('set-cookie')).toContain('HttpOnly')
+      const cookie = signedUp.headers.get('set-cookie')!.split(';')[0]!
+      expect(await (await call('GET', '/session', undefined, cookie)).json()).toMatchObject({ name: 'Ana', email: 'ana@cooper.test' })
+      expect((await call('GET', '/session')).status).toBe(401)
+
+      expect((await call('POST', '/session/sign-in', { email: 'ana@cooper.test', password: 'wrong' })).status).toBe(401)
+      expect((await call('POST', '/session/sign-out', undefined, cookie)).status).toBe(204)
+      expect((await call('GET', '/session', undefined, cookie)).status).toBe(401)
+    } finally {
+      await server.stop()
+    }
   })
 })
 
