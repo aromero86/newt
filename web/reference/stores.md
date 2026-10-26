@@ -171,8 +171,11 @@ otherwise; the tests give `:memory:`.
   its column to name it back); `types` matters here: a boolean is kept as 0 or 1,
   JSON as text.
 - **Migrations are SQL**: pairs of `000NN_<name>_up.sql` and `000NN_<name>_down.sql`
-  in a folder, applied all or none; two with the same number are refused. A file
-  runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
+  in a folder, applied all or none; two with the same number are refused. The store
+  keeps a checksum of each up file it applied, and refuses to open once one applied
+  was changed: a change is a new migration (or, before it is shared, `down`, the
+  change, and `up` again). One applied before checksums were kept is taken as it is.
+  A file runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
   in its body, is one), and any statement that fails fails it. Migrations run with
   foreign keys off, so a table rebuilt as SQLite documents it (create the new one,
   copy, drop, rename) keeps the rows that point at it; one that leaves a row pointing
@@ -218,7 +221,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
   then, the migrations before it recorded as applied, and the failed one's changes
   of structure, not recorded. Two processes that migrate at once take turns (an
   advisory lock, a named lock): the second finds the first's migrations applied.
-  Two files with the same number and different names are an error. A file is split
+  Two files with the same number and different names are an error, and an up file
+  changed after it was applied too, as on SQLite. A file is split
   into statements on its semicolons, leaving out those in strings and quoted names
   (`'…'`, `"…"`, `` `…` ``, with `\` escapes on MySQL), in comments (`--`, `/* */`)
   and, on Postgres, in dollar-quoted bodies (`$$ … $$`), so a Postgres function or

@@ -102,5 +102,33 @@ for (const server of servers) {
 
       await expect(server.open(folder)).rejects.toThrow('Migrations 00002_orders and 00002_users have the same number')
     })
+
+    test('refuse to go on when a migration applied was changed since, naming it', async () => {
+      await server.empty()
+      const folder = await migrations(COUNTER)
+      await (await server.open(folder)).close()
+      await Bun.write(join(folder, '00001_counter_up.sql'), 'CREATE TABLE counter (n INTEGER)')
+
+      await expect(server.open(folder)).rejects.toThrow('Migration 00001_counter was changed after it was applied')
+    })
+
+    test('a database from before checksums were kept takes its migrations as they are, and keeps theirs from then on', async () => {
+      await server.empty()
+      const folder = await migrations(COUNTER)
+      const admin = new SQL(server.url!)
+      await admin.unsafe('CREATE TABLE migrations (version INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL)')
+      await admin.unsafe('CREATE TABLE counter (n INTEGER NOT NULL)')
+      await admin.unsafe("INSERT INTO migrations (version, name) VALUES (1, 'counter')")
+      await admin.close()
+
+      const store = await server.open(folder)
+      try {
+        expect(await store.query('SELECT checksum FROM migrations')).toEqual([{ checksum: expect.stringMatching(/^[0-9a-f]{64}$/) }])
+      } finally {
+        await store.close()
+      }
+      await Bun.write(join(folder, '00001_counter_up.sql'), 'CREATE TABLE counter (n INTEGER)')
+      await expect(server.open(folder)).rejects.toThrow('was changed after it was applied')
+    })
   })
 }

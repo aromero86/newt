@@ -260,3 +260,34 @@ describe('down, further', () => {
     await expect(runner.down()).rejects.toThrow('not found')
   })
 })
+
+describe('checksums', () => {
+  test('refuse to go on when a migration applied was changed since, naming it', async () => {
+    await new MigrationRunner(sqlite, folder).up()
+    await write('00001_note_up.sql', 'CREATE TABLE note (id TEXT PRIMARY KEY, title TEXT);')
+
+    await expect(new MigrationRunner(sqlite, folder).up()).rejects.toThrow('Migration 00001_note was changed after it was applied')
+  })
+
+  test('take its new script once it is reverted and applied again, and line ends that turn into CRLF change nothing', async () => {
+    const runner = new MigrationRunner(sqlite, folder)
+    await runner.up()
+    await runner.down()
+    await write('00001_note_up.sql', 'CREATE TABLE note (id TEXT PRIMARY KEY,\ntitle TEXT);')
+    await runner.up()
+    await write('00001_note_up.sql', 'CREATE TABLE note (id TEXT PRIMARY KEY,\r\ntitle TEXT);')
+
+    expect(await runner.up()).toEqual([])
+  })
+
+  test('a database from before they were kept takes its migrations as they are, and keeps theirs from then on', async () => {
+    sqlite.run("CREATE TABLE migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))")
+    sqlite.run('CREATE TABLE note (id TEXT PRIMARY KEY, title TEXT NOT NULL)')
+    sqlite.run("INSERT INTO migrations (version, name) VALUES (1, 'note')")
+
+    expect(await new MigrationRunner(sqlite, folder).up()).toEqual([])
+    expect(sqlite.query('SELECT checksum FROM migrations').get()).toEqual({ checksum: expect.stringMatching(/^[0-9a-f]{64}$/) })
+    await write('00001_note_up.sql', 'CREATE TABLE note (id TEXT PRIMARY KEY);')
+    await expect(new MigrationRunner(sqlite, folder).up()).rejects.toThrow('was changed after it was applied')
+  })
+})
