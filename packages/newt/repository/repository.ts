@@ -1,5 +1,5 @@
 import type { Entity, EntitySchema } from '../core'
-import { markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
+import { assertSavable, markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 
@@ -23,10 +23,12 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * Saves entities of this module, and what they have to tell, at once: all of them
    * or none. `write` stores one, in the transaction; one with nothing to save is not
    * written, keeps its version, and tells nothing (a change undone is no change: an
-   * event always comes with a change). Every stored one changed or deleted must still
-   * be the version it was read as, and a new one must not collide with a key or
-   * unique value: `ConcurrencyConflict` otherwise (`DuplicateValue`, for a value taken). Each is marked saved once written
-   * (in `after` it already is), and put back as it was if the transaction rolls back.
+   * event always comes with a change). One that tells something but never changed is
+   * a mistake, refused before anything is written (`EventWithoutChange`). Every stored
+   * one changed or deleted must still be the version it was read as, and a new one
+   * must not collide with a key or unique value: `ConcurrencyConflict` otherwise
+   * (`DuplicateValue`, for a value taken). Each is marked saved once written (in
+   * `after` it already is), and put back as it was if the transaction rolls back.
    *
    * `before` writes what must go first (the rows they replace); `after` writes what
    * follows from them, or checks a rule over several rows (a workspace keeps an
@@ -38,6 +40,7 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    */
   protected async save<T extends E>(entities: T[], write: (entity: T) => void | Promise<void>, hooks: SaveHooks = {}): Promise<void> {
     this.base.invocations?.checkWrite()
+    for (const entity of entities) entity[assertSavable]()
     const changed = new Set(entities.filter(entity => entity.hasPendingChanges))
     await this.store.transaction(async () => {
       // Each is saved as it is written, so saving it again in the same transaction

@@ -435,6 +435,11 @@ export class Board extends Entity<typeof BoardSchema> {
   con su valor por defecto…), ignora los valores que en realidad no cambian y mueve
   `updatedAt` cuando algo cambia. Un campo que el esquema no tiene, o un cambio en una
   entidad borrada, lanza un error.
+- **Un evento llega con el cambio que cuenta.** Uno cuyo cambio se deshizo antes de
+  guardar (de 1000 a 1200 y vuelta) no se cuenta: no hay nada que guardar. Uno que
+  apunta una entidad que nunca cambió es un error, y su guardado lo rechaza antes de
+  escribir nada (`EventWithoutChange`): cambia con él aquello que cuenta el evento (un
+  estado, una fecha que dice que pasó).
 - Las reglas sobre los datos de la propia entidad viven en sus métodos; las que
   necesitan otros datos, en el caso de uso.
 - **Sus métodos reciben datos de dominio, no el DTO de entrada.** El DTO es el

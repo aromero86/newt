@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
+import { assertSavable } from './assert-savable'
 import { Entity } from './entity'
 import type { EntityInput } from './entity-input'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
+import { EventWithoutChange } from './errors/event-without-change'
 import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { markPersisted } from './mark-persisted'
@@ -389,6 +391,54 @@ describe('markAsDeleted', () => {
     thing.remove()
 
     expect(thing.getChanges()).toBeNull()
+  })
+})
+
+describe('assertSavable', () => {
+  class Told extends Entity<typeof ThingSchema> {
+    static of() {
+      return new Told(ThingSchema, { ...existing().toDTO(), version: 1 }, false)
+    }
+    rename(name: string) {
+      this.change({ name })
+      this.trackEvent({ name: 'thing.renamed', payload: name, occurredAt: '' })
+    }
+    ping() {
+      this.trackEvent({ name: 'thing.pinged', payload: null, occurredAt: '' })
+    }
+  }
+
+  test('an event with a change, even one undone, may be saved', () => {
+    const changed = Told.of()
+    changed.rename('other')
+    const undone = Told.of()
+    undone.rename('other')
+    undone.rename('original')
+
+    expect(() => changed[assertSavable]()).not.toThrow()
+    expect(() => undone[assertSavable]()).not.toThrow()
+  })
+
+  test('an event that never changed anything is refused, saying what to do', () => {
+    const thing = Told.of()
+    thing.ping()
+
+    expect(() => thing[assertSavable]()).toThrow(EventWithoutChange)
+    expect(() => thing[assertSavable]()).toThrow('Told thing-1 tells thing.pinged but has nothing to save: change what it tells of')
+  })
+
+  test('a change saved does not cover an event told after it', () => {
+    const thing = Told.of()
+    thing.rename('other')
+    thing[markPersisted]()
+    thing[takeEvents]()
+    thing.ping()
+
+    expect(() => thing[assertSavable]()).toThrow(EventWithoutChange)
+  })
+
+  test('with nothing told, there is nothing to refuse', () => {
+    expect(() => Told.of()[assertSavable]()).not.toThrow()
   })
 })
 

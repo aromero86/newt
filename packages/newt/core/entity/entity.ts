@@ -6,6 +6,8 @@ import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { UnknownEntityField } from './errors/unknown-entity-field'
 import type { EntityInput } from './entity-input'
+import { assertSavable } from './assert-savable'
+import { EventWithoutChange } from './errors/event-without-change'
 import { markPersisted } from './mark-persisted'
 import { restoreSaved, savedState, type SavedState } from './saved-state'
 import { takeEvents } from './take-events'
@@ -29,6 +31,8 @@ export class Entity<TSchema extends EntitySchema> {
   private domainEvents: DomainEvent[] = []
   /** Deleted, and whether its repository already saved that. */
   private deletion: 'none' | 'pending' | 'saved' = 'none'
+  /** Whether a field changed since it was last saved (or read), even back to what it was. */
+  private changed = false
 
   protected constructor(
     protected readonly schema: TSchema,
@@ -90,7 +94,17 @@ export class Entity<TSchema extends EntitySchema> {
     this._version++
     this._isNew = false
     this.initial = structuredClone(this.current)
+    this.changed = false
     if (this.deletion === 'pending') this.deletion = 'saved'
+  }
+
+  /**
+   * Before a save: what it tells comes with a change. A change undone is still one,
+   * which tells nothing; an event without any is a mistake, and the save refuses it.
+   */
+  [assertSavable](): void {
+    if (this.hasPendingChanges || this.changed || this.domainEvents.length === 0) return
+    throw new EventWithoutChange(this.constructor.name, this.id, this.domainEvents.map(event => event.name))
   }
 
   /** What it is as saved, and what it has to tell: its repository puts it back if the save rolls back. */
@@ -144,6 +158,7 @@ export class Entity<TSchema extends EntitySchema> {
     }
     if (mutated) {
       ;(this.current as Fields).updatedAt = new Date().toISOString()
+      this.changed = true
     }
   }
 

@@ -424,6 +424,11 @@ export class Board extends Entity<typeof BoardSchema> {
   too), keeps the values it parses to (trimmed, defaulted…), ignores values that did
   not actually change, and moves `updatedAt` on when something did. A field the schema
   does not have, or a change to a deleted entity, throws.
+- **An event comes with the change it tells.** One whose change was undone before the
+  save (1000 to 1200 and back) is not told: there is nothing to save. One tracked by an
+  entity that never changed is a mistake, and its save refuses it before writing
+  anything (`EventWithoutChange`): change what the event tells of along with it (a
+  status, a date that says it happened).
 - Rules about the entity's own data live in its methods; rules that need other data
   live in the use case.
 - **Its methods take domain data, not the input DTO.** The DTO is the API's contract

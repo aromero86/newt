@@ -31,6 +31,11 @@ class Thing extends Entity<typeof ThingSchema> {
   remove() {
     this.markAsDeleted()
   }
+
+  /** Tells something without changing anything: a mistake. */
+  ping() {
+    this.trackEvent({ name: 'thing.pinged', payload: null, occurredAt: '' })
+  }
 }
 
 /** One log for the whole save, so a test reads it as it happened. */
@@ -160,6 +165,16 @@ describe('persist', () => {
 
     expect(log).toEqual(['checkWrite', 'begin', 'commit'])
     expect(thing[takeEvents]()).toEqual([])
+  })
+
+  test('one that tells something but never changed is refused, and nothing of the save is written', async () => {
+    const { log, repo } = world()
+    const thing = Thing.fromRow(stored())
+    thing.ping()
+
+    await expect(repo.persist(Thing.create('two'), thing)).rejects.toThrow('Thing t1 tells thing.pinged but has nothing to save: change what it tells of')
+
+    expect(log).toEqual(['checkWrite'])
   })
 
   test('deletes a deleted one at its version, or stamps it when deleting softly', async () => {
