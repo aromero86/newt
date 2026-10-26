@@ -1,10 +1,16 @@
 import type { DomainEvent } from 'newt/core'
-import type { CardDTO } from '../card.schema'
+import type { CardAuthor, CardDTO } from '../card.schema'
+import { cardEventStamp, type CardEventStamp } from './card-event-stamp'
 
-/** The card as it was when it was deleted. */
-export class Card_Deleted implements DomainEvent<CardDTO> {
+/** The card as it was when it was deleted, and who deleted it. */
+type CardDeletion = CardDTO & CardAuthor
+
+export class Card_Deleted implements DomainEvent<CardDeletion & CardEventStamp> {
   static readonly eventName = 'card.deleted'
   readonly name = Card_Deleted.eventName
   readonly occurredAt = new Date().toISOString()
-  constructor(readonly payload: CardDTO) {}
+  readonly payload: CardDeletion & CardEventStamp
+  constructor(deletion: CardDeletion) {
+    this.payload = { ...deletion, ...cardEventStamp() }
+  }
 }

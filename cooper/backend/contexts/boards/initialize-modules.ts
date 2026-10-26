@@ -5,6 +5,7 @@ import type { Auth_Modules } from '../auth/initialize-modules'
 import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
+import { Activity_Module } from './modules/activity/activity.module'
 import { Board_Module } from './modules/board/board.module'
 import type { AccessEvents } from './modules/card/card.deps'
 import { Card_Module } from './modules/card/card.module'
@@ -32,6 +33,8 @@ export type Boards_ModuleDeps = {
   access: AccessEvents
   auth: Boards_Auth
   mailer: Mailer
+  /** Where a line goes as each card moves, for whoever watches: the console while tracing, nowhere if none. */
+  log?: (line: string) => void
 }
 
 /** Every module of `boards`, each one after the modules it uses. */
@@ -57,9 +60,10 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
   const { tenant, access, invitation, user } = deps.auth
   const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+  const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
-  return { session, member, board, column, card, workspace, outbox }
+  return { session, member, board, column, card, workspace, activity, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>

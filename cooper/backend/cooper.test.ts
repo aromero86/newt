@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { runAsActor } from 'newt/core'
 import { config, type Config } from './config'
+import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
 
@@ -267,6 +269,16 @@ describe('the MCP server', () => {
       expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: bob.id })).toMatchObject({ assignee: { id: bob.id, name: 'Bob' } })
       expect(await use(client, 'search_cards', { workspaceId: acme.id, text: 'mcp', assigneeId: bob.id })).toMatchObject({ items: [{ id: card.id }], total: 1 })
       expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: null })).toMatchObject({ assignee: null })
+
+      // Its activity says the assistant did it, as Ana.
+      await settled()
+      const activity = await runAsActor({ userId: ana.id, via: 'web' }, () => inWorkspace(contexts.boards.modules.member, acme.id, () => contexts.boards.modules.activity.listForCard(card.id, { size: 10 })))
+      expect(activity.items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+        ['unassigned', ana.id, 'mcp'],
+        ['assigned', ana.id, 'mcp'],
+        ['moved', ana.id, 'mcp'],
+        ['created', ana.id, 'mcp'],
+      ])
 
       // As on the web: a workspace the person is not in does not exist to them.
       const result = (await client.callTool({ name: 'list_boards', arguments: { workspaceId: '01900000-0000-7000-8000-000000000000' } })) as { isError?: boolean, content: { text: string }[] }

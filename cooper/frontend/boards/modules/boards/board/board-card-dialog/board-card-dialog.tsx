@@ -19,6 +19,7 @@ import { useService } from '@cooper/core/injector/use-service'
 import { useValue } from '@cooper/core/store/use-value'
 import { WorkspaceService } from '../../../workspace/workspace.service'
 import { BoardService } from '../board.service'
+import { BoardCardDialogActivity } from './board-card-dialog-activity/board-card-dialog-activity'
 import { BoardCardDialogService } from './board-card-dialog.service'
 
 /** What the assignee picker says for nobody: Radix's select takes no empty value. */
@@ -106,6 +107,7 @@ function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
               </Inline>
             </Stack>
           </form>
+          <BoardCardDialogActivity card={card} />
         </Stack>
       </Dialog>
       <ConfirmDialog

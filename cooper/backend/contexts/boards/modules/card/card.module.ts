@@ -12,6 +12,7 @@ import {
   CardSearchSchema,
   MAX_CARDS,
   type CardAssignDTO,
+  type CardAuthor,
   type CardCountByBoard,
   type CardCountByWorkspace,
   type CardCreateDTO,
@@ -36,6 +37,15 @@ import { Card_Deleted } from './events/card-deleted'
 import { Card_Edited } from './events/card-edited'
 import { Card_Moved } from './events/card-moved'
 import { Card_Unassigned } from './events/card-unassigned'
+
+/** Boards' own work, from a worker: no one did it. */
+const BOARDS: CardAuthor = { by: null, via: null }
+
+/** The person acting now, as a card's events tell it: a use case a route or an MCP tool called. */
+function actingAuthor(): CardAuthor & { by: string } {
+  const { userId, via } = currentActor()
+  return { by: userId, via }
+}
 
 /**
  * The cards of each board: what there is to do, in the column of its status, and
@@ -114,7 +124,7 @@ export class Card_Module extends Module {
    */
   @UseCase()
   async create(boardId: string, input: CardCreateDTO): Promise<CardDTO> {
-    const card = await this.newCard(boardId, input, currentActor().userId)
+    const card = await this.newCard(boardId, input, actingAuthor())
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
     if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
     await this.repo.persistNew(card)
@@ -129,7 +139,7 @@ export class Card_Module extends Module {
   @UseCase()
   async createFirst(boardId: string, input: CardCreateDTO): Promise<CardDTO | null> {
     if (await this.repo.count({ boardId }) > 0) return null
-    const card = await this.newCard(boardId, input, null)
+    const card = await this.newCard(boardId, input, BOARDS)
     await this.repo.persistNew(card, { first: true })
     return card.toDTO()
   }
@@ -138,7 +148,7 @@ export class Card_Module extends Module {
   async edit(id: string, input: CardEditDTO): Promise<CardDTO> {
     const changes = CardEditSchema.parse(input)
     const card = await this.load(id)
-    card.edit(changes)
+    card.edit(changes, actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -161,7 +171,7 @@ export class Card_Module extends Module {
     const at = Math.min(position ?? target.length, target.length)
     target.splice(at, 0, card)
     if (target !== left) left.forEach((each, index) => each.reposition(index))
-    target.forEach((each, index) => each === card ? card.moveTo(columnId, index) : each.reposition(index))
+    target.forEach((each, index) => each === card ? card.moveTo(columnId, index, actingAuthor()) : each.reposition(index))
     await this.repo.persistOrder(target === left ? target : [...left, ...target], [from, columnId])
     return card.toDTO()
   }
@@ -172,7 +182,7 @@ export class Card_Module extends Module {
     const { assigneeId } = CardAssignSchema.parse(input)
     const card = await this.load(id)
     await this.assertMember(assigneeId)
-    card.assign(assigneeId, currentActor().userId)
+    card.assign(assigneeId, actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -180,7 +190,7 @@ export class Card_Module extends Module {
   @UseCase()
   async unassign(id: string): Promise<CardDTO> {
     const card = await this.load(id)
-    card.unassign()
+    card.unassign(actingAuthor())
     await this.repo.persist(card)
     return card.toDTO()
   }
@@ -191,7 +201,7 @@ export class Card_Module extends Module {
     const card = await this.load(id)
     const others = (await this.repo.inColumn(card.columnId)).filter(each => each.id !== id)
     others.forEach((each, index) => each.reposition(index))
-    card.delete()
+    card.delete(actingAuthor())
     await this.repo.persistOrder([card, ...others], [card.columnId])
   }
 
@@ -224,7 +234,7 @@ export class Card_Module extends Module {
       const [first] = await this.deps.column.list(column.boardId)
       if (!first) return
       const bottom = await this.repo.count({ columnId: first.id })
-      left.forEach((card, index) => card.moveTo(first.id, bottom + index))
+      left.forEach((card, index) => card.moveTo(first.id, bottom + index, BOARDS))
       await this.repo.persistOrder(left, [column.id, first.id])
     })
   }
@@ -260,7 +270,7 @@ export class Card_Module extends Module {
   async unassignMember(workspaceId: string, userId: string): Promise<void> {
     await runInWorkspace(workspaceId, async () => {
       const cards = await this.repo.find({ assigneeId: userId })
-      for (const card of cards) card.unassign()
+      for (const card of cards) card.unassign(BOARDS)
       await this.repo.persist(...cards)
     })
   }
@@ -284,7 +294,7 @@ export class Card_Module extends Module {
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */
-  private async newCard(boardId: string, input: CardCreateDTO, by: string | null): Promise<Card> {
+  private async newCard(boardId: string, input: CardCreateDTO, author: CardAuthor): Promise<Card> {
     const { columnId, title, description, assigneeId } = CardCreateSchema.parse(input)
     const board = await this.deps.board.get(boardId)
     await this.assertColumnOf(boardId, columnId)
@@ -299,7 +309,7 @@ export class Card_Module extends Module {
       title,
       description,
       assigneeId,
-    }, by)
+    }, author)
   }
 
   private load(id: string): Promise<Card> {
