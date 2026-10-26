@@ -13,6 +13,11 @@ It runs on Bun only: it uses `Bun.serve`, `bun:sqlite` and Bun's APIs as they ar
 bun add newt zod
 ```
 
+A coding agent reads [`AGENTS.md`](./AGENTS.md) first: the framework's rules on one
+page, what each error it throws means and what to do about it, the lint's rules and a
+definition of done. It ships with the package, so an application's agent finds it in
+`node_modules/newt/AGENTS.md`, as current as the newt it runs on.
+
 ## Entries
 
 | Import | What it has |
