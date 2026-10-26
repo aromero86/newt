@@ -19,8 +19,8 @@ export type TraceWriter = (line: string) => void
  * A tracer that writes each trace to the console once it ends: the use case called
  * from outside, with the ones it called inside it, how long each took, a conflict
  * retried and an error that is not a domain one. It is newt's `Tracer`, the same an
- * OpenTelemetry adapter implements (manual, ch. 30): an application hands one to the
- * base of each context it wants to watch.
+ * OpenTelemetry adapter implements: an application hands one to the base of each
+ * context it wants to watch.
  *
  * The worker's own spans (`job.claim` every few seconds, `job.close`…) are left out:
  * what a job does is a use case, and that one is written.

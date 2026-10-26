@@ -43,8 +43,8 @@ const ownPath = (path: string | undefined) => (path && path.startsWith('/') && !
  *   publicUrl: config.publicUrl,
  *   authUrl: config.authPublicUrl,
  *   days: config.sessionDays,
- *   identify: accessToken => deps.auth.modules.token.verify(accessToken),
- *   profile: userId => deps.auth.modules.user.get(userId),
+ *   identify: accessToken => deps.auth.token.verify(accessToken),
+ *   profile: userId => deps.auth.user.get(userId),
  * })
  * ```
  */
