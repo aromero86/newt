@@ -8,7 +8,8 @@ import type { Job, JobClosing, Outbox } from '../../port-outbox'
 
 type Registration = { pattern: string, handler: EventHandler, attempts: number, when?: (event: DomainEvent) => boolean }
 
-const DEFAULTS: JobQueueOptions = {
+/** The defaults: `orphansCheckEveryMs`, left out, is `seenEveryMs`. */
+const DEFAULTS: Omit<JobQueueOptions, 'orphansCheckEveryMs'> = {
   concurrency: 10,
   pollMs: 5_000,
   leaseMs: 60_000,
@@ -67,8 +68,8 @@ export class JobQueue {
     options: Partial<JobQueueOptions> = {},
   ) {
     // An option given as undefined takes its default, as one left out does.
-    const given = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
-    this.options = { ...DEFAULTS, ...given }
+    const given: Partial<JobQueueOptions> = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined))
+    this.options = { ...DEFAULTS, orphansCheckEveryMs: given.seenEveryMs ?? DEFAULTS.seenEveryMs, ...given }
     const { concurrency } = this.options
     if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error(`A job queue runs at least one job at a time: its concurrency is a whole number from 1, not ${concurrency}`)
   }
@@ -247,15 +248,15 @@ export class JobQueue {
   }
 
   /**
-   * At start, and then as often as it says its queues are alive: queues with jobs
-   * still to run that no worker serves (none here, and none seen elsewhere for five
-   * times that). A handler renamed or removed leaves its jobs waiting under its old
+   * At start, and then every `orphansCheckEveryMs`: queues with jobs still to run
+   * that no worker serves (none here, and none seen elsewhere for five times
+   * `seenEveryMs`). A handler renamed or removed leaves its jobs waiting under its old
    * name: someone has to rename them, or run them by hand. Right after a deploy the
    * old process saw the old queue moments ago, so the warning comes a few minutes
    * later, once for each queue.
    */
   private async warnAboutOrphans(): Promise<void> {
-    if (Date.now() - this.orphansCheckedAt < this.options.seenEveryMs) return
+    if (Date.now() - this.orphansCheckedAt < this.options.orphansCheckEveryMs) return
     this.orphansCheckedAt = Date.now()
     const alive = new Date(Date.now() - 5 * this.options.seenEveryMs).toISOString()
     const seen = new Map((await this.store.queues()).map(queue => [queue.name, queue.lastSeenAt]))

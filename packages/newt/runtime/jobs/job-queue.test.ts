@@ -391,6 +391,24 @@ describe('the worker', () => {
     expect(outbox.registered).toEqual([[{ name: QUEUE, event: 'user.created', attempts: 3 }]])
   })
 
+  test('looks for queues nobody serves as often as it says its own are alive, or as often as it is told', async () => {
+    const checks = async (options: Partial<JobQueueOptions>) => {
+      const { outbox, queue } = setup({ pollMs: 2, ...options })
+      let read = 0
+      outbox.queues = async () => (read++, [])
+      queue.register(QUEUE, 'user.created', () => {})
+      queue.start()
+      await Bun.sleep(60)
+      await queue.stop()
+      return { read, seen: outbox.registered.length }
+    }
+
+    expect(await checks({ seenEveryMs: 60_000 })).toEqual({ read: 1, seen: 1 })
+    const often = await checks({ seenEveryMs: 60_000, orphansCheckEveryMs: 5 })
+    expect(often.seen).toBe(1)
+    expect(often.read).toBeGreaterThan(2)
+  })
+
   test('purges the jobs done before their keep, at most once an hour', async () => {
     const { outbox, queue } = setup({ keepDoneMs: 60_000 })
     queue.start()
