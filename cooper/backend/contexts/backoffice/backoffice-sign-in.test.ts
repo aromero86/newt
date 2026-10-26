@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
+import { serve } from 'newt/http'
 import { config, type Config } from '../../config'
 import { openContexts, stopContexts } from '../../open-contexts'
 import { PRODUCTS } from '../auth/modules/product/product.schema'
@@ -54,7 +55,7 @@ describe('signing in to the backoffice', () => {
       trace: false,
     }
     contexts = await openContexts(testConfig, { mailer: { send: async () => {} } })
-    servers = [contexts.auth.serve(), contexts.backoffice.serve()]
+    servers = [serve(contexts.auth.serving()), serve(contexts.backoffice.serving())]
   })
 
   afterEach(async () => {

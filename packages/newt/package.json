@@ -20,7 +20,8 @@
     "./adapter-mysql": "./adapter-mysql/index.ts",
     "./adapter-files": "./adapter-files/index.ts",
     "./kysely": "./kysely/index.ts",
-    "./http": "./http/index.ts"
+    "./http": "./http/index.ts",
+    "./application": "./application/index.ts"
   },
   "engines": {
     "bun": ">=1.4.0"

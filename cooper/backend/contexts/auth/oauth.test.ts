@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
+import { serve } from 'newt/http'
 import { config } from '../../config'
 import { Auth_Context } from './auth.context'
 
@@ -19,7 +20,7 @@ beforeEach(async () => {
   const port = freePort()
   url = `http://localhost:${port}`
   auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
-  server = auth.serve()
+  server = serve(auth.serving())
   auth.start()
 })
 

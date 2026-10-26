@@ -46,8 +46,15 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   ```
 - **Un contexto es un `BoundedContext`**: `start()` arranca su worker de trabajos y
   `stop()` espera a los trabajos en curso y cierra su store. Cómo se sirve es cosa de
-  la aplicación: `serve`, de `newt/http`, es una forma, y es la que usa el
-  `ServedContext` de cooper.
+  la aplicación: `serve`, de `newt/http`, es una forma, y `runContexts`, de
+  `newt/application`, los ejecuta todos, abiertos en orden: sirve cada uno, arranca
+  su worker y, con SIGINT o SIGTERM, para los servidores y después cada contexto,
+  el último primero.
+
+  ```ts
+  // cooper/backend/index.ts
+  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+  ```
 - **Los contextos dependen unos de otros sin formar un círculo**: cada uno se abre
   después de los que usa, y recibe sus módulos, o puertos hechos con ellos.
 

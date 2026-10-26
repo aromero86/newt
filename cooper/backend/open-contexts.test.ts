@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { runContexts } from 'newt/application'
 import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
@@ -21,20 +22,20 @@ test('opens the three contexts, serves each on its own port, and stops them', as
   const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards', 'backoffice'])
 
-  const servers = contexts.all.map(context => context.serve())
-  for (const context of contexts.all) context.start()
+  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
   try {
+    const servers = Object.values(app.servers)
+    expect(Object.keys(app.servers)).toEqual(['auth', 'boards', 'backoffice'])
     expect(new Set(servers.map(server => server.port)).size).toBe(3)
-    for (const [index, context] of contexts.all.entries()) {
-      const response = await fetch(new URL('/api/health', servers[index]!.url))
+    for (const server of servers) {
+      const response = await fetch(new URL('/api/health', server.url))
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ status: 'ok' })
     }
     // The API's own addresses are never the frontend's.
     expect((await fetch(new URL('/api/nothing', servers[0]!.url))).status).toBe(404)
   } finally {
-    await Promise.all(servers.map(server => server.stop()))
-    await stopContexts(contexts)
+    await app.stop()
   }
   expect(mails).toEqual([])
 })

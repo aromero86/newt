@@ -1,6 +1,5 @@
-import type { Server } from 'bun'
 import { BoundedContext } from 'newt/runtime'
-import { serve } from 'newt/http'
+import type { ServeOptions } from 'newt/http'
 import type { CooperBase } from './cooper-base'
 
 export type ServedContextConfig = {
@@ -13,7 +12,7 @@ export type ServedContextConfig = {
 /**
  * A context of cooper's: its own server, on its own port and, in production, its own
  * domain, so its sessions (cookies) are its own too. It answers `GET /api/health`
- * without a session, for whoever watches it is up (`serve`'s `health`).
+ * without a session, for whoever watches it is up.
  */
 export abstract class ServedContext extends BoundedContext<CooperBase> {
 
@@ -21,13 +20,13 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
     super(name, base)
   }
 
-  /** What its server answers besides its modules' API: an MCP entry, a `/.well-known` document. */
+  /** What its server answers besides its modules' API: OAuth's endpoints, an MCP entry. */
   protected routes(): Bun.Serve.Routes<undefined, string> {
     return {}
   }
 
-  /** Its server: its modules' API, what it adds, and its frontend for any other address. */
-  serve(): Server<undefined> {
-    return serve({ port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true })
+  /** How it is served (`runContexts`, `serve`): its modules' API, what it adds, its health, and its frontend for any other address. */
+  serving(): ServeOptions {
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true }
   }
 }

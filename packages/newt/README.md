@@ -31,6 +31,7 @@ bun add newt zod
 | `newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
 | `newt/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
 | `newt/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
+| `newt/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
 | `newt/http` | `HttpRouter`, groups with middleware and `serve`: routes per module, sessions, errors as responses. Optional. |
 | `newt/kysely` | `kyselyFor`: Kysely on any SQL store, for queries of one's own. Optional (needs `kysely`). |
 
@@ -88,6 +89,7 @@ adapter-mysql/     an adapter; knows sql
 adapter-files/     an adapter; knows core, port-store, port-outbox
 kysely/            Kysely on the SQL stores; knows them
 http/              the HTTP entry; knows core
+application/       an application's contexts, run; knows core, runtime and http
 ```
 
 What a piece needs from another that applications must not reach goes through that

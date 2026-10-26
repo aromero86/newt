@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Server } from 'bun'
 import { SqliteStore } from 'newt/adapter-sqlite'
 import { currentActor } from 'newt/core'
+import { serve } from 'newt/http'
 import { config } from '../../config'
 import { Auth_Context } from '../../contexts/auth/auth.context'
 import { CooperBase } from '../cooper-base'
@@ -54,7 +55,7 @@ beforeEach(async () => {
   const [authPort, clientPort] = [freePort(), freePort()]
   auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: `http://localhost:${authPort}`, boardsPublicUrl: `http://localhost:${clientPort}` }, { mailer: { send: async () => {} } })
   client = await Client_Context.open(clientPort, auth)
-  servers = [auth.serve(), client.serve()]
+  servers = [serve(auth.serving()), serve(client.serving())]
 })
 
 afterEach(async () => {

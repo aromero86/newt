@@ -3,6 +3,7 @@ import type { Server } from 'bun'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { runAsActor } from 'newt/core'
+import { serve } from 'newt/http'
 import { config, type Config } from './config'
 import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
@@ -38,7 +39,7 @@ let mails: Mail[]
 beforeEach(async () => {
   mails = []
   contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
-  servers = [contexts.auth.serve(), contexts.boards.serve()]
+  servers = [serve(contexts.auth.serving()), serve(contexts.boards.serving())]
 })
 
 afterEach(async () => {
