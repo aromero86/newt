@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, criteriaTree, type Criteria } from '../core'
+import { ConcurrencyConflict, criteriaTree, DuplicateValue, type Criteria } from '../core'
 import type { FieldType, FindOptions, NewRow, StoredRow, Table, TableOptions } from '../port-store'
 import type { SqlDialect } from './sql-dialect'
 import type { SqlExecutor } from './sql-executor'
@@ -13,7 +13,7 @@ type Values = Record<string, unknown>
  * structure is the context's own, made by its migrations: an `id` primary key, a
  * `version` integer, and a column for each field, named as the field in snake case
  * unless `columns` says otherwise. A unique index makes a value unique: a row that
- * takes it is a `ConcurrencyConflict`.
+ * takes it is a `DuplicateValue`.
  */
 export class SqlTable<Row extends StoredRow> implements Table<Row> {
 
@@ -108,13 +108,13 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     return this.type(this.field(column)) === 'json' && this.dialect.json ? this.dialect.json(param) : param
   }
 
-  /** A write in the transaction in progress, or one of its own; a collision is a `ConcurrencyConflict` there and then. */
+  /** A write in the transaction in progress, or one of its own; a collision is a `DuplicateValue` there and then. */
   private writing<T>(fn: () => Promise<T>): Promise<T> {
     return this.executor.transaction(async () => {
       try {
         return await fn()
       } catch (error) {
-        throw this.dialect.isCollision(error) ? new ConcurrencyConflict() : error
+        throw this.dialect.isCollision(error) ? new DuplicateValue((this.dialect.collidingColumns?.(error) ?? []).map(column => this.field(column))) : error
       }
     })
   }

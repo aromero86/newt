@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ConcurrencyConflict } from '../errors/concurrency-conflict'
+import { DuplicateValue } from '../errors/duplicate-value'
 import type { Span } from '../observability/span'
 import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
@@ -44,6 +45,13 @@ class Counter {
   async set() {
     this.runs++
     if (this.conflicts-- > 0) throw new ConcurrencyConflict()
+  }
+
+  /** Its save finds a newer version `conflicts` times, and a value taken every time after. */
+  @UseCase()
+  async take() {
+    this.runs++
+    throw this.conflicts-- > 0 ? new ConcurrencyConflict() : new DuplicateValue(['name'])
   }
 
   @UseCase()
@@ -96,6 +104,20 @@ describe('@UseCase, by default', () => {
     const counter = new Counter(new Recorder(), 10)
 
     await expect(counter.increase()).rejects.toBeInstanceOf(ConcurrencyConflict)
+    expect(counter.runs).toBe(4)
+  })
+
+  test('runs again only once after a value taken: then its own check answers', async () => {
+    const counter = new Counter(new Recorder(), 0)
+
+    await expect(counter.take()).rejects.toBeInstanceOf(DuplicateValue)
+    expect(counter.runs).toBe(2)
+  })
+
+  test('a value taken after other conflicts still runs it once more, within the three retries', async () => {
+    const counter = new Counter(new Recorder(), 2)
+
+    await expect(counter.take()).rejects.toBeInstanceOf(DuplicateValue)
     expect(counter.runs).toBe(4)
   })
 

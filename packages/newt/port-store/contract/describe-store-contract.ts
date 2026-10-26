@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConcurrencyConflict, Entity, type DomainEvent, type EntityInput } from '../../core'
+import { ConcurrencyConflict, DuplicateValue, Entity, type DomainEvent, type EntityInput } from '../../core'
 import { Base } from '../../runtime'
 import { JobQueue } from '../../runtime/internal'
 import { TableRepository } from '../../repository'
@@ -89,7 +89,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
           things.insert(thing({ name: 'bea' })),
         ]))
 
-        expect(outcomes.map(outcome => outcome.status === 'fulfilled' ? 'ok' : outcome.reason instanceof ConcurrencyConflict ? 'conflict' : String(outcome.reason))).toEqual(['ok', 'conflict', 'ok'])
+        expect(outcomes.map(outcome => outcome.status === 'fulfilled' ? 'ok' : outcome.reason instanceof DuplicateValue ? 'duplicate' : String(outcome.reason))).toEqual(['ok', 'duplicate', 'ok'])
         expect(await names()).toEqual(['ana', 'bea', 'taken'])
       })
 
@@ -306,15 +306,21 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await names()).toEqual(['theirs'])
       })
 
-      test('refuses a row whose id or unique value is taken', async () => {
+      test('refuses a row whose id or unique value is taken: a DuplicateValue, which names it if it can tell', async () => {
         const row = thing({ name: 'ana' })
         await things.insert(row)
-
-        await expect(things.insert({ ...thing(), id: row.id })).rejects.toBeInstanceOf(ConcurrencyConflict)
-        await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(ConcurrencyConflict)
         const other = thing({ name: 'bea' })
         await things.insert(other)
-        await expect(things.update(other.id, 1, { name: 'ana' })).rejects.toBeInstanceOf(ConcurrencyConflict)
+        const refusal = (write: Promise<void>) => write.then(() => { throw new Error('written') }, (error: unknown) => error)
+
+        const id = await refusal(things.insert({ ...thing(), id: row.id }))
+        const name = await refusal(things.insert(thing({ name: 'ana' })))
+        const renamed = await refusal(things.update(other.id, 1, { name: 'ana' }))
+
+        for (const error of [id, name, renamed]) expect(error).toBeInstanceOf(DuplicateValue)
+        expect([[], ['id']]).toContainEqual((id as DuplicateValue).fields)
+        for (const error of [name, renamed]) expect([[], ['name']]).toContainEqual((error as DuplicateValue).fields)
+        expect((name as DuplicateValue).code).toBe('duplicate_value')
       })
 
       test('frees a unique value once its row is deleted softly', async () => {
@@ -330,7 +336,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         await things.insert(thing({ name: 'ana' }))
 
         await store.transaction(async () => {
-          await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(ConcurrencyConflict)
+          await expect(things.insert(thing({ name: 'ana' }))).rejects.toBeInstanceOf(DuplicateValue)
           await things.insert(thing({ name: 'bea' }))
         })
         expect(await names()).toEqual(['ana', 'bea'])
@@ -555,8 +561,8 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         })).rejects.toThrow('boom')
 
         expect([ana.isNew, ana.version]).toEqual([true, 0])
-        await repo.persist(ana)
-        expect([ana.isNew, ana.version]).toEqual([false, 1])
+        await expect(repo.persist(ana)).rejects.toThrow(`Thing ${ana.id} was in a save that rolled back: read it again`)
+        expect(await names()).toEqual([])
       })
 
       test('saved twice in the transaction around it, writes both, one version on each', async () => {
@@ -587,21 +593,23 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await things.find()).map(row => [row.name, row.version])).toEqual([['bea', 2]])
       })
 
-      test('saved again after the transaction around it rolled back, it tells what it had to tell', async () => {
-        const base = new Base({ name: 'test', store })
-        const repo = new Things(base, things, { softDelete: true })
-        const heard: string[] = []
-        base.bus.subscribe('thing.created', event => { heard.push((event.payload as { name: string }).name) })
-        const ana = Thing.create('ana')
+      test('after the transaction around its save rolled back, one is saved again read again', async () => {
+        const repo = repository()
+        await repo.persist(Thing.create('ana'))
+        const ana = (await repo.first())!
+        ana.rename('bea')
 
         await expect(store.transaction(async () => {
           await repo.persist(ana)
+          ana.rename('cris')
           throw new Error('boom')
         })).rejects.toThrow('boom')
-        await repo.persist(ana)
-        await Bun.sleep(5)
+        await expect(repo.persist(ana)).rejects.toThrow('rolled back')
+        const again = (await repo.first())!
+        again.rename('cris')
+        await repo.persist(again)
 
-        expect(heard).toEqual(['ana'])
+        expect((await things.find()).map(row => [row.name, row.version])).toEqual([['cris', 2]])
       })
 
       test('stores a field cleared as none', async () => {

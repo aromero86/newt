@@ -3,6 +3,8 @@ export type UseCaseOptions = {
    * Runs it again, from the start, when what it saves was saved by someone else since
    * it read it (`ConcurrencyConflict`), up to `RETRIES` times: by default, since a use
    * case reads, decides and saves, and what cannot be undone leaves from a worker.
+   * A value someone else took first (`DuplicateValue`) runs it again only once: then
+   * its own check finds that value taken, and answers with its own error.
    * Only the first use case of a chain runs again, with all it calls: one called by
    * another lets the conflict through to it.
    * `false` for one that does something before saving that must not happen twice

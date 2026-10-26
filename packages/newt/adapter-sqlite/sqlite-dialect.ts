@@ -1,4 +1,5 @@
 import type { SqlDialect } from '../sql'
+import { collidingColumns } from './colliding-columns'
 import { isCollision } from './is-collision'
 
 /** SQLite's SQL: `?` parameters, booleans as 0 and 1, and its `lower()`, which folds A to Z only. */
@@ -11,6 +12,7 @@ export const sqliteDialect: SqlDialect = {
   ieq: (column, next) => `lower(${column}) = lower(${next()})`,
   boolean: value => (value ? 1 : 0),
   isCollision,
+  collidingColumns,
   // Its transactions run one at a time: none is ever given up for another.
   isConflict: () => false,
 }

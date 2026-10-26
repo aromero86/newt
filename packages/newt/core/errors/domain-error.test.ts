@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { ConcurrencyConflict } from './concurrency-conflict'
 import { ConflictError } from './conflict-error'
+import { DuplicateValue } from './duplicate-value'
 import { ForbiddenError } from './forbidden-error'
 import { NotFoundError } from './not-found-error'
 import { ReferenceNotFound } from './reference-not-found'
@@ -48,5 +49,16 @@ describe('DomainError', () => {
     expect(error).toBeInstanceOf(ConflictError)
     expect(error.code).toBe('concurrency_conflict')
     expect(error.message).toBe('Someone changed it in the meantime. Try again.')
+  })
+
+  test('a value another one took first is a conflict of its own, naming it when it can', () => {
+    const named = new DuplicateValue(['boardId', 'number'])
+    const unnamed = new DuplicateValue()
+
+    expect(named).toBeInstanceOf(ConcurrencyConflict)
+    expect([named.status, named.code, named.name]).toEqual([409, 'duplicate_value', 'DuplicateValue'])
+    expect(named.fields).toEqual(['boardId', 'number'])
+    expect(named.message).toBe('There is already one with this boardId and number')
+    expect([unnamed.fields, unnamed.message]).toEqual([[], 'There is already one like it'])
   })
 })

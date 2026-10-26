@@ -6,6 +6,7 @@ import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 import { TableRepository } from './table-repository'
 import { takeEvents } from '../core/internal'
+import { SaveRolledBack } from '../core/entity/errors/save-rolled-back'
 import type { TableRepositoryOptions } from './table-repository-options'
 
 const ThingSchema = z.object({ id: z.string(), name: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
@@ -30,6 +31,11 @@ class Thing extends Entity<typeof ThingSchema> {
 
   remove() {
     this.markAsDeleted()
+  }
+
+  /** Tells something without changing anything: a mistake. */
+  ping() {
+    this.trackEvent({ name: 'thing.pinged', payload: null, occurredAt: '' })
   }
 }
 
@@ -101,6 +107,14 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
       return this.save(entities, entity => this.write(entity), hooks)
     }
 
+    /** Saves them only if `stale` says no row it holds no version of changed meanwhile. */
+    saveUnlessStale(entities: Thing[], stale: () => boolean) {
+      return this.save(entities, entity => this.write(entity), {
+        guard: ['things'],
+        after: () => { if (stale()) this.conflict() },
+      })
+    }
+
     everywhere(criteria: Criteria<ThingRow> = {}) {
       return this.findInEveryScope(criteria)
     }
@@ -170,6 +184,16 @@ describe('persist', () => {
     expect(thing[takeEvents]()).toEqual([])
   })
 
+  test('one that tells something but never changed is refused, and nothing of the save is written', async () => {
+    const { log, repo } = world()
+    const thing = Thing.fromRow(stored())
+    thing.ping()
+
+    await expect(repo.persist(Thing.create('two'), thing)).rejects.toThrow('Thing t1 tells thing.pinged but has nothing to save: change what it tells of')
+
+    expect(log).toEqual(['checkWrite'])
+  })
+
   test('deletes a deleted one at its version, or stamps it when deleting softly', async () => {
     const hard = world()
     const gone = Thing.fromRow(stored())
@@ -220,35 +244,47 @@ describe('persist', () => {
     expect(thing.hasPendingChanges).toBe(true)
   })
 
-  test('inside a transaction that rolls back later, a deletion is left to save', async () => {
-    const { log, repo, store } = world()
-    const thing = Thing.fromRow(stored())
-    thing.remove()
+  test('inside a transaction that rolls back later, a deletion is left unsaved, and a new one new again', async () => {
+    const { repo, store } = world()
+    const deleted = Thing.fromRow(stored())
+    deleted.remove()
+    const created = Thing.create('one')
 
     await store.transaction(async () => {
-      await repo.persist(thing)
+      await repo.persist(deleted, created)
       throw new Error('later step failed')
     }).catch(() => {})
-    log.length = 0
-    await repo.persist(thing)
 
-    expect(thing.hasPendingChanges).toBe(false)
-    expect(log).toContain('delete t1@2')
+    expect([deleted.version, deleted.hasPendingChanges]).toEqual([2, true])
+    expect([created.isNew, created.version]).toEqual([true, 0])
   })
 
-  test('inside a transaction that rolls back later, a new one is new again, with what it had to tell', async () => {
+  test('one whose save rolled back is never saved again: a change since would tell less than it writes', async () => {
     const { log, repo, store } = world()
-    const thing = Thing.create('one')
+    const thing = Thing.fromRow(stored())
+    thing.rename('two')
 
     await store.transaction(async () => {
       await repo.persist(thing)
+      thing.rename('three')
       throw new Error('later step failed')
     }).catch(() => {})
     log.length = 0
-    await repo.persist(thing)
 
-    expect([thing.isNew, thing.version]).toEqual([false, 1])
-    expect(log).toEqual(['checkWrite', 'begin', `insert ${JSON.stringify(thing.toDTO())}`, 'publish thing.created', 'commit'])
+    await expect(repo.persist(thing)).rejects.toThrow(SaveRolledBack)
+    await expect(repo.persist(thing)).rejects.toThrow('Thing t1 was in a save that rolled back: read it again, and save that one')
+    expect(log).toEqual(['checkWrite', 'checkWrite'])
+  })
+
+  test('so is one whose own save failed', async () => {
+    const { repo, failNextWrite } = world()
+    const thing = Thing.fromRow(stored())
+    thing.rename('two')
+    failNextWrite()
+
+    await expect(repo.persist(thing)).rejects.toThrow(ConcurrencyConflict)
+
+    await expect(repo.persist(thing)).rejects.toThrow(SaveRolledBack)
   })
 
   test('saved twice in one transaction, the second writes what changed since, one version on', async () => {
@@ -316,6 +352,15 @@ describe('save with hooks', () => {
 
     expect(log.map(line => line.split(' ')[0])).toEqual(['checkWrite', 'begin', 'guard', 'before', 'insert', 'after', 'publish', 'commit'])
     expect(log[2]).toBe('guard stock:p1,stock:p2')
+  })
+
+  test('a conflict from after, for a row it holds no version of, rolls it all back for the use case to run again', async () => {
+    const { log, repo } = world()
+
+    await expect(repo.saveUnlessStale([Thing.create('one')], () => true)).rejects.toBeInstanceOf(ConcurrencyConflict)
+    await repo.saveUnlessStale([Thing.create('two')], () => false)
+
+    expect(log.filter(line => !line.startsWith('insert'))).toEqual(['checkWrite', 'begin', 'guard things', 'rollback', 'checkWrite', 'begin', 'guard things', 'publish thing.created', 'commit'])
   })
 
   test('guards nothing when it names nothing', async () => {

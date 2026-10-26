@@ -10,7 +10,7 @@ export type TableOptions<Row> = {
   types?: Partial<Record<keyof Row & string, FieldType>>
   /**
    * The fields, alone or together, no two rows share, a row deleted softly (its
-   * `deletedAt` set) aside: one that takes their value is a `ConcurrencyConflict`. A
+   * `deletedAt` set) aside: one that takes their value is a `DuplicateValue`. A
    * store whose structure says it already (SQLite's unique indexes) ignores it.
    */
   unique?: (keyof Row & string)[][]

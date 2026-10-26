@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
+import { toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
 import { whereOf } from 'newt/kysely'
 import { TableRepository } from 'newt/repository'
 import { sql, type SqlBool } from 'kysely'
@@ -61,7 +61,7 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
         const count = await this.count({ boardId })
         if (count > MAX_CARDS) throw new TooManyCards(boardId)
         // Its board's first, and another one got in first: the use case runs again, and finds it.
-        if (options.first && count > 1) throw new ConcurrencyConflict()
+        if (options.first && count > 1) this.conflict()
       },
     })
   }
@@ -81,7 +81,7 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
       after: async () => {
         for (const columnId of columns) {
           const positions = (await this.inColumn(columnId)).map(card => card.position)
-          if (positions.some((position, index) => position !== index)) throw new ConcurrencyConflict()
+          if (positions.some((position, index) => position !== index)) this.conflict()
         }
       },
     })

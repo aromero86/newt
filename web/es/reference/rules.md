@@ -428,6 +428,25 @@ export class Board extends Entity<typeof BoardSchema> {
 - `create` para algo nuevo, `fromDTO` para algo guardado: `isNew` lo decide cuál de
   los dos se llama, nunca si hay un id o no. Una nueva recibe su id (UUIDv7),
   `createdAt` y `updatedAt`.
+- Su esquema es un `z.object`, que descarta lo que no nombra, o un `z.strictObject`.
+  Uno que lo guarda (`z.looseObject`, `.catchall`, `.passthrough`) metería en la
+  entidad las demás columnas de una fila: construir la entidad lo rechaza.
+- **Una entidad con secretos** (el hash de una contraseña, el de un token) tiene un
+  esquema público junto al suyo, y lo dice: `toDTO` da solo sus campos, y su
+  repositorio los guarda todos. Su propio esquema extiende el público, así que muestra
+  algunos de sus campos y nunca otro; una que dice tener esquema público y no lo pasa
+  no compila:
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/user/user.ts
+  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+
+  export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
+    private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
+      super(UserEntitySchema, input, isNew, UserSchema)
+    }
+  }
+  ```
 - **Solo la entidad se cambia a sí misma**: `change()` es protegido, así que un caso de
   uso llama a los métodos de la entidad (`update`, `archive`…), que dicen qué ha
   pasado con `trackEvent`. `change()` comprueba la entidad entera contra el esquema
@@ -435,6 +454,11 @@ export class Board extends Entity<typeof BoardSchema> {
   con su valor por defecto…), ignora los valores que en realidad no cambian y mueve
   `updatedAt` cuando algo cambia. Un campo que el esquema no tiene, o un cambio en una
   entidad borrada, lanza un error.
+- **Un evento llega con el cambio que cuenta.** Uno cuyo cambio se deshizo antes de
+  guardar (de 1000 a 1200 y vuelta) no se cuenta: no hay nada que guardar. Uno que
+  apunta una entidad que nunca cambió es un error, y su guardado lo rechaza antes de
+  escribir nada (`EventWithoutChange`): cambia con él aquello que cuenta el evento (un
+  estado, una fecha que dice que pasó).
 - Las reglas sobre los datos de la propia entidad viven en sus métodos; las que
   necesitan otros datos, en el caso de uso.
 - **Sus métodos reciben datos de dominio, no el DTO de entrada.** El DTO es el
@@ -673,12 +697,20 @@ entero.
   después de confirmarla.
 - Escribe solo lo que ha cambiado, y solo si cada entidad guardada sigue en la versión
   con la que se leyó: si no, lanza `ConcurrencyConflict` (409) y no escribe nada. Una
-  nueva que choca con una clave o un valor único también lo lanza.
+  fila que toma una clave o un valor único que ya tiene otra lanza `DuplicateValue`, un
+  `ConcurrencyConflict` propio (`duplicate_value`), con los `fields` que tomó cuando
+  el almacén lo sabe (SQLite, Postgres y ficheros lo saben; MySQL no).
+- Una entidad cuyo guardado se deshizo (falló, o lo hizo una transacción que lo
+  envolvía) queda como estaba antes de él, y no se vuelve a guardar nunca
+  (`SaveRolledBack`): lo que contaría podría ya no cuadrar con lo que escribiría. Se
+  vuelve a leer, como hace un caso de uso que se repite.
 - **Un caso de uso se repite ante un `ConcurrencyConflict`**, hasta tres veces más,
   volviendo a cargar y aplicando el cambio a lo que hay guardado ahora: un caso de uso
   carga, cambia y guarda, y lo que no se puede deshacer sale de un worker. Solo se
   repite el primer caso de uso de una cadena, con todo lo que llama; uno llamado por
-  otro deja pasar el conflicto hasta él. Uno que hace algo antes de guardar que no
+  otro deja pasar el conflicto hasta él. Un `DuplicateValue` lo repite solo una vez:
+  el valor sigue cogido, y repetirlo deja que la comprobación propia del caso de uso
+  (un email ya usado) lo encuentre y responda con su propio error. Uno que hace algo antes de guardar que no
   puede pasar dos veces (una llamada a otro contexto que ya ha guardado) dice
   `@UseCase({ retryOnConflict: false })`, con el motivo al lado: entonces nada de su
   cadena se repite, ni siquiera quienes lo llamaron.
@@ -719,7 +751,11 @@ entero.
   nombrar su `guard`, o no compila: `guard: []` dice, donde se lee, que no hace falta
   ninguno. `before` escribe, o lee, lo que tiene que ir primero (la tarjeta nueva de
   cooper toma ahí su número). El caso de uso sigue comprobando antes, para dar una
-  respuesta clara en el caso habitual.
+  respuesta clara en el caso habitual. Cuando lo que encuentra `after` no es una
+  respuesta sino una fila de la que el guardado no tiene versión y que cambió entre
+  tanto (una tarjeta añadida a una columna cuyo orden reescribe), llama a
+  `this.conflict()`: un `ConcurrencyConflict`, y el caso de uso se repite con lo que
+  haya entonces.
 - Una escritura que solo anota que algo ha pasado (`lastUsedAt`) no es un cambio de la
   entidad: el repositorio la escribe con `table.patch(id, cambios)`, que no toca la
   versión, así que las peticiones en paralelo nunca chocan.
@@ -952,6 +988,7 @@ export class BoardNotFound extends NotFoundError {
 | `ForbiddenError` | 403 | quien lo pide no puede hacerlo |
 | `ConflictError` | 409 | el estado actual no lo permite |
 | `ConcurrencyConflict` | 409 | alguien lo guardó después de leerlo |
+| `DuplicateValue` | 409 | otra fila tomó antes un valor que no comparten dos |
 
 Todos extienden `DomainError` (`status`, `code`, `message`). Un error de dominio es una
 respuesta, no un fallo: no marca como fallido el span de su caso de uso.
@@ -965,6 +1002,7 @@ quedan. cooper lo hace en `index.ts`, antes de abrir nada:
 // cooper/backend/shared/messages.ts
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  duplicate_value: () => 'That is already taken: pick another one',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
   not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
@@ -982,7 +1020,7 @@ Como es de todo el proceso, se prueba en un proceso propio (el `messages.test.ts
 cooper lo ejecuta con `Bun.spawn`): fijado en un test, cambiaría lo que leen todos los
 demás tests de ese proceso.
 
-Sus códigos son `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
+Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
 `validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
 `filter_too_many_conditions` e `internal`.

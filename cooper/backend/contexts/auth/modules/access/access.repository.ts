@@ -18,7 +18,7 @@ export class Access_Repository extends TableRepository<Access, AccessRow, AuthBa
   /**
    * Saves new accesses, each one once, keeping every tenant they touch with one admin
    * at most. Each is guarded by its key, which only makes two saves of it wait for
-   * each other: what refuses the second row (`ConcurrencyConflict`) is the unique
+   * each other: what refuses the second row (`DuplicateValue`) is the unique
    * index `access_once` of auth's SQLite migrations, on (user, product, tenant) with a
    * null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
    * stores ignore it (their indexes say it), and the files store, the only one that

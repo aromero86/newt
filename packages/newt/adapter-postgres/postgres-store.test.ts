@@ -3,8 +3,9 @@ import { SQL } from 'bun'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConcurrencyConflict, ValidationError } from '../core'
+import { ConcurrencyConflict, DuplicateValue, ValidationError } from '../core'
 import { describeStoreContract } from '../port-store/contract'
+import { postgresDialect } from './postgres-dialect'
 import { PostgresStore } from './postgres-store'
 
 /**
@@ -89,13 +90,13 @@ if (url) {
       }
     })
 
-    test('a collision raised by its own SQL inside a transaction is a ConcurrencyConflict', async () => {
+    test('a collision raised by its own SQL inside a transaction is a DuplicateValue', async () => {
       const store = await open()
       try {
         const add = () => store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
         await store.transaction(add)
 
-        await expect(store.transaction(add)).rejects.toThrow(ConcurrencyConflict)
+        await expect(store.transaction(add)).rejects.toThrow(DuplicateValue)
       } finally {
         await store.close()
       }
@@ -413,3 +414,14 @@ CREATE TRIGGER thing_stamp BEFORE INSERT ON thing FOR EACH ROW EXECUTE FUNCTION 
 } else {
   test.skip('PostgresStore: set FRAMEWORK_TEST_POSTGRES_URL to run its tests', () => {})
 }
+
+describe('postgresDialect', () => {
+  test('names the columns of a collision from its detail, unless its index is on an expression', () => {
+    const columns = (detail: string) => postgresDialect.collidingColumns!({ code: '23505', detail })
+
+    expect(columns('Key (name)=(ana) already exists.')).toEqual(['name'])
+    expect(columns('Key ("boardId", number)=(b1, 7) already exists.')).toEqual(['boardId', 'number'])
+    expect(columns('Key (lower(name))=(ana) already exists.')).toEqual([])
+    expect(columns('')).toEqual([])
+  })
+})

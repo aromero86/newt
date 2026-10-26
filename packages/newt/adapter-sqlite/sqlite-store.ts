@@ -2,7 +2,7 @@ import { Database, type SQLQueryBindings, type Statement } from 'bun:sqlite'
 import { mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { ConcurrencyConflict } from '../core'
+import { DuplicateValue } from '../core'
 import { TransactionScope, type Migrations, type Store, type StoredRow, type TableOptions } from '../port-store'
 import { isCollision } from './is-collision'
 import type { SqlExecutor } from '../sql'
@@ -117,7 +117,7 @@ export class SqliteStore implements Store {
         rollback: () => { if (this.writer.inTransaction) this.writer.run('ROLLBACK') },
       })
     } catch (error) {
-      throw isCollision(error) ? new ConcurrencyConflict() : error
+      throw isCollision(error) ? new DuplicateValue() : error
     }
   }
 

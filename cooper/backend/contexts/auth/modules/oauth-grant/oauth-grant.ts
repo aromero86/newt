@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Entity, SecretToken, type EntityInput } from 'newt/core'
 import { OauthGrant_Replayed } from './events/oauth-grant-replayed'
-import { OauthGrantSchema, type OauthGrantDTO, type OauthGrantStatus } from './oauth-grant.schema'
+import { OauthGrantSchema, type OauthGrantStatus } from './oauth-grant.schema'
 
 export * from './oauth-grant.schema'
 
@@ -26,10 +26,10 @@ const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_0
  * client trades the code it got (OAuth 2.1, authorization code with PKCE). Only the
  * code's hash is kept.
  */
-export class OauthGrant extends Entity<typeof OauthGrantEntitySchema> {
+export class OauthGrant extends Entity<typeof OauthGrantEntitySchema, typeof OauthGrantSchema> {
 
   private constructor(input: EntityInput<OauthGrantEntityDTO>, isNew: boolean) {
-    super(OauthGrantEntitySchema, input, isNew)
+    super(OauthGrantEntitySchema, input, isNew, OauthGrantSchema)
   }
 
   static fromDTO(dto: OauthGrantEntityDTO & { version: number }): OauthGrant {
@@ -103,12 +103,6 @@ export class OauthGrant extends Entity<typeof OauthGrantEntitySchema> {
    */
   replay(): void {
     this.change({ status: 'replayed' })
-    this.trackEvent(new OauthGrant_Replayed(this.contract()))
-  }
-
-  /** What anyone else sees of it: never its code's hash. */
-  contract(): OauthGrantDTO {
-    const { codeHash: _, ...grant } = this.toDTO()
-    return grant
+    this.trackEvent(new OauthGrant_Replayed(this.toDTO()))
   }
 }

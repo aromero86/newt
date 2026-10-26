@@ -3,7 +3,7 @@ import { Email, Entity, SecretToken, type EntityInput } from 'newt/core'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'
-import { InvitationSchema, type InvitationDTO, type InvitationStatus } from './invitation.schema'
+import { InvitationSchema, type InvitationStatus } from './invitation.schema'
 
 export * from './invitation.schema'
 
@@ -16,10 +16,10 @@ const InvitationEntitySchema = InvitationSchema.extend({
 export type InvitationEntityDTO = z.infer<typeof InvitationEntitySchema>
 
 /** An invitation to join a workspace, sent by email, accepted by whoever signs in with that email. */
-export class Invitation extends Entity<typeof InvitationEntitySchema> {
+export class Invitation extends Entity<typeof InvitationEntitySchema, typeof InvitationSchema> {
 
   private constructor(input: EntityInput<InvitationEntityDTO>, isNew: boolean) {
-    super(InvitationEntitySchema, input, isNew)
+    super(InvitationEntitySchema, input, isNew, InvitationSchema)
   }
 
   static fromDTO(dto: InvitationEntityDTO & { version: number }): Invitation {
@@ -31,7 +31,7 @@ export class Invitation extends Entity<typeof InvitationEntitySchema> {
     const { days, ...rest } = input
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
     const invitation = new Invitation({ ...rest, email: Email.from(rest.email), status: 'pending', acceptedBy: null, expiresAt, tokenHash: null }, true)
-    invitation.trackEvent(new Invitation_Created(invitation.contract()))
+    invitation.trackEvent(new Invitation_Created(invitation.toDTO()))
     return invitation
   }
 
@@ -72,17 +72,11 @@ export class Invitation extends Entity<typeof InvitationEntitySchema> {
 
   accept(userId: string): void {
     this.change({ status: 'accepted', acceptedBy: userId })
-    this.trackEvent(new Invitation_Accepted(this.contract()))
+    this.trackEvent(new Invitation_Accepted(this.toDTO()))
   }
 
   revoke(): void {
     this.change({ status: 'revoked' })
-    this.trackEvent(new Invitation_Revoked(this.contract()))
-  }
-
-  /** What anyone else sees of it: never its token's hash. */
-  contract(): InvitationDTO {
-    const { tokenHash: _, ...invitation } = this.toDTO()
-    return invitation
+    this.trackEvent(new Invitation_Revoked(this.toDTO()))
   }
 }

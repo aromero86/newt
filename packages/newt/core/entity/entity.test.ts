@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
+import { assertSavable } from './assert-savable'
 import { Entity } from './entity'
 import type { EntityInput } from './entity-input'
 import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
+import { EventWithoutChange } from './errors/event-without-change'
 import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { markPersisted } from './mark-persisted'
+import { storedFields } from './stored-fields'
 import { takeEvents } from './take-events'
 
 const ThingSchema = z.object({
@@ -226,6 +229,77 @@ describe('hasChanged', () => {
   })
 })
 
+describe('its schema', () => {
+  const shape = { id: z.string(), name: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') }
+  type Schema = z.ZodObject<typeof shape>
+  class Any extends Entity<Schema> {
+    /** A row with a column its schema does not name. */
+    static read(schema: Schema) {
+      return new Any(schema, { id: 'a1', name: 'a', version: 1, extra: 'column' } as EntityInput<z.infer<Schema>>, false)
+    }
+  }
+
+  test('may not keep the fields it does not name: a row\'s other columns would end up in the entity', () => {
+    for (const schema of [z.looseObject(shape), z.object(shape).catchall(z.string()), z.object(shape).passthrough()]) {
+      expect(() => Any.read(schema)).toThrow("Any's schema keeps fields it does not name")
+    }
+  })
+
+  test('drops them, or refuses them strictly', () => {
+    expect(Any.read(z.object(shape)).toDTO()).toEqual({ id: 'a1', name: 'a', createdAt: '', updatedAt: '' })
+    expect(() => Any.read(z.strictObject(shape))).toThrow(InvalidEntity)
+  })
+})
+
+describe('a public schema', () => {
+  const AccountSchema = z.object({ id: z.string(), email: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
+  const AccountEntitySchema = AccountSchema.extend({ passwordHash: z.string() })
+  type AccountRow = z.infer<typeof AccountEntitySchema> & { version: number }
+
+  class Account extends Entity<typeof AccountEntitySchema, typeof AccountSchema> {
+    static read(row: AccountRow) {
+      return new Account(AccountEntitySchema, row, false, AccountSchema)
+    }
+    rehash(passwordHash: string) {
+      this.change({ passwordHash })
+    }
+  }
+  const row = { id: 'a1', email: 'ana@example.com', passwordHash: 'secret', createdAt: '', updatedAt: '', version: 1 }
+
+  test('is all toDTO gives: what it keeps besides stays inside', () => {
+    expect(Account.read(row).toDTO()).toEqual({ id: 'a1', email: 'ana@example.com', createdAt: '', updatedAt: '' })
+  })
+
+  test('leaves its repository all its fields to store, and what changed of them', () => {
+    const account = Account.read(row)
+    account.rehash('another')
+
+    expect(account[storedFields]()).toEqual({ id: 'a1', email: 'ana@example.com', passwordHash: 'another', createdAt: '', updatedAt: expect.any(String) })
+    expect(account.getChanges()).toEqual({ passwordHash: 'another' })
+  })
+
+  test('shows some of its fields, never one it does not have', () => {
+    class Wrong extends Entity<typeof AccountSchema, typeof AccountEntitySchema> {
+      static read() {
+        return new Wrong(AccountSchema, row, false, AccountEntitySchema)
+      }
+    }
+
+    expect(() => Wrong.read()).toThrow("Wrong's public schema has 'passwordHash', which its schema does not")
+  })
+
+  test('is given whenever the entity says it has one', () => {
+    class Forgotten extends Entity<typeof AccountEntitySchema, typeof AccountSchema> {
+      static read() {
+        // @ts-expect-error: its public schema is missing
+        return new Forgotten(AccountEntitySchema, row, false)
+      }
+    }
+
+    expect(Forgotten.read()).toBeDefined()
+  })
+})
+
 describe('version', () => {
   test('is 0 until it is saved, and the one stored when read', () => {
     expect(Thing.create({ name: 'x', ref: null }).version).toBe(0)
@@ -389,6 +463,54 @@ describe('markAsDeleted', () => {
     thing.remove()
 
     expect(thing.getChanges()).toBeNull()
+  })
+})
+
+describe('assertSavable', () => {
+  class Told extends Entity<typeof ThingSchema> {
+    static of() {
+      return new Told(ThingSchema, { ...existing().toDTO(), version: 1 }, false)
+    }
+    rename(name: string) {
+      this.change({ name })
+      this.trackEvent({ name: 'thing.renamed', payload: name, occurredAt: '' })
+    }
+    ping() {
+      this.trackEvent({ name: 'thing.pinged', payload: null, occurredAt: '' })
+    }
+  }
+
+  test('an event with a change, even one undone, may be saved', () => {
+    const changed = Told.of()
+    changed.rename('other')
+    const undone = Told.of()
+    undone.rename('other')
+    undone.rename('original')
+
+    expect(() => changed[assertSavable]()).not.toThrow()
+    expect(() => undone[assertSavable]()).not.toThrow()
+  })
+
+  test('an event that never changed anything is refused, saying what to do', () => {
+    const thing = Told.of()
+    thing.ping()
+
+    expect(() => thing[assertSavable]()).toThrow(EventWithoutChange)
+    expect(() => thing[assertSavable]()).toThrow('Told thing-1 tells thing.pinged but has nothing to save: change what it tells of')
+  })
+
+  test('a change saved does not cover an event told after it', () => {
+    const thing = Told.of()
+    thing.rename('other')
+    thing[markPersisted]()
+    thing[takeEvents]()
+    thing.ping()
+
+    expect(() => thing[assertSavable]()).toThrow(EventWithoutChange)
+  })
+
+  test('with nothing told, there is nothing to refuse', () => {
+    expect(() => Told.of()[assertSavable]()).not.toThrow()
   })
 })
 

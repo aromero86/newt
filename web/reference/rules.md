@@ -418,12 +418,37 @@ export class Board extends Entity<typeof BoardSchema> {
 - `create` for something new, `fromDTO` for something stored: `isNew` is decided by
   which one is called, never by whether an id is present. A new one gets its id
   (UUIDv7), `createdAt` and `updatedAt`.
+- Its schema is a `z.object`, which drops what it does not name, or a
+  `z.strictObject`. One that keeps it (`z.looseObject`, `.catchall`,
+  `.passthrough`) would carry a row's other columns into the entity: building the
+  entity refuses it.
+- **An entity with secrets** (a password's hash, a token's) has a public schema
+  beside its own, and says so: `toDTO` gives only its fields, and its repository
+  stores them all. Its own schema extends the public one, so it shows some of its
+  fields and never another; one that says it has a public schema and does not pass it
+  does not compile:
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/user/user.ts
+  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+
+  export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
+    private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
+      super(UserEntitySchema, input, isNew, UserSchema)
+    }
+  }
+  ```
 - **Only the entity changes itself**: `change()` is protected, so a use case calls the
   entity's methods (`update`, `archive`…), which say what happened with
   `trackEvent`. `change()` checks the whole entity against the schema (its refinements
   too), keeps the values it parses to (trimmed, defaulted…), ignores values that did
   not actually change, and moves `updatedAt` on when something did. A field the schema
   does not have, or a change to a deleted entity, throws.
+- **An event comes with the change it tells.** One whose change was undone before the
+  save (1000 to 1200 and back) is not told: there is nothing to save. One tracked by an
+  entity that never changed is a mistake, and its save refuses it before writing
+  anything (`EventWithoutChange`): change what the event tells of along with it (a
+  status, a date that says it happened).
 - Rules about the entity's own data live in its methods; rules that need other data
   live in the use case.
 - **Its methods take domain data, not the input DTO.** The DTO is the API's contract
@@ -648,12 +673,20 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   transaction, and their `fire-and-forget` handlers run after it commits.
 - It writes only what changed, and only if each stored entity is still the version it
   was read as: otherwise it throws `ConcurrencyConflict` (409) and writes nothing. A
-  new one that collides with a key or a unique value throws it too.
+  row that takes a key or a unique value another one has throws `DuplicateValue`, a
+  `ConcurrencyConflict` of its own (`duplicate_value`), with the `fields` it took
+  when the store can tell (SQLite, Postgres and files can; MySQL cannot).
+- An entity whose save rolled back (it failed, or a transaction around it did) is as
+  it was before it, and is never saved again (`SaveRolledBack`): what it would tell
+  might no longer match what it would write. Read it again, as a use case that runs
+  again does.
 - **A use case runs again on a `ConcurrencyConflict`**, up to three more times,
   reloading and applying the change to what is stored now: a use case loads, changes
   and saves, and what cannot be undone leaves from a worker. Only the first use case of
   a chain runs again, with all it calls; one called by another lets the conflict
-  through to it. One that does something before saving that must not happen twice (a
+  through to it. A `DuplicateValue` runs it again only once: the value stays taken,
+  and running again lets the use case's own check (an email taken) find it and answer
+  with its own error. One that does something before saving that must not happen twice (a
   call to another context that already saved) says `@UseCase({ retryOnConflict: false
   })`, with the reason beside it: then nothing in its chain runs again, not even its
   callers.
@@ -692,7 +725,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   save takes its turn anyway). A save with `after` must name its `guard`, or it does
   not compile: `guard: []` says, where it is read, that none is needed. `before`
   writes, or reads, what must go first (cooper's new card takes its number there). The
-  use case still checks first, for a clear answer in the usual case.
+  use case still checks first, for a clear answer in the usual case. When what
+  `after` finds is not an answer but a row the save holds no version of that changed
+  meanwhile (a card added to a column whose order it rewrites), it calls
+  `this.conflict()`: a `ConcurrencyConflict`, and the use case runs again with what
+  there is then.
 - A write that only notes something happened (`lastUsedAt`) is not a change of the
   entity: the repository writes it with `table.patch(id, changes)`, which leaves the
   version alone, so parallel requests never collide.
@@ -915,6 +952,7 @@ export class BoardNotFound extends NotFoundError {
 | `ForbiddenError` | 403 | whoever asks may not do this |
 | `ConflictError` | 409 | the current state does not allow it |
 | `ConcurrencyConflict` | 409 | someone saved it since it was read |
+| `DuplicateValue` | 409 | another one took a value no two share first |
 
 All of them extend `DomainError` (`status`, `code`, `message`). A domain error is an
 answer, not a failure: it does not mark its use case's span as failed.
@@ -928,6 +966,7 @@ does it in `index.ts`, before it opens anything:
 // cooper/backend/shared/messages.ts
 export const cooperMessages: Partial<Messages> = {
   concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  duplicate_value: () => 'That is already taken: pick another one',
   reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
   not_signed_in: () => 'You are not signed in, or your session has ended: sign in to go on',
   validation: () => 'Some of what was sent is not right: check the fields and try again',
@@ -945,7 +984,7 @@ Being the whole process's, it is tested in a process of its own (cooper's
 `messages.test.ts` runs it with `Bun.spawn`): set in a test, it would change what
 every other test in that process reads.
 
-Its codes are `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
+Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
 `validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
 `filter_too_many_conditions` and `internal`.
