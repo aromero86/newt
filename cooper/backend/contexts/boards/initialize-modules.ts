@@ -12,16 +12,17 @@ import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
 import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
-import type { TenantEvents } from './modules/workspace/workspace.deps'
+import type { TenantEvents, WorkspaceAuth } from './modules/workspace/workspace.deps'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
  * auth's use cases `boards` calls besides its ports: who an access token is for (the
- * web session, the MCP server), who someone is, and what boards' routes for
- * workspaces, members and invitations manage in auth.
+ * web session, the MCP server), and what its workspace module asks of auth (who
+ * someone is, and what boards' routes for workspaces, members and invitations manage
+ * in auth).
  */
-export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
+export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
 
 /**
  * What `boards`' modules are given besides its base: what they need of auth, as ports
@@ -61,8 +62,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
-  const { tenant, access, invitation, user } = deps.auth
-  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: deps.auth })
   const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)

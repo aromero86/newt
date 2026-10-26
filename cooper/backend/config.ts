@@ -31,6 +31,9 @@ const publicUrls = {
 /**
  * `COOPER_<APP>_CLIENT_SECRET`: the secret each web app proves itself with at auth's
  * token endpoint, as an OAuth confidential client. `auth` knows both; each app its own.
+ * Each is kept under the id of the product it signs people in to, its client_id, as
+ * auth looks it up; its variable is named after the app, as the people deploying it
+ * know it: boards' is `COOPER_BOARDS_CLIENT_SECRET`, for the product `cooper`.
  */
 const clientSecrets = {
   cooper: env.COOPER_BOARDS_CLIENT_SECRET ?? 'cooper-dev-boards-client-secret',
