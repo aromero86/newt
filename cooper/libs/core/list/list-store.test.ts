@@ -37,6 +37,26 @@ describe('ListStore', () => {
     expect(requests.map(request => request.cursor)).toEqual([undefined, 'id-2', 'id-4'])
   })
 
+  test('goes on where the page said it does, past a page that came empty', async () => {
+    // A search's pages: the cursor is the last id it found, whether or not that item is still there.
+    const found = [['id-1', 'gone-2'], ['gone-3', 'gone-4'], ['id-5']]
+    const requests: PageRequest[] = []
+    const list = new ListStore<{ id: string }>(async page => {
+      requests.push(page)
+      const at = page.cursor === undefined ? 0 : found.findIndex(ids => ids.at(-1) === page.cursor) + 1
+      const ids = found[at]!
+      return { items: ids.filter(id => id.startsWith('id-')).map(id => ({ id })), hasMore: at < found.length - 1, total: 5, nextCursor: ids.at(-1) }
+    }, 2)
+
+    await list.loadFirstPage()
+    expect(list.items.value.map(item => item.id)).toEqual(['id-1'])
+    await list.loadMore()
+
+    expect(list.items.value.map(item => item.id)).toEqual(['id-1', 'id-5'])
+    expect(list.hasMore.value).toBe(false)
+    expect(requests.map(request => request.cursor)).toEqual([undefined, 'gone-2', 'gone-4'])
+  })
+
   test('a failed page is a failure, not a crash', async () => {
     const list = new ListStore(async () => { throw new Error('offline') })
     await list.loadFirstPage()
