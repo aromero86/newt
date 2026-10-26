@@ -46,6 +46,12 @@ export class Access_Module extends Module {
     return toDTOs(await this.repo.page({ tenantId }, page))
   }
 
+  /** Who may enter the whole of a product (no tenant), the oldest first: the staff of `backoffice`. */
+  @UseCase()
+  async listForProduct(productId: string, page: PageRequest): Promise<Page<AccessDTO>> {
+    return toDTOs(await this.repo.page({ productId, tenantId: null }, page))
+  }
+
   /** Someone's accesses, the newest first; to one product only when it is given. */
   @UseCase()
   async listForUser(userId: string, page: PageRequest, productId?: string): Promise<Page<AccessDTO>> {

@@ -93,6 +93,8 @@ export const config = {
     sessionDays,
     /** `COOPER_BACKOFFICE_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BACKOFFICE_FRONTEND ?? 'dist/cooper/backoffice'),
+    /** `COOPER_TRACE=1`: each use case it runs, and those it calls, written to the console with how long they took. */
+    trace: env.COOPER_TRACE === '1',
   },
 }
 
