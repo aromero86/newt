@@ -40,8 +40,9 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
     authUrl: config.authPublicUrl,
     days: config.sessionDays,
     identify: accessToken => auth.token.verify(accessToken),
-    // Only the staff: anyone else, an access taken away since signing in, gets a 403.
-    profile: () => staff.me(),
+    // `{ user }`, as every web app reads its session; only for the staff: anyone else,
+    // an access taken away since signing in, gets a 403.
+    profile: async () => ({ user: await staff.me() }),
   })
   const user = User_Module.initialize(base, { staff, user: auth.user, access: auth.access, tenant: auth.tenant }, { workspacesProduct: WORKSPACES_PRODUCT })
   const workspace = Workspace_Module.initialize(base, { staff, tenant: auth.tenant, access: auth.access, user: auth.user, board: boards.board, card: boards.card })

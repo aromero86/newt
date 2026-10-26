@@ -31,6 +31,7 @@ describe('the backoffice API', () => {
       expect((await get(path)).status).toBe(401)
       expect((await get(path, ana.id)).status).toBe(200)
     }
+    expect(await (await get('/api/session', ana.id)).json()).toMatchObject({ user: { id: ana.id, name: 'Ana', email: 'ana@cooper.test' } })
 
     await t.as(sam, () => t.modules.staff.revoke(ana.id))
     for (const path of ['/api/session', '/api/workspaces', '/api/users/' + sam.id, '/api/staff', '/api/metrics']) {
