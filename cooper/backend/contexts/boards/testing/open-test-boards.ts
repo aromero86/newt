@@ -23,6 +23,7 @@ export async function openTestBoards() {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
+    auth: auth.modules,
     mailer,
     search,
     log: line => { lines.push(line) },

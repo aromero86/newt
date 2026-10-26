@@ -1,0 +1,16 @@
+{
+  // The tools around the application: cooper's scripts.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["cooper/scripts/**/*.ts"],
+  "exclude": ["**/node_modules"]
+}

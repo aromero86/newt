@@ -2,6 +2,7 @@ import { SqliteStore } from 'newt/adapter-sqlite'
 import { Email } from 'newt/contract'
 import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
+import type { Boards_Auth } from '../initialize-modules'
 import type { AccessEvents } from '../modules/card/card.deps'
 import type { Workspaces } from '../modules/member/member.deps'
 import type { MemberDTO } from '../modules/member/member.schema'
@@ -49,6 +50,17 @@ export class FakeAuth {
 
   readonly tenants: TenantEvents
   readonly access: AccessEvents
+
+  /**
+   * auth's use cases, which boards' own tests never reach: who signs in, and the
+   * routes for workspaces, members and invitations, which run on the real auth in
+   * cooper's test (`cooper/backend/cooper.test.ts`). Any call says so.
+   */
+  readonly modules = new Proxy({}, {
+    get: (_, module) => new Proxy({}, {
+      get: (__, useCase) => () => Promise.reject(new Error(`auth.${String(module)}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
+    }),
+  }) as Boards_Auth
 
   private constructor(private readonly base: Base) {
     this.tenants = eventsOf(base.bus, { created: Tenant_Created, deleted: Tenant_Deleted })

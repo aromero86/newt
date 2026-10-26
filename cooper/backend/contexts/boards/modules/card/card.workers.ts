@@ -1,3 +1,4 @@
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { CardAuthor, CardDTO } from './card.schema'
 import type { Card_Deps, RevokedAccess } from './card.deps'
 import type { Card_Module } from './card.module'
@@ -50,11 +51,10 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   // auth tells every access it takes away, to any product: only a workspace's is boards'.
   // A card checks its assignee before its save, so they may leave in between: a card
   // created for someone, or given to them, looks again once saved, the same way.
-  // For now the product is named here: auth's WORKSPACES_PRODUCT (chapter 20) takes its place.
   deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',
-    when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === 'cooper' && access.tenantId !== null,
+    when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
   })
   cards.events.created.subscribe(card => cards.unassignMember(card.workspaceId, card.assigneeId), {
     strategy: 'handler',

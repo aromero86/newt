@@ -11,7 +11,8 @@
     "lint": "eslint",
     "docs:dev": "vitepress dev web --port 5180",
     "docs:build": "vitepress build web",
-    "docs:check": "bun web/scripts/check-tutorial.ts"
+    "docs:check": "bun web/scripts/check-tutorial.ts",
+    "cooper:seed": "bun run cooper/scripts/seed.ts"
   },
   "dependencies": {
     "kysely": "0.29.6",

@@ -51,6 +51,13 @@ export class User_Module extends Module {
     return (await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))).toDTO()
   }
 
+  /** For other modules and contexts: the ones with these ids, in no order; an id of none is not there. */
+  @UseCase()
+  async getMany(ids: string[]): Promise<UserDTO[]> {
+    if (ids.length === 0) return []
+    return (await this.repo.find({ id: { in: [...new Set(ids)] } })).map(user => user.toDTO())
+  }
+
   /** The account of an email, whatever its case, if there is one. */
   @UseCase()
   async findByEmail(email: string): Promise<UserDTO | null> {

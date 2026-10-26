@@ -4,8 +4,8 @@ import { newt } from 'newt-eslint'
 // framework's own code is not an application, so it is left out.
 
 const BACKEND = newt({
-  files: ['cooper/backend/**/*.ts'],
-  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: [] } },
+  files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
+  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'] } },
 })
 
 export default [
