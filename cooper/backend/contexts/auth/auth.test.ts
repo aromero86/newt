@@ -101,6 +101,31 @@ describe('workspaces', () => {
     expect((await modules().access.listForTenant(acme.id, page)).items.map(access => access.userId)).toEqual([ana.id])
   })
 
+  test('gives an access once, however many give it at the same time', async () => {
+    const [ana, bob, staff] = [await signUp('Ana'), await signUp('Bob'), await signUp('Staff')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    const bobIn = { userId: bob.id, productId: 'cooper', tenantId: acme.id }
+    await Promise.all([as(ana, () => modules().access.grant(bobIn)), as(ana, () => modules().access.grant(bobIn)), modules().access.admit({ ...bobIn, role: 'member' })])
+    expect((await modules().access.listForTenant(acme.id, page)).total).toBe(2)
+
+    const staffIn = { userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' as const }
+    await Promise.all([modules().access.admit(staffIn), modules().access.admit(staffIn)])
+    expect((await modules().access.listForProduct('backoffice', page)).total).toBe(1)
+  })
+
+  test('admits its admin again as a no-op, even at the same time as its worker', async () => {
+    const ana = await signUp('Ana')
+    // What the worker of `tenant.created` does, while the request still gives the admin.
+    const workers: Promise<unknown>[] = []
+    modules().tenant.events.created.subscribe(tenant => {
+      workers.push(modules().access.admit({ userId: tenant.createdBy, productId: 'cooper', tenantId: tenant.id, role: 'admin' }))
+    }, { strategy: 'fire-and-forget' })
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await Promise.all(workers)
+    expect(workers).toHaveLength(1)
+    expect((await modules().access.listForTenant(acme.id, page)).items).toMatchObject([{ userId: ana.id, role: 'admin' }])
+  })
+
   test('only the staff give the staff access to the backoffice', async () => {
     const [staff, ana] = [await signUp('Staff'), await signUp('Ana')]
     await modules().access.admit({ userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' })
@@ -129,6 +154,20 @@ describe('workspaces', () => {
     expect((await modules().tenant.listForUser(ana.id, page)).items).toEqual([])
   })
 
+  test('lets nobody in once deleted, before its workers run', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().access.grant({ userId: bob.id, productId: 'cooper', tenantId: acme.id }))
+    await settled()
+    await auth.base.jobs.stop()
+
+    await as(ana, () => modules().tenant.delete(acme.id))
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+    expect(await modules().access.check(ana.id, 'cooper', acme.id)).toBeNull()
+    expect((await modules().access.listForUser(bob.id, page, 'cooper')).total).toBe(0)
+    expect((await modules().tenant.listForUser(ana.id, page)).total).toBe(0)
+  })
+
   test('lists every workspace newest first, with the filters it allows', async () => {
     const ana = await signUp('Ana')
     await as(ana, () => modules().tenant.create({ name: 'Acme' }))
@@ -155,6 +194,20 @@ describe('invitations', () => {
     expect(await as(bob, () => modules().invitation.accept(token))).toMatchObject({ status: 'accepted', acceptedBy: bob.id })
     expect(await modules().access.check(bob.id, 'cooper', acme.id)).toMatchObject({ role: 'member' })
     await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('cannot be accepted once their workspace is deleted, before its workers run', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+    await auth.base.jobs.stop()
+
+    await as(ana, () => modules().tenant.delete(acme.id))
+    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+    await settled()
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
   })
 
   test('are made, listed and revoked by the admin only, once per email', async () => {

@@ -1,5 +1,5 @@
 import { currentActor, Module, UseCase, type Page, type PageRequest } from 'newt/core'
-import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import type { Workspace_Deps } from './workspace.deps'

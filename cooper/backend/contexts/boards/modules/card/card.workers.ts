@@ -1,4 +1,4 @@
-import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { Card_Deps } from './card.deps'
 import type { Card_Module } from './card.module'
 

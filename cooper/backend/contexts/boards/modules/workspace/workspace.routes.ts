@@ -1,5 +1,5 @@
 import { currentActor } from 'newt/core'
-import { WORKSPACES_PRODUCT } from '../../../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import { InvitationNotOpen } from '../../../auth/modules/invitation/errors/invitation-not-open'
 import type { InvitationCreateDTO } from '../../../auth/modules/invitation/invitation.schema'
 import type { TenantCreateDTO, TenantRenameDTO } from '../../../auth/modules/tenant/tenant.schema'

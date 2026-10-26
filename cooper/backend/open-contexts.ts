@@ -1,6 +1,6 @@
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
-import { WORKSPACES_PRODUCT } from './contexts/auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
 import { Backoffice_Context } from './contexts/backoffice/backoffice.context'
 import { Boards_Context } from './contexts/boards/boards.context'
 import type { Boards_ModuleDeps } from './contexts/boards/initialize-modules'

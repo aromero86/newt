@@ -26,6 +26,10 @@ export class Access extends Entity<typeof AccessSchema> {
     return this.data.userId
   }
 
+  get productId(): string {
+    return this.data.productId
+  }
+
   get tenantId(): string | null {
     return this.data.tenantId
   }

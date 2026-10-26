@@ -40,7 +40,8 @@ export class Tenant_Module extends Module {
    * A new workspace, made by the signed-in person, who is its admin. It writes to
    * `access` without being a worker, on purpose: whoever makes a workspace enters it
    * the moment it answers. The workspace is saved first and its admin after; should
-   * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it.
+   * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it;
+   * whichever of the two gives it second finds it given.
    * It never runs again on a conflict: it would make a second workspace.
    */
   @UseCase({ writesTo: ['access'], retryOnConflict: false })
@@ -95,14 +96,19 @@ export class Tenant_Module extends Module {
 
   /**
    * Only its admin deletes it. The rest follows from `tenant.deleted`, each part from
-   * a worker: its accesses and invitations here, its boards in boards.
+   * a worker: its invitations here, its boards in boards, its accesses once more.
+   * Its accesses also go at once, after it: it writes to `access` without being a
+   * worker, on purpose, so that nobody enters it from the moment it answers. Should
+   * that second save fail, its worker takes them away. It never runs again on a
+   * conflict: it would find the workspace deleted already.
    */
-  @UseCase()
+  @UseCase({ writesTo: ['access'], retryOnConflict: false })
   async delete(tenantId: string): Promise<void> {
     await this.assertAdmin(tenantId)
     const tenant = await this.load(tenantId)
     tenant.delete()
     await this.repo.persist(tenant)
+    await this.deps.access.revokeTenant(tenantId)
   }
 
   /** A new workspace has its admin: what its worker calls, in case `create` stopped halfway. Safe to run again. */
@@ -111,7 +117,10 @@ export class Tenant_Module extends Module {
     await this.admitAdmin(tenant)
   }
 
-  /** A deleted workspace's accesses go: a step of its deletion, from a worker. Safe to run again. */
+  /**
+   * A deleted workspace's accesses go: a step of its deletion, from a worker, in case
+   * `delete` stopped halfway or someone entered it meanwhile. Safe to run again.
+   */
   @UseCase()
   async removeAccesses(tenantId: string): Promise<void> {
     await this.deps.access.revokeTenant(tenantId)

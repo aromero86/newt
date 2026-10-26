@@ -1,4 +1,4 @@
-import { currentActor, Email, eventsOf, Module, SecretToken, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, Module, SecretToken, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { NotTenantAdmin } from '../tenant/errors/not-tenant-admin'
 import { TenantNotFound } from '../tenant/errors/tenant-not-found'
@@ -42,13 +42,13 @@ export class Invitation_Module extends Module {
   /** The workspace's admin invites an email, which is not a member nor invited already. Its email leaves from a worker. */
   @UseCase()
   async create(tenantId: string, input: InvitationCreateDTO): Promise<InvitationDTO> {
-    const email = Email.from(InvitationCreateSchema.parse(input).email)
-    await this.assertAdmin(tenantId)
-    const invited = await this.deps.user.findByEmail(email)
-    const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
-    if (member || await this.repo.count({ tenantId, email, status: 'pending' }) > 0) throw new AlreadyInvited(email)
-
+    const { email } = InvitationCreateSchema.parse(input)
     const invitation = Invitation.create({ tenantId, email, invitedBy: currentActor().userId, days: this.options.days })
+    await this.assertAdmin(tenantId)
+    const invited = await this.deps.user.findByEmail(invitation.email)
+    const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
+    if (member || await this.repo.count({ tenantId, email: invitation.email, status: 'pending' }) > 0) throw new AlreadyInvited(invitation.email)
+
     await this.repo.persist(invitation)
     return invitation.contract()
   }
@@ -90,7 +90,9 @@ export class Invitation_Module extends Module {
   @UseCase({ writesTo: ['access'] })
   async accept(token: string): Promise<InvitationDTO> {
     const invitation = await this.byToken(token)
-    if (!invitation.isOpen()) throw new InvitationNotOpen()
+    // Its workspace deleted, it is not open any more, whatever its worker did yet.
+    const [tenant] = await this.deps.tenant.getMany([invitation.tenantId])
+    if (!invitation.isOpen() || !tenant) throw new InvitationNotOpen()
     const { userId } = currentActor()
     const me = await this.deps.user.get(userId)
     if (me.email !== invitation.email) throw new InvitationForAnotherEmail(invitation.email)

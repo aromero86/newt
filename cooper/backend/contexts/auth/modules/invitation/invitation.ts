@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, SecretToken, type Email, type EntityInput } from 'newt/core'
+import { Email, Entity, SecretToken, type EntityInput } from 'newt/core'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'
@@ -26,10 +26,11 @@ export class Invitation extends Entity<typeof InvitationEntitySchema> {
     return new Invitation(dto, false)
   }
 
-  static create(input: { tenantId: string, email: Email, invitedBy: string, days: number }): Invitation {
+  /** A new one, pending for some days: the email as someone typed it becomes an `Email`. */
+  static create(input: { tenantId: string, email: string, invitedBy: string, days: number }): Invitation {
     const { days, ...rest } = input
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60_000).toISOString()
-    const invitation = new Invitation({ ...rest, status: 'pending', acceptedBy: null, expiresAt, tokenHash: null }, true)
+    const invitation = new Invitation({ ...rest, email: Email.from(rest.email), status: 'pending', acceptedBy: null, expiresAt, tokenHash: null }, true)
     invitation.trackEvent(new Invitation_Created(invitation.contract()))
     return invitation
   }
