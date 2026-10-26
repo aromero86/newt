@@ -50,7 +50,8 @@ describe('signing in to the backoffice', () => {
       ...config,
       auth: { ...config.auth, dbPath: ':memory:', port: authPort, publicUrl: authUrl, backofficePublicUrl: backofficeUrl },
       boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-      backoffice: { ...config.backoffice, dbPath: ':memory:', port: backofficePort, publicUrl: backofficeUrl, authPublicUrl: authUrl, trace: false },
+      backoffice: { ...config.backoffice, dbPath: ':memory:', port: backofficePort, publicUrl: backofficeUrl, authPublicUrl: authUrl },
+      trace: false,
     }
     contexts = await openContexts(testConfig, { mailer: { send: async () => {} } })
     servers = [contexts.auth.serve(), contexts.backoffice.serve()]

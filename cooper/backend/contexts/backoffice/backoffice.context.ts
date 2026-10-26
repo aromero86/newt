@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Tracer } from 'newt/core'
 import { CooperBase } from '../../shared/cooper-base'
-import { ConsoleTracer } from '../../shared/observability/console-tracer'
 import { ServedContext } from '../../shared/served-context'
 import type { Backoffice_Config } from './backoffice-config'
 import { initializeModules, type Backoffice_ModuleDeps, type Backoffice_Modules } from './initialize-modules'
@@ -17,13 +17,10 @@ export class Backoffice_Context extends ServedContext {
     super('backoffice', base, config)
   }
 
-  /**
-   * Opened after `auth` and `boards`, which it uses. With `COOPER_TRACE=1` each use
-   * case it runs is written to the console, with those it calls (ch. 30).
-   */
-  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps): Promise<Backoffice_Context> {
+  /** Opened after `auth` and `boards`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  static async open(config: Backoffice_Config, deps: Backoffice_ModuleDeps, tracer?: Tracer): Promise<Backoffice_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new CooperBase({ name: 'backoffice', store, tracer: config.trace ? new ConsoleTracer() : undefined })
+    const base = new CooperBase({ name: 'backoffice', store, tracer })
     return new Backoffice_Context(base, initializeModules(base, config, deps), config)
   }
 }

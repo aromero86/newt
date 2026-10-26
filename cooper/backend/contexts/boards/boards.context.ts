@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Tracer } from 'newt/core'
 import { ServedContext } from '../../shared/served-context'
 import { BoardsBase } from './boards-base'
 import type { Boards_Config } from './boards-config'
@@ -18,10 +19,10 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses. */
-  static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new BoardsBase({ name: 'boards', store })
+    const base = new BoardsBase({ name: 'boards', store, tracer })
     return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
   }
 

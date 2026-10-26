@@ -11,7 +11,8 @@ function testConfig(): Config {
     ...config,
     auth: { ...config.auth, dbPath: ':memory:', port: 0 },
     boards: { ...config.boards, dbPath: ':memory:', port: 0 },
-    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0, trace: false },
+    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0 },
+    trace: false,
   }
 }
 

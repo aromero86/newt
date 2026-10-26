@@ -5,6 +5,7 @@ import { Backoffice_Context } from './contexts/backoffice/backoffice.context'
 import { Boards_Context } from './contexts/boards/boards.context'
 import type { Boards_ModuleDeps } from './contexts/boards/initialize-modules'
 import { ConsoleMailer } from './shared/mail/console-mailer'
+import { ConsoleTracer } from './shared/observability/console-tracer'
 import type { Mailer } from './shared/mail/mailer'
 
 /** What the contexts are given from outside: the console mailer unless another is. */
@@ -19,9 +20,12 @@ export type OpenContextsOptions = {
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
+  // One tracer for every context: a use case that calls another context's shows that
+  // call inside it, since they run in one process (ch. 30).
+  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer }, tracer)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
