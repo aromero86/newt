@@ -3,7 +3,11 @@ import type { FindOptions, NewRow, StoredRow, Table, TableOptions } from '../por
 import type { FileCollection } from './file-collection'
 import type { FileRecord } from './file-record'
 
-/** A table of a files store: its rows are a collection's records, found by reading them all. */
+/**
+ * A table of a files store: its rows are a collection's records, found by reading them
+ * all. Each write checks and writes in one turn of its transaction, so two writes
+ * awaited together in one transaction do not both pass the same check.
+ */
 export class FileTable<Row extends StoredRow> implements Table<Row> {
 
   constructor(private readonly records: FileCollection, private readonly options: TableOptions<Row> = {}) {}
@@ -28,7 +32,7 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
   }
 
   insert(row: NewRow<Row>): Promise<void> {
-    return this.records.store.transaction(async () => {
+    return this.inTurn(async () => {
       const stored: FileRecord = { ...defined(row), id: row.id, version: 1 }
       if (await this.records.get(stored.id)) throw new ConcurrencyConflict()
       await this.assertUnique(stored)
@@ -37,7 +41,7 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
   }
 
   update(id: string, version: number, changes: Partial<NewRow<Row>>): Promise<void> {
-    return this.records.store.transaction(async () => {
+    return this.inTurn(async () => {
       const current = await this.records.get(id)
       if (current?.version !== version) throw new ConcurrencyConflict()
       const next = { ...current, ...defined(changes), id, version: version + 1 }
@@ -47,20 +51,27 @@ export class FileTable<Row extends StoredRow> implements Table<Row> {
   }
 
   patch(id: string, changes: Partial<NewRow<Row>>): Promise<void> {
-    return this.records.store.transaction(async () => {
+    return this.inTurn(async () => {
       const current = await this.records.get(id)
       if (!current) return
       const { id: _, version: __, ...fields } = defined(changes)
-      await this.records.put({ ...current, ...fields })
+      const next = { ...current, ...fields }
+      await this.assertUnique(next)
+      await this.records.put(next)
     })
   }
 
   delete(id: string, version: number): Promise<void> {
-    return this.records.store.transaction(async () => {
+    return this.inTurn(async () => {
       const current = await this.records.get(id)
       if (current?.version !== version) throw new ConcurrencyConflict()
       await this.records.remove(id)
     })
+  }
+
+  private inTurn(fn: () => Promise<void>): Promise<void> {
+    const store = this.records.store
+    return store.transaction(() => store.serially(fn))
   }
 
   private async rows(): Promise<Row[]> {

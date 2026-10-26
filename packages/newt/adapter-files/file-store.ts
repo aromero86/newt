@@ -1,5 +1,5 @@
-import { mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { mkdir, realpath } from 'node:fs/promises'
+import { join } from 'node:path'
 import { TransactionScope, type Store, type StoredRow, type TableOptions } from '../port-store'
 import { FileCollection } from './file-collection'
 import { FileMigrations } from './file-migrations'
@@ -20,14 +20,18 @@ type JournalEntry = { collection: string, id: string, record: FileRecord | null 
 
 const JOURNAL = '_journal.json'
 const LOCK = '_lock'
-const NAME = /^[A-Za-z0-9_-]+$/
-const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const NAME = /^[A-Za-z0-9_-]{1,100}$/
+/** Up to 100 characters: with what a write adds to it, a file name fits any file system. */
+const ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 
 /**
- * One scope per folder in a process, so two stores opened on the same folder take
- * turns as one: the lock file only tells processes apart.
+ * One scope per folder in a process (by its real path, whatever path opened it), so
+ * two stores opened on the same folder take turns as one, without the lock file.
  */
 const scopes = new Map<string, TransactionScope<Writes>>()
+
+/** For each transaction in progress, what its last `serially` call is. */
+const turns = new WeakMap<Writes, Promise<unknown>>()
 
 /**
  * A store of plain files, read and written on the disk as they are: one folder per
@@ -40,6 +44,9 @@ const scopes = new Map<string, TransactionScope<Writes>>()
  * 3. The journal goes.
  * A crash before 1 leaves nothing of it; after 1, whoever takes the lock next finds
  * the journal and writes it all again, which writing whole records makes harmless.
+ * What could keep a record from being written for good (a collection or an id the
+ * disk cannot name) is refused before 1, so a journal can always be finished once
+ * the disk lets it.
  *
  * Everything it does holds one lock, `_lock`, so several processes on one host can
  * share a folder: one transaction or read at a time, in this process and across
@@ -53,8 +60,7 @@ export class FileStore implements Store {
 
   private readonly scope: TransactionScope<Writes>
 
-  private constructor(readonly folder: string, options: FileStoreOptions) {
-    const key = resolve(folder)
+  private constructor(readonly folder: string, key: string, options: FileStoreOptions) {
     this.scope = scopes.get(key) ?? new TransactionScope<Writes>(options.waitTimeoutMs)
     scopes.set(key, this.scope)
     this.outbox = new FileOutbox(this)
@@ -71,12 +77,12 @@ export class FileStore implements Store {
   /** Opens a store as it is, migrating nothing: for the scripts that migrate it. */
   static async connect(options: FileStoreOptions): Promise<FileStore> {
     await mkdir(options.folder, { recursive: true })
-    return new FileStore(options.folder, options)
+    return new FileStore(options.folder, await realpath(options.folder), options)
   }
 
   /** A collection's records as they are, for what a table cannot say: migrations, reports. */
   collection(name: string): FileCollection {
-    if (!NAME.test(name)) throw new Error(`A collection is named with letters, numbers, '-' and '_': '${name}' is not`)
+    if (!NAME.test(name)) throw new Error(`A collection is named with up to 100 letters, numbers, '-' and '_': '${name}' is not`)
     return new FileCollection(this, name)
   }
 
@@ -109,8 +115,9 @@ export class FileStore implements Store {
     await this.scope.drain()
   }
 
-  /** A record, as the transaction in progress sees it; outside one, as committed. */
+  /** A record, as the transaction in progress sees it; outside one, as committed. An id no record can have finds none. */
   async load(collection: string, id: string): Promise<FileRecord | undefined> {
+    if (!ID.test(id)) return undefined
     const staged = this.scope.state?.get(collection)?.get(id)
     if (staged !== undefined) return staged ? structuredClone(staged) : undefined
     return this.reading(() => this.readRecord(collection, id))
@@ -132,13 +139,26 @@ export class FileStore implements Store {
 
   /** Writes a record (or removes it, `null`) in the transaction in progress, or in one of its own. */
   stage(collection: string, id: string, record: FileRecord | null): Promise<void> {
-    if (!ID.test(id)) throw new Error(`A record's id is made of letters, numbers, '.', '-' and '_': '${id}' is not`)
+    if (!ID.test(id)) throw new Error(`A record's id is made of up to 100 letters, numbers, '.', '-' and '_', starting with a letter or a number: '${id}' is not`)
     return this.transaction(() => {
       const writes = this.scope.state!
       const staged = writes.get(collection) ?? new Map<string, FileRecord | null>()
       staged.set(id, record ? structuredClone(record) : null)
       writes.set(collection, staged)
     })
+  }
+
+  /**
+   * Runs `fn` once the other calls of the transaction in progress that went through
+   * here ended: a table's check and the write it allows are not split by another
+   * check of the same transaction (two inserts awaited together).
+   */
+  serially<T>(fn: () => Promise<T>): Promise<T> {
+    const writes = this.scope.state
+    if (!writes) return fn()
+    const result = (turns.get(writes) ?? Promise.resolve()).then(fn)
+    turns.set(writes, result.catch(() => {}))
+    return result
   }
 
   /** Inside a transaction it holds the lock already; outside, a read takes it for itself. */
@@ -160,7 +180,7 @@ export class FileStore implements Store {
     try {
       const journal = await readIfAny(join(this.folder, JOURNAL))
       // A journal cut short was never committed: the rename that commits writes it whole.
-      if (journal !== undefined) await this.apply(JSON.parse(journal) as JournalEntry[])
+      if (journal !== undefined) await this.finish(JSON.parse(journal) as JournalEntry[])
     } catch (error) {
       await release()
       throw error
@@ -181,6 +201,29 @@ export class FileStore implements Store {
       await this.apply(entries)
     } catch (error) {
       console.error('[files] a commit is in the journal but its records could not be written yet; the next lock writes them:', error)
+    }
+  }
+
+  /**
+   * Finishes a journal left behind. Until it is, nothing else runs: it is a committed
+   * transaction, and what is read meanwhile would miss it. So when the disk refuses it
+   * (no space, no permission, a folder where a record goes) every call fails, saying
+   * so, until that is mended. An entry no store could ever write (one from a version
+   * without the limits on names) is put aside in a file of its own instead.
+   */
+  private async finish(entries: JournalEntry[]): Promise<void> {
+    const unwritable = entries.filter(({ collection, id }) => !NAME.test(collection) || !ID.test(id))
+    const rest = entries.filter(entry => !unwritable.includes(entry))
+    if (unwritable.length > 0) {
+      const aside = join(this.folder, `_journal.${Bun.randomUUIDv7()}.unwritable.json`)
+      await writeAtomically(aside, JSON.stringify(unwritable))
+      await writeAtomically(join(this.folder, JOURNAL), JSON.stringify(rest))
+      console.error(`[files] a journal left behind has records no file can be named for; they are in ${aside}, the rest is written`)
+    }
+    try {
+      await this.apply(rest)
+    } catch (error) {
+      throw new Error(`The store cannot finish the commit in ${join(this.folder, JOURNAL)}, and waits for it: ${String(error)}`, { cause: error })
     }
   }
 
