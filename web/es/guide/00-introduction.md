@@ -123,7 +123,8 @@ contexto: borra la carpeta para empezar de cero.
 ::: tip Consejo
 Cada puerto y cada URL se pueden cambiar con una variable de entorno
 (`COOPER_BOARDS_PORT`, `COOPER_BOARDS_PUBLIC_URL`…). El capítulo [2](./02-a-context)
-enseña dónde se leen.
+enseña dónde se leen. Cada servidor de Vite lee el mismo `COOPER_<NAME>_PORT`, así que
+sigue encontrando su API.
 :::
 
 ## El mapa del repositorio
@@ -217,7 +218,7 @@ y conviene volver a esta lista de vez en cuando.
 9. **Las dependencias entre módulos nunca forman un círculo.**
 10. **Un módulo apunta a lo de otro solo por su id**, nunca por la entidad ni por su
     tabla.
-11. **Ninguna lista se devuelve entera**: se pagina.
+11. **Ninguna lista se devuelve entera** salvo que una regla del dominio la acote (como mucho 10 columnas, 500 cards); las demás van por páginas.
 
 ## En resumen
 

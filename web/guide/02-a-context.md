@@ -37,7 +37,7 @@ is given:
 /**
  * What `backoffice`'s modules are given besides its base: the use cases of the
  * contexts it reads, those it needs and nothing else. Never a context's base nor its
- * store: another context is reached through its use cases and its events (ch. 23).
+ * store: another context is reached through its use cases and its events.
  */
 export type Backoffice_ModuleDeps = {
   auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
@@ -171,7 +171,7 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given. */
   static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
     const base = new BoardsBase({ name: 'boards', store, tracer })
@@ -286,8 +286,8 @@ ones it needs:
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   // One tracer for every context: a use case that calls another context's shows that
-  // call inside it, since they run in one process (ch. 30).
-  const tracer = config.trace ? new ConsoleTracer() : undefined
+  // call inside it, since they run in one process.
+  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
@@ -314,7 +314,8 @@ The tracer is one for all three. With `COOPER_TRACE=1`, every use case any conte
 runs is written to the console when it ends, with the use cases it called inside it,
 and how long each took. The contexts run in one process, so when a `boards` use case
 calls `auth`'s, the second shows inside the first: one tracer per context would cut
-that trace in two. Chapter [22](./22-backoffice) shows what it writes.
+that trace in two. A test can hand in its own (`options.tracer`) to read that trace.
+Chapter [22](./22-backoffice) shows what it writes.
 
 ## Start and stop
 
@@ -412,7 +413,7 @@ curl -s localhost:3002/api/workspaces/x/boards
 ```
 
 ```json
-{"error":"Your session has ended: sign in again to go on","code":"not_signed_in"}
+{"error":"You are not signed in, or your session has ended: sign in to go on","code":"not_signed_in"}
 ```
 
 cooper's own test does the same with the three contexts, every database in memory and

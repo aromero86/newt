@@ -219,12 +219,13 @@ construya un cliente sobre ella tiene que contar con ese estado intermedio:
 
 El borrado tiene su propia ventana, corta. El workspace y sus accesos son dos
 guardados, uno detrás de otro. Entre ellos, o si el segundo falla y su worker aún no
-ha corrido, un acceso sigue apuntando a un workspace que ya no existe. Así que el caso
-de uso que lista los workspaces de alguien deja esos fuera:
+ha corrido, un acceso sigue apuntando a un workspace que ya no existe. Nadie entra por
+él: ser miembro pide el acceso *y* el tenant (capítulo [5](./05-who-and-where)). Y el
+caso de uso que lista los workspaces de alguien deja esos fuera:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
-// A workspace deleted a moment ago, whose accesses auth's worker has not taken away yet, is left out.
+// A workspace deleted while this read, or whose accesses its deletion failed to take away (its worker will), is left out.
 return accesses.flatMap(access => {
   const tenant = tenants.get(access.tenantId ?? '')
   return tenant ? [workspaceOf(tenant, userId)] : []

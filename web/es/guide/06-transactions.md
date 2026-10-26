@@ -271,6 +271,10 @@ async delete(tenantId: string): Promise<void> {
 }
 ```
 
+Entre los dos guardados, un acceso sigue apuntando a un workspace que ya no está.
+boards no deja entrar a nadie por él: ser miembro pide el acceso y el tenant (capítulo
+[5](./05-who-and-where)).
+
 `revokeTenant` quita los accesos que queden, así que su worker puede ejecutarlo otra
 vez después de la petición, y no encuentra nada más que hacer:
 

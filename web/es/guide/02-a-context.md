@@ -39,7 +39,7 @@ y esos módulos tienen casos de uso y eventos, nunca un store. Esto es lo que re
 /**
  * What `backoffice`'s modules are given besides its base: the use cases of the
  * contexts it reads, those it needs and nothing else. Never a context's base nor its
- * store: another context is reached through its use cases and its events (ch. 23).
+ * store: another context is reached through its use cases and its events.
  */
 export type Backoffice_ModuleDeps = {
   auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
@@ -175,7 +175,7 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given. */
   static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
     const base = new BoardsBase({ name: 'boards', store, tracer })
@@ -291,8 +291,8 @@ los que necesita:
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   // One tracer for every context: a use case that calls another context's shows that
-  // call inside it, since they run in one process (ch. 30).
-  const tracer = config.trace ? new ConsoleTracer() : undefined
+  // call inside it, since they run in one process.
+  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
@@ -318,8 +318,9 @@ El tracer es uno para los tres. Con `COOPER_TRACE=1`, cada caso de uso que ejecu
 cualquier contexto se escribe en la consola al acabar, con los casos de uso a los que
 llamó dentro y lo que tardó cada uno. Los contextos corren en un mismo proceso, así que
 cuando un caso de uso de `boards` llama a uno de `auth`, el segundo sale dentro del
-primero: un tracer por contexto partiría esa traza en dos. El capítulo
-[22](./22-backoffice) enseña lo que escribe.
+primero: un tracer por contexto partiría esa traza en dos. Un test puede pasar el suyo
+(`options.tracer`) para leer esa traza. El capítulo [22](./22-backoffice) enseña lo
+que escribe.
 
 ## Arrancar y parar
 
@@ -417,7 +418,7 @@ curl -s localhost:3002/api/workspaces/x/boards
 ```
 
 ```json
-{"error":"Your session has ended: sign in again to go on","code":"not_signed_in"}
+{"error":"You are not signed in, or your session has ended: sign in to go on","code":"not_signed_in"}
 ```
 
 El test de cooper hace lo mismo con los tres contextos, cada base de datos en memoria

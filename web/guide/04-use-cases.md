@@ -202,9 +202,10 @@ async findByName(name: string): Promise<BoardDTO | null> {
 `get` says "give me this one": its absence is a 404. `findByName` says "is there one?":
 its absence is `null`. Name them so the caller can tell.
 
-## Lists: always by pages
+## Lists: by pages
 
-No list is returned whole. A use case that lists receives a `PageRequest` (`size`,
+No list is returned whole unless a rule of the domain bounds it (at most 10 columns,
+500 cards); every other list goes by pages. A use case that lists receives a `PageRequest` (`size`,
 `cursor`) and returns a `Page` (`items`, `hasMore`, `total`):
 
 ```ts
