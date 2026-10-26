@@ -210,8 +210,8 @@ opened with a URL:
 static async open(options: SqlStoreOptions): Promise<PostgresStore> {
 ```
 
-The modules would not change. Here is what would, in cooper, following
-`docs/stores.md`:
+The modules would not change. Here is what would, in cooper (the
+[stores reference](../reference/stores) has every detail):
 
 - **Opening the store.** Each context's `open` calls `SqliteStore.open(…)`; it would
   call `PostgresStore.open({ url, migrations })` instead. `CooperBase` says
@@ -226,12 +226,13 @@ The modules would not change. Here is what would, in cooper, following
   earn their keep: a board's card numbers (`cardNumbers:<board>`), a column's cards
   (`cards:<column>`), a board's columns (`columns:<board>`), a board's name
   (`boardName:<workspace>:<name>`), a workspace's admin (`tenantAdmin:<tenant>`), an
-  email's account (`userEmail:<email>`). On SQLite every save takes its turn anyway, so a missing
-  guard goes unnoticed. On Postgres and MySQL each guard is a lock in the database, and
-  a save without one breaks its rule without a sound. A deadlock becomes a
+  email's account (`userEmail:<email>`). On SQLite every save takes its turn anyway,
+  so a missing guard goes unnoticed. On Postgres and MySQL each guard is a lock in
+  the database, and a save without one breaks its rule without a sound. A deadlock
+  becomes a
   `ConcurrencyConflict`, and the use case runs again.
-- **Kysely runs as it is.** The counts already pass through `Number(…)`, which a
-  Postgres `COUNT` needs.
+- **The Kysely counts run as they are.** They already pass through `Number(…)`,
+  which a Postgres `COUNT` needs.
 - **What is marked as SQLite's** is what to rewrite. `SqliteAnalytics` uses SQLite's
   connection and `json_extract`. On another store it would be another adapter of the
   analytics port, or a real analytical database (DuckDB, ClickHouse).
