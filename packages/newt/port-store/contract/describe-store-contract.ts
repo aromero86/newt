@@ -79,6 +79,47 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
 
         expect(await names()).toEqual(['ana'])
       })
+
+      test('runs writes side by side in it, each on its own: a collision fails alone', async () => {
+        await things.insert(thing({ name: 'taken' }))
+
+        const outcomes = await store.transaction(() => Promise.allSettled([
+          things.insert(thing({ name: 'ana' })),
+          things.insert(thing({ name: 'taken' })),
+          things.insert(thing({ name: 'bea' })),
+        ]))
+
+        expect(outcomes.map(outcome => outcome.status === 'fulfilled' ? 'ok' : outcome.reason instanceof ConcurrencyConflict ? 'conflict' : String(outcome.reason))).toEqual(['ok', 'conflict', 'ok'])
+        expect(await names()).toEqual(['ana', 'bea', 'taken'])
+      })
+
+      test('rolled back while writes of it are still in flight, keeps none of them: they fail', async () => {
+        let late!: Promise<string>
+        await expect(store.transaction(async () => {
+          const writes = (async () => {
+            await things.insert(thing({ name: 'ana' }))
+            await things.insert(thing({ name: 'bea' }))
+          })()
+          late = writes.then(() => 'written', (error: Error) => error.message)
+          await Promise.all([writes, Promise.reject(new Error('boom'))])
+        })).rejects.toThrow('boom')
+
+        expect(await late).toContain('a transaction that has ended')
+        await Bun.sleep(20)
+        expect(await names()).toEqual([])
+      })
+
+      test('a write of it that comes after it committed fails, and runs nowhere', async () => {
+        let late!: Promise<string>
+        await store.transaction(async () => {
+          await things.insert(thing({ name: 'ana' }))
+          // Left unawaited: it comes once the transaction has ended.
+          late = Bun.sleep(5).then(() => things.insert(thing({ name: 'late' }))).then(() => 'written', (error: Error) => error.message)
+        })
+
+        expect(await late).toContain('a transaction that has ended')
+        expect(await names()).toEqual(['ana'])
+      })
     })
 
     describe('isolation', () => {
@@ -113,6 +154,22 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         const settled = await Promise.allSettled([addIfNone('ana'), addIfNone('bea')])
 
         // A store with concurrent transactions may refuse one instead: as a conflict, never as anything else.
+        for (const each of settled) if (each.status === 'rejected') expect(each.reason).toBeInstanceOf(ConcurrencyConflict)
+        expect(await things.count({ workspaceId: 'w1' })).toBe(1)
+      })
+
+      test('a guard taken after a read in the same transaction still holds the rule: the read fixes no snapshot', async () => {
+        const addIfNone = (name: string) => store.transaction(async () => {
+          await things.count({ workspaceId: 'other' })
+          await Bun.sleep(5)
+          await store.guard(['things:w1'])
+          const before = await things.count({ workspaceId: 'w1' })
+          await Bun.sleep(5)
+          if (before === 0) await things.insert(thing({ name }))
+        })
+
+        const settled = await Promise.allSettled([addIfNone('ana'), addIfNone('bea')])
+
         for (const each of settled) if (each.status === 'rejected') expect(each.reason).toBeInstanceOf(ConcurrencyConflict)
         expect(await things.count({ workspaceId: 'w1' })).toBe(1)
       })
@@ -322,6 +379,42 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await ids({ or: [] })).toEqual([])
         expect(await ids({ and: [] })).toEqual(['01', '02', '03'])
         expect(await things.count({ or: [{ rank: 1 }, { rank: 2 }] })).toBe(2)
+      })
+
+      test('keeps a JSON field as it was given: a string, a number, an object, a list', async () => {
+        const values: unknown[] = ['hello', '123', 'null', 123, { a: [1, 'b'] }, ['x', 2], true]
+        for (const [i, tags] of values.entries()) await things.insert(thing({ id: `0${i}`, tags: tags as string[] }))
+
+        expect((await things.find()).map(row => row.tags as unknown)).toEqual(values)
+      })
+
+      test('tells a value with a trailing space from one without, and from a value with NUL', async () => {
+        await things.insert(thing({ id: '01', name: 'ana' }))
+        await things.insert(thing({ id: '02', name: 'ana ' }))
+        const ids = async (criteria: Parameters<typeof things.find>[0]) => (await things.find(criteria)).map(row => row.id)
+
+        expect(await ids({ name: 'ana' })).toEqual(['01'])
+        expect(await ids({ name: { ieq: 'ANA' } })).toEqual(['01'])
+        expect(await ids({ name: { in: ['ana ', 'ana\u0000'] } })).toEqual(['02'])
+        expect(await ids({ id: '01\u0000' })).toEqual([])
+        expect(await ids({ name: { ne: 'ana\u0000' } })).toEqual(['01', '02'])
+        expect(await ids({ id: { gt: '01\u0000x' } })).toEqual(['02'])
+        expect(await ids({ id: { lte: '01\u0000x' } })).toEqual(['01'])
+      })
+
+      test('sorts and compares text by code point, and null first going up, last going down', async () => {
+        await things.insert(thing({ id: '01', name: 'bea', note: 'b' }))
+        await things.insert(thing({ id: '02', name: 'Ana', note: null }))
+        await things.insert(thing({ id: '03', name: 'cris', note: 'B' }))
+        await things.insert(thing({ id: '04', name: 'Bob', note: 'a' }))
+        const sorted = async (field: 'name' | 'note', direction?: 'asc' | 'desc') => (await things.find({}, { orderBy: [{ field, direction }] })).map(row => row.id)
+
+        expect(await sorted('name')).toEqual(['02', '04', '01', '03'])
+        expect(await sorted('name', 'desc')).toEqual(['03', '01', '04', '02'])
+        expect(await sorted('note')).toEqual(['02', '03', '04', '01'])
+        expect(await sorted('note', 'desc')).toEqual(['01', '04', '03', '02'])
+        expect((await things.find({ name: { gt: 'Bob' } })).map(row => row.id)).toEqual(['01', '03'])
+        expect((await things.find({ name: { lt: 'bea' } })).map(row => row.id)).toEqual(['02', '04'])
       })
 
       test('sorts, limits and counts', async () => {

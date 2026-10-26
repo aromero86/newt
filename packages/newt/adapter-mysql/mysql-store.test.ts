@@ -21,8 +21,8 @@ const server = url ? Object.assign(new URL(url), { pathname: '/' }).href : ''
 
 const THING = `
 CREATE TABLE thing (
-  id VARCHAR(36) COLLATE utf8mb4_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_bin NOT NULL, name VARCHAR(255) COLLATE utf8mb4_bin NOT NULL,
-  archived BOOLEAN NOT NULL, \`rank\` DOUBLE NOT NULL, note TEXT COLLATE utf8mb4_bin, tags JSON NOT NULL, created_at VARCHAR(32) NOT NULL,
+  id VARCHAR(36) COLLATE utf8mb4_0900_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_0900_bin NOT NULL, name VARCHAR(255) COLLATE utf8mb4_0900_bin NOT NULL,
+  archived BOOLEAN NOT NULL, \`rank\` DOUBLE NOT NULL, note TEXT COLLATE utf8mb4_0900_bin, tags JSON NOT NULL, created_at VARCHAR(32) NOT NULL,
   updated_at VARCHAR(32) NOT NULL, deleted_at VARCHAR(32), version INTEGER NOT NULL,
   UNIQUE INDEX thing_name ((IF(deleted_at IS NULL, name, NULL)))
 )`
@@ -93,18 +93,55 @@ if (url) {
       }
     })
 
-    test('a guard another transaction holds is given up on, saying why, once it waited long enough', async () => {
-      // GET_LOCK waits whole seconds: at least one.
+    test('a guard another transaction holds is given up on, saying why, once it waited long enough: under a second too', async () => {
       const store = await open({ waitTimeoutMs: 100 })
       try {
         const holding = store.transaction(async () => {
           await store.guard(['k'])
-          await Bun.sleep(2_000)
+          await Bun.sleep(1_000)
         })
         await Bun.sleep(50)
 
+        const started = Date.now()
         await expect(store.transaction(() => store.guard(['k']))).rejects.toThrow("the guard 'k'")
+        expect(Date.now() - started).toBeLessThan(500)
         await holding
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('a key guarded in one database is another key in another database', async () => {
+      const store = await open({ waitTimeoutMs: 100 })
+      const admin = new SQL(server)
+      await admin.unsafe(`CREATE DATABASE IF NOT EXISTS ${database}_other`)
+      const other = await MySqlStore.connect({ url: Object.assign(new URL(url!), { pathname: `/${database}_other` }).href, waitTimeoutMs: 100 })
+      try {
+        const holding = store.transaction(async () => {
+          await store.guard(['k'])
+          await Bun.sleep(1_500)
+        })
+        await Bun.sleep(50)
+
+        await other.transaction(() => other.guard(['k']))
+        await holding
+      } finally {
+        await other.close()
+        await admin.unsafe(`DROP DATABASE IF EXISTS ${database}_other`)
+        await admin.close()
+        await store.close()
+      }
+    })
+
+    test('hands a BIGINT back as a number while it is exact, and a DECIMAL as text', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE amount (id VARCHAR(36) PRIMARY KEY, version INTEGER NOT NULL, big BIGINT, exact DECIMAL(10, 2))')
+        const amounts = store.table<{ id: string, version: number, big: number | string, exact: string }>('amount')
+        await amounts.insert({ id: 'a', big: 5, exact: '1.5' })
+        await amounts.insert({ id: 'b', big: '9007199254740993', exact: '2' })
+
+        expect(await amounts.find()).toEqual([{ id: 'a', version: 1, big: 5, exact: '1.50' }, { id: 'b', version: 1, big: '9007199254740993', exact: '2.00' }])
       } finally {
         await store.close()
       }
@@ -132,7 +169,7 @@ if (url) {
     test('apply its own first, then the framework\'s: its own may have made the job tables', async () => {
       await empty()
       const folder = await migrations({
-        '00002_queues_up.sql': 'CREATE TABLE job_queue (name VARCHAR(255) COLLATE utf8mb4_bin PRIMARY KEY, event VARCHAR(255) NOT NULL, attempts INTEGER NOT NULL, created_at VARCHAR(32) NOT NULL, last_seen_at VARCHAR(32) NOT NULL)',
+        '00002_queues_up.sql': 'CREATE TABLE job_queue (name VARCHAR(255) COLLATE utf8mb4_0900_bin PRIMARY KEY, event VARCHAR(255) NOT NULL, attempts INTEGER NOT NULL, created_at VARCHAR(32) NOT NULL, last_seen_at VARCHAR(32) NOT NULL)',
         '00002_queues_down.sql': 'DROP TABLE job_queue',
       })
 

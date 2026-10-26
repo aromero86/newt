@@ -1443,8 +1443,8 @@ Recuerda el reparto:
 - **el `guard` protege una regla entre varias filas**: nadie se cuela entre tu
   escritura y tu comprobación.
 
-Fuera de eso, cada store usa su aislamiento normal; no hace falta pedir nada más
-estricto.
+Fuera de eso, cada store usa su aislamiento normal (`READ COMMITTED` en Postgres y
+MySQL); no hace falta pedir nada más estricto.
 
 Ahora la historia acaba bien:
 
@@ -2959,7 +2959,7 @@ Reglas:
 - `down` deshace exactamente lo que hizo `up`.
 
 Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
-(`BOOLEAN` y `JSONB` en Postgres; `VARCHAR(36)` y columnas `utf8mb4_bin` en MySQL).
+(`BOOLEAN` y `JSONB` en Postgres; `VARCHAR(36)` y columnas `utf8mb4_0900_bin` en MySQL).
 [`stores.md`](stores.md) cuenta los detalles de cada uno.
 
 Un fichero puede tener varias sentencias, y también triggers y funciones con sus

@@ -20,7 +20,7 @@ async function open(): Promise<MySqlStore> {
   await admin.unsafe(`DROP DATABASE IF EXISTS ${database}`)
   await admin.unsafe(`CREATE DATABASE ${database}`)
   await admin.unsafe(`CREATE TABLE ${database}.thing (
-    id VARCHAR(36) COLLATE utf8mb4_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_bin NOT NULL, \`rank\` DOUBLE NOT NULL
+    id VARCHAR(36) COLLATE utf8mb4_0900_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_0900_bin NOT NULL, \`rank\` DOUBLE NOT NULL
   )`)
   await admin.close()
   return MySqlStore.open({ url: url!, connections: 5 })

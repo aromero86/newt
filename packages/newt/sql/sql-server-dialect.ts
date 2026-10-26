@@ -5,7 +5,8 @@ import type { SqlDialect } from './sql-dialect'
 export type SqlServerDialect = SqlDialect & {
   /** Its name in a URL, and in its migrations folder: `postgres`, `mysql`. */
   name: 'postgres' | 'mysql'
-  begin: string
+  /** The statements that begin a transaction, at READ COMMITTED on both. */
+  begin: string[]
   /** Whether a statement that fails spoils the transaction it is in, so a write that may fail needs a savepoint. */
   failedStatementAborts: boolean
   /** How many rows a write changed, as its driver tells. */

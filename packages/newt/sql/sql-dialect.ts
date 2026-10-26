@@ -17,6 +17,21 @@ export type SqlDialect = {
   boolean(value: boolean): unknown
   /** A write refused because a key or a unique value was taken. */
   isCollision(error: unknown): boolean
+  /** Whether null sorts above every value (Postgres): ordering then puts it first going up, as the other stores do. */
+  nullsLast?: boolean
+  /** Whether its driver hands a JSON column back parsed already (MySQL), not as the text it was given. */
+  parsesJson?: boolean
+  /** Whether its text cannot hold the NUL character (Postgres): a value with one matches nothing, and writing one is refused. */
+  refusesNul?: boolean
+  /**
+   * Where a table learns of its columns from the database (Postgres): the query that
+   * lists, for the table its one parameter names (quoted), each column's `name`,
+   * whether it is text of the database's own collation (`collated`), which sorts by its
+   * locale, and whether it is a big integer (`big`), which the driver hands back as text.
+   */
+  columns?: string
+  /** A column `collated` as `columns` says, compared and sorted by code point, as the other stores do. */
+  byCodePoint?(column: string): string
   /** A transaction the database gave up to keep others apart (a deadlock, a serialization failure): try again. */
   isConflict(error: unknown): boolean
 }

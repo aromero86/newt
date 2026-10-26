@@ -27,18 +27,19 @@ describe('TransactionScope', () => {
     expect(log).toEqual(['begin', 'rollback', 'end'])
   })
 
-  test('runs a write that comes late, after the commit, in a transaction of its own', async () => {
+  test('fails a call of it that comes late, after the commit, instead of running it outside it', async () => {
     const scope = new TransactionScope()
     const log: string[] = []
     let late!: Promise<void>
 
     await scope.run(() => {
       // Left unawaited: it arrives while the transaction commits.
-      late = new Promise<void>(resolve => setTimeout(() => resolve(scope.run(() => { log.push('late') }, undefined, steps(log))), 1))
+      late = Bun.sleep(1).then(() => scope.run(() => { log.push('late') }, undefined, steps(log)))
+      late.catch(() => {})
     }, undefined, { ...steps(log), commit: async () => { await Bun.sleep(5); log.push('commit') } })
-    await late
 
-    expect(log).toEqual(['begin', 'commit', 'end', 'begin', 'late', 'commit', 'end'])
+    await expect(late).rejects.toThrow('a transaction that has ended')
+    expect(log).toEqual(['begin', 'commit', 'end'])
   })
 
   test('gives up waiting, saying why, instead of hanging on a transaction that waits for it', async () => {
@@ -124,19 +125,35 @@ describe('a commit that fails', () => {
   })
 })
 
-describe('a write that comes during a rollback', () => {
-  test('runs in a transaction of its own, after it', async () => {
+describe('a rollback', () => {
+  test('fails a call of it that comes during the rollback, instead of running it outside it', async () => {
     const scope = new TransactionScope()
     const log: string[] = []
     let late!: Promise<void>
 
     await scope.run(() => {
-      late = new Promise<void>(resolve => setTimeout(() => resolve(scope.run(() => { log.push('late') }, undefined, steps(log))), 1))
+      late = Bun.sleep(1).then(() => scope.run(() => { log.push('late') }, undefined, steps(log)))
+      late.catch(() => {})
+      scope.afterCommit(() => log.push('callback'))
       throw new Error('boom')
     }, undefined, { ...steps(log), rollback: async () => { await Bun.sleep(5); log.push('rollback') } }).catch(() => {})
-    await late
 
-    expect(log).toEqual(['begin', 'rollback', 'end', 'begin', 'late', 'commit', 'end'])
+    await expect(late).rejects.toThrow('a transaction that has ended')
+    expect(log).toEqual(['begin', 'rollback', 'end'])
+  })
+
+  test('that fails too leaves the first error the one thrown', async () => {
+    const scope = new TransactionScope()
+    const originalError = console.error
+    console.error = () => {}
+
+    try {
+      const failing = scope.run(() => { throw new Error('first') }, undefined, { ...steps([]), rollback: () => { throw new Error('connection lost') } })
+
+      await expect(failing).rejects.toThrow('first')
+    } finally {
+      console.error = originalError
+    }
   })
 })
 

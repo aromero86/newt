@@ -22,8 +22,9 @@ const WAIT_TIMEOUT_MS = 30_000
  *   that must not run in between: a read, a migration);
  * - the current transaction follows the code (`AsyncLocalStorage`), and a call inside
  *   one joins it;
- * - once it starts committing it is closed: a write that comes late runs in a
- *   transaction of its own, after it, instead of being lost;
+ * - once it starts committing or rolling back it is closed: a call that belongs to it
+ *   and comes late (left unawaited, or a branch of a `Promise.all` still running when
+ *   another threw) fails, instead of running outside it;
  * - `afterCommit` runs once it commits, each callback on its own, never on a rollback;
  * - a call that waits too long fails saying why, instead of hanging: the usual cause
  *   is code inside a transaction that lost it (`AsyncLocalStorage.snapshot`, an
@@ -54,9 +55,20 @@ export class TransactionScope<State = undefined> {
     return this.current.getStore()?.open === true
   }
 
+  /** Whether this code belongs to a transaction that has ended: whatever it asks of the store now fails. */
+  get ended(): boolean {
+    return this.current.getStore()?.open === false
+  }
+
+  /** Throws if this code belongs to a transaction that has ended. */
+  assertNotEnded(): void {
+    if (this.ended) throw new Error('This call belongs to a transaction that has ended: it came after the transaction committed or rolled back (a call left unawaited, or a branch of a Promise.all still running when another threw). Await every call inside a transaction.')
+  }
+
   /** Runs `fn` in a new transaction, through `steps`, or in the one in progress. */
   async run<T>(fn: () => T | Promise<T>, state: State, steps: Steps): Promise<T> {
     if (this.inTransaction) return fn()
+    this.assertNotEnded()
 
     const transaction: Transaction<State> = { open: true, state, committed: [] }
     const body = async () => {
@@ -67,14 +79,14 @@ export class TransactionScope<State = undefined> {
           value = await this.current.run(transaction, fn)
         } catch (error) {
           transaction.open = false
-          await steps.rollback()
+          await rollback(steps)
           throw error
         }
         transaction.open = false
         try {
           await steps.commit()
         } catch (error) {
-          await steps.rollback()
+          await rollback(steps)
           throw error
         }
         return value
@@ -104,6 +116,7 @@ export class TransactionScope<State = undefined> {
 
   /** Runs `fn` once the transaction in progress commits; at once outside one; never if it rolls back. */
   afterCommit(fn: () => void): void {
+    this.assertNotEnded()
     const transaction = this.current.getStore()
     if (transaction?.open) transaction.committed.push(fn)
     else fn()
@@ -135,5 +148,14 @@ export class TransactionScope<State = undefined> {
   /** Resolves once everything queued has ended: for closing. */
   async drain(): Promise<void> {
     await this.queue
+  }
+}
+
+/** Rolls back after an error: one rolling back raises (a connection lost) is told, and the first one stays the one thrown. */
+async function rollback(steps: Steps): Promise<void> {
+  try {
+    await steps.rollback()
+  } catch (error) {
+    console.error('[store] rolling back after an error failed too; the first error is the one thrown:', error)
   }
 }

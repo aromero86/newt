@@ -5,7 +5,7 @@ import { mysqlDialect } from './mysql-dialect'
  * The MySQL store, on `Bun.SQL`. Its migrations are MySQL SQL; MySQL commits a
  * change of structure at once, so a batch that fails halfway keeps what it did. An
  * entity table has `id VARCHAR(36) PRIMARY KEY` and `version INTEGER NOT NULL`; text
- * columns are best `utf8mb4_bin`; a unique value among the rows not deleted is a
+ * columns are best `utf8mb4_0900_bin`; a unique value among the rows not deleted is a
  * functional unique index on `(IF(deleted_at IS NULL, col, NULL))`.
  */
 export class MySqlStore extends SqlStore {
