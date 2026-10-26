@@ -1,4 +1,4 @@
-import type { DomainEventEmitter } from 'newt/core'
+import type { EventSource } from 'newt/core'
 import type { Access_Module } from '../../../auth/modules/access/access.module'
 import type { Invitation_Module } from '../../../auth/modules/invitation/invitation.module'
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
@@ -13,8 +13,8 @@ import type { Member_Module } from '../member/member.module'
  * boards needs of them, in its own words. auth's emitters fit it; a test hands its own.
  */
 export type TenantEvents = {
-  created: Pick<DomainEventEmitter<{ id: string }>, 'subscribe'>
-  deleted: Pick<DomainEventEmitter<{ id: string }>, 'subscribe'>
+  created: EventSource<{ id: string }>
+  deleted: EventSource<{ id: string }>
 }
 
 /**

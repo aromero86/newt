@@ -1,4 +1,4 @@
-import type { DomainEventEmitter } from 'newt/core'
+import type { EventSource } from 'newt/core'
 import type { Board_Module } from '../board/board.module'
 import type { Column_Module } from '../column/column.module'
 import type { Member_Module } from '../member/member.module'
@@ -12,7 +12,7 @@ export type AccessEvents = {
    * Someone lost their access to a product of auth's: to a workspace of `cooper`
    * (`tenantId`), or to a product with none (null, the backoffice's staff).
    */
-  revoked: Pick<DomainEventEmitter<{ userId: string, productId: string, tenantId: string | null }>, 'subscribe'>
+  revoked: EventSource<{ userId: string, productId: string, tenantId: string | null }>
 }
 
 export interface Card_Deps {

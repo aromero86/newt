@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { DomainEvent } from './domain-event'
 import type { EventBus } from './event-bus'
 import type { EventHandler } from './event-handler'
+import type { EventSource } from './event-source'
 import type { SubscribeOptions } from './subscribe-options'
 import { eventsOf } from './events-of'
 
@@ -129,6 +130,20 @@ describe('a payload', () => {
     }
 
     expect(eventsOf(recordingBus().bus, { due: DueOn }).due.name).toBe(Due.eventName)
+  })
+})
+
+describe('an EventSource', () => {
+  test('is what a dependency needs of an emitter: an emitter fits it, and so does a stand-in', () => {
+    const { bus, subscriptions } = recordingBus()
+    const placed: EventSource<{ id: string }> = eventsOf(bus, { placed: Placed }).placed
+    const standIn: EventSource<{ id: string }> = { subscribe: () => () => {} }
+    // @ts-expect-error another payload is another source
+    const other: EventSource<{ number: number }> = placed
+
+    placed.subscribe(() => {}, { strategy: 'fire-and-forget' })
+    expect(subscriptions).toHaveLength(1)
+    expect([standIn, other]).toHaveLength(2)
   })
 })
 
