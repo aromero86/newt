@@ -3,6 +3,7 @@ import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, type WorkspaceScope } from '../../workspace-scope'
 import { WorkspaceNotFound } from './errors/workspace-not-found'
 import type { Member_Deps } from './member.deps'
+import type { MemberDTO } from './member.schema'
 
 /**
  * Who belongs to each workspace, as `boards` asks it: the module that knows,
@@ -34,5 +35,11 @@ export class Member_Module extends Module {
   @UseCase()
   async isMember(userId: string): Promise<boolean> {
     return this.deps.workspaces.isMember(currentWorkspaceId(), userId)
+  }
+
+  /** Someone of a workspace, or null if they do not belong to it (any more): what a worker, outside any scope, asks. */
+  @UseCase()
+  async find(workspaceId: string, userId: string): Promise<MemberDTO | null> {
+    return this.deps.workspaces.member(workspaceId, userId)
   }
 }

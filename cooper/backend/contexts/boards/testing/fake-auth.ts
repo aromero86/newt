@@ -13,6 +13,7 @@ export class FakeAuth {
   /** The port of who belongs to each workspace. */
   readonly workspaces: Workspaces = {
     isMember: async (workspaceId, userId) => this.members.get(workspaceId)?.has(userId) ?? false,
+    member: async (workspaceId, userId) => this.members.get(workspaceId)?.get(userId) ?? null,
   }
 
   private constructor() {}

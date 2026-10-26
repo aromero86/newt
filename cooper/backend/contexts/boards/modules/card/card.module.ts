@@ -1,5 +1,6 @@
 import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
+import { runInWorkspace } from '../../workspace-scope'
 import {
   Card,
   CardAssignSchema,
@@ -11,8 +12,10 @@ import {
   type CardDTO,
 } from './card'
 import type { Card_Deps } from './card.deps'
+import type { Card_Options } from './card-options'
 import { Card_Repository } from './card.repository'
 import { registerCardRoutes } from './card.routes'
+import { registerCardWorkers } from './card.workers'
 import { AssigneeNotMember } from './errors/assignee-not-member'
 import { CardNotFound } from './errors/card-not-found'
 import { ColumnNotEmpty } from './errors/column-not-empty'
@@ -38,9 +41,10 @@ function actingAuthor(): CardAuthor & { by: string } {
  */
 export class Card_Module extends Module {
 
-  static initialize(base: BoardsBase, deps: Card_Deps): Card_Module {
-    const module = new Card_Module(base, new Card_Repository(base), deps)
+  static initialize(base: BoardsBase, deps: Card_Deps, options: Card_Options): Card_Module {
+    const module = new Card_Module(base, new Card_Repository(base), deps, options)
     registerCardRoutes(base, module, deps)
+    registerCardWorkers(module, deps)
     return module
   }
 
@@ -50,6 +54,7 @@ export class Card_Module extends Module {
     base: BoardsBase,
     private readonly repo: Card_Repository,
     private readonly deps: Card_Deps,
+    private readonly options: Card_Options,
   ) {
     super('card', base.invocations)
     this.events = eventsOf(base.bus, {
@@ -171,6 +176,31 @@ export class Card_Module extends Module {
     const cards = await this.repo.count({ columnId })
     if (cards > 0) throw new ColumnNotEmpty(columnId, cards)
     await this.deps.column.remove(column.id)
+  }
+
+  /**
+   * Tells the assignee of a card they have it, by email: from a worker, once the
+   * assignment is saved, since an email cannot be taken back. Run late, it
+   * reads the card again: if it is gone, or has another assignee by then, there is
+   * nothing to tell (that assignment tells its own). Nor is anyone told of a card
+   * they gave themselves (`by`, who created or assigned it). Its job may run twice:
+   * the email's key is the event's id (`eventId`), so it is sent once.
+   */
+  @UseCase()
+  async notifyAssignee(card: CardDTO, by: string | null, eventId: string): Promise<void> {
+    if (card.assigneeId === null || card.assigneeId === by) return
+    const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
+    if (current?.assigneeId !== card.assigneeId) return
+    const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
+    if (!member) return
+    // Where boards' UI opens the card: on its board's screen, by its id.
+    const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
+    await this.options.mailer.send({
+      to: member.email,
+      subject: `#${card.number} ${card.title} is yours`,
+      text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
+      key: `card.notifyAssignee:${eventId}`,
+    })
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */

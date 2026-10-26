@@ -122,13 +122,79 @@ describe('card', () => {
     expect(edited).toMatchObject({ title: 'Plan the launch', description: 'Dates, people', number: 1 })
   })
 
-  test('assigns a card only to a member of its workspace', async () => {
+  test('assigns a card only to a member of its workspace, and tells them by email once saved', async () => {
     const plan = await create('Plan')
 
     await expect(inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'carl' }))).rejects.toMatchObject({ code: 'card.assignee_not_member' })
-    await expect(create('Design', { assigneeId: 'carl' })).rejects.toMatchObject({ code: 'card.assignee_not_member' })
 
-    expect((await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))).assigneeId).toBe('bea')
-    expect((await inAcme(() => t.modules.card.unassign(plan.id))).assigneeId).toBeNull()
+    await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
+    expect(t.mails).toEqual([])
+    await t.settled()
+    expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#1 Plan is yours']])
+    // The link opens the card on its board, in boards' UI.
+    expect(t.mails[0]!.text).toBe(['Hi bea,', '', 'Card #1, "Plan", is assigned to you.', '', new URL(`/w/acme/boards/${boardId}?card=${plan.id}`, t.boards.config.publicUrl).toString()].join('\n'))
+
+    // Assigning it again to the same one changes nothing, and tells nothing.
+    await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
+    await t.settled()
+    expect(t.mails).toHaveLength(1)
+  })
+
+  test('tells the assignee once, however many times the job of an assignment runs', async () => {
+    const { id } = await create('Plan')
+    const plan = await inAcme(() => t.modules.card.assign(id, { assigneeId: 'bea' }))
+
+    // The job of one event, run twice (its first run failed after sending), and one of another event.
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-2')
+
+    expect(t.mails.map(mail => [mail.subject, mail.key])).toEqual([['#1 Plan is yours', 'card.notifyAssignee:event-1'], ['#1 Plan is yours', 'card.notifyAssignee:event-2']])
+  })
+
+  test('tells the assignee of a card created for them, and nobody of one assigned and unassigned at once', async () => {
+    await create('Plan', { assigneeId: 'bea' })
+    const design = await create('Design')
+    // To someone else than who gives it, who would hear of it but for the card read again.
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+    await inAcme(() => t.modules.card.unassign(design.id))
+
+    await t.settled()
+
+    expect(t.mails.map(mail => mail.subject)).toEqual(['#1 Plan is yours'])
+  })
+
+  test('tells nobody of a card they created for themselves, or took', async () => {
+    await create('Plan', { assigneeId: 'ana' })
+    const design = await create('Design')
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
+    // Given to someone else, they hear of it.
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+
+    await t.settled()
+
+    expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
+  })
+
+  test('a reaction that keeps failing dies after its attempts, is listed, and runs once retried', async () => {
+    // A reaction of the test's own, as if the mail server were down, at its only attempt.
+    let down = true
+    t.modules.card.events.created.subscribe(() => {
+      if (down) throw new Error('the mail server is down')
+    // eslint-disable-next-line newt/queue-name
+    }, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
+    await create('Plan')
+    await t.settled()
+
+    const dead = await t.modules.outbox.dead({ size: 10 })
+    expect(dead.items).toEqual([expect.objectContaining({ queue: 'test.tellSomeone.on.card.created', event: 'card.created', attempts: 1, lastError: expect.stringContaining('the mail server is down') })])
+
+    down = false
+    await t.modules.outbox.retry(dead.items[0]!.id)
+    await t.settled()
+
+    expect((await t.modules.outbox.dead({ size: 10 })).total).toBe(0)
+    // Done is done: it is not run again.
+    await expect(t.modules.outbox.retry(dead.items[0]!.id)).rejects.toMatchObject({ code: 'outbox.job_not_dead', status: 409 })
   })
 })

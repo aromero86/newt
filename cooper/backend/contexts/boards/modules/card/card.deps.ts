@@ -7,6 +7,6 @@ export interface Card_Deps {
   board: Board_Module
   /** That a card's column exists, and is of its board. */
   column: Column_Module
-  /** That a card's assignee belongs to its workspace. */
+  /** That a card's assignee belongs to its workspace, and where to write to them. */
   member: Member_Module
 }
