@@ -52,13 +52,9 @@ base.jobs.start()
 serve({ port: 3000, router: base.http })
 ```
 
-Two whole applications show it, each with its tests:
-
-- [`examples/notes`](../../examples/notes): small enough to read in one go: an entity,
-  its repository, its use cases, an event a worker reacts to, its routes.
-- [`examples/despensa`](../../examples/despensa): a shop whose orders are confirmed in the
-  background, with stock kept as movements, rules over several rows and emails
-  from workers, on files or SQLite. It is the one the manual builds.
+One whole application shows it, with its tests: [`cooper`](../../cooper), a small
+Trello-like SaaS, its staff's backoffice and the OAuth server they sign in with,
+three contexts on SQLite. The guide builds it step by step.
 
 ## Documentation
 

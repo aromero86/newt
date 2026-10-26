@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { Glob } from 'bun'
 import manifest from './package.json'
 
-// The examples reach newt through the root tsconfig's alias, `newt/*` to
+// Applications in this repository (cooper) reach newt through the root tsconfig's alias, `newt/*` to
 // `packages/newt/*/index.ts`, not through this package's `exports`. They agree only while
 // every entry point is an `index.ts` and every `index.ts` is an entry point.
 describe('exports', () => {
