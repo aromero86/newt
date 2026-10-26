@@ -1,0 +1,18 @@
+{
+  // cooper's backend, on Bun, with the framework it imports. No DOM. Apart from newt's
+  // own project (tsconfig.newt.json), as an application has newt apart: what cooper
+  // adds to newt's types (its Actor, shared/actor.ts) is cooper's only.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+  },
+  "include": ["cooper/backend/**/*.ts"],
+  "exclude": ["**/node_modules"]
+}

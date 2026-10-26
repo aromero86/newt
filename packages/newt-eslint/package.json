@@ -1,0 +1,19 @@
+{
+  "name": "newt-eslint",
+  "version": "0.0.0",
+  "description": "The lint of an application built with newt: every module made of the same files, reaching others only through what they offer, and writing only through its repository.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "typescript-eslint": "8.71.1"
+  },
+  "peerDependencies": {
+    "eslint": "10.12.0"
+  },
+  "devDependencies": {
+    "eslint": "10.12.0"
+  }
+}

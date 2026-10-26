@@ -1,0 +1,69 @@
+import { runAsActor } from 'newt/core'
+import { config, type Config } from '../../../config'
+import { openContexts, stopContexts } from '../../../open-contexts'
+import { PRODUCTS } from '../../auth/modules/product/product.schema'
+import type { UserDTO } from '../../auth/modules/user/user.schema'
+import { runInWorkspace } from '../../boards/workspace-scope'
+
+/** cooper's settings for a test: every database in memory, every server on a free port. */
+function testConfig(): Config {
+  return {
+    ...config,
+    auth: { ...config.auth, dbPath: ':memory:', port: 0 },
+    boards: { ...config.boards, dbPath: ':memory:', port: 0 },
+    backoffice: { ...config.backoffice, dbPath: ':memory:', port: 0 },
+    trace: false,
+  }
+}
+
+/**
+ * The backoffice for a test, with the real auth and boards it reads, as the server
+ * opens them: every database in memory, the emails in a list. The data is made
+ * through auth's and boards' own use cases, as anyone would.
+ */
+export async function openTestBackoffice() {
+  const contexts = await openContexts(testConfig(), { mailer: { send: async () => {} } })
+  const { auth, boards, backoffice } = contexts
+
+  /** An account, as someone signs up in auth. */
+  const signUp = (name: string): Promise<UserDTO> =>
+    auth.modules.user.signUp({ email: `${name.toLowerCase()}@cooper.test`, name, password: 'a long password' })
+
+  return {
+    auth,
+    boards,
+    backoffice,
+    modules: backoffice.modules,
+    signUp,
+    /** Someone of the staff, as the seed makes the first one. */
+    async staffMember(name: string): Promise<UserDTO> {
+      const user = await signUp(name)
+      await auth.modules.access.admit({ userId: user.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
+      return user
+    },
+    as<T>(user: UserDTO, fn: () => Promise<T>): Promise<T> {
+      return runAsActor({ userId: user.id, via: 'web' }, fn)
+    },
+    /** A board with a column, made in a workspace by someone of it, with cards titled as given. */
+    async board(user: UserDTO, workspaceId: string, name: string, cards: string[]) {
+      return runAsActor({ userId: user.id, via: 'web' }, () => runInWorkspace(workspaceId, async () => {
+        const board = await boards.modules.board.create({ name })
+        const column = await boards.modules.column.add(board.id, { name: 'To do' })
+        for (const title of cards) await boards.modules.card.create(board.id, { columnId: column.id, title })
+        return board
+      }))
+    },
+    /**
+     * Until the background work is done, in the order it flows: auth's events (heard
+     * by boards and by the metrics), then boards' (the cards the metrics count).
+     */
+    async settled(): Promise<void> {
+      for (let round = 0; round < 2; round++) {
+        for (const context of contexts.all) await context.base.jobs.idle()
+      }
+    },
+    close: () => stopContexts(contexts),
+  }
+}
+
+export type TestBackoffice = Awaited<ReturnType<typeof openTestBackoffice>>

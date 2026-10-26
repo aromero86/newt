@@ -1,30 +1,21 @@
 {
+  // The whole repository, as four projects: the framework (newt), what runs on the
+  // server (cooper's backend), what runs in the browser (cooper's frontends and their
+  // libraries), and the tools around them (scripts, Vite's configs). `bun check` follows the references.
+  // The paths are here too because Bun and Vite resolve imports with this file.
   "compilerOptions": {
-    // Environment setup & latest features
-    "lib": ["ESNext"],
-    "target": "ESNext",
-    "module": "Preserve",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "allowJs": true,
-    "types": ["bun"],
-
-    // Bundler mode
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-
-    // Best practices
-    "strict": true,
-    "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "paths": {
+      "newt/*": ["./packages/newt/*/index.ts"],
+      "@cooper/ui/*": ["./cooper/libs/ui/*"],
+      "@cooper/api/*": ["./cooper/libs/api/*"],
+      "@cooper/core/*": ["./cooper/libs/core/*"]
+    }
+  },
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.newt.json" },
+    { "path": "./tsconfig.backend.json" },
+    { "path": "./tsconfig.frontend.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
 }

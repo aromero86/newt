@@ -1,0 +1,40 @@
+{
+  "name": "newt",
+  "version": "0.0.0",
+  "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./core": "./core/index.ts",
+    "./port-store": "./port-store/index.ts",
+    "./port-store/contract": "./port-store/contract/index.ts",
+    "./port-outbox": "./port-outbox/index.ts",
+    "./port-analytics": "./port-analytics/index.ts",
+    "./port-analytics/contract": "./port-analytics/contract/index.ts",
+    "./repository": "./repository/index.ts",
+    "./runtime": "./runtime/index.ts",
+    "./sql": "./sql/index.ts",
+    "./adapter-sqlite": "./adapter-sqlite/index.ts",
+    "./adapter-postgres": "./adapter-postgres/index.ts",
+    "./adapter-mysql": "./adapter-mysql/index.ts",
+    "./adapter-files": "./adapter-files/index.ts",
+    "./kysely": "./kysely/index.ts",
+    "./http": "./http/index.ts"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "peerDependencies": {
+    "zod": "^4.3.6",
+    "kysely": "^0.29.6"
+  },
+  "devDependencies": {
+    "kysely": "0.29.6",
+    "zod": "4.3.6"
+  },
+  "peerDependenciesMeta": {
+    "kysely": {
+      "optional": true
+    }
+  }
+}

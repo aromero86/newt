@@ -1,0 +1,17 @@
+{
+  // The tools around the application: cooper's scripts and its frontends' Vite configs.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
+  },
+  "include": ["cooper/scripts/**/*.ts", "cooper/frontend/*/vite.config.ts"],
+  "exclude": ["**/node_modules"]
+}

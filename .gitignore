@@ -27,8 +27,15 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
-# IntelliJ based IDEs
+# IDEs
 .idea
+.vscode
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# what cooper keeps when it runs
+data
+
+# the docs site: vitepress cache and build
+web/.vitepress/cache
