@@ -78,6 +78,8 @@ try {
     `  ana@cooper.dev     Acme's admin, ${config.boards.publicUrl}: its boards Welcome and Launch`,
     '  bob@cooper.dev     a member of Acme, who accepted Ana\'s invitation',
     '',
+    `  MCP server         ${config.boards.publicUrl}/mcp (OAuth: sign in as Ana or Bob)`,
+    '',
   ].join('\n'))
 } finally {
   await stopContexts(contexts)

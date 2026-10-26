@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { runAsActor } from 'newt/core'
 import { serve } from 'newt/http'
 import { browser, freePort, type Browser } from 'newt/testing'
 import { config, type Config } from './config'
+import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
 import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /**
  * cooper end to end: auth and boards open as the server opens them, on SQLite in
- * memory, and boards used as its UI uses it, over HTTP.
+ * memory, and boards used as its UI and an MCP client use it, over HTTP.
  */
 
 function testConfig(authPort: number, boardsPort: number): Config {
@@ -164,5 +168,115 @@ describe('workspaces, through boards', () => {
     expect(await contexts.boards.modules.card.countByWorkspace([acme.id])).toEqual([{ workspaceId: acme.id, cards: 0 }])
     expect((await call(ana.as, 'GET', '/workspaces')).body).toEqual([])
     expect((await call(bob.as, 'GET', `/workspaces/${acme.id}/boards`)).status).toBe(404)
+  })
+})
+
+describe('the MCP server', () => {
+  const CALLBACK = 'http://localhost:6274/oauth/callback'
+
+  /** An MCP client signs Ana in through OAuth, as Claude would: registers, sends her to auth with PKCE, trades the code. */
+  async function connect(as: Browser): Promise<string> {
+    // It only knows the MCP server's address: the 401 says where to find the rest.
+    const refused = await fetch(boardsUrl('/mcp'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+    expect(refused.status).toBe(401)
+    const metadataUrl = refused.headers.get('www-authenticate')!.match(/resource_metadata="([^"]+)"/)![1]!
+    const resource = (await (await fetch(metadataUrl)).json()) as { resource: string, authorization_servers: string[] }
+    expect(resource).toEqual(expect.objectContaining({ resource: boardsUrl('/mcp'), authorization_servers: [contexts.auth.config.publicUrl] }))
+    const server = (await (await fetch(new URL('/.well-known/oauth-authorization-server', resource.authorization_servers[0]))).json()) as Record<string, string>
+
+    const registered = await fetch(server.registration_endpoint!, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK] }) })
+    const { client_id: clientId } = (await registered.json()) as { client_id: string }
+
+    const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+    const challenge = new Bun.CryptoHasher('sha256').update(verifier).digest('base64url')
+    const authorize = new URL(server.authorization_endpoint!)
+    authorize.search = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256', state: 's', resource: resource.resource }).toString()
+    const request = (await as(authorize.toString())).headers.get('location')!.split('/authorize/')[1]!
+    const { redirectTo } = (await (await as(authUrl(`/api/authorizations/${request}/approve`), { method: 'POST' })).json()) as { redirectTo: string }
+    const code = new URL(redirectTo).searchParams.get('code')!
+
+    const tokens = await fetch(server.token_endpoint!, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK }),
+    })
+    return ((await tokens.json()) as { access_token: string }).access_token
+  }
+
+  async function mcpClient(accessToken: string): Promise<Client> {
+    const client = new Client({ name: 'cooper-test', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(boardsUrl('/mcp')), { requestInit: { headers: { authorization: `Bearer ${accessToken}` } } }))
+    return client
+  }
+
+  /** A tool's answer, read back from its JSON. */
+  async function use<T = unknown>(client: Client, name: string, args: Record<string, unknown> = {}): Promise<T> {
+    const result = (await client.callTool({ name, arguments: args })) as { content: { text: string }[], isError?: boolean }
+    if (result.isError) throw new Error(result.content[0]!.text)
+    return JSON.parse(result.content[0]!.text) as T
+  }
+
+  test('works with the boards of the person who connected it through OAuth', async () => {
+    const { ana, bob, acme } = await acmeWithBob()
+    await settled()
+    const client = await mcpClient(await connect(ana.as))
+    try {
+      expect((await client.listTools()).tools.map(tool => tool.name).toSorted()).toEqual(['assign_card', 'create_card', 'get_board', 'list_boards', 'list_members', 'list_workspaces', 'move_card', 'search_cards'])
+      expect(await use(client, 'list_workspaces')).toEqual([{ id: acme.id, name: 'Acme', isAdmin: true }])
+      expect(await use(client, 'list_members', { workspaceId: acme.id })).toEqual([
+        { id: ana.id, name: 'Ana', email: 'ana@cooper.test', isAdmin: true },
+        { id: bob.id, name: 'Bob', email: 'bob@cooper.test', isAdmin: false },
+      ])
+
+      const boards = await use<{ items: { id: string, name: string }[] }>(client, 'list_boards', { workspaceId: acme.id })
+      expect(boards.items.map(board => board.name)).toEqual(['Welcome'])
+      const board = await use<{ columns: { id: string, name: string, cards: unknown[] }[], members: { id: string }[] }>(client, 'get_board', { workspaceId: acme.id, boardId: boards.items[0]!.id })
+      expect(board.columns.map(column => [column.name, column.cards.length])).toEqual([['To do', 1], ['Doing', 0], ['Done', 0]])
+      expect(board.members.map(member => member.id)).toEqual([ana.id, bob.id])
+      const [todo, doing] = [board.columns[0]!, board.columns[1]!]
+
+      const card = await use<{ id: string, number: number }>(client, 'create_card', { workspaceId: acme.id, boardId: boards.items[0]!.id, columnId: todo.id, title: 'Ship the MCP server' })
+      expect(card.number).toBe(2)
+      expect(await use(client, 'move_card', { workspaceId: acme.id, cardId: card.id, columnId: doing.id })).toMatchObject({ columnId: doing.id, position: 0 })
+      expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: bob.id })).toMatchObject({ assignee: { id: bob.id, name: 'Bob' } })
+      // The search finds the card as it is now once boards' worker has indexed it.
+      await settled()
+      expect(await use(client, 'search_cards', { workspaceId: acme.id, text: 'mcp', assigneeId: bob.id })).toMatchObject({ items: [{ id: card.id }], total: 1 })
+      expect(await use(client, 'assign_card', { workspaceId: acme.id, cardId: card.id, assigneeId: null })).toMatchObject({ assignee: null })
+
+      // Its activity says the assistant did it, as Ana.
+      await settled()
+      const activity = await runAsActor({ userId: ana.id, via: 'web' }, () => inWorkspace(contexts.boards.modules.member, acme.id, () => contexts.boards.modules.activity.listForCard(card.id, { size: 10 })))
+      expect(activity.items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+        ['unassigned', ana.id, 'mcp'],
+        ['assigned', ana.id, 'mcp'],
+        ['moved', ana.id, 'mcp'],
+        ['created', ana.id, 'mcp'],
+      ])
+
+      // As on the web: a workspace the person is not in does not exist to them.
+      const result = (await client.callTool({ name: 'list_boards', arguments: { workspaceId: '01900000-0000-7000-8000-000000000000' } })) as { isError?: boolean, content: { text: string }[] }
+      expect(result.isError).toBe(true)
+      expect(result.content[0]!.text).toContain('no workspace')
+    } finally {
+      await client.close()
+    }
+  })
+
+  test('refuses a request without a token of auth\'s for it, and says where to get one', async () => {
+    const missing = await fetch(boardsUrl('/mcp'), { method: 'POST' })
+    expect(missing.status).toBe(401)
+    expect(missing.headers.get('www-authenticate')).toBe(`Bearer resource_metadata="${boardsUrl('/.well-known/oauth-protected-resource/mcp')}"`)
+    const forged = await fetch(boardsUrl('/mcp'), { method: 'POST', headers: { authorization: 'Bearer not-a-token' } })
+    expect(forged.headers.get('www-authenticate')).toContain('error="invalid_token"')
+
+    // Open to a client in a browser, such as the MCP inspector.
+    const preflight = await fetch(boardsUrl('/mcp'), { method: 'OPTIONS', headers: { origin: 'http://localhost:6274', 'access-control-request-method': 'POST' } })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('authorization')
+    for (const path of ['/oauth/register', '/oauth/token', '/.well-known/oauth-authorization-server']) {
+      expect((await fetch(authUrl(path), { method: 'OPTIONS' })).headers.get('access-control-allow-origin')).toBe('*')
+    }
+    expect(await (await fetch(boardsUrl('/.well-known/oauth-protected-resource'))).json()).toMatchObject({ resource: boardsUrl('/mcp') })
   })
 })

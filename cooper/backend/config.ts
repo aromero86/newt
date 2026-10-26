@@ -67,7 +67,7 @@ export const config = {
     /** `COOPER_AUTH_FRONTEND`: its built frontend (`bun run cooper:build`). */
     frontendFolder: fromRoot(env.COOPER_AUTH_FRONTEND ?? 'dist/cooper/auth'),
   },
-  /** The SaaS: workspaces' boards, columns and cards. */
+  /** The SaaS: workspaces' boards, columns and cards, on the web and through MCP. */
   boards: {
     /** `COOPER_BOARDS_PORT`: where it listens. */
     port: Number(env.COOPER_BOARDS_PORT ?? 3002),

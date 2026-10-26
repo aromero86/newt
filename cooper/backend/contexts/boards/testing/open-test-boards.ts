@@ -39,7 +39,7 @@ export async function openTestBoards() {
     mails: mailer.mails,
     lines,
     search,
-    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
+    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
       return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
