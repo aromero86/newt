@@ -10,6 +10,7 @@ repository (`web/guide`, `web/reference/rules.md`, `lint.md`, `stores.md`).
 - An app is **bounded contexts**; each owns a **store** (SQLite, files, Postgres, MySQL) and **modules**.
 - A module owns **one entity**, changes it only through its **use cases**, and tells what happened through **domain events**, delivered by a transactional outbox.
 - Three checks keep it honest: the types (`bun check`), the lint (`newt-eslint`), and runtime rules that throw (below).
+- `newt init` sets an app up for agents (AGENTS.md, CLAUDE.md, the lint); `newt add module <context-folder> <name>` writes a module's skeleton that compiles and passes the lint.
 
 ## Golden rules
 

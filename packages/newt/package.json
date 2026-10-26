@@ -4,6 +4,9 @@
   "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "newt": "./cli/newt.ts"
+  },
   "exports": {
     "./core": "./core/index.ts",
     "./contract": "./contract/index.ts",

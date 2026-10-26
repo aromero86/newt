@@ -18,6 +18,17 @@ page, what each error it throws means and what to do about it, the lint's rules 
 definition of done. It ships with the package, so an application's agent finds it in
 `node_modules/newt/AGENTS.md`, as current as the newt it runs on.
 
+## Command line
+
+```sh
+bunx newt init                                  # AGENTS.md, CLAUDE.md and newt's lint, for an application
+bunx newt add module src/contexts/shop order    # a module's skeleton: compiles, passes the lint, has a test
+```
+
+Neither overwrites a file: what is there already is said and left as it was. The
+module's repository says `scope: 'none'` with a note to decide it: a tenant's scope,
+or none and why.
+
 ## Entries
 
 | Import | What it has |
@@ -99,6 +110,7 @@ http/              the HTTP entry; knows core, and port-store's Table (idempoten
 application/       an application's contexts, run; knows core, runtime and http
 otel/              a tracer for OpenTelemetry's collectors; knows core
 testing/           helpers for a test over HTTP; knows nothing else
+cli/               the command line (`bin`: newt); writes files, imports none of the pieces
 ```
 
 What a piece needs from another that applications must not reach goes through that
