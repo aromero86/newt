@@ -15,7 +15,8 @@
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",
     "cooper:migrations": "bun run cooper/scripts/migrations.ts",
-    "cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice"
+    "cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice",
+    "cooper:graph": "newt-graph --root cooper/backend"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
@@ -43,6 +44,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "eslint": "10.12.0",
     "newt-eslint": "workspace:*",
+    "newt-graph": "workspace:*",
     "tailwindcss": "4.3.3",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.71.1",
