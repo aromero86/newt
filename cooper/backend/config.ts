@@ -40,6 +40,8 @@ export const config = {
     boardsPublicUrl: publicUrls.boards,
     backofficePublicUrl: publicUrls.backoffice,
     sessionDays,
+    /** `COOPER_INVITATION_DAYS`: how long an invitation to a workspace waits to be accepted. */
+    invitationDays: Number(env.COOPER_INVITATION_DAYS ?? 7),
   },
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {

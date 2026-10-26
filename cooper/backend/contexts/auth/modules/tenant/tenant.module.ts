@@ -96,7 +96,7 @@ export class Tenant_Module extends Module {
 
   /**
    * Only its admin deletes it. The rest follows from `tenant.deleted`, each part from
-   * a worker: its boards in boards, its accesses once more.
+   * a worker: its invitations here, its boards in boards, its accesses once more.
    * Its accesses also go at once, after it: it writes to `access` without being a
    * worker, on purpose, so that nobody enters it from the moment it answers. Should
    * that second save fail, its worker takes them away. It never runs again on a

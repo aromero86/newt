@@ -51,6 +51,14 @@ export class User_Module extends Module {
     return (await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))).toDTO()
   }
 
+  /** The account of an email, whatever its case, if there is one. */
+  @UseCase()
+  async findByEmail(email: string): Promise<UserDTO | null> {
+    const parsed = Email.schema.safeParse(email.trim().toLowerCase())
+    if (!parsed.success) return null
+    return (await this.repo.first({ email: parsed.data }))?.toDTO() ?? null
+  }
+
   /** Every account, newest first, as the staff look them up: only what `UserFilter` allows. */
   @UseCase()
   async list(filter: unknown, page: PageRequest): Promise<Page<UserDTO>> {

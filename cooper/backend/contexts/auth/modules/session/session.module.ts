@@ -1,4 +1,4 @@
-import { currentActor, Module, SecretToken, UseCase, type Actor } from 'newt/core'
+import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import type { UserDTO } from '../user/user.schema'
 import { InvalidCredentials } from './errors/invalid-credentials'
@@ -8,6 +8,7 @@ import type { Session_Deps } from './session.deps'
 import type { Session_Options } from './session-options'
 import { Session_Repository } from './session.repository'
 import { registerSessionRoutes } from './session.routes'
+import { registerSessionWorkers } from './session.workers'
 import { SessionCookie, SessionSignInSchema, SessionSignUpSchema } from './session.schema'
 
 /**
@@ -20,8 +21,12 @@ export class Session_Module extends Module {
     const module = new Session_Module(base, new Session_Repository(base), deps, options)
     base.http.authenticateWith(request => module.authenticate(request.cookies.get(SessionCookie) ?? undefined))
     registerSessionRoutes(base, module)
+    registerSessionWorkers(module)
     return module
   }
+
+  /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
 
   private constructor(
     base: AuthBase,
@@ -30,6 +35,7 @@ export class Session_Module extends Module {
     readonly options: Session_Options,
   ) {
     super('session', base.invocations)
+    this.nightly = base.schedules.define('session.nightly', '0 3 * * *')
   }
 
   /**
@@ -84,6 +90,16 @@ export class Session_Module extends Module {
       return null
     }
     return { userId: session.userId, via: 'web' }
+  }
+
+  /**
+   * Removes the sessions that expired: nobody signed out of them, and an expired one
+   * is closed only when its browser comes back. What the nightly worker calls; the
+   * second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 
   private async find(token: string | undefined): Promise<Session | undefined> {

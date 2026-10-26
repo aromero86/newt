@@ -2,13 +2,22 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { runAsActor } from 'newt/core'
 import { serve } from 'newt/http'
 import { config } from '../../config'
+import type { Mail } from '../../shared/mail/mailer'
+import { RecordingMailer } from '../../shared/mail/recording-mailer'
 import { Auth_Context } from './auth.context'
 import type { UserDTO } from './modules/user/user.schema'
 
 let auth: Auth_Context
+let mails: Mail[]
+/** The time by auth's clock: a test moves it instead of waiting. */
+let time: number
 
 beforeEach(async () => {
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  // Set before auth opens: its schedules' first look, as it starts, is at noon of this day.
+  time = Date.parse('2027-03-15T12:00:00Z')
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer }, { now: () => new Date(time) })
   auth.start()
 })
 
@@ -20,6 +29,9 @@ const settled = () => auth.base.jobs.idle()
 const signUp = (name: string, email = `${name.toLowerCase()}@cooper.test`) => modules().user.signUp({ email, name, password: 'a long password' })
 const as = <T>(user: UserDTO, fn: () => Promise<T>) => runAsActor({ userId: user.id, via: 'web' }, fn)
 const page = { size: 20 }
+const DAY_MS = 24 * 60 * 60_000
+/** The token in the link of the last email sent. */
+const linkToken = () => mails.at(-1)!.text.match(/invitations\/([A-Za-z0-9_-]{43})/)![1]!
 
 describe('accounts', () => {
   test('signs up with an email no other account has, whatever its case', async () => {
@@ -30,6 +42,16 @@ describe('accounts', () => {
     await expect(signUp('Other Ana', 'ANA@cooper.test')).rejects.toMatchObject({ code: 'user.email_taken' })
     const atOnce = await Promise.allSettled([signUp('Bob', 'bob@cooper.test'), signUp('Bob', 'BOB@cooper.test')])
     expect(atOnce.map(each => each.status).sort()).toEqual(['fulfilled', 'rejected'])
+  })
+
+  test('tells someone signed up at the time by auth\'s clock', async () => {
+    const told: string[] = []
+    modules().user.events.signedUp.subscribe((_, event) => { told.push(event.occurredAt) }, { strategy: 'fire-and-forget' })
+    time = Date.parse('2027-04-01T08:30:00Z')
+
+    await signUp('Ana')
+
+    expect(told).toEqual(['2027-04-01T08:30:00.000Z'])
   })
 
   test('checks a password, and says nothing about which emails have an account', async () => {
@@ -47,6 +69,31 @@ describe('accounts', () => {
     await expect(modules().session.signUp({ email: 'bob@cooper.test', name: 'Bob', password: 'a long password', productId: 'backoffice' })).rejects.toMatchObject({ code: 'session.sign_up_closed' })
     await modules().session.signOut(token)
     expect(await modules().session.authenticate(token)).toBeNull()
+  })
+
+  test('ends a session once its days pass by auth\'s clock', async () => {
+    const { token } = await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
+
+    time += (config.auth.sessionDays - 1) * DAY_MS
+    expect(await modules().session.authenticate(token)).not.toBeNull()
+    time += DAY_MS
+    expect(await modules().session.authenticate(token)).toBeNull()
+  })
+
+  test('removes the expired sessions every night at three, by auth\'s clock', async () => {
+    const sessions = () => auth.base.store.table('session').count({})
+    // Its own loop stopped, once its first look, as auth started, is done: the test ticks
+    // by hand. That first look told nothing of before: the next tick is tonight's.
+    await auth.base.schedules.stop()
+    await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
+    time += config.auth.sessionDays * DAY_MS
+    await modules().session.signIn({ email: 'ana@cooper.test', password: 'a long password' })
+    expect(await sessions()).toBe(2)
+
+    await auth.base.schedules.tick()
+    await settled()
+
+    expect(await sessions()).toBe(1)
   })
 
   test('lists accounts newest first, with the filters it allows', async () => {
@@ -155,10 +202,11 @@ describe('workspaces', () => {
     await expect(as(staff, () => modules().access.grant({ userId: ana.id, productId: 'nope' }))).rejects.toMatchObject({ code: 'reference_not_found' })
   })
 
-  test('takes every access away once deleted, from its workers', async () => {
+  test('takes every access and invitation away once deleted, from its workers', async () => {
     const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
     const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
     await as(ana, () => modules().access.grant({ userId: bob.id, productId: 'cooper', tenantId: acme.id }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'cai@cooper.test' }))
     const told: string[] = []
     modules().access.events.revoked.subscribe(access => { told.push(access.userId) }, { strategy: 'fire-and-forget' })
 
@@ -192,5 +240,85 @@ describe('workspaces', () => {
     await as(ana, () => modules().tenant.create({ name: 'Globex' }))
     expect((await modules().tenant.list(undefined, page)).items.map(tenant => tenant.name)).toEqual(['Globex', 'Acme'])
     expect((await modules().tenant.list({ field: 'name', op: 'ieq', value: 'ACME' }, page)).items.map(tenant => tenant.name)).toEqual(['Acme'])
+  })
+})
+
+describe('invitations', () => {
+  test('are sent by a worker once saved, and accepted by whoever signs in with their email', async () => {
+    const [ana, bob, eve] = [await signUp('Ana'), await signUp('Bob'), await signUp('Eve')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+
+    const invitation = await as(ana, () => modules().invitation.create(acme.id, { email: 'BOB@cooper.test' }))
+    expect(invitation).toMatchObject({ email: 'bob@cooper.test', status: 'pending' })
+    expect(mails).toEqual([])
+    await settled()
+    expect(mails.map(mail => [mail.to, mail.subject])).toEqual([['bob@cooper.test', 'Ana invited you to Acme on Cooper']])
+
+    const token = linkToken()
+    expect(await modules().invitation.review(token)).toMatchObject({ tenantName: 'Acme', invitedByName: 'Ana', open: true })
+    await expect(as(eve, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.another_email' })
+    expect(await as(bob, () => modules().invitation.accept(token))).toMatchObject({ status: 'accepted', acceptedBy: bob.id })
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toMatchObject({ role: 'member' })
+    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('cannot be accepted once their days pass by auth\'s clock', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+
+    time += config.auth.invitationDays * DAY_MS
+    expect(await modules().invitation.review(token)).toMatchObject({ open: false })
+    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('cannot be accepted once their workspace is deleted, before its workers run', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+    await auth.base.jobs.stop()
+
+    await as(ana, () => modules().tenant.delete(acme.id))
+    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+    await settled()
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+  })
+
+  test('are made, listed and revoked by the admin only, once per email', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().access.grant({ userId: bob.id, productId: 'cooper', tenantId: acme.id }))
+
+    await expect(as(bob, () => modules().invitation.create(acme.id, { email: 'cai@cooper.test' }))).rejects.toMatchObject({ code: 'tenant.not_admin' })
+    await expect(as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))).rejects.toMatchObject({ code: 'invitation.already_invited' })
+    const invitation = await as(ana, () => modules().invitation.create(acme.id, { email: 'cai@cooper.test' }))
+    await expect(as(ana, () => modules().invitation.create(acme.id, { email: 'cai@cooper.test' }))).rejects.toMatchObject({ code: 'invitation.already_invited' })
+    expect(await as(ana, () => modules().invitation.list(acme.id, page))).toMatchObject({ items: [{ email: 'cai@cooper.test' }], total: 1 })
+
+    await settled()
+    const token = linkToken()
+    await as(ana, () => modules().invitation.revoke(invitation.id))
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(0)
+    const cai = await signUp('Cai')
+    await expect(as(cai, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('send a new link when their email is sent again, and the one before stops working', async () => {
+    const ana = await signUp('Ana')
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    const invitation = await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const first = linkToken()
+
+    // As its job run again after the email left: a new link, which is the only one that works.
+    await modules().invitation.send(invitation.id)
+    const second = linkToken()
+    expect(second).not.toBe(first)
+    await expect(modules().invitation.review(first)).rejects.toMatchObject({ code: 'invitation.not_found' })
+    expect(await modules().invitation.review(second)).toMatchObject({ open: true })
   })
 })

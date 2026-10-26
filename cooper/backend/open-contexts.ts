@@ -1,3 +1,4 @@
+import type { Clock } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { Boards_Context } from './contexts/boards/boards.context'
@@ -6,9 +7,10 @@ import { FakeAuth } from './contexts/boards/testing/fake-auth'
 import { ConsoleMailer } from './shared/mail/console-mailer'
 import type { Mailer } from './shared/mail/mailer'
 
-/** What the contexts are given from outside: the console mailer unless another is. */
+/** What the contexts are given from outside: the console mailer unless another is, and the real time unless a test gives a clock. */
 export type OpenContextsOptions = {
   mailer?: Mailer
+  clock?: Clock
 }
 
 /**
@@ -17,7 +19,8 @@ export type OpenContextsOptions = {
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  const auth = await Auth_Context.open(config.auth)
+  const { clock } = options
+  const auth = await Auth_Context.open(config.auth, { mailer }, clock)
   // For now boards asks a fake auth, in memory: ana and carl are in acme, bea in globex (chapter 20 wires it to auth).
   const fake = await FakeAuth.open()
   fake.join('acme', 'ana')
