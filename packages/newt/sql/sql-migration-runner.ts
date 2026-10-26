@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrationChecksum, migrationName, type Migrations } from '../port-store'
+import { migrationChecksum, migrationName, type Migrations, type MigrationStatus } from '../port-store'
 import type { SqlServerDialect } from './sql-server-dialect'
 import { splitStatements } from './split-statements'
 
@@ -68,16 +68,24 @@ export class SqlMigrationRunner implements Migrations {
     })
   }
 
-  async status(): Promise<{ applied: string[], pending: string[] }> {
+  /** What is applied, what is pending, and which applied ones had their up file changed since (which `up` refuses). */
+  async status(): Promise<MigrationStatus> {
     await this.ensureTable()
-    return this.transaction(async run => {
-      const applied = await this.applied(run)
-      const done = new Set(applied.map(record => record.version))
-      return {
-        applied: applied.map(record => migrationName(record.version, record.name)),
-        pending: (await this.files()).filter(file => !done.has(file.version)).map(file => migrationName(file.version, file.name)),
+    const applied = await this.transaction(run => this.applied(run))
+    const files = await this.files()
+    const done = new Set(applied.map(record => record.version))
+    const changed: string[] = []
+    for (const record of applied) {
+      const file = files.find(each => each.version === record.version && each.name === record.name)
+      if (file && record.checksum !== null && record.checksum !== migrationChecksum(await Bun.file(file.up).text())) {
+        changed.push(migrationName(record.version, record.name))
       }
-    })
+    }
+    return {
+      applied: applied.map(record => migrationName(record.version, record.name)),
+      pending: files.filter(file => !done.has(file.version)).map(file => migrationName(file.version, file.name)),
+      changed,
+    }
   }
 
   /** A script's statements: a Postgres function's body, between dollar quotes, goes whole; a MySQL string may escape a quote with `\`. */

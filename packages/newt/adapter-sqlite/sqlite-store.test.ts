@@ -86,7 +86,7 @@ describe('SqliteStore', () => {
   test('migrates the outbox after its own migrations', async () => {
     const store = await open()
     try {
-      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing'], pending: [] })
+      expect(await store.migrations.status()).toEqual({ applied: ['00001_thing'], pending: [], changed: [] })
       expect(await store.outbox.list()).toEqual([])
     } finally {
       await store.close()
@@ -269,7 +269,7 @@ describe('SqliteStore, further', () => {
 
     const stores = await Promise.all([SqliteStore.open(options), SqliteStore.open(options)])
 
-    expect(await stores[0].migrations.status()).toEqual({ applied: ['00001_thing'], pending: [] })
+    expect(await stores[0].migrations.status()).toEqual({ applied: ['00001_thing'], pending: [], changed: [] })
     for (const store of stores) await store.close()
   })
 

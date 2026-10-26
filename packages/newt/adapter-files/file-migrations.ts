@@ -1,4 +1,4 @@
-import { migrationName, type Migrations } from '../port-store'
+import { migrationName, type Migrations, type MigrationStatus } from '../port-store'
 import type { FileCollection } from './file-collection'
 import type { FileStore } from './file-store'
 import type { FileMigration } from './file-migration'
@@ -46,12 +46,14 @@ export class FileMigrations implements Migrations {
     })
   }
 
-  async status(): Promise<{ applied: string[], pending: string[] }> {
+  /** Its migrations are code, with no file to change under it: none is ever `changed`. */
+  async status(): Promise<MigrationStatus> {
     const applied = await this.records()
     const done = new Set(applied.map(record => record.version))
     return {
       applied: applied.map(record => migrationName(record.version, record.name)),
       pending: this.migrations.filter(migration => !done.has(migration.version)).map(migration => migrationName(migration.version, migration.name)),
+      changed: [],
     }
   }
 

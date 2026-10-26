@@ -67,7 +67,7 @@ for (const server of servers) {
       try {
         const [row] = await stores[0].query('SELECT count(*) AS n FROM counter')
         expect(Number(row!.n)).toBe(1)
-        expect(await stores[1].migrations.status()).toEqual({ applied: ['00001_counter', '00002_seed'], pending: [] })
+        expect(await stores[1].migrations.status()).toEqual({ applied: ['00001_counter', '00002_seed'], pending: [], changed: [] })
       } finally {
         for (const store of stores) await store.close()
       }
@@ -84,7 +84,7 @@ for (const server of servers) {
 
       const store = await (server.name === 'MySQL' ? MySqlStore : PostgresStore).connect({ url: server.url!, migrations: folder })
       try {
-        expect(await store.migrations.status()).toEqual({ applied: ['00001_counter'], pending: ['00002_seed'] })
+        expect(await store.migrations.status()).toEqual({ applied: ['00001_counter'], pending: ['00002_seed'], changed: [] })
         const [row] = await store.query('SELECT count(*) AS n FROM counter')
         expect(Number(row!.n)).toBe(0)
       } finally {
@@ -110,6 +110,20 @@ for (const server of servers) {
       await Bun.write(join(folder, '00001_counter_up.sql'), 'CREATE TABLE counter (n INTEGER)')
 
       await expect(server.open(folder)).rejects.toThrow('Migration 00001_counter was changed after it was applied')
+    })
+
+    test('tell in status which applied migration was changed since', async () => {
+      await server.empty()
+      const folder = await migrations({ ...COUNTER, ...SEED })
+      await (await server.open(folder)).close()
+      await Bun.write(join(folder, '00001_counter_up.sql'), 'CREATE TABLE counter (n INTEGER)')
+
+      const store = await (server.name === 'Postgres' ? PostgresStore : MySqlStore).connect({ url: server.url!, migrations: folder })
+      try {
+        expect(await store.migrations.status()).toEqual({ applied: ['00001_counter', '00002_seed'], pending: [], changed: ['00001_counter'] })
+      } finally {
+        await store.close()
+      }
     })
 
     test('a database from before checksums were kept takes its migrations as they are, and keeps theirs from then on', async () => {

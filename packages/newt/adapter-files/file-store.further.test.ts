@@ -419,7 +419,7 @@ describe('the migrations of a files store', () => {
     const store = await FileStore.open({ folder: path, migrations: [migration(2, 'second', log), migration(1, 'first', log)] })
 
     expect(log).toEqual(['up first', 'up second'])
-    expect(await store.migrations.status()).toEqual({ applied: ['00001_first', '00002_second'], pending: [] })
+    expect(await store.migrations.status()).toEqual({ applied: ['00001_first', '00002_second'], pending: [], changed: [] })
     expect((await readdir(join(path, '_migrations'))).sort()).toEqual(['00001.json', '00002.json'])
   })
 
@@ -437,7 +437,7 @@ describe('the migrations of a files store', () => {
 
     expect(await store.migrations.down()).toBe('00002_second')
     expect(log.at(-1)).toBe('down second')
-    expect(await store.migrations.status()).toEqual({ applied: ['00001_first'], pending: ['00002_second'] })
+    expect(await store.migrations.status()).toEqual({ applied: ['00001_first'], pending: ['00002_second'], changed: [] })
 
     const stranger = await FileStore.connect({ folder: path, migrations: [migration(2, 'second', log)] })
     await expect(stranger.migrations.down()).rejects.toThrow('not among')
