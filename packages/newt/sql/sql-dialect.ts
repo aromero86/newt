@@ -19,8 +19,10 @@ export type SqlDialect = {
   isCollision(error: unknown): boolean
   /** Whether null sorts above every value (Postgres): ordering then puts it first going up, as the other stores do. */
   nullsLast?: boolean
-  /** Whether its driver hands a JSON column back parsed already (MySQL), not as the text it was given. */
+  /** Whether its driver hands a JSON column back parsed already (MySQL, Postgres), not as the text it was given. */
   parsesJson?: boolean
+  /** A parameter that holds JSON text, written so the column takes it as JSON (Postgres): where it does as it is, none. */
+  json?(param: string): string
   /** Whether its text cannot hold the NUL character (Postgres): a value with one matches nothing, and writing one is refused. */
   refusesNul?: boolean
   /**

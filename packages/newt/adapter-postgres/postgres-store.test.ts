@@ -188,6 +188,27 @@ if (url) {
       }
     })
 
+    test('keeps a json field as real JSON, which SQL reads as such', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE doc (id TEXT PRIMARY KEY, version INTEGER NOT NULL, data JSONB)')
+        const docs = store.table<{ id: string, version: number, data: unknown }>('doc', { types: { data: 'json' } })
+        await docs.insert({ id: 'a', data: { x: 'one', n: [1, 2] } })
+        await docs.insert({ id: 'b', data: '{"x":"two"}' })
+        await docs.insert({ id: 'c', data: 5 })
+        await docs.update('c', 1, { data: [true] })
+
+        expect(await store.query("SELECT id, jsonb_typeof(data) AS kind, data->>'x' AS x FROM doc ORDER BY id")).toEqual([
+          { id: 'a', kind: 'object', x: 'one' },
+          { id: 'b', kind: 'string', x: null },
+          { id: 'c', kind: 'array', x: null },
+        ])
+        expect((await docs.find()).map(doc => doc.data)).toEqual([{ x: 'one', n: [1, 2] }, '{"x":"two"}', [true]])
+      } finally {
+        await store.close()
+      }
+    })
+
     test('sorts by the collation a column was given, when it was given one', async () => {
       const store = await open()
       try {
