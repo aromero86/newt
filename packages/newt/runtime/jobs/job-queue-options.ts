@@ -10,4 +10,9 @@ export type JobQueueOptions = {
   maxBackoffMs: number
   /** How long a job done is kept before it is purged. */
   keepDoneMs: number
+  /**
+   * How often a worker says its queues are alive, and looks for jobs waiting in a
+   * queue no worker serves: one unseen for five times this is served by nobody.
+   */
+  seenEveryMs: number
 }

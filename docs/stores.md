@@ -80,7 +80,9 @@ each adapter exposes one.
 `outbox` keeps the jobs of `handler` subscriptions: written in the transaction of
 the change that publishes them, then claimed, renewed and closed by the job worker,
 each claim fenced by its attempt so a worker whose lease ran out cannot close a job
-another one took. `list()` and `queues()` show what it holds.
+another one took. `list()` and `queues()` show what it holds; `waiting()` counts
+the jobs still to run of each queue, which the worker reads every minute to warn
+about a queue nobody serves, so it must not read the jobs done nor their payloads.
 
 ### Migrations
 

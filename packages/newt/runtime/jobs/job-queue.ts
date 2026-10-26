@@ -13,14 +13,12 @@ const DEFAULTS: JobQueueOptions = {
   backoffMs: 10_000,
   maxBackoffMs: 15 * 60_000,
   keepDoneMs: 7 * 24 * 60 * 60_000,
+  seenEveryMs: 60_000,
 }
 
 const DEFAULT_ATTEMPTS = 5
 
 const PURGE_EVERY_MS = 60 * 60_000
-
-/** How often a worker says its queues are alive; one unseen for five times this is dead. */
-const SEEN_EVERY_MS = 60_000
 
 /** `<handler's module>.<use case it calls>.on.<event>`: `mail.sendWelcome.on.user.created`. */
 const NAME = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.on\.(.+)$/
@@ -45,7 +43,9 @@ export class JobQueue {
   private signal: (() => void) | null = null
   private purgedAt = 0
   private seenAt = 0
-  private orphansChecked = false
+  private orphansCheckedAt = 0
+  /** The queues it warned about, while they stay without a worker: once each, not every minute. */
+  private readonly orphansWarned = new Set<string>()
 
   constructor(
     private readonly store: Outbox,
@@ -199,28 +199,33 @@ export class JobQueue {
 
   /** Registers the queues this worker runs, as they are now, and says they are alive. */
   private async seen(): Promise<void> {
-    if (Date.now() - this.seenAt < SEEN_EVERY_MS || this.registrations.size === 0) return
+    if (Date.now() - this.seenAt < this.options.seenEveryMs || this.registrations.size === 0) return
     this.seenAt = Date.now()
     await this.invocations.run('job.seen', () => this.store.seen([...this.registrations].map(([name, { pattern, attempts }]) => ({ name, event: pattern, attempts }))))
   }
 
   /**
-   * Once, at start: queues with jobs still to run that no worker serves (none here, and
-   * none seen elsewhere for a while). A handler renamed or removed leaves its jobs
-   * waiting under its old name: someone has to rename them, or run them by hand.
+   * At start, and then as often as it says its queues are alive: queues with jobs
+   * still to run that no worker serves (none here, and none seen elsewhere for five
+   * times that). A handler renamed or removed leaves its jobs waiting under its old
+   * name: someone has to rename them, or run them by hand. Right after a deploy the
+   * old process saw the old queue moments ago, so the warning comes a few minutes
+   * later, once for each queue.
    */
   private async warnAboutOrphans(): Promise<void> {
-    if (this.orphansChecked) return
-    this.orphansChecked = true
-    const alive = new Date(Date.now() - 5 * SEEN_EVERY_MS).toISOString()
+    if (Date.now() - this.orphansCheckedAt < this.options.seenEveryMs) return
+    this.orphansCheckedAt = Date.now()
+    const alive = new Date(Date.now() - 5 * this.options.seenEveryMs).toISOString()
     const seen = new Map((await this.store.queues()).map(queue => [queue.name, queue.lastSeenAt]))
-    const waiting = new Map<string, number>()
-    for (const job of await this.store.list()) {
-      if (job.status !== 'pending' && job.status !== 'running') continue
-      if (this.registrations.has(job.queue) || (seen.get(job.queue) ?? '') > alive) continue
-      waiting.set(job.queue, (waiting.get(job.queue) ?? 0) + 1)
+    const orphans = (await this.store.waiting())
+      .filter(({ queue }) => !this.registrations.has(queue) && (seen.get(queue) ?? '') <= alive)
+    // A queue served or emptied since is forgotten: if it is left alone again, it warns again.
+    for (const queue of this.orphansWarned) {
+      if (!orphans.some(orphan => orphan.queue === queue)) this.orphansWarned.delete(queue)
     }
-    for (const [queue, jobs] of waiting) {
+    for (const { queue, jobs } of orphans) {
+      if (this.orphansWarned.has(queue)) continue
+      this.orphansWarned.add(queue)
       console.warn(`[JobQueue] ${jobs} job(s) of '${queue}' wait, and no worker serves that queue: was its handler renamed or removed?`)
     }
   }

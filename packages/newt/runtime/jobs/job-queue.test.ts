@@ -55,6 +55,12 @@ class MemoryOutbox implements Outbox {
     return this.jobs
   }
 
+  async waiting() {
+    const counts = new Map<string, number>()
+    for (const job of this.jobs) if (job.status === 'pending' || job.status === 'running') counts.set(job.queue, (counts.get(job.queue) ?? 0) + 1)
+    return [...counts].map(([queue, jobs]) => ({ queue, jobs }))
+  }
+
   async queues() {
     if (this.failQueues) {
       this.failQueues = false
@@ -322,6 +328,42 @@ describe('the worker', () => {
     await queue.stop()
 
     expect(warnings).toEqual([expect.stringContaining("2 job(s) of 'mail.old.on.user.created' wait")])
+  })
+
+  test('warns about a queue seen moments ago once nobody has served it for a while, as after a deploy that renamed it', async () => {
+    const { outbox, queue } = setup({ pollMs: 5, seenEveryMs: 10 })
+    const warnings: string[] = []
+    console.warn = (...args: unknown[]) => void warnings.push(String(args[0]))
+    queue.register(QUEUE, 'user.created', () => {})
+    await outbox.add([{ ...pendingJob(), id: 'a', queue: 'mail.old.on.user.created', runAfter: '9999' }])
+    outbox.seenQueues = [{ name: 'mail.old.on.user.created', event: 'user.created', attempts: 5, lastSeenAt: new Date().toISOString() }]
+
+    queue.start()
+    await Bun.sleep(20)
+    const atStart = [...warnings]
+    await Bun.sleep(100)
+    await queue.stop()
+
+    expect(atStart).toEqual([])
+    expect(warnings).toEqual([expect.stringContaining("1 job(s) of 'mail.old.on.user.created' wait")])
+  })
+
+  test('warns again about a queue left alone again, once it was served or emptied', async () => {
+    const { outbox, queue } = setup({ pollMs: 5, seenEveryMs: 5 })
+    const warnings: string[] = []
+    console.warn = (...args: unknown[]) => void warnings.push(String(args[0]))
+    queue.register(QUEUE, 'user.created', () => {})
+    await outbox.add([{ ...pendingJob(), id: 'a', queue: 'mail.old.on.user.created', runAfter: '9999' }])
+
+    queue.start()
+    await Bun.sleep(20)
+    outbox.jobs.splice(0)
+    await Bun.sleep(20)
+    await outbox.add([{ ...pendingJob(), id: 'b', queue: 'mail.old.on.user.created', runAfter: '9999' }])
+    await Bun.sleep(20)
+    await queue.stop()
+
+    expect(warnings).toHaveLength(2)
   })
 
   test('a failure of its own is logged, and it goes on at its next poll', async () => {

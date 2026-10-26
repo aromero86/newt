@@ -83,6 +83,10 @@ export class SqliteOutbox implements Outbox {
     return (this.store.connection.prepare(`SELECT ${COLUMNS} FROM job ORDER BY created_at, id`).all() as JobRow[]).map(toJob)
   }
 
+  async waiting(): Promise<{ queue: string, jobs: number }[]> {
+    return this.store.connection.prepare(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`).all() as { queue: string, jobs: number }[]
+  }
+
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {
     return this.store.connection.prepare('SELECT name, event, attempts, last_seen_at AS lastSeenAt FROM job_queue ORDER BY name').all() as (JobQueueRegistration & { lastSeenAt: string })[]
   }

@@ -1712,8 +1712,10 @@ falla al arrancar, no en producción a medianoche.
 
 Hay una consecuencia: **cambiar el nombre de la cola** (porque renombraste el caso de
 uso o el módulo) deja los trabajos que estuvieran pendientes esperando en la cola
-vieja, que ya nadie atiende. Para que no pase en silencio, al arrancar el worker
-avisa:
+vieja, que ya nadie atiende. Para que no pase en silencio, el worker lo comprueba
+al arrancar y después cada minuto, y avisa una vez de cada cola con trabajos que
+ningún worker ha atendido en cinco minutos (justo después de desplegar, el proceso
+viejo la atendía hace nada: el aviso llega unos minutos más tarde):
 
 ```
 [JobQueue] 3 job(s) of 'order.fulfil.on.order.placed' wait, and no worker
@@ -3301,8 +3303,9 @@ registra nada.
 - Al parar (`SIGTERM`): deja de aceptar peticiones (`server.stop()`) y después
   `context.stop()`, que espera a los workers en marcha y cierra el store. Lo que quede
   pendiente seguirá pendiente al volver.
-- Al arrancar, el framework **avisa** si hay trabajos esperando en una cola que ningún
-  worker atiende: casi siempre, un caso de uso o un módulo renombrado (capítulo 13).
+- El framework **avisa** si hay trabajos esperando en una cola que ningún worker
+  atiende desde hace cinco minutos: casi siempre, un caso de uso o un módulo
+  renombrado (capítulo 13). Tras un despliegue, el aviso llega a los pocos minutos.
 
 ### 31.2 Scripts
 
@@ -3437,7 +3440,8 @@ protección funcionando: el usuario debe elegir otro valor.
 `'fire-and-forget'`? En un test, ¿esperas con `jobs.idle()`?
 
 **"N job(s) of '…' wait, and no worker serves that queue".**
-Hay trabajos pendientes en una cola que nadie atiende. El nombre de la cola dice el
+Hay trabajos pendientes en una cola que ningún worker atiende desde hace cinco
+minutos. El nombre de la cola dice el
 módulo, el caso de uso y el evento (`notification.orderConfirmed.on.order.confirmed`),
 así que cambiarlo al renombrar cualquiera de los tres deja los trabajos viejos
 esperando con el nombre antiguo. Vuelve a poner el nombre, o escribe un script que haga lo que debían

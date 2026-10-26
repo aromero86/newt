@@ -509,8 +509,10 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
     The callback only calls one use case of the module that reacts, with what it
     takes from the event; a condition on the event (a change of the price, not of the
     name) may decide whether it calls it at all, never business logic. Renaming the
-    queue leaves the pending jobs under the old name, and the worker warns at start
-    about jobs of a queue nobody serves.
+    queue leaves the pending jobs under the old name; the worker checks at start and
+    every minute after, and warns once about a queue with jobs that no worker has
+    served for five minutes (a few minutes after a deploy, since the old process
+    served it until then).
   - **`'fire-and-forget'`, in memory**: run after the commit, and lost if it fails
     or the process stops. For what may be lost: a cache, a metric, an email whose
     payload must never be stored.

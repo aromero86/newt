@@ -26,6 +26,12 @@ export interface Outbox {
   purge(before: string): Promise<void>
   /** Every job it keeps, oldest first: for whoever looks after them (an admin page, a test). */
   list(): Promise<Job[]>
+  /**
+   * How many jobs of each queue are still to run (pending or running), for the
+   * queues that have any: what the worker looks at every minute, so it reads no job
+   * done nor any payload.
+   */
+  waiting(): Promise<{ queue: string, jobs: number }[]>
   /** Every queue a worker registered, and when one last said it was alive. */
   queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]>
 }

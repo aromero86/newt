@@ -72,6 +72,10 @@ export class FileOutbox implements Outbox {
     return (await this.all()).sort((a, b) => (a.createdAt === b.createdAt ? (a.id < b.id ? -1 : 1) : a.createdAt < b.createdAt ? -1 : 1))
   }
 
+  async waiting(): Promise<{ queue: string, jobs: number }[]> {
+    return countWaiting(await this.all())
+  }
+
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {
     const records = (await this.registrations.all()) as QueueRecord[]
     return records
@@ -90,4 +94,13 @@ export class FileOutbox implements Outbox {
       if (stored && isSameClaim(stored, claimed)) await this.jobs.put({ ...change(stored), updatedAt: new Date().toISOString() })
     })
   }
+}
+
+/** How many jobs of each queue are still to run, by queue name. */
+function countWaiting(jobs: Job[]): { queue: string, jobs: number }[] {
+  const counts = new Map<string, number>()
+  for (const job of jobs) {
+    if (job.status === 'pending' || job.status === 'running') counts.set(job.queue, (counts.get(job.queue) ?? 0) + 1)
+  }
+  return [...counts].sort(([a], [b]) => (a < b ? -1 : 1)).map(([queue, jobs]) => ({ queue, jobs }))
 }

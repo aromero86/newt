@@ -54,6 +54,11 @@ export class SqlOutbox implements Outbox {
     return (await this.read(`SELECT ${COLUMNS.join(', ')} FROM job ORDER BY created_at, id`)).map(toJob)
   }
 
+  async waiting(): Promise<{ queue: string, jobs: number }[]> {
+    const rows = await this.read(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`)
+    return rows.map(row => ({ queue: String(row.queue), jobs: Number(row.jobs) }))
+  }
+
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {
     const rows = await this.read('SELECT name, event, attempts, last_seen_at FROM job_queue ORDER BY name')
     return rows.map(row => ({ name: String(row.name), event: String(row.event), attempts: Number(row.attempts), lastSeenAt: String(row.last_seen_at) }))

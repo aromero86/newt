@@ -589,6 +589,15 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.list())[0]).toMatchObject({ status: 'running', attempts: 2, lockedBy: 'w2' })
       })
 
+      test('counts the jobs of each queue still to run, and only those', async () => {
+        await store.outbox.add([job('a.b.on.c'), job('a.b.on.c'), job('d.e.on.f'), job('g.h.on.i')])
+        const [claimed] = await store.outbox.claim(['g.h.on.i'], 1, 'w1', new Date(Date.now() + 60_000).toISOString())
+        await store.outbox.close(claimed!, { status: 'done', lastError: null })
+        await store.outbox.claim(['d.e.on.f'], 1, 'w1', new Date(Date.now() + 60_000).toISOString())
+
+        expect(await store.outbox.waiting()).toEqual([{ queue: 'a.b.on.c', jobs: 2 }, { queue: 'd.e.on.f', jobs: 1 }])
+      })
+
       test('remembers the queues and forgets jobs done long ago', async () => {
         await store.outbox.seen([{ name: 'a.b.on.c', event: 'c', attempts: 3 }])
         await store.outbox.add([job('a.b.on.c')])
