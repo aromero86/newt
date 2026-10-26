@@ -44,7 +44,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
 
   /**
    * Saves new columns at the end of their board, as `persistAdded` does, where none
-   * of the board's other columns has their names: checked again after writing them,
+   * of the board's other columns has their names, whatever the case: checked again after writing them,
    * guarding the board's columns. A save that finds one already there (another run
    * of the same work added it meanwhile) is a conflict, and the use case runs again,
    * finding it.
@@ -59,7 +59,7 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
       after: async () => {
         if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
         for (const column of columns) {
-          if (await this.count({ boardId, name: column.name }) > 1) this.conflict()
+          if (await this.count({ boardId, name: { ieq: column.name } }) > 1) this.conflict()
         }
       },
     })

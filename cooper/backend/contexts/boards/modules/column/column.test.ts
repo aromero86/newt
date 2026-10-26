@@ -87,6 +87,16 @@ describe('column', () => {
     await expect(inAcme(() => t.modules.card.removeColumn(last!.id))).rejects.toMatchObject({ code: 'column.last' })
   })
 
+  test('adds the columns a board is missing, by name whatever the case, and answers them in their order', async () => {
+    const todo = await add('TO DO')
+
+    const columns = await inAcme(() => t.modules.column.addMissing(boardId, ['Done', ' to do ', 'DONE', 'Doing']))
+
+    expect(columns.map(column => column.name)).toEqual(['Done', 'TO DO', 'Done', 'Doing'])
+    expect(columns[1]!.id).toBe(todo.id)
+    expect(await names()).toEqual(['0:TO DO', '1:Done', '2:Doing'])
+  })
+
   test('adds columns only to a board of the workspace', async () => {
     await expect(inAcme(() => t.modules.column.add('nope', { name: 'To do' }))).rejects.toMatchObject({ code: 'board.not_found' })
   })

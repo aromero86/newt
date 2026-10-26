@@ -37,6 +37,11 @@ export class Column extends Entity<typeof ColumnSchema> {
     return this.data.position
   }
 
+  /** Whether it has this name, whatever the case, as boards' names: only A to Z folded, as `ieq` compares. */
+  isNamed(name: string): boolean {
+    return fold(this.data.name) === fold(name)
+  }
+
   /** A new one takes its place as it is saved: the end of its board, read where no other column can be added in between. */
   place(position: number): void {
     if (!this.isNew) throw new Error(`Column ${this.id} is placed once, as it is added`)
@@ -66,4 +71,8 @@ export class Column extends Entity<typeof ColumnSchema> {
     this.markAsDeleted()
     this.trackEvent(new Column_Removed(this.toDTO()))
   }
+}
+
+function fold(name: string): string {
+  return name.replace(/[A-Z]/g, letter => letter.toLowerCase())
 }

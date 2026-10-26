@@ -81,8 +81,7 @@ export class Workspace_Module extends Module {
     await runInWorkspace(workspaceId, async () => {
       const board = await this.deps.board.findByName(WELCOME_BOARD.name)
         ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-      const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
-      const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
+      const [todo] = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
       await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
     })
     if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
