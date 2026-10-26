@@ -70,4 +70,21 @@ describe('serve', () => {
       console.error = original
     }
   })
+
+  // A server without an error handler fails the test that throws in it: this one runs apart.
+  test('in development, Bun\'s own page answers what throws outside the router', async () => {
+    const script = `
+      import { HttpRouter } from '${join(import.meta.dir, 'http-router')}'
+      import { serve } from '${join(import.meta.dir, 'serve')}'
+      const server = serve({ port: 0, router: new HttpRouter(), development: true, routes: { '/webhook': () => { throw new Error('secret inside') } } })
+      const response = await fetch(new URL('/webhook', server.url))
+      console.log(response.status, response.headers.get('content-type'))
+      server.stop(true)
+    `
+    const child = Bun.spawn([process.execPath, '-e', script], { stdout: 'pipe', stderr: 'ignore' })
+
+    const output = (await new Response(child.stdout).text()).trim()
+    expect(output).toStartWith('500 ')
+    expect(output).not.toContain('application/json')
+  })
 })

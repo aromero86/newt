@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { UnauthorizedError, ValidationError } from '../core'
 import { MalformedBody } from './errors/malformed-body'
+import { handle } from './handle'
 import { toOauthErrorResponse } from './to-oauth-error-response'
 
 class CodeUsed extends ValidationError {
@@ -66,6 +67,29 @@ describe('toOauthErrorResponse', () => {
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({ error: 'invalid_request' })
+  })
+
+  test('a broken multipart form read inside `handle`, on a real server, is the fallback too', async () => {
+    const route = handle(async request => {
+      try {
+        return Response.json(Object.fromEntries(await request.formData()))
+      } catch (error) {
+        return toOauthErrorResponse(error, 'invalid_request')
+      }
+    })
+    const server = Bun.serve({ port: 0, routes: { '/token': route } })
+
+    try {
+      const response = await fetch(new URL('/token', server.url), {
+        method: 'POST',
+        headers: { 'content-type': 'multipart/form-data; boundary=x' },
+        body: 'garbage',
+      })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ error: 'invalid_request' })
+    } finally {
+      await server.stop()
+    }
   })
 
   test('a TypeError is a bug of the server\'s, not the client\'s: a server_error', () => {

@@ -10,11 +10,13 @@ import { toErrorResponse } from './to-error-response'
  * 500 a route gives, never Bun's page with the source, unless `development` asks for it.
  */
 export function serve(options: ServeOptions): Server<undefined> {
+  const development = options.development ?? false
   return Bun.serve({
     port: options.port,
-    development: options.development ?? false,
+    development,
     routes: { ...options.router.routes(), ...options.routes },
     fetch: options.frontend ? serveFrontend(options.frontend) : () => new Response('Not found', { status: 404 }),
-    error: toErrorResponse,
+    // In development Bun's own page answers instead, with the source.
+    ...(development ? {} : { error: toErrorResponse }),
   })
 }
