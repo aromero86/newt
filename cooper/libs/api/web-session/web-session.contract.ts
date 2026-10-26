@@ -15,5 +15,11 @@ export const SessionSchema = z.object({
   user: SessionUserSchema,
 })
 
+/** `POST /api/session/sign-out`: where the browser goes next, auth, to sign out there too; it comes back after. */
+export const SessionSignOutSchema = z.object({
+  next: z.string(),
+})
+
 export type SessionUserDTO = z.infer<typeof SessionUserSchema>
 export type SessionDTO = z.infer<typeof SessionSchema>
+export type SessionSignOutDTO = z.infer<typeof SessionSignOutSchema>

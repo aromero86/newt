@@ -133,6 +133,12 @@ describe('the web session of a context', () => {
     const loggedOut = await as(next)
     expect(loggedOut.headers.get('location')).toBe(clientUrl('/'))
     expect((await as(authUrl('/api/session'))).status).toBe(401)
+
+    // Signing out on the way somewhere comes back there: a path of the client, never another host.
+    const { next: toInvitation } = (await (await as(clientUrl('/api/session/sign-out?returnTo=/invitations/abc'), { method: 'POST' })).json()) as { next: string }
+    expect((await as(toInvitation)).headers.get('location')).toBe(clientUrl('/invitations/abc'))
+    const { next: elsewhere } = (await (await as(clientUrl(`/api/session/sign-out?returnTo=${encodeURIComponent('//evil.example/x')}`), { method: 'POST' })).json()) as { next: string }
+    expect((await as(elsewhere)).headers.get('location')).toBe(clientUrl('/'))
   })
 
   test('refuses a callback that is not the answer to its own sign-in', async () => {

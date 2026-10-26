@@ -20,11 +20,24 @@ export class SessionService {
   private readonly api = inject(WebSessionApi)
   private readonly store = new Store<SessionState>({ status: 'checking', user: null })
 
+  /** The check under way, if any. */
+  private checking: Promise<void> | null = null
+
   readonly status = this.store.select('status')
   readonly user = this.store.select('user')
 
-  /** Asks the backoffice whether this browser has a session, of someone of the staff. */
-  async check(): Promise<void> {
+  /**
+   * Asks the backoffice whether this browser has a session, of someone of the staff.
+   * A check under way is shared: asking twice (StrictMode's effects) sends one request.
+   */
+  check(): Promise<void> {
+    this.checking ??= this.ask().finally(() => {
+      this.checking = null
+    })
+    return this.checking
+  }
+
+  private async ask(): Promise<void> {
     try {
       const { user } = await this.api.me()
       this.store.patch({ status: 'signed-in', user })
@@ -39,12 +52,20 @@ export class SessionService {
     location.assign(signInUrl(returnTo && returnTo !== '/' ? returnTo : undefined))
   }
 
-  async signOut(): Promise<void> {
+  /**
+   * Ends the session here, and the browser goes on to auth to end it there too: signing
+   * in again then asks who it is. auth sends it back to `returnTo` (a path of this app)
+   * or to the start.
+   */
+  async signOut(returnTo?: string): Promise<void> {
+    let next: string
     try {
-      await this.api.signOut()
-    } finally {
-      this.expired()
+      next = (await this.api.signOut(returnTo)).next
+    } catch {
+      // Not even signed out here: whoever looks is shown the way in again.
+      return this.expired()
     }
+    location.assign(next)
   }
 
   /** The backoffice no longer knows this session. */

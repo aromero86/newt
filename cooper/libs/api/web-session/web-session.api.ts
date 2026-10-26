@@ -1,5 +1,5 @@
 import { Requester } from '../core/requester'
-import type { SessionDTO } from './web-session.contract'
+import type { SessionDTO, SessionSignOutDTO } from './web-session.contract'
 
 /**
  * Where the browser goes to sign in: a navigation, not a request. boards sends it to
@@ -18,7 +18,11 @@ export class WebSessionApi extends Requester {
     return this.get<SessionDTO>('')
   }
 
-  signOut() {
-    return this.post<void>('/sign-out')
+  /**
+   * Ends this app's session. The browser goes on to `next` (auth, which ends its own
+   * and sends it back to `returnTo`, a path of this app, or to its start).
+   */
+  signOut(returnTo?: string) {
+    return this.post<SessionSignOutDTO>(returnTo ? `/sign-out?${new URLSearchParams({ returnTo })}` : '/sign-out')
   }
 }
