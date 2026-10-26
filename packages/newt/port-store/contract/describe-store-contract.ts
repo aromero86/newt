@@ -536,8 +536,8 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         })).rejects.toThrow('boom')
 
         expect([ana.isNew, ana.version]).toEqual([true, 0])
-        await repo.persist(ana)
-        expect([ana.isNew, ana.version]).toEqual([false, 1])
+        await expect(repo.persist(ana)).rejects.toThrow(`Thing ${ana.id} was in a save that rolled back: read it again`)
+        expect(await names()).toEqual([])
       })
 
       test('saved twice in the transaction around it, writes both, one version on each', async () => {
@@ -568,21 +568,23 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await things.find()).map(row => [row.name, row.version])).toEqual([['bea', 2]])
       })
 
-      test('saved again after the transaction around it rolled back, it tells what it had to tell', async () => {
-        const base = new Base({ name: 'test', store })
-        const repo = new Things(base, things, { softDelete: true })
-        const heard: string[] = []
-        base.bus.subscribe('thing.created', event => { heard.push((event.payload as { name: string }).name) })
-        const ana = Thing.create('ana')
+      test('after the transaction around its save rolled back, one is saved again read again', async () => {
+        const repo = repository()
+        await repo.persist(Thing.create('ana'))
+        const ana = (await repo.first())!
+        ana.rename('bea')
 
         await expect(store.transaction(async () => {
           await repo.persist(ana)
+          ana.rename('cris')
           throw new Error('boom')
         })).rejects.toThrow('boom')
-        await repo.persist(ana)
-        await Bun.sleep(5)
+        await expect(repo.persist(ana)).rejects.toThrow('rolled back')
+        const again = (await repo.first())!
+        again.rename('cris')
+        await repo.persist(again)
 
-        expect(heard).toEqual(['ana'])
+        expect((await things.find()).map(row => [row.name, row.version])).toEqual([['cris', 2]])
       })
 
       test('stores a field cleared as none', async () => {

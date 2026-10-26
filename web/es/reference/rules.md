@@ -684,6 +684,10 @@ entero.
   fila que toma una clave o un valor único que ya tiene otra lanza `DuplicateValue`, un
   `ConcurrencyConflict` propio (`duplicate_value`), con los `fields` que tomó cuando
   el almacén lo sabe (SQLite, Postgres y ficheros lo saben; MySQL no).
+- Una entidad cuyo guardado se deshizo (falló, o lo hizo una transacción que lo
+  envolvía) queda como estaba antes de él, y no se vuelve a guardar nunca
+  (`SaveRolledBack`): lo que contaría podría ya no cuadrar con lo que escribiría. Se
+  vuelve a leer, como hace un caso de uso que se repite.
 - **Un caso de uso se repite ante un `ConcurrencyConflict`**, hasta tres veces más,
   volviendo a cargar y aplicando el cambio a lo que hay guardado ahora: un caso de uso
   carga, cambia y guarda, y lo que no se puede deshacer sale de un worker. Solo se

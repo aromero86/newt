@@ -8,6 +8,7 @@ import { UnknownEntityField } from './errors/unknown-entity-field'
 import type { EntityInput } from './entity-input'
 import { assertSavable } from './assert-savable'
 import { EventWithoutChange } from './errors/event-without-change'
+import { SaveRolledBack } from './errors/save-rolled-back'
 import { markPersisted } from './mark-persisted'
 import { restoreSaved, savedState, type SavedState } from './saved-state'
 import { takeEvents } from './take-events'
@@ -39,6 +40,8 @@ export class Entity<TSchema extends EntitySchema> {
   private deletion: 'none' | 'pending' | 'saved' = 'none'
   /** Whether a field changed since it was last saved (or read), even back to what it was. */
   private changed = false
+  /** Whether a save it was in rolled back: it is not saved again. */
+  private rolledBack = false
 
   protected constructor(
     protected readonly schema: TSchema,
@@ -106,31 +109,33 @@ export class Entity<TSchema extends EntitySchema> {
   }
 
   /**
-   * Before a save: what it tells comes with a change. A change undone is still one,
-   * which tells nothing; an event without any is a mistake, and the save refuses it.
+   * Before a save: it was in no save that rolled back, and what it tells comes with a
+   * change. A change undone is still one, which tells nothing; an event without any
+   * is a mistake, and the save refuses it.
    */
   [assertSavable](): void {
+    if (this.rolledBack) throw new SaveRolledBack(this.constructor.name, this.id)
     if (this.hasPendingChanges || this.changed || this.domainEvents.length === 0) return
     throw new EventWithoutChange(this.constructor.name, this.id, this.domainEvents.map(event => event.name))
   }
 
-  /** What it is as saved, and what it has to tell: its repository puts it back if the save rolls back. */
+  /** What it is as saved: its repository puts it back if the save rolls back. */
   [savedState](): SavedState {
-    return { version: this._version, isNew: this._isNew, initial: this.initial, deletion: this.deletion, events: this.domainEvents }
+    return { version: this._version, isNew: this._isNew, initial: this.initial, deletion: this.deletion }
   }
 
   /**
    * The save that marked it saved rolled back: it is again as it was saved before,
-   * with what it had to tell. What changed since stays changed, and an event noted
-   * since replaces the one of its name given back.
+   * and is never saved again. What it says it changed and has to tell no longer
+   * matches what is stored (a change made after that save would tell less than a
+   * new save writes), so the use case reads it again.
    */
   [restoreSaved](state: SavedState): void {
     this._version = state.version
     this._isNew = state.isNew
     this.initial = state.initial as z.infer<TSchema> | null
     this.deletion = state.deletion
-    const since = this.domainEvents
-    this.domainEvents = [...state.events.filter(event => !since.some(each => each.name === event.name)), ...since]
+    this.rolledBack = true
   }
 
   get id(): string {

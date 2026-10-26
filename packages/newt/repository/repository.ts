@@ -28,7 +28,9 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * one changed or deleted must still be the version it was read as, and a new one
    * must not collide with a key or unique value: `ConcurrencyConflict` otherwise
    * (`DuplicateValue`, for a value taken). Each is marked saved once written (in
-   * `after` it already is), and put back as it was if the transaction rolls back.
+   * `after` it already is), and put back as it was if the transaction rolls back:
+   * then it is never saved again (`SaveRolledBack`), and the use case reads it again,
+   * as it does when it runs again on a conflict.
    *
    * `before` writes what must go first (the rows they replace); `after` writes what
    * follows from them, or checks a rule over several rows (a workspace keeps an
@@ -45,7 +47,7 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
     await this.store.transaction(async () => {
       // Each is saved as it is written, so saving it again in the same transaction
       // writes what changed since; if the transaction rolls back, even one it joined
-      // later, each is put back as it was, with what it had to tell.
+      // later, each is put back as it was, and refuses to be saved again.
       const saved = entities.map(entity => ({ entity, state: entity[savedState]() }))
       this.store.afterRollback(() => {
         for (const { entity, state } of saved) entity[restoreSaved](state)

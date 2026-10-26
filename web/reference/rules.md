@@ -660,6 +660,10 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   row that takes a key or a unique value another one has throws `DuplicateValue`, a
   `ConcurrencyConflict` of its own (`duplicate_value`), with the `fields` it took
   when the store can tell (SQLite, Postgres and files can; MySQL cannot).
+- An entity whose save rolled back (it failed, or a transaction around it did) is as
+  it was before it, and is never saved again (`SaveRolledBack`): what it would tell
+  might no longer match what it would write. Read it again, as a use case that runs
+  again does.
 - **A use case runs again on a `ConcurrencyConflict`**, up to three more times,
   reloading and applying the change to what is stored now: a use case loads, changes
   and saves, and what cannot be undone leaves from a worker. Only the first use case of
