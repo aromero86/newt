@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ConcurrencyConflict } from '../core'
 import type { FileMigration } from './file-migration'
 import { FileStore } from './file-store'
 
@@ -81,8 +82,29 @@ describe('a commit of a files store', () => {
     }
 
     expect(JSON.parse(await Bun.file(join(path, '_journal.json')).text())).toEqual([{ collection: 'note', id: 'n1', record: { id: 'n1', title: 'kept' } }])
+    // Until it is written, nothing else runs: what it read would miss a committed transaction.
+    await expect(store.collection('other').all()).rejects.toThrow('cannot finish the commit')
     await rm(join(path, 'note/n1.json'), { recursive: true })
     expect(await store.collection('note').get('n1')).toEqual({ id: 'n1', title: 'kept' })
+    expect(await Bun.file(join(path, '_journal.json')).exists()).toBe(false)
+  })
+
+  test('a journal with records no file can be named for puts them aside, and writes the rest', async () => {
+    const path = await folder()
+    // Left by a version that took any length of id.
+    const long = { collection: 'note', id: 'a'.repeat(250), record: { id: 'a'.repeat(250) } }
+    await Bun.write(join(path, '_journal.json'), JSON.stringify([long, { collection: 'note', id: 'n1', record: { id: 'n1' } }]))
+    console.error = () => {}
+
+    try {
+      expect(await (await FileStore.open({ folder: path })).collection('note').all()).toEqual([{ id: 'n1' }])
+    } finally {
+      console.error = originalError
+    }
+
+    const aside = (await readdir(path)).filter(name => name.endsWith('.unwritable.json'))
+    expect(aside).toHaveLength(1)
+    expect(await Bun.file(join(path, aside[0]!)).json()).toEqual([long])
     expect(await Bun.file(join(path, '_journal.json')).exists()).toBe(false)
   })
 
@@ -125,6 +147,77 @@ describe('a files store', () => {
 
     expect(() => store.collection('../escape')).toThrow('collection')
     expect(() => store.collection('a b')).toThrow('collection')
+  })
+
+  test('an id has up to 100 characters: a longer one is refused before anything is written', async () => {
+    const path = await folder()
+    const notes = (await FileStore.open({ folder: path })).table<{ id: string, version: number }>('note')
+
+    await notes.insert({ id: 'a'.repeat(100) })
+    await expect(notes.insert({ id: 'a'.repeat(101) })).rejects.toThrow('id')
+
+    expect(await notes.count()).toBe(1)
+    expect(await Bun.file(join(path, '_journal.json')).exists()).toBe(false)
+  })
+
+  test('a read by an id no record can have finds nothing, and never leaves the folder', async () => {
+    const path = await folder()
+    await Bun.write(join(path, 'secret.json'), JSON.stringify({ id: 'secret', version: 1 }))
+    const store = await FileStore.open({ folder: join(path, 'store') })
+    const notes = store.table<{ id: string, version: number, title?: string }>('note')
+
+    expect(await store.collection('note').get('../../secret')).toBeUndefined()
+    await expect(notes.update('../../secret', 1, { title: 'x' })).rejects.toThrow(ConcurrencyConflict)
+    await expect(notes.delete('../../secret', 1)).rejects.toThrow(ConcurrencyConflict)
+    await notes.patch('../../secret', { title: 'x' })
+
+    expect(await Bun.file(join(path, 'secret.json')).json()).toEqual({ id: 'secret', version: 1 })
+  })
+
+  test('one folder opened through two paths in one process takes turns as one', async () => {
+    const path = await folder()
+    const alias = `${path}-alias`
+    await symlink(path, alias)
+    folders.push(alias)
+    const [one, two] = await Promise.all([FileStore.open({ folder: path }), FileStore.open({ folder: alias })])
+    const bump = (store: FileStore) => store.transaction(async () => {
+      const counter = store.collection('counter')
+      const now = ((await counter.get('c'))?.value as number | undefined) ?? 0
+      await Bun.sleep(1)
+      await counter.put({ id: 'c', value: now + 1 })
+    })
+
+    await Promise.all(Array.from({ length: 20 }, (_, i) => bump(i % 2 ? one : two)))
+
+    expect((await one.collection('counter').get('c'))?.value).toBe(20)
+  })
+
+  test('two Workers of one process on one folder take turns', async () => {
+    const path = await folder()
+    const worker = join(path, 'worker.ts')
+    await Bun.write(worker, `
+      import { FileStore } from ${JSON.stringify(join(import.meta.dir, 'file-store.ts'))}
+      self.onmessage = async () => {
+        const store = await FileStore.connect({ folder: ${JSON.stringify(join(path, 'store'))} })
+        for (let i = 0; i < 20; i++) {
+          await store.transaction(async () => {
+            const counter = store.collection('counter')
+            const now = (await counter.get('c'))?.value ?? 0
+            await Bun.sleep(1)
+            await counter.put({ id: 'c', value: now + 1 })
+          })
+        }
+        postMessage('done')
+      }`)
+    const run = () => new Promise<void>(done => {
+      const each = new Worker(worker)
+      each.onmessage = () => { each.terminate(); done() }
+      each.postMessage('go')
+    })
+
+    await Promise.all([run(), run()])
+
+    expect((await (await FileStore.connect({ folder: join(path, 'store') })).collection('counter').get('c'))?.value).toBe(40)
   })
 
   test('closing waits for the transactions in progress', async () => {
@@ -186,6 +279,24 @@ describe('a table of a files store', () => {
     await table.insert({ id: 't2', name: null, a: 1, b: 2 })
 
     await expect(table.insert({ id: 't3', name: null, a: 1, b: 1 })).rejects.toThrow()
+  })
+
+  test('a patch keeps unique values unique', async () => {
+    const table = await open([['name']])
+    await table.insert({ id: 't1', name: 'ana' })
+    await table.insert({ id: 't2', name: 'bea' })
+
+    await expect(table.patch('t2', { name: 'ana' })).rejects.toThrow(ConcurrencyConflict)
+    expect((await table.find()).map(row => row.name)).toEqual(['ana', 'bea'])
+  })
+
+  test('two inserts awaited together in one transaction do not both pass the same check', async () => {
+    const store = await FileStore.open({ folder: await folder() })
+    const table = store.table<Row>('thing', { unique: [['name']] })
+
+    await expect(store.transaction(() => Promise.all([table.insert({ id: 't1', name: 'ana' }), table.insert({ id: 't1', name: 'bea' })]))).rejects.toThrow(ConcurrencyConflict)
+    await expect(store.transaction(() => Promise.all([table.insert({ id: 't1', name: 'ana' }), table.insert({ id: 't2', name: 'ana' })]))).rejects.toThrow(ConcurrencyConflict)
+    expect(await table.count()).toBe(0)
   })
 
   test('a patch leaves the id and the version alone, and a field left undefined stays as it was', async () => {

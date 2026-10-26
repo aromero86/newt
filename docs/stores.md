@@ -221,7 +221,9 @@ const store = await FileStore.open({ folder: 'data/notes', migrations: [/* FileM
 
 - **One JSON file per record**, one folder per collection:
   `data/notes/note/<id>.json`. They are read and written on the disk as they are,
-  never kept in memory.
+  never kept in memory. An id is up to 100 letters, numbers, `.`, `-` and `_`,
+  starting with a letter or a number (a collection's name, up to 100 letters,
+  numbers, `-` and `_`): a write of any other is refused, a read finds nothing.
 - **Transactions are its own.** What one writes waits in memory, where it reads it
   back, and goes to the disk on commit through a journal: every write goes to
   `_journal.json`, flushed to the disk (that is the commit); then each record is
@@ -229,11 +231,15 @@ const store = await FileStore.open({ folder: 'data/notes', migrations: [/* FileM
   journal leaves nothing; after it, whoever takes the lock next writes it all again.
 - **One lock, `_lock`, for everything**: one transaction or read at a time, in this
   process and across processes sharing the folder. The lock says which process took
-  it; one left by a process that died, or by an earlier life of this one (a
-  container restarts with the same process id), is taken over. The processes must
-  see each other's ids: one host, one process namespace, not two containers.
+  it, and its holder touches it every second while it holds it. One is left behind,
+  and taken over, when the process it names is not alive, or when it has not been
+  touched for 5 s whatever it names (a restart gave its process id to another
+  process). The processes must see each other's ids: one host, one process
+  namespace, not two containers.
 - **Once the journal is on the disk the transaction is committed**, even if writing
-  the records fails: the next one to take the lock writes them.
+  the records fails: the next one to take the lock writes them. Until then every
+  call fails, saying why: what it read would miss that transaction. Mend what the
+  disk refused (space, permissions) and the store goes on.
 - **`store.collection(name)`** is the handle for what a table cannot say: `get`,
   `all`, `put`, `remove`, in the transaction in progress.
 - **`store.table(name, { unique })`** finds rows by reading the whole collection.
