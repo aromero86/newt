@@ -13,7 +13,8 @@ import { SessionCookie, SessionSignInSchema, SessionSignUpSchema } from './sessi
 
 /**
  * Who is signed in to auth itself: signing up, in and out, and who sends each request
- * to auth's API.
+ * to auth's API. One session here signs the person in to every product: each product
+ * opens a session of its own from it, through OAuth.
  */
 export class Session_Module extends Module {
 
@@ -71,6 +72,19 @@ export class Session_Module extends Module {
     if (!session) return
     session.close()
     await this.repo.persist(session)
+  }
+
+  /**
+   * Where the browser goes back to once signed out: the address asked for, if it is
+   * on a product's own origin; auth's start (`/`) otherwise, never an address nobody
+   * vouched for.
+   */
+  @UseCase()
+  async returnAddress(redirect: string | undefined): Promise<string> {
+    const url = URL.parse(redirect ?? '')
+    if (!url) return '/'
+    const origins = (await this.deps.product.list()).map(product => new URL(product.publicUrl).origin)
+    return origins.includes(url.origin) ? url.toString() : '/'
   }
 
   /** The signed-in person. */

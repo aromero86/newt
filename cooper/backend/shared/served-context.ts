@@ -17,8 +17,13 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
     super(name, base)
   }
 
-  /** How it is served (`runContexts`, `serve`): its modules' API and its health. */
+  /** What its server answers besides its modules' API: OAuth's endpoints, an MCP entry. */
+  protected routes(): Bun.Serve.Routes<undefined, string> {
+    return {}
+  }
+
+  /** How it is served (`runContexts`, `serve`): its modules' API, what it adds and its health. */
   serving(): ServeOptions {
-    return { port: this.served.port, router: this.base.http, health: true }
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), health: true }
   }
 }
