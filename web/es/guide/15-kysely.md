@@ -495,7 +495,7 @@ took*:
     await expect(search({ filter: { field: 'title', op: 'eq', value: 'x' } })).rejects.toThrow()
   })
 
-  test('finds a card by the text of its title as it is written, letters beyond A to Z too', async () => {
+  test('finds a card by its title whatever the case of A to Z, and other letters as they are written', async () => {
     await create('Ärger im Büro')
 
     const found = await inAcme(() => t.modules.card.search({ text: 'ÄRGER IM' }, { size: 10 }))
@@ -517,8 +517,10 @@ took*:
 
 El primero cubre el texto (cualquier capitalización, también en la descripción, `%`
 como él mismo), un filtro solo y con texto, un grupo, una página con más por venir, y un
-campo que el filtro no permite. El segundo comprueba la capitalización: la *Ä* está
-escrita como la tiene el título, así que SQLite la encuentra.
+campo que el filtro no permite. El segundo comprueba la capitalización, y su nombre dice lo que
+muestra: SQLite pliega solo de la A a la Z. *RGER IM* encuentra *rger im* sea cual sea su
+capitalización, y la *Ä* está escrita como la tiene el título, así que SQLite la
+encuentra; una *ä* en minúscula no la encontraría.
 
 En `boards.context.test.ts`, después de *removes a column only when it is empty*, una
 búsqueda por HTTP, y un filtro por un campo que no permite:
@@ -561,7 +563,7 @@ línea del medio:
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Luego a mano. Arranca el backend (`bun cooper/backend/index.ts`), crea un tablero con

@@ -151,8 +151,7 @@ export class Workspace_Module extends Module {
     await runInWorkspace(workspaceId, async () => {
       const board = await this.deps.board.findByName(WELCOME_BOARD.name)
         ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-      const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
-      const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
+      const [todo] = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
       await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
     })
     if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
@@ -179,7 +178,9 @@ each. It runs in the current workspace, like any route's use case.
 `prepare` is the first saga. Read its body as four steps:
 
 1. The board: the one called *Welcome* if there is one already, or a new one.
-2. The columns: the ones of the three names the board does not have yet.
+2. The columns: the ones of the three names the board does not have yet. `addMissing`
+   answers the board's columns of those names, in their order, so the first is *To
+   do*, whatever was there before.
 3. The card: the board's first one, unless it has one.
 4. Before and after, whether the workspace is still there.
 
@@ -195,7 +196,8 @@ again, from the top. If every step only created, the second run would add a seco
 - `board.findByName` finds the *Welcome* board the first run saved, whatever its
   case (board names are unique per workspace, ignoring case, since [chapter
   6](./06-rules-over-rows)). Only if there is none does `board.create` make it.
-- `column.addMissing` adds only the names the board does not have.
+- `column.addMissing` adds only the names the board does not have, whatever their
+  case: a *TO DO* left by the first run is *To do*.
 - `card.createFirst` creates the card only if the board has none.
 
 So the second run finishes what the first one left, and a run over a finished board
@@ -209,21 +211,56 @@ after `add`:
 // cooper/backend/contexts/boards/modules/column/column.module.ts
   /**
    * Adds at the end of the board the columns of these names it does not have yet,
-   * and answers all its columns: what a worker preparing a board calls, as many
-   * times as it takes. Runs at once add each name once: the save checks it again.
+   * whatever the case (`to do` is `To do`, as boards' names), and answers the board's
+   * columns of these names, in their order: what a worker preparing a board calls, as
+   * many times as it takes. Runs at once add each name once: the save checks it again.
    */
   @UseCase()
-  async addMissing(boardId: string, names: string[]): Promise<ColumnDTO[]> {
+  async addMissing(boardId: string, input: string[]): Promise<ColumnDTO[]> {
     await this.deps.board.get(boardId)
+    const names = input.map(name => ColumnAddSchema.parse({ name }).name)
     const columns = await this.repo.ofBoard(boardId)
-    const missing = names.filter(name => !columns.some(column => column.name === name))
-    if (missing.length === 0) return columns.map(column => column.toDTO())
-    if (columns.length + missing.length > MAX_COLUMNS) throw new TooManyColumns(boardId)
-    const added = missing.map((name, index) => Column.add({ workspaceId: currentWorkspaceId(), boardId, name: ColumnAddSchema.parse({ name }).name, position: columns.length + index }))
-    await this.repo.persistMissing(added, boardId)
-    return [...columns, ...added].map(column => column.toDTO())
+    const added: Column[] = []
+    for (const name of names) {
+      if ([...columns, ...added].some(column => column.isNamed(name))) continue
+      added.push(Column.add({ workspaceId: currentWorkspaceId(), boardId, name, position: columns.length + added.length }))
+    }
+    if (columns.length + added.length > MAX_COLUMNS) throw new TooManyColumns(boardId)
+    if (added.length > 0) await this.repo.persistMissing(added, boardId)
+    const all = [...columns, ...added]
+    return names.map(name => all.find(column => column.isNamed(name))!.toDTO())
   }
 ```
+
+- It parses each name once, as `add` does (trimmed, checked), before comparing.
+- It compares names with the column's own `isNamed`, below: whatever the case, as
+  boards' names compare since [chapter 6](./06-rules-over-rows). Without it, a board
+  whose first run left *TO DO* would get a second *To do*.
+- Each name is looked for among the board's columns **and** the ones added so far, so
+  a list that names a column twice adds it once.
+- It answers, for each name asked, the board's column of that name, in the order
+  asked: the caller knows which is which without searching by name again. `prepare`
+  takes the first, `const [todo] =`.
+
+`isNamed` goes in `column.ts`, after the `position` getter, with a function `fold` at
+the end of the file:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/column.ts
+  /** Whether it has this name, whatever the case, as boards' names: only A to Z folded, as `ieq` compares. */
+  isNamed(name: string): boolean {
+    return fold(this.data.name) === fold(name)
+  }
+// …
+function fold(name: string): string {
+  return name.replace(/[A-Z]/g, letter => letter.toLowerCase())
+}
+```
+
+`fold` lowers A to Z and leaves every other letter as it is: exactly what `ieq`
+compares in the database (chapter [6](./06-rules-over-rows) told why the two must fold
+the same). A name compared one way in memory and another in the save would let the
+save find a duplicate the use case did not see, or miss one.
 
 In `card.module.ts`, add `createFirst` after `create`. Its author is `BOARDS`, from
 chapter 13: nobody created the welcome card.
@@ -254,7 +291,8 @@ going. Each step's save checks again, inside its transaction, as you learned in
 
 - The board: the table's unique index on (workspace, name) refuses the second
   *Welcome*. The save throws `DuplicateValue`.
-- The columns: `persistMissing`, below, counts each name after writing.
+- The columns: `persistMissing`, below, counts each name after writing, whatever its
+  case.
 - The card: `persistNew` counts the board's cards after writing.
 
 The last two call `this.conflict()` when they find another run got there first. A
@@ -271,7 +309,7 @@ Add `persistMissing` to `column.repository.ts`, after `persistAdded`. It is
 // cooper/backend/contexts/boards/modules/column/column.repository.ts
   /**
    * Saves new columns at the end of their board, as `persistAdded` does, where none
-   * of the board's other columns has their names: checked again after writing them,
+   * of the board's other columns has their names, whatever the case: checked again after writing them,
    * guarding the board's columns. A save that finds one already there (another run
    * of the same work added it meanwhile) is a conflict, and the use case runs again,
    * finding it.
@@ -286,12 +324,16 @@ Add `persistMissing` to `column.repository.ts`, after `persistAdded`. It is
       after: async () => {
         if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
         for (const column of columns) {
-          if (await this.count({ boardId, name: column.name }) > 1) this.conflict()
+          if (await this.count({ boardId, name: { ieq: column.name } }) > 1) this.conflict()
         }
       },
     })
   }
 ```
+
+It counts with `{ ieq: column.name }`: the same comparison as `isNamed`, now in the
+database, so a *TO DO* and a *To do* saved by two runs at once are one name twice, and
+a conflict.
 
 And give `persistNew` in `card.repository.ts` an option, `first`, and its check:
 
@@ -641,7 +683,8 @@ Replace `testing/fake-auth.ts`:
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
 import { SqliteStore } from 'newt/adapter-sqlite'
-import { Email, eventsOf, type DomainEvent } from 'newt/core'
+import { Email } from 'newt/contract'
+import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { AccessEvents } from '../modules/card/card.deps'
 import type { Workspaces } from '../modules/member/member.deps'
@@ -651,14 +694,14 @@ import type { TenantEvents } from '../modules/workspace/workspace.deps'
 class Tenant_Created implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.created'
   readonly name = Tenant_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
 class Tenant_Deleted implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.deleted'
   readonly name = Tenant_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
@@ -667,7 +710,7 @@ type Access = { userId: string, productId: string, tenantId: string | null }
 class Access_Revoked implements DomainEvent<Access> {
   static readonly eventName = 'access.revoked'
   readonly name = Access_Revoked.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: Access) {}
 }
 
@@ -881,9 +924,9 @@ describe('workspace', () => {
 
   test('prepares a workspace once, however many times its work runs, and finishes one left halfway', async () => {
     t.auth.join('acme', 'ana')
-    // A first run that stopped halfway: the board and one column.
+    // A first run that stopped halfway: the board and one column, their names in another case.
     const board = await inAcme(() => t.modules.board.create({ name: 'welcome' }))
-    await inAcme(() => t.modules.column.add(board.id, { name: 'To do' }))
+    await inAcme(() => t.modules.column.add(board.id, { name: 'TO DO' }))
 
     await t.auth.createWorkspace('acme', 'ana')
     await t.settled()
@@ -892,7 +935,7 @@ describe('workspace', () => {
 
     expect(await welcome()).toEqual({
       boards: ['welcome'],
-      columns: [['To do', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
+      columns: [['TO DO', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
     })
   })
 
@@ -1006,9 +1049,9 @@ What each test shows:
   boards has no board: the work has not run yet. That is eventual consistency, and
   the test says it on purpose. After `settled()`, the board is there.
 - **Once, and finishing one left halfway.** The test plays a first run that stopped
-  after the board (named `welcome`, in lower case) and one column. Two more runs
-  finish it: the board is found whatever its case, *Doing* and *Done* are added, and
-  the card once.
+  after the board (named `welcome`, in lower case) and one column (*TO DO*, in upper
+  case). Two more runs finish it: the board and the column are found whatever their
+  case, *Doing* and *Done* are added, and the card once, in *TO DO*.
 - **Nothing in a workspace deleted before its work ran.** `tellCreatedAgain` makes
   the job of `tenant.created` run after the purge. `prepare` finds no workspace and
   writes nothing. `listOf` reads a named workspace's boards, from outside any.
@@ -1026,6 +1069,27 @@ What each test shows:
   `card.test.ts` in chapter 13: delete that one, `takes a card left in a removed
   column to the first one of its board, a moment later`, from `card.test.ts`.
 
+In `column.test.ts`, after the test that keeps a board's last column, `addMissing` on
+its own:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/column.test.ts
+  test('adds the columns a board is missing, by name whatever the case, and answers them in their order', async () => {
+    const todo = await add('TO DO')
+
+    const columns = await inAcme(() => t.modules.column.addMissing(boardId, ['Done', ' to do ', 'DONE', 'Doing']))
+
+    expect(columns.map(column => column.name)).toEqual(['Done', 'TO DO', 'Done', 'Doing'])
+    expect(columns[1]!.id).toBe(todo.id)
+    expect(await names()).toEqual(['0:TO DO', '1:Done', '2:Doing'])
+  })
+```
+
+The board has *TO DO*. Asked for `'Done'`, `' to do '`, `'DONE'` and `'Doing'`,
+`addMissing` adds *Done* and *Doing* once each, finds *TO DO* for `' to do '` (trimmed,
+then compared whatever the case), and answers four columns in the order asked: *Done*,
+the board's *TO DO* (the same id), *Done* again and *Doing*.
+
 In `boards.context.test.ts`, the test that keeps a board, its columns and its cards
 now reads them through `/view`. Rename it and replace its two reads:
 
@@ -1042,7 +1106,7 @@ now reads them through `/view`. Rename it and replace its two reads:
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 The workspace's tests on their own:

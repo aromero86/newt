@@ -484,7 +484,7 @@ took*:
     await expect(search({ filter: { field: 'title', op: 'eq', value: 'x' } })).rejects.toThrow()
   })
 
-  test('finds a card by the text of its title as it is written, letters beyond A to Z too', async () => {
+  test('finds a card by its title whatever the case of A to Z, and other letters as they are written', async () => {
     await create('Ärger im Büro')
 
     const found = await inAcme(() => t.modules.card.search({ text: 'ÄRGER IM' }, { size: 10 }))
@@ -506,8 +506,9 @@ took*:
 
 The first one covers text (any case, in the description too, `%` as itself), a filter
 alone and with text, a group, a page with more to come, and a field the filter does
-not allow. The second checks the case: *Ä* is written as the title has it, so SQLite
-finds it.
+not allow. The second checks the case, and its name says what it shows: SQLite folds A to Z only.
+*RGER IM* finds *rger im* whatever its case, and *Ä* is written as the title has it,
+so SQLite finds it; an *ä* in lower case would not.
 
 In `boards.context.test.ts`, after *removes a column only when it is empty*, a search
 over HTTP, and a filter on a field it does not allow:
@@ -550,7 +551,7 @@ the line in the middle:
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`), make a board with a

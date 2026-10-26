@@ -34,12 +34,20 @@ export type Mail = {
   to: Email
   subject: string
   text: string
+  /**
+   * The same email sent again has the same key, and is sent once: what a worker gives
+   * when its job may run twice (the id of the event it tells of). A mailer of a real
+   * provider must honour it, passing it as the provider's idempotency key (most take
+   * one, as a header). None: each send is a new email.
+   */
+  key?: string
 }
 
 /**
  * Whatever sends an email: the console in development, a list in a test, an SMTP
  * server or an email API in production. A module sends one only from a worker, once
- * what it tells is saved: an email cannot be taken back.
+ * what it tells is saved: an email cannot be taken back. An email with a `key`
+ * already sent is not sent again.
  */
 export type Mailer = {
   send(mail: Mail): Promise<void>
@@ -48,10 +56,14 @@ export type Mailer = {
 
 - `Mail` is plain text, which every reader shows. `to` is newt's `Email` (trimmed, in
   lower case), the type a member's email already has.
+- `key` is optional. Two emails with the same key are one email: the second is not
+  sent. Why a worker needs that is the subject of [Run twice, sent
+  once](#run-twice-sent-once), below.
 - `Mailer` is a type with one method. Whatever has it is a mailer.
 
 Its comment says the rule that comes with it: a module sends an email only from a
-worker, once what it tells is saved.
+worker, once what it tells is saved. And the promise every mailer makes: an email
+whose key was already sent is not sent again.
 
 The first adapter writes each email to the console, for development:
 
@@ -59,19 +71,31 @@ The first adapter writes each email to the console, for development:
 // cooper/backend/shared/mail/console-mailer.ts
 import type { Mail, Mailer } from './mailer'
 
-/** A mailer that writes each email to the console instead of sending it: cooper's, in development. */
+/**
+ * A mailer that writes each email to the console instead of sending it: cooper's, in
+ * development. It remembers the keys it wrote while the process runs: an email with
+ * one of them is not written again.
+ */
 export class ConsoleMailer implements Mailer {
+
+  private readonly sent = new Set<string>()
 
   constructor(private readonly from: string) {}
 
   async send(mail: Mail): Promise<void> {
+    if (mail.key !== undefined) {
+      if (this.sent.has(mail.key)) return
+      this.sent.add(mail.key)
+    }
     console.log([`[mail] from ${this.from} to ${mail.to}: ${mail.subject}`, ...mail.text.split('\n').map(line => `  ${line}`)].join('\n'))
   }
 }
 ```
 
-A test gets another one, a list (below). Production gets one that talks to a real
-mail service; the module does not change.
+It keeps its promise the simplest way: a set of the keys it wrote, in memory. That is
+enough for development, where a restart forgets them and nobody minds. A test gets
+another one, a list (below). Production gets one that talks to a real mail service and
+hands it the key; the module does not change.
 
 ## Where to write to: the member's email
 
@@ -290,10 +314,11 @@ And the use case a worker calls, after `removeColumn`:
    * assignment is saved, since an email cannot be taken back. Run late, it
    * reads the card again: if it is gone, or has another assignee by then, there is
    * nothing to tell (that assignment tells its own). Nor is anyone told of a card
-   * they gave themselves (`by`, who created or assigned it).
+   * they gave themselves (`by`, who created or assigned it). Its job may run twice:
+   * the email's key is the event's id (`eventId`), so it is sent once.
    */
   @UseCase()
-  async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
+  async notifyAssignee(card: CardDTO, by: string | null, eventId: string): Promise<void> {
     if (card.assigneeId === null || card.assigneeId === by) return
     const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
     if (current?.assigneeId !== card.assigneeId) return
@@ -305,6 +330,7 @@ And the use case a worker calls, after `removeColumn`:
       to: member.email,
       subject: `#${card.number} ${card.title} is yours`,
       text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
+      key: `card.notifyAssignee:${eventId}`,
     })
   }
 ```
@@ -321,21 +347,38 @@ Read it as the list of reasons **not** to send:
    `card.assigned` tells him.
 3. **They left.** The member is not in the workspace any more: `find` says null.
 
-Only then does it build the link and send. The use case `assign` knows nothing about
-email; this one knows nothing about assigning.
+Only then does it build the link and send, with a key. The use case `assign` knows
+nothing about email; this one knows nothing about assigning.
 
-### Run twice, sent twice
+### Run twice, sent once
 
 The [previous chapter](./11-reacting) made every handler idempotent, keyed on its
-event's id. An email is the case where that runs out. If the process stops after the
-mailer sent and before the job is marked done, the job runs again and carl gets the
-email twice. Nothing in cooper's database can prevent it: the send is outside it.
+event's id. An email is the case where cooper's database cannot do it alone. If the
+process stops after the mailer sent and before the job is marked done, the job runs
+again, from the start: it reads the card, finds carl still its assignee, and sends.
+The same happens if the job fails on anything after the send, or if its worker loses
+its lease mid-send. Nothing cooper writes can prevent it: the send is outside its
+database, and no transaction spans both.
 
-Reading the card again keeps the duplicates to that narrow window. cooper accepts
-the rest: a second "#1 Plan is yours" is a nuisance, not a wrong. Something that must
-never happen twice, a payment, needs the far side's help: a provider that takes an
-idempotency key, given the event's id (the handler's `EventMeta`, chapter
-[11](./11-reacting)).
+So the far side has to help. The job of one event is the same job each time it runs,
+and its event has the same id each time: that id is the email's **key**,
+`card.notifyAssignee:<event id>`. The first run sends the email under that key; a
+second run sends it again under the same key, and the mailer drops it. Another
+assignment is another event, another id, another email: if the card goes to carl,
+then to bea, then to carl again, carl hears of it twice, as he should.
+
+That moves the guarantee to the mailer, and every mailer has to keep it:
+
+- `ConsoleMailer` and the tests' mailer remember the keys they have seen.
+- A real provider's mailer passes the key on as the provider's **idempotency key**.
+  Most email APIs take one, as a header, and send one email per key, however many
+  requests carry it. A mailer that drops the key would let the duplicate through, and
+  nothing in boards would notice.
+
+The prefix, `card.notifyAssignee:`, keeps keys of different reactions apart: another
+worker on the same event, sending another email, gives its own name. And reading
+the card again still matters: the key stops the same email twice, not an email that is
+no longer true.
 
 ## The reaction, and `when`
 
@@ -353,12 +396,12 @@ import type { Card_Module } from './card.module'
  */
 export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
   // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
-  cards.events.created.subscribe(({ by, ...card }) => cards.notifyAssignee(card, by), {
+  cards.events.created.subscribe(({ by, ...card }, { id }) => cards.notifyAssignee(card, by, id), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.created',
     when: card => card.assigneeId !== null,
   })
-  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
+  cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), {
     strategy: 'handler',
     queue: 'card.notifyAssignee.on.card.assigned',
   })
@@ -367,6 +410,10 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
 
 Two queues for one use case: an assignee hears of a card **created** for them, and of
 one **assigned** to them. Each is its own queue, named after the event it hears.
+
+A handler gets a second argument besides the payload: the event's `EventMeta`
+(chapter [11](./11-reacting)). Its `id` is the event's, the same on every run of the
+job, and it becomes `notifyAssignee`'s `eventId`, the email's key.
 
 `registerCardWorkers` takes the module's deps and does not use them yet: chapter
 [13](./13-another-context) adds reactions to the columns' events and to auth's.
@@ -577,7 +624,30 @@ You saw it initialized above, last in `initializeModules`: `boards.modules.outbo
 
 ## Wiring the mailer
 
-A test keeps its emails in a list, `mails`, as it keeps the log's lines. The whole
+A test keeps its emails in a list. Its mailer keeps a promise too: an email whose key
+it already kept is not kept again, as a provider would send it once. It is the
+application's, shared by every context's tests, so it lives next to the port:
+
+```ts
+// cooper/backend/shared/mail/recording-mailer.ts
+import type { Mail, Mailer } from './mailer'
+
+/**
+ * A mailer that keeps each email in a list instead of sending it: a test's. An email
+ * with a key already kept is not kept again, as a provider sends it once.
+ */
+export class RecordingMailer implements Mailer {
+
+  readonly mails: Mail[] = []
+
+  async send(mail: Mail): Promise<void> {
+    if (mail.key !== undefined && this.mails.some(each => each.key === mail.key)) return
+    this.mails.push(mail)
+  }
+}
+```
+
+A test reads its `mails`, as it reads the log's lines. The whole
 `open-test-boards.ts`:
 
 ```ts
@@ -585,7 +655,7 @@ A test keeps its emails in a list, `mails`, as it keeps the log's lines. The who
 import { runAsActor } from 'newt/core'
 import { config } from '../../../config'
 import type { ActorVia } from '../../../shared/actor'
-import type { Mail } from '../../../shared/mail/mailer'
+import { RecordingMailer } from '../../../shared/mail/recording-mailer'
 import { Boards_Context } from '../boards.context'
 import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
@@ -596,11 +666,11 @@ import { FakeAuth } from './fake-auth'
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
-  const mails: Mail[] = []
+  const mailer = new RecordingMailer()
   const lines: string[] = []
   const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
-    mailer: { send: async mail => { mails.push(mail) } },
+    mailer,
     log: line => { lines.push(line) },
   })
   boards.base.http.authenticateWith(async request => {
@@ -611,7 +681,7 @@ export async function openTestBoards() {
     auth,
     boards,
     modules: boards.modules,
-    mails,
+    mails: mailer.mails,
     lines,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
@@ -630,8 +700,8 @@ export async function openTestBoards() {
 export type TestBoards = Awaited<ReturnType<typeof openTestBoards>>
 ```
 
-The test's mailer is an object with a `send`: a `Mailer` is a type, and anything of
-its shape is one.
+`t.mails` is the recording mailer's list: what reached the far side, a duplicate
+dropped as a provider drops it.
 
 The backend hands the context a `ConsoleMailer`. To assign a card to someone else in
 acme there must be someone else, so carl joins it. Here is the whole `index.ts`:
@@ -674,7 +744,7 @@ console.log(`boards listening on ${server.url}`)
 ## Tests
 
 In `card.test.ts`, chapter [7](./07-cards-and-a-counter)'s test that assigns a card
-only to a member becomes one that also checks the email, and three tests follow it, at
+only to a member becomes one that also checks the email, and four tests follow it, at
 the end of the file:
 
 ```ts
@@ -695,6 +765,18 @@ the end of the file:
     await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
     await t.settled()
     expect(t.mails).toHaveLength(1)
+  })
+
+  test('tells the assignee once, however many times the job of an assignment runs', async () => {
+    const { id } = await create('Plan')
+    const plan = await inAcme(() => t.modules.card.assign(id, { assigneeId: 'bea' }))
+
+    // The job of one event, run twice (its first run failed after sending), and one of another event.
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-1')
+    await t.modules.card.notifyAssignee(plan, 'ana', 'event-2')
+
+    expect(t.mails.map(mail => [mail.subject, mail.key])).toEqual([['#1 Plan is yours', 'card.notifyAssignee:event-1'], ['#1 Plan is yours', 'card.notifyAssignee:event-2']])
   })
 
   test('tells the assignee of a card created for them, and nobody of one assigned and unassigned at once', async () => {
@@ -748,16 +830,21 @@ the end of the file:
 - The first: no email right after `assign`, the email once the worker ran, with the
   link. Assigning it again to bea tells nothing (chapter [10](./10-events)'s early
   return), so no second email.
-- The second: a card created for bea is an email. A card given to bea and taken back
+- The second is the job run twice. It calls `notifyAssignee` as a worker would, with
+  the event's id: twice with `event-1`, as a job whose first run failed after
+  sending, then once with `event-2`, another assignment. Two emails, one per event,
+  each with its key. (It runs before `settled`, so the worker's own email for the
+  assignment is not in the list yet.)
+- The third: a card created for bea is an email. A card given to bea and taken back
   before the worker runs is none: `notifyAssignee` reads it again and finds nobody.
-- The third: nobody hears of a card they gave themselves.
-- The fourth is the whole life of a dead job. The test subscribes a reaction of its
+- The fourth: nobody hears of a card they gave themselves.
+- The fifth is the whole life of a dead job. The test subscribes a reaction of its
   own, with **one** attempt, that throws while "the mail server is down". After
   `settled`, the job is dead, and `outbox.dead` lists it with its error. Once the
   server is "back", `retry` puts it back, the worker runs it, and the list is empty.
   Retrying it again is a 409: it is done.
 
-The fourth test's queue is no module's: there is no use case to name, and
+The fifth test's queue is no module's: there is no use case to name, and
 `newt/queue-name` would refuse it. It says so where it is read, with the rule turned
 off for that line. Only a test does that.
 
@@ -767,7 +854,7 @@ off for that line. Only a test does that.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`), make a card, and
@@ -804,6 +891,9 @@ email is written: she gave it to herself.
   Its job is saved with the change, so it leaves only for what was saved.
 - A worker that runs late reads again what it is about before acting: it may have
   changed since the event.
+- A job may run twice. What it sends outside carries a key, the event's id, and the
+  far side sends it once: every `Mailer` must honour `key`, a real one by passing it
+  as the provider's idempotency key.
 - What the application talks to outside (a mail service) is a port of its own,
   `Mailer`, handed to the context: the console in development, a list in tests.
 - `when` decides, from the payload and before any job is written, which events a

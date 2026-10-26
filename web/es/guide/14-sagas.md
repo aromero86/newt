@@ -153,8 +153,7 @@ export class Workspace_Module extends Module {
     await runInWorkspace(workspaceId, async () => {
       const board = await this.deps.board.findByName(WELCOME_BOARD.name)
         ?? await this.deps.board.create({ name: WELCOME_BOARD.name, description: WELCOME_BOARD.description })
-      const columns = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
-      const todo = columns.find(column => column.name === WELCOME_BOARD.columns[0])!
+      const [todo] = await this.deps.column.addMissing(board.id, [...WELCOME_BOARD.columns])
       await this.deps.card.createFirst(board.id, { columnId: todo.id, ...WELCOME_BOARD.card })
     })
     if (!await this.deps.member.exists(workspaceId)) await this.purge(workspaceId)
@@ -181,7 +180,9 @@ a cada uno. Se ejecuta en el workspace actual, como el caso de uso de cualquier 
 `prepare` es la primera saga. Lee su cuerpo como cuatro pasos:
 
 1. El tablero: el llamado *Welcome* si ya hay uno, o uno nuevo.
-2. Las columnas: las de los tres nombres que el tablero aún no tiene.
+2. Las columnas: las de los tres nombres que el tablero aún no tiene. `addMissing`
+   responde las columnas del tablero con esos nombres, en su orden, así que la primera
+   es *To do*, haya lo que haya antes.
 3. La tarjeta: la primera del tablero, salvo que ya tenga una.
 4. Antes y después, si el workspace sigue ahí.
 
@@ -198,7 +199,8 @@ añadiría un segundo tablero *Welcome*. En cambio, cada paso pregunta primero:
   cual sea su capitalización (los nombres de tablero son únicos por workspace, sin
   distinguir mayúsculas, desde el [capítulo 6](./06-rules-over-rows)). Solo si no hay
   ninguno lo crea `board.create`.
-- `column.addMissing` añade solo los nombres que el tablero no tiene.
+- `column.addMissing` añade solo los nombres que el tablero no tiene, sea cual sea su
+  capitalización: un *TO DO* que dejó la primera ejecución es *To do*.
 - `card.createFirst` crea la tarjeta solo si el tablero no tiene ninguna.
 
 Así que la segunda ejecución termina lo que dejó la primera, y una ejecución sobre un
@@ -212,21 +214,59 @@ después de `add`:
 // cooper/backend/contexts/boards/modules/column/column.module.ts
   /**
    * Adds at the end of the board the columns of these names it does not have yet,
-   * and answers all its columns: what a worker preparing a board calls, as many
-   * times as it takes. Runs at once add each name once: the save checks it again.
+   * whatever the case (`to do` is `To do`, as boards' names), and answers the board's
+   * columns of these names, in their order: what a worker preparing a board calls, as
+   * many times as it takes. Runs at once add each name once: the save checks it again.
    */
   @UseCase()
-  async addMissing(boardId: string, names: string[]): Promise<ColumnDTO[]> {
+  async addMissing(boardId: string, input: string[]): Promise<ColumnDTO[]> {
     await this.deps.board.get(boardId)
+    const names = input.map(name => ColumnAddSchema.parse({ name }).name)
     const columns = await this.repo.ofBoard(boardId)
-    const missing = names.filter(name => !columns.some(column => column.name === name))
-    if (missing.length === 0) return columns.map(column => column.toDTO())
-    if (columns.length + missing.length > MAX_COLUMNS) throw new TooManyColumns(boardId)
-    const added = missing.map((name, index) => Column.add({ workspaceId: currentWorkspaceId(), boardId, name: ColumnAddSchema.parse({ name }).name, position: columns.length + index }))
-    await this.repo.persistMissing(added, boardId)
-    return [...columns, ...added].map(column => column.toDTO())
+    const added: Column[] = []
+    for (const name of names) {
+      if ([...columns, ...added].some(column => column.isNamed(name))) continue
+      added.push(Column.add({ workspaceId: currentWorkspaceId(), boardId, name, position: columns.length + added.length }))
+    }
+    if (columns.length + added.length > MAX_COLUMNS) throw new TooManyColumns(boardId)
+    if (added.length > 0) await this.repo.persistMissing(added, boardId)
+    const all = [...columns, ...added]
+    return names.map(name => all.find(column => column.isNamed(name))!.toDTO())
   }
 ```
+
+- Interpreta cada nombre una vez, como hace `add` (sin espacios sobrantes, comprobado),
+  antes de comparar.
+- Compara los nombres con el `isNamed` de la propia columna, más abajo: sea cual sea su
+  capitalización, como se comparan los nombres de boards desde el [capítulo
+  6](./06-rules-over-rows). Sin él, un tablero cuya primera ejecución dejó *TO DO*
+  tendría un segundo *To do*.
+- Cada nombre se busca entre las columnas del tablero **y** las añadidas hasta ahora,
+  así que una lista que nombra una columna dos veces la añade una vez.
+- Responde, para cada nombre pedido, la columna del tablero con ese nombre, en el orden
+  pedido: quien llama sabe cuál es cuál sin volver a buscar por nombre. `prepare` toma
+  la primera, `const [todo] =`.
+
+`isNamed` va en `column.ts`, después del getter `position`, con una función `fold` al
+final del archivo:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/column.ts
+  /** Whether it has this name, whatever the case, as boards' names: only A to Z folded, as `ieq` compares. */
+  isNamed(name: string): boolean {
+    return fold(this.data.name) === fold(name)
+  }
+// …
+function fold(name: string): string {
+  return name.replace(/[A-Z]/g, letter => letter.toLowerCase())
+}
+```
+
+`fold` pasa a minúsculas de la A a la Z y deja cualquier otra letra como está:
+exactamente lo que compara `ieq` en la base de datos (el capítulo
+[6](./06-rules-over-rows) contó por qué las dos cosas deben plegar igual). Un nombre
+comparado de una forma en memoria y de otra en el guardado haría que el guardado
+encontrara un duplicado que el caso de uso no vio, o que se le escapara uno.
 
 En `card.module.ts`, añade `createFirst` después de `create`. Su autor es `BOARDS`, del
 capítulo 13: nadie creó la tarjeta de bienvenida.
@@ -257,7 +297,8 @@ su transacción, como aprendiste en el [capítulo 8](./08-two-people-one-card):
 
 - El tablero: el índice único de la tabla sobre (workspace, nombre) rechaza el segundo
   *Welcome*. El guardado lanza `DuplicateValue`.
-- Las columnas: `persistMissing`, más abajo, cuenta cada nombre después de escribir.
+- Las columnas: `persistMissing`, más abajo, cuenta cada nombre después de escribir,
+  sea cual sea su capitalización.
 - La tarjeta: `persistNew` cuenta las tarjetas del tablero después de escribir.
 
 Las dos últimas llaman a `this.conflict()` cuando descubren que otra ejecución llegó
@@ -275,7 +316,7 @@ Añade `persistMissing` a `column.repository.ts`, después de `persistAdded`. Es
 // cooper/backend/contexts/boards/modules/column/column.repository.ts
   /**
    * Saves new columns at the end of their board, as `persistAdded` does, where none
-   * of the board's other columns has their names: checked again after writing them,
+   * of the board's other columns has their names, whatever the case: checked again after writing them,
    * guarding the board's columns. A save that finds one already there (another run
    * of the same work added it meanwhile) is a conflict, and the use case runs again,
    * finding it.
@@ -290,12 +331,16 @@ Añade `persistMissing` a `column.repository.ts`, después de `persistAdded`. Es
       after: async () => {
         if (await this.count({ boardId }) > MAX_COLUMNS) throw new TooManyColumns(boardId)
         for (const column of columns) {
-          if (await this.count({ boardId, name: column.name }) > 1) this.conflict()
+          if (await this.count({ boardId, name: { ieq: column.name } }) > 1) this.conflict()
         }
       },
     })
   }
 ```
+
+Cuenta con `{ ieq: column.name }`: la misma comparación que `isNamed`, ahora en la base
+de datos, así que un *TO DO* y un *To do* guardados por dos ejecuciones a la vez son un
+mismo nombre dos veces, y un conflicto.
 
 Y dale a `persistNew` en `card.repository.ts` una opción, `first`, y su comprobación:
 
@@ -650,7 +695,8 @@ Sustituye `testing/fake-auth.ts`:
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
 import { SqliteStore } from 'newt/adapter-sqlite'
-import { Email, eventsOf, type DomainEvent } from 'newt/core'
+import { Email } from 'newt/contract'
+import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { AccessEvents } from '../modules/card/card.deps'
 import type { Workspaces } from '../modules/member/member.deps'
@@ -660,14 +706,14 @@ import type { TenantEvents } from '../modules/workspace/workspace.deps'
 class Tenant_Created implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.created'
   readonly name = Tenant_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
 class Tenant_Deleted implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.deleted'
   readonly name = Tenant_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: { id: string }) {}
 }
 
@@ -676,7 +722,7 @@ type Access = { userId: string, productId: string, tenantId: string | null }
 class Access_Revoked implements DomainEvent<Access> {
   static readonly eventName = 'access.revoked'
   readonly name = Access_Revoked.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: Access) {}
 }
 
@@ -891,9 +937,9 @@ describe('workspace', () => {
 
   test('prepares a workspace once, however many times its work runs, and finishes one left halfway', async () => {
     t.auth.join('acme', 'ana')
-    // A first run that stopped halfway: the board and one column.
+    // A first run that stopped halfway: the board and one column, their names in another case.
     const board = await inAcme(() => t.modules.board.create({ name: 'welcome' }))
-    await inAcme(() => t.modules.column.add(board.id, { name: 'To do' }))
+    await inAcme(() => t.modules.column.add(board.id, { name: 'TO DO' }))
 
     await t.auth.createWorkspace('acme', 'ana')
     await t.settled()
@@ -902,7 +948,7 @@ describe('workspace', () => {
 
     expect(await welcome()).toEqual({
       boards: ['welcome'],
-      columns: [['To do', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
+      columns: [['TO DO', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
     })
   })
 
@@ -1017,9 +1063,10 @@ Qué muestra cada test:
   consistencia eventual, y el test lo dice a propósito. Después de `settled()`, el
   tablero está ahí.
 - **Una vez, y terminar uno dejado a medias.** El test representa una primera ejecución
-  que se paró después del tablero (llamado `welcome`, en minúsculas) y una columna. Dos
-  ejecuciones más lo terminan: el tablero se encuentra sea cual sea su capitalización,
-  se añaden *Doing* y *Done*, y la tarjeta una sola vez.
+  que se paró después del tablero (llamado `welcome`, en minúsculas) y una columna
+  (*TO DO*, en mayúsculas). Dos ejecuciones más lo terminan: el tablero y la columna se
+  encuentran sea cual sea su capitalización, se añaden *Doing* y *Done*, y la tarjeta
+  una sola vez, en *TO DO*.
 - **Nada en un workspace borrado antes de que su trabajo se ejecutara.**
   `tellCreatedAgain` hace que el job de `tenant.created` se ejecute después de la purga.
   `prepare` no encuentra el workspace y no escribe nada. `listOf` lee los tableros de un
@@ -1039,6 +1086,28 @@ Qué muestra cada test:
   añadiste a `card.test.ts` en el capítulo 13: borra ese, `takes a card left in a removed
   column to the first one of its board, a moment later`, de `card.test.ts`.
 
+En `column.test.ts`, después del test que conserva la última columna de un tablero,
+`addMissing` por sí solo:
+
+```ts
+// cooper/backend/contexts/boards/modules/column/column.test.ts
+  test('adds the columns a board is missing, by name whatever the case, and answers them in their order', async () => {
+    const todo = await add('TO DO')
+
+    const columns = await inAcme(() => t.modules.column.addMissing(boardId, ['Done', ' to do ', 'DONE', 'Doing']))
+
+    expect(columns.map(column => column.name)).toEqual(['Done', 'TO DO', 'Done', 'Doing'])
+    expect(columns[1]!.id).toBe(todo.id)
+    expect(await names()).toEqual(['0:TO DO', '1:Done', '2:Doing'])
+  })
+```
+
+El tablero tiene *TO DO*. Al pedirle `'Done'`, `' to do '`, `'DONE'` y `'Doing'`,
+`addMissing` añade *Done* y *Doing* una vez cada una, encuentra *TO DO* para `' to do '`
+(sin espacios, y comparado sea cual sea su capitalización), y responde cuatro columnas
+en el orden pedido: *Done*, el *TO DO* del tablero (el mismo id), *Done* otra vez y
+*Doing*.
+
 En `boards.context.test.ts`, el test que guarda un tablero, sus columnas y sus tarjetas
 ahora las lee a través de `/view`. Renómbralo y sustituye sus dos lecturas:
 
@@ -1055,7 +1124,7 @@ ahora las lee a través de `/view`. Renómbralo y sustituye sus dos lecturas:
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 Los tests del workspace por separado:

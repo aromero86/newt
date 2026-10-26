@@ -53,7 +53,11 @@ export type CardQuery = {
  * which passes `describeCardSearchContract`.
  */
 export interface CardSearch {
-  /** Keeps the card as it is now, in place of what it kept of it before. */
+  /**
+   * Keeps the card as it is now, in place of what it kept of it before, unless that
+   * is newer (a later `updatedAt`): two jobs indexing one card at once may hand it
+   * an older copy last.
+   */
   index(card: CardDTO): Promise<void>
   /** Forgets a card: nothing happens if it never had it. */
   remove(id: string): Promise<void>
@@ -78,6 +82,9 @@ What the port says, and what it leaves out:
   adapter answers.
 - **The workspace is an argument of its own**, not a criterion: an adapter cannot
   forget it.
+- **`index` keeps the newer copy.** Handed a card older than the one it keeps (an
+  earlier `updatedAt`), it keeps what it has. Why an adapter must, comes with the
+  worker that keeps the index, below.
 
 ## Its contract, as a suite
 
@@ -163,6 +170,16 @@ export function describeCardSearchContract(name: string, open: () => CardSearch 
       expect(await ids()).toEqual([])
     })
 
+    test('keeps the newer of two copies of a card, whichever is indexed last', async () => {
+      const card = cardOf({ title: 'Plan', updatedAt: '2026-01-01T10:00:00.000Z' })
+      const edited = { ...card, title: 'Design', updatedAt: '2026-01-01T10:00:01.000Z' }
+      await search.index(edited)
+      await search.index(card)
+
+      expect(await ids('plan')).toEqual([])
+      expect(await ids('design')).toEqual([card.id])
+    })
+
     test('forgets every card of a workspace, and only those', async () => {
       const theirs = cardOf({ title: 'Plan', workspaceId: 'globex' })
       await search.index(theirs)
@@ -196,8 +213,8 @@ adapter, and `beforeEach` opens one per test. What it pins down:
   themselves.
 - **Criteria**: alone or with text, `or` groups, `in`.
 - **Workspaces**: a search sees one.
-- **Writes**: `index` replaces what it kept of a card; `remove` forgets it, and twice is
-  the same as once; `removeWorkspace` forgets one workspace's cards and no other's.
+- **Writes**: `index` replaces what it kept of a card, unless what it kept is newer,
+  whichever copy comes last; `remove` forgets it, and twice is the same as once; `removeWorkspace` forgets one workspace's cards and no other's.
 - **Pages**: by id, whatever order the cards were indexed in, the total counting every
   match.
 
@@ -225,6 +242,8 @@ export class MemoryCardSearch implements CardSearch {
   private readonly cards = new Map<string, CardDTO>()
 
   async index(card: CardDTO): Promise<void> {
+    const kept = this.cards.get(card.id)
+    if (kept && kept.updatedAt > card.updatedAt) return
     this.cards.set(card.id, card)
   }
 
@@ -257,6 +276,10 @@ Two pieces of newt do most of it:
   by one, and it is there for any adapter of yours that checks rows in memory.
 - **`toPage(rows, size, total)`**, as in chapter 15: it takes one row more than the
   page, drops it, and says `hasMore`.
+
+`index` compares `updatedAt` before it replaces: a copy older than the one kept is
+dropped. The two are ISO timestamps of the same clock, so comparing them as strings
+compares them in time.
 
 The text is JavaScript's `toLowerCase` and `includes`: every letter's case is folded,
 and `%` is a character like any other. Searching is linear in the number of cards, and
@@ -353,7 +376,7 @@ that lost them. Replace `testing/open-test-boards.ts`:
 import { runAsActor } from 'newt/core'
 import { config } from '../../../config'
 import type { ActorVia } from '../../../shared/actor'
-import type { Mail } from '../../../shared/mail/mailer'
+import { RecordingMailer } from '../../../shared/mail/recording-mailer'
 import type { BoardsBase } from '../boards-base'
 import { Boards_Context } from '../boards.context'
 import type { CardRow } from '../modules/card/card.repository'
@@ -362,20 +385,20 @@ import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
 
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth behind
- * its ports, its emails and its log's lines in lists, and who sends a request told by an
- * `x-user` header.
+ * `boards` for a test: its database and its cards' search in memory, a fake auth
+ * behind its ports, its emails and its log's lines in lists, and who sends a request
+ * told by an `x-user` header.
  */
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
-  const mails: Mail[] = []
+  const mailer = new RecordingMailer()
   const lines: string[] = []
   const search = new MemoryCardSearch()
   const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
-    mailer: { send: async mail => { mails.push(mail) } },
+    mailer,
     search,
     log: line => { lines.push(line) },
   })
@@ -387,7 +410,7 @@ export async function openTestBoards() {
     auth,
     boards,
     modules: boards.modules,
-    mails,
+    mails: mailer.mails,
     lines,
     search,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
@@ -476,7 +499,8 @@ case after `countByBoard`:
   /**
    * The search finds a card as it is now: read again, it is indexed, or removed if it
    * is gone. What a worker calls on every change of a card, in any order, as many
-   * times as it takes: each run indexes what is there then.
+   * times as it takes: each run indexes what is there then, and two at once that
+   * hand the search their copies in the wrong order leave it the newer one.
    */
   @UseCase()
   async indexCard(workspaceId: string, id: string): Promise<void> {
@@ -522,11 +546,20 @@ table **then**, or remove it if it is gone, whatever event woke it. The order st
 mattering, and so does running twice: that is what makes it safe to retry. The same
 idea as chapter [14](./14-sagas)'s steps: each run converges on what is there.
 
-(Two jobs of the same card running at the very same moment can still cross: one reads,
-the other reads and writes, the first writes what it read. The next change of the card
-puts it right, and so does the next start. An adapter that can refuse an older write,
-such as a search server that takes a version with each document, would close even
-that; `CardSearch` does not ask for it.)
+Reading again leaves one case. Two jobs of the same card can run at the very same
+moment, and cross: the first reads the card, the second reads it after a newer change
+and indexes it, and only then does the first index the copy it read, older. Each job
+read the truth of its moment; the search would end with the older one, and keep it
+until the card changes again.
+
+That is why the port asks `index` to keep the newer copy. Every change of a card moves
+its `updatedAt` forward, so of two copies the later `updatedAt` is the newer card.
+Handed the older one last, the adapter keeps what it has. Whichever job writes last,
+the search ends with the newer copy: the same convergence as the followers of chapter
+[13](./13-another-context), each job doing its part and the order not mattering. An
+adapter on a search server does the same with the server's own tool: a version given
+with each document (its `updatedAt`, say), so that the server itself refuses an older
+write.
 
 `purgeWorkspace` removes a deleted workspace's cards as rows, all at once, and that
 tells no event per card (chapter 14). So it forgets them in the search itself:
@@ -658,13 +691,19 @@ first, after its four cards:
     await t.settled()
 ```
 
-and in the second:
+and in the second, which also takes back the name it had before chapter
+[15](./15-kysely) renamed it:
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.test.ts
+  test('finds a card by the text of its title as it is written, letters beyond A to Z too', async () => {
     await create('Ärger im Büro')
     await t.settled()
 ```
+
+On SQLite only A to Z folded, and chapter 15's name said so. The search is the port's
+now, and `MemoryCardSearch` folds every letter, as the contract asks: *ärger* would
+find *Ärger* too.
 
 After it, two new tests. One follows a card through a create, an edit and a delete,
 searching before and after the index catches up. The other writes 1,001 cards as rows,
@@ -807,7 +846,7 @@ adapter would then have to keep up with or give up.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 `bun test cooper` now runs the contract suite once, as *MemoryCardSearch keeps the
@@ -849,7 +888,8 @@ The map was empty when the process started; boards indexed every card as it open
   stores with `describeStoreContract`. An adapter is done when the suite passes.
 - The index is a projection: kept by `'handler'` workers on every event of a card,
   each re-reading the card and indexing what is there or removing it. Jobs run out of
-  order and run again; re-reading makes both harmless.
+  order and run again; re-reading makes both harmless, and an `index` that keeps the
+  newer copy (a later `updatedAt`) makes two jobs that cross harmless too.
 - A projection is a moment behind. The search gives ids; the use case reads the cards
   from the table. Tests wait with `settled()`. Rules that must hold never read a
   projection.
