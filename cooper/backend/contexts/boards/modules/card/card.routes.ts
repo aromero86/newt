@@ -1,3 +1,4 @@
+import type { KeptAnswer } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Card_Deps } from './card.deps'
@@ -8,7 +9,9 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   workspace.get('/boards/:boardId/cards', async request => Response.json(await cards.listInBoard(request.params.boardId)))
 
-  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }))
+  // A client may send it again with the same `Idempotency-Key` (its answer lost on the
+  // way): it gets the card made the first time, kept in the store, not a second one.
+  workspace.post('/boards/:boardId/cards', async request => Response.json(await cards.create(request.params.boardId, await request.json()), { status: 201 }), { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
 
   workspace.get('/cards/:cardId', async request => Response.json(await cards.get(request.params.cardId)))
 
