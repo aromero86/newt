@@ -36,10 +36,6 @@ export function cooperApp({ name, port, proxy }: CooperApp): UserConfig {
         // The API client: the only way the frontend reaches the backend.
         '@cooper/api': libs('api'),
         '@cooper/core': libs('core'),
-        // The backend's contracts (`*.schema.ts`) build on newt's value objects and filters,
-        // and newt/core needs `node:async_hooks` to load (see async-local-storage.ts).
-        newt: fileURLToPath(new URL('../../packages/newt', import.meta.url)),
-        'node:async_hooks': fileURLToPath(new URL('./async-local-storage.ts', import.meta.url)),
       },
     },
     server: {

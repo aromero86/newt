@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { runAsActor } from 'newt/core'
+import { runContexts } from 'newt/application'
+import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { openContexts, stopContexts } from './open-contexts'
@@ -21,20 +22,20 @@ test('opens the three contexts, serves each on its own port, and stops them', as
   const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards', 'backoffice'])
 
-  const servers = contexts.all.map(context => context.serve())
-  for (const context of contexts.all) context.start()
+  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
   try {
+    const servers = Object.values(app.servers)
+    expect(Object.keys(app.servers)).toEqual(['auth', 'boards', 'backoffice'])
     expect(new Set(servers.map(server => server.port)).size).toBe(3)
-    for (const [index, context] of contexts.all.entries()) {
-      const response = await fetch(new URL('/api/health', servers[index]!.url))
+    for (const server of servers) {
+      const response = await fetch(new URL('/api/health', server.url))
       expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({ status: 'ok', context: context.name })
+      expect(await response.json()).toEqual({ status: 'ok' })
     }
     // The API's own addresses are never the frontend's.
     expect((await fetch(new URL('/api/nothing', servers[0]!.url))).status).toBe(404)
   } finally {
-    await Promise.all(servers.map(server => server.stop()))
-    await stopContexts(contexts)
+    await app.stop()
   }
   expect(mails).toEqual([])
 })
@@ -66,7 +67,8 @@ test('lets no member into a deleted workspace whose accesses are not taken away 
 
 test('traces a use case across contexts: auth\'s calls inside the backoffice\'s that made them', async () => {
   const lines: string[] = []
-  const contexts = await openContexts(testConfig(), { tracer: new ConsoleTracer(line => lines.push(line)) })
+  const contexts = await openContexts(testConfig())
+  setTracer(new ConsoleTracer(line => lines.push(line)))
   try {
     const { access, user } = contexts.auth.modules
     const sam = await user.signUp({ email: 'sam@cooper.test', name: 'Sam', password: 'a long password' })
@@ -82,6 +84,7 @@ test('traces a use case across contexts: auth\'s calls inside the backoffice\'s 
       '[trace]   auth user.get',
     ])
   } finally {
+    setTracer(new NoopTracer())
     await stopContexts(contexts)
   }
 })

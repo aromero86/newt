@@ -1,6 +1,5 @@
-import type { Server } from 'bun'
 import { BoundedContext } from 'newt/runtime'
-import { serve } from 'newt/http'
+import type { ServeOptions } from 'newt/http'
 import type { CooperBase } from './cooper-base'
 
 export type ServedContextConfig = {
@@ -19,16 +18,15 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
 
   protected constructor(name: string, base: CooperBase, private readonly served: ServedContextConfig) {
     super(name, base)
-    base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
   }
 
-  /** What its server answers besides its modules' API: an MCP entry, a `/.well-known` document. */
+  /** What its server answers besides its modules' API: OAuth's endpoints, an MCP entry. */
   protected routes(): Bun.Serve.Routes<undefined, string> {
     return {}
   }
 
-  /** Its server: its modules' API, what it adds, and its frontend for any other address. */
-  serve(): Server<undefined> {
-    return serve({ port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder })
+  /** How it is served (`runContexts`, `serve`): its modules' API, what it adds, its health, and its frontend for any other address. */
+  serving(): ServeOptions {
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true }
   }
 }

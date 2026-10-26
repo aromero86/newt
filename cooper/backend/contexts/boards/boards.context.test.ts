@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { Server } from 'bun'
+import { serve } from 'newt/http'
 import { openTestBoards, type TestBoards } from './testing/open-test-boards'
 
 describe('boards, through its API', () => {
   let t: TestBoards
-  let server: ReturnType<TestBoards['boards']['serve']>
+  let server: Server<undefined>
 
   beforeEach(async () => {
     t = await openTestBoards()
     t.auth.join('acme', 'ana')
     t.auth.join('globex', 'bea')
-    server = t.boards.serve()
+    server = serve(t.boards.serving())
   })
 
   afterEach(async () => {

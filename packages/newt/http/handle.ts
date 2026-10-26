@@ -1,16 +1,18 @@
 import type { BunRequest } from 'bun'
+import type { ErrorHandler } from './error-handler'
 import { MalformedBody } from './errors/malformed-body'
 import { UnsupportedMediaType } from './errors/unsupported-media-type'
 import type { HttpRoute } from './http-route'
 import { toErrorResponse } from './to-error-response'
 
 /**
- * Wraps a route so that whatever it throws becomes an error response. A body that
- * cannot be read as JSON or as a form is the client's fault: a 400 (`malformed_body`),
- * not a 500. A body read as JSON must say it is JSON, or it is a 415
- * (`unsupported_media_type`): a form posted from another site cannot say so.
+ * Wraps a route so that whatever it throws becomes an error response, `onError`'s
+ * (`toErrorResponse` unless told). A body that cannot be read as JSON or as a form is
+ * the client's fault: a 400 (`malformed_body`), not a 500. A body read as JSON must
+ * say it is JSON, or it is a 415 (`unsupported_media_type`): a form posted from
+ * another site cannot say so.
  */
-export function handle(route: HttpRoute) {
+export function handle(route: HttpRoute, onError: ErrorHandler = toErrorResponse) {
   return async (request: BunRequest): Promise<Response> => {
     const json = request.json.bind(request)
     const formData = request.formData.bind(request)
@@ -31,7 +33,7 @@ export function handle(route: HttpRoute) {
     try {
       return await route(request)
     } catch (error) {
-      return toErrorResponse(error)
+      return onError(error, request)
     }
   }
 }

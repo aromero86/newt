@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
+import { serve } from 'newt/http'
+import { browser, freePort, type Browser } from 'newt/testing'
 import { config } from '../../config'
 import { Auth_Context } from './auth.context'
-
-/** A port nobody listens on now: auth must know its own address before it opens. */
-function freePort(): number {
-  const probe = Bun.serve({ port: 0, fetch: () => new Response() })
-  const port = probe.port!
-  void probe.stop()
-  return port
-}
 
 let auth: Auth_Context
 let server: Server<undefined>
@@ -19,7 +13,7 @@ beforeEach(async () => {
   const port = freePort()
   url = `http://localhost:${port}`
   auth = await Auth_Context.open({ ...config.auth, dbPath: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
-  server = auth.serve()
+  server = serve(auth.serving())
   auth.start()
 })
 
@@ -31,23 +25,6 @@ afterEach(async () => {
 const MCP = `${config.auth.boardsPublicUrl}/mcp`
 const CALLBACK = 'http://localhost:9999/callback'
 
-/** A browser of one person: it keeps auth's cookie, and never follows a redirect on its own. */
-function browser() {
-  let cookie = ''
-  return async (path: string, init: RequestInit & { json?: unknown } = {}) => {
-    const { json, ...rest } = init
-    const response = await fetch(new URL(path, url), {
-      ...rest,
-      redirect: 'manual',
-      headers: { cookie, ...(json === undefined ? {} : { 'content-type': 'application/json' }), ...rest.headers },
-      body: json === undefined ? rest.body : JSON.stringify(json),
-    })
-    const session = response.headers.getSetCookie().find(each => each.startsWith('cooper_auth_session='))
-    if (session) cookie = session.split(';')[0]!
-    return response
-  }
-}
-
 /** A PKCE pair (RFC 7636): the verifier the client keeps, and the challenge it sends. */
 function pkce() {
   const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
@@ -58,7 +35,7 @@ const form = (fields: Record<string, string>) => ({ method: 'POST', headers: { '
 const token = (fields: Record<string, string>, headers: Record<string, string> = {}) => fetch(new URL('/oauth/token', url), { ...form(fields), headers: { ...form(fields).headers, ...headers } })
 
 /** An authorization request as a client sends the browser to it: the request's id in auth's UI. */
-async function authorize(as: ReturnType<typeof browser>, params: Record<string, string>): Promise<string> {
+async function authorize(as: Browser, params: Record<string, string>): Promise<string> {
   const response = await as(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', code_challenge_method: 'S256', ...params })}`)
   expect(response.status).toBe(302)
   const location = response.headers.get('location')!
@@ -74,7 +51,7 @@ async function register(): Promise<string> {
 }
 
 /** Ana, signed in to auth in her browser, approving an MCP client's request: its code. */
-async function codeFor(clientId: string, challenge: string, as = browser()) {
+async function codeFor(clientId: string, challenge: string, as = browser(url)) {
   const id = await authorize(as, { client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, state: 'xyz', resource: MCP })
   await as('/api/session/sign-up', { method: 'POST', json: { email: `ana${Bun.randomUUIDv7()}@cooper.test`, name: 'Ana', password: 'a long password' } })
   const approved = await as(`/api/authorizations/${id}/approve`, { method: 'POST' })
@@ -98,7 +75,7 @@ describe('the OAuth server', () => {
   test('registers a client, asks the person, and trades the code for tokens that verify, refresh and revoke', async () => {
     const clientId = await register()
     const { verifier, challenge } = pkce()
-    const as = browser()
+    const as = browser(url)
 
     // The client sends the browser to auth; auth's UI shows who asks, before anyone signs in.
     const id = await authorize(as, { client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, state: 'xyz', resource: MCP })
@@ -164,9 +141,9 @@ describe('the OAuth server', () => {
     expect(await (await token({ grant_type: 'password', client_id: clientId })).json()).toMatchObject({ error: 'unsupported_grant_type' })
 
     // An unknown client, or no PKCE: auth's UI says why, and nothing goes back to the client.
-    const unknown = await browser()(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: 'nope', redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256' })}`)
+    const unknown = await browser(url)(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: 'nope', redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256' })}`)
     expect(unknown.headers.get('location')).toStartWith(`${url}/error?message=`)
-    const plain = await browser()(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'plain' })}`)
+    const plain = await browser(url)(`/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'plain' })}`)
     expect(new URL(plain.headers.get('location')!).searchParams.get('message')).toContain('PKCE')
     const elsewhere = await fetch(new URL('/oauth/register', url), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: ['http://evil.example/callback'] }) })
     expect(await elsewhere.json()).toMatchObject({ error: 'invalid_client_metadata' })
@@ -174,7 +151,7 @@ describe('the OAuth server', () => {
 
   test('sends the browser back empty-handed when the person says no', async () => {
     const clientId = await register()
-    const as = browser()
+    const as = browser(url)
     const id = await authorize(as, { client_id: clientId, redirect_uri: CALLBACK, code_challenge: pkce().challenge, state: 'xyz', resource: MCP })
     await as('/api/session/sign-up', { method: 'POST', json: { email: 'ana@cooper.test', name: 'Ana', password: 'a long password' } })
 
@@ -184,7 +161,7 @@ describe('the OAuth server', () => {
   })
 
   test('signs out of auth on the way back to a product, and to no other address', async () => {
-    const as = browser()
+    const as = browser(url)
     await as('/api/session/sign-up', { method: 'POST', json: { email: 'ana@cooper.test', name: 'Ana', password: 'a long password' } })
     expect((await as('/api/session')).status).toBe(200)
 
@@ -201,7 +178,7 @@ describe('the OAuth server', () => {
   test('signs the staff in to the backoffice, a confidential client, and nobody else', async () => {
     const redirectUri = `${config.auth.backofficePublicUrl}/api/session/callback`
     const { verifier, challenge } = pkce()
-    const as = browser()
+    const as = browser(url)
     const id = await authorize(as, { client_id: 'backoffice', redirect_uri: redirectUri, code_challenge: challenge })
     expect(await (await as(`/api/authorizations/${id}`)).json()).toMatchObject({ product: { id: 'backoffice', signUp: false }, firstParty: true, refused: null })
 

@@ -15,9 +15,9 @@ tiene tres: `auth`, `boards` y `backoffice`.
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store, tracer })
+  const base = new BoardsBase({ name: 'boards', store })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -46,17 +46,23 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   ```
 - **Un contexto es un `BoundedContext`**: `start()` arranca su worker de trabajos y
   `stop()` espera a los trabajos en curso y cierra su store. Cómo se sirve es cosa de
-  la aplicación: `serve`, de `newt/http`, es una forma, y es la que usa el
-  `ServedContext` de cooper.
+  la aplicación: `serve`, de `newt/http`, es una forma, y `runContexts`, de
+  `newt/application`, los ejecuta todos, abiertos en orden: sirve cada uno, arranca
+  su worker y, con SIGINT o SIGTERM, para los servidores y después cada contexto,
+  el último primero.
+
+  ```ts
+  // cooper/backend/index.ts
+  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+  ```
 - **Los contextos dependen unos de otros sin formar un círculo**: cada uno se abre
   después de los que usa, y recibe sus módulos, o puertos hechos con ellos.
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
-  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+  const auth = await Auth_Context.open(config.auth, { mailer })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   ```
 - Un contexto llega a otro solo a través de los casos de uso y los eventos de ese otro,
   nunca de su base ni de su store. El tipo de sus deps dice qué módulos, como un
@@ -102,22 +108,37 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   como `application/json` (o `…+json`); cualquier otro `Content-Type` es un 415,
   `unsupported_media_type`, de modo que un formulario enviado desde otra web nunca
   llega a una ruta. Una dirección bajo el prefijo sin ruta es un 404, y un método que
-  la dirección no tiene, un 405.
+  la dirección no tiene, un 405, `OPTIONS` también.
+- **Las páginas de otros orígenes llaman solo a las rutas que lo dicen**: `{ cors }`,
+  opción de una ruta, de un grupo o del router entero (`new HttpRouter({ cors })`),
+  nombra los orígenes (`'*'` o una lista), las cabeceras que pueden enviar y las que
+  pueden leer. Sus direcciones responden a la comprobación previa (`OPTIONS`) y lo
+  dicen en cada respuesta, también en los errores. Nunca con cookies: quién llama va
+  en un token bearer.
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/token/token.routes.ts
+  base.oauth.post('/oauth/register', async request => { … }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
+  ```
 - **Toda ruta necesita una sesión**, salvo que se registre con `{ public: true }`. El
   router pregunta a su `Authenticator` quién ha enviado la petición, y la ruta se
   ejecuta como ese actor: cualquier caso de uso al que llegue sabe quién lo hace con
-  `currentActor()`. Nunca pases el id del usuario a mano. Cualquier otro punto de
-  entrada (una CLI, un servidor MCP, un script) se ejecuta como un actor de la misma
-  forma, con `runAsActor`.
+  `currentActor()`. Nunca pases el id del usuario a mano. A un cliente que envía un
+  token bearer en vez de una cookie (un cliente MCP, otro servidor) lo reconoce
+  `bearerAuthenticator(verify)`. Cualquier otro punto de entrada (una CLI, un script)
+  se ejecuta como un actor de la misma forma, con `runAsActor`.
 
   ```ts
-  // cooper/backend/shared/served-context.ts
-  base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
+  // cooper/backend/contexts/boards/modules/workspace/workspace.routes.ts
+  base.http.get('/invitations/:token', async request => { … }, { public: true })
   ```
 
   ```ts
   // cooper/backend/contexts/boards/mcp/mcp.ts
-  return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
+  router.authenticateWith(bearerAuthenticator(async accessToken => {
+    const identity = await auth.token.verify(accessToken)
+    return identity?.resource === resource ? { userId: identity.userId, via: 'mcp' } : null
+  }))
   ```
 - **Las rutas que comparten prefijo pueden compartir un middleware**:
   `http.group(prefijo, middleware)`. Se ejecuta después de comprobar la sesión,
@@ -125,9 +146,24 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   normalmente dentro de un ámbito propio (ver
   [Quién y dónde](#quien-y-donde-el-actor-y-otros-ambitos) más abajo). Los parámetros
   de una ruta son los de su grupo más los suyos.
-- Las rutas que no son del router (una entrada MCP, un documento `/.well-known`) van a
-  su lado: `serve({ port, router, routes, frontend })` sirve las rutas del router, las
-  que se le dan en `routes` y un frontend compilado para cualquier otra dirección.
+- **Un POST que un cliente puede enviar otra vez** sin hacerlo dos veces lleva `{
+  idempotency: { table, ttlMs } }` (opción de una ruta, de un grupo o de un router):
+  una petición con la cabecera `Idempotency-Key` recibe la primera respuesta a esa
+  clave, del mismo actor en la misma dirección, mientras se recuerda (un día salvo
+  que se diga otra cosa). Las respuestas se guardan en una tabla del store del
+  contexto, `store.table<KeptAnswer>('idempotency_key')`, con su migración. La misma
+  clave mientras la primera sigue en curso es un 409 (`idempotency_key_in_use`); lo
+  que falla no se guarda, así que la clave puede volver a intentarlo.
+- **Las direcciones fuera de `/api`** (los endpoints de OAuth, una entrada MCP, un
+  documento `/.well-known`) son un router propio en la raíz, `new HttpRouter({ prefix:
+  '' })`, que toma solo sus direcciones y deja el resto al frontend. Un router, un
+  grupo o una ruta pueden responder a sus errores a su manera, `{ onError: (error,
+  request) => … }`, como hacen los endpoints de OAuth. `serve({ port, router, routes,
+  frontend })` sirve las rutas del router, las que se le dan en `routes` (las
+  `routes()` de otro router) y un frontend compilado para cualquier otra dirección.
+  Con `health: true` responde a `GET /api/health` sin sesión, con un 503 en cuanto
+  se está parando (durante `drainMs` antes de cerrar, para que un balanceador de
+  carga no le envíe nada nuevo).
 
 ## Quién y dónde: el actor y otros ámbitos
 
@@ -158,7 +194,8 @@ declare module 'newt/core' {
 un contexto lo tiene. A partir de ahí `currentActor()` devuelve esos campos, y cada
 sitio que dice quién actúa tiene que darlos: el autenticador, `runAsActor`. Un campo
 obligatorio no se puede olvidar; el compilador encuentra cada sitio. Limítalo a quién
-es alguien y cómo entró, nunca a lo que puede hacer. Fuera de cualquier actor, `currentActor()` lanza `NoActor`, un 401.
+es alguien y cómo entró, nunca a lo que puede hacer. Fuera de cualquier actor, `currentActor()` lanza `NoActor`, un 401;
+`findCurrentActor()` devuelve `undefined` en su lugar, para lo que cualquiera puede hacer y quien ha entrado ve con más detalle.
 
 **La autenticación** (quién es) es el `Authenticator` del router: lee la petición (una
 cookie de sesión, un token) y pregunta a un módulo de sesiones, a través de un caso de
@@ -1022,12 +1059,12 @@ demás tests de ese proceso.
 
 Sus códigos son `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
-`validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
+`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `filter_too_deep`,
 `filter_too_many_conditions` e `internal`.
 
 Un endpoint OAuth responde en el formato de OAuth, `{ error, error_description }`:
 `toOauthErrorResponse(error, fallback, codes)`, de `newt/http`, traduce el código de
-cada error de dominio a uno de OAuth.
+cada error de dominio a uno de OAuth, como `onError` de cada ruta de OAuth.
 
 ## Value objects
 
@@ -1126,16 +1163,27 @@ deps.card.events.created.subscribe(card => metrics.recordCard(card), {
 
 ## Observabilidad
 
-Cada contexto puede dar a su `Base` un `Tracer` (`new BoardsBase({ name, store, tracer
-})`): cada llamada a un caso de uso es un span, con su nombre, con el contexto, el
+Una aplicación tiene **un** `Tracer`, que se fija una vez donde arranca:
+`setTracer(tracer)`, de `newt/core` (o el `tracer` de `runContexts`). Cada llamada a un
+caso de uso de cualquier contexto es un span, con su nombre, con el contexto, el
 módulo y el caso de uso como atributos, hijo del de quien lo llama, marcado con el
 error cuando se escapa uno que no es de dominio, y con un evento (`conflict.retry`)
-por cada reintento ante un conflicto. Los pasos del propio worker de trabajos también
-son spans. Sin tracer, no se registra nada (`NoopTracer`).
+por cada reintento ante un conflicto. Cada petición que responde un router también es
+un span (`GET /api/boards/:boardId`), marcado con un error si es un 5xx, y los pasos
+del propio worker de trabajos son spans. El span activo viaja con el trabajo, así que
+los casos de uso a los que llama una petición, de cualquier contexto, caen dentro de
+él: una sola traza para toda la petición, entre contextos. Sin tracer, no se registra
+nada (`NoopTracer`). Un contexto aún puede dar a su `Base` un `tracer` propio, que va
+antes que el de la aplicación para sus casos de uso.
 
-Da el **mismo** tracer a todos los contextos de un proceso. El span activo viaja con el
-trabajo, así que un caso de uso de un contexto al que llama otro cae dentro del span de
-quien lo llama: una sola traza para toda la petición, entre contextos. cooper crea un
-`ConsoleTracer` (`shared/observability`) cuando `COOPER_TRACE=1` y se lo da a los tres
-(mira `open-contexts.ts` más arriba); escribe cada traza cuando termina, y deja fuera
-los spans `job.…` del worker.
+`filterSpans(tracer, keep)` pasa a un tracer solo los spans cuyo nombre se queda.
+cooper fija un `ConsoleTracer` (`shared/observability`) cuando `COOPER_TRACE=1`, sin
+los spans `job.…` del worker; escribe cada traza cuando termina. Para enviarlos a
+OpenTelemetry, `new OtlpTracer({ endpoint, service })`, de `newt/otel`, los exporta a
+un colector por OTLP/HTTP, sin su SDK: cada pocos segundos, y el resto cuando
+`runContexts` para (el `flush` de un tracer).
+
+```ts
+// cooper/backend/open-contexts.ts
+return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+```

@@ -18,6 +18,7 @@ bun add newt zod
 | Import | What it has |
 |---|---|
 | `newt/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, what to find (`Criteria`) and the filters a client may send (`defineFilter`), pagination, value objects, observability. |
+| `newt/contract` | What a backend and its clients share, safe in a browser: value objects and their errors, `defineFilter`, `Page`, `PageRequest` and `ErrorBody`, the body of a failed request. |
 | `newt/repository` | Where a module reads and writes its entities: `TableRepository`, `Repository`. |
 | `newt/port-store` | The port a store implements: `Store`, `Table`, `Migrations`, `TransactionScope`. |
 | `newt/port-store/contract` | `describeStoreContract`: the suite that checks a store keeps every promise. |
@@ -30,6 +31,9 @@ bun add newt zod
 | `newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
 | `newt/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
 | `newt/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
+| `newt/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
+| `newt/otel` | `OtlpTracer`: the tracer that sends spans to an OpenTelemetry collector (OTLP/HTTP, JSON), with no SDK. Optional. |
+| `newt/testing` | For a test of an HTTP entry: `freePort`, and `browser`, a `fetch` that keeps its cookies and never follows a redirect. |
 | `newt/http` | `HttpRouter`, groups with middleware and `serve`: routes per module, sessions, errors as responses. Optional. |
 | `newt/kysely` | `kyselyFor`: Kysely on any SQL store, for queries of one's own. Optional (needs `kysely`). |
 
@@ -74,6 +78,7 @@ Each piece is a folder and a subpath; a piece reaches another only through its
 
 ```
 core/              what a module is made of, and the criteria it is found by; knows nothing else
+contract/          core's files a browser may load, re-exported: nothing in it keeps a scope
 port-outbox/       the port of the jobs; knows nothing else
 port-analytics/    the port of analytics; knows nothing else (its contract/ knows it)
 port-store/        the port of a store; knows core, port-outbox (its contract/ knows repository and runtime)
@@ -85,7 +90,10 @@ adapter-postgres/  an adapter; knows sql
 adapter-mysql/     an adapter; knows sql
 adapter-files/     an adapter; knows core, port-store, port-outbox
 kysely/            Kysely on the SQL stores; knows them
-http/              the HTTP entry; knows core
+http/              the HTTP entry; knows core, and port-store's Table (idempotency keys)
+application/       an application's contexts, run; knows core, runtime and http
+otel/              a tracer for OpenTelemetry's collectors; knows core
+testing/           helpers for a test over HTTP; knows nothing else
 ```
 
 What a piece needs from another that applications must not reach goes through that

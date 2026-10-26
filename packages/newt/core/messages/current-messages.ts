@@ -14,6 +14,7 @@ export const currentMessages: { value: Messages } = {
     validation: () => 'The request is not valid',
     malformed_body: () => 'The body of the request cannot be read',
     unsupported_media_type: () => 'The body of the request must be sent as application/json',
+    idempotency_key_in_use: () => 'A request with this Idempotency-Key is still in progress: try again once it ends',
     filter_too_deep: ({ max }) => `A filter nests at most ${max} groups deep`,
     filter_too_many_conditions: ({ max }) => `A filter has at most ${max} conditions`,
     internal: () => 'Something went wrong',

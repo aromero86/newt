@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
+import { serve } from 'newt/http'
 import { openTestBackoffice, type TestBackoffice } from './testing/open-test-backoffice'
 
 describe('the backoffice API', () => {
@@ -13,7 +14,7 @@ describe('the backoffice API', () => {
       const userId = request.headers.get('x-user')
       return userId ? { userId, via: 'web' as const } : null
     })
-    server = t.backoffice.serve()
+    server = serve(t.backoffice.serving())
   })
 
   afterEach(async () => {

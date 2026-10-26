@@ -14,9 +14,9 @@ and, if it has any, its entry points. cooper has three: `auth`, `boards` and
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store, tracer })
+  const base = new BoardsBase({ name: 'boards', store })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -45,17 +45,23 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   ```
 - **A context is a `BoundedContext`**: `start()` starts its job worker, `stop()` waits
   for the jobs in progress and closes its store. How it is served is the
-  application's: `serve` from `newt/http` is one way, and cooper's `ServedContext`
-  uses it.
+  application's: `serve` from `newt/http` is one way, and `runContexts` from
+  `newt/application` runs them all, opened in order: it serves each one, starts its
+  worker, and on SIGINT or SIGTERM stops the servers, then each context, the last
+  one first.
+
+  ```ts
+  // cooper/backend/index.ts
+  const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+  ```
 - **Contexts depend on each other without a cycle**: each one is opened after the ones
   it uses and receives their modules, or ports made of them.
 
   ```ts
   // cooper/backend/open-contexts.ts
-  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
-  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
+  const auth = await Auth_Context.open(config.auth, { mailer })
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: config.trace ? line => console.log(line) : undefined })
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules })
   ```
 - A context reaches another only through that one's use cases and events, never its
   base or its store. Its deps type says which modules, as a `Pick`, so nothing else is
@@ -99,30 +105,57 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Trace
   body must come as `application/json` (or `…+json`); any other `Content-Type` is a
   415, `unsupported_media_type`, so a form posted from another site never reaches a
   route. A path under the prefix with no route is a 404, a method a path does not
-  have a 405.
+  have a 405, `OPTIONS` too.
+- **Pages of other origins call only the routes that say so**: `{ cors }`, an option
+  of a route, a group or the whole router (`new HttpRouter({ cors })`), names the
+  origins (`'*'` or a list), the headers they may send and those they may read. Its
+  paths answer the preflight (`OPTIONS`) and say it in every answer, errors too.
+  Never with cookies: who calls goes in a bearer token.
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/token/token.routes.ts
+  base.oauth.post('/oauth/register', async request => { … }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
+  ```
 - **Every route needs a session** unless it is registered with `{ public: true }`.
   The router asks its `Authenticator` who sent the request, and the route runs as that
   actor: any use case it reaches knows who is doing it through `currentActor()`.
-  Never pass the user id around by hand. Any other entry point (a CLI, an MCP server,
-  a script) runs as an actor the same way, with `runAsActor`.
+  Never pass the user id around by hand. A client that sends a bearer token instead
+  of a cookie (an MCP client, another server) is told by `bearerAuthenticator(verify)`.
+  Any other entry point (a CLI, a script) runs as an actor the same way, with `runAsActor`.
 
   ```ts
-  // cooper/backend/shared/served-context.ts
-  base.http.get('/health', () => Response.json({ status: 'ok', context: name }), { public: true })
+  // cooper/backend/contexts/boards/modules/workspace/workspace.routes.ts
+  base.http.get('/invitations/:token', async request => { … }, { public: true })
   ```
 
   ```ts
   // cooper/backend/contexts/boards/mcp/mcp.ts
-  return await runAsActor({ userId: identity.userId, via: 'mcp' }, () => transport.handleRequest(request))
+  router.authenticateWith(bearerAuthenticator(async accessToken => {
+    const identity = await auth.token.verify(accessToken)
+    return identity?.resource === resource ? { userId: identity.userId, via: 'mcp' } : null
+  }))
   ```
 - **Routes that share a prefix may share a middleware**: `http.group(prefix,
   middleware)`. It runs after the session is checked, around each route of the group,
   and may answer instead or go on with `next()`, typically inside a scope of its own
   (see [Who and where](#who-and-where-the-actor-and-other-scopes) below). A route's
   params are its group's and its own.
-- Routes outside the router (an MCP entry, a `/.well-known` document) go beside it:
-  `serve({ port, router, routes, frontend })` serves the router's routes, the ones
-  given in `routes`, and a built frontend for every other address.
+- **A POST a client may send again** without doing it twice takes `{ idempotency: {
+  table, ttlMs } }` (a route's, a group's or a router's option): a request with an
+  `Idempotency-Key` header gets the first answer to that key, from the same actor at
+  the same address, while it is remembered (a day unless told). The answers are kept
+  in a table of the context's store, `store.table<KeptAnswer>('idempotency_key')`,
+  with its migration. The same key while the first is still running is a 409
+  (`idempotency_key_in_use`); what fails is not kept, so the key may try again.
+- **Addresses outside `/api`** (OAuth's endpoints, an MCP entry, a `/.well-known`
+  document) are a router of their own at the root, `new HttpRouter({ prefix: '' })`,
+  which takes only its paths and leaves the rest to the frontend. A router, a group or
+  a route may answer its errors its own way, `{ onError: (error, request) => … }`, as
+  OAuth's endpoints do. `serve({ port, router, routes, frontend })` serves the
+  router's routes, the ones given in `routes` (another router's `routes()`), and a
+  built frontend for every other address. With `health: true` it answers `GET
+  /api/health` without a session, a 503 once it is stopping (for `drainMs` before it
+  closes, so a load balancer sends it nothing new).
 
 ## Who and where: the actor and other scopes
 
@@ -153,7 +186,8 @@ declare module 'newt/core' {
 context has it. From then on `currentActor()` returns those fields, and every place
 that says who acts must give them: the authenticator, `runAsActor`. A required field
 cannot be forgotten; the compiler finds every place. Keep it to who someone is and how
-they came, never what they may do. Outside any actor, `currentActor()` throws `NoActor`, a 401.
+they came, never what they may do. Outside any actor, `currentActor()` throws `NoActor`, a 401;
+`findCurrentActor()` returns `undefined` instead, for what anyone may do and a signed-in person sees more of.
 
 **Authentication** (who is it) is the router's `Authenticator`: it reads the request
 (a session cookie, a token) and asks a module of sessions, through a use case, who
@@ -986,12 +1020,12 @@ every other test in that process reads.
 
 Its codes are `concurrency_conflict`, `duplicate_value`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
-`validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
+`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `filter_too_deep`,
 `filter_too_many_conditions` and `internal`.
 
 An OAuth endpoint answers in OAuth's format instead, `{ error, error_description }`:
 `toOauthErrorResponse(error, fallback, codes)` from `newt/http` maps each domain error
-code to an OAuth one.
+code to an OAuth one, as each OAuth route's `onError`.
 
 ## Value objects
 
@@ -1086,16 +1120,26 @@ deps.card.events.created.subscribe(card => metrics.recordCard(card), {
 
 ## Observability
 
-Each context may hand its `Base` a `Tracer` (`new BoardsBase({ name, store, tracer
-})`): every use case call is a span, named after it, with the context, module and use
-case as attributes, a child of its caller's, marked with the error when one that is
-not a domain error escapes, and with an event (`conflict.retry`) for each retry on a
-conflict. The job worker's own steps are spans too. Without a tracer, nothing is
-recorded (`NoopTracer`).
+An application has **one** `Tracer`, set once where it starts: `setTracer(tracer)`
+from `newt/core` (or `runContexts`' `tracer`). Every use case call of every context is
+a span, named after it, with the context, module and use case as attributes, a child
+of its caller's, marked with the error when one that is not a domain error escapes,
+and with an event (`conflict.retry`) for each retry on a conflict. Every request a
+router answers is a span too (`GET /api/boards/:boardId`), marked with an error on a
+5xx, and the job worker's own steps are spans. The active span travels with the work,
+so the use cases a request calls, in whatever context, land inside it: one trace for
+the whole request, across contexts. Without a tracer, nothing is recorded
+(`NoopTracer`). A context may still hand its `Base` a `tracer` of its own, which goes
+before the application's for its use cases.
 
-Hand the **same** tracer to every context of a process. The active span travels with
-the work, so a use case of one context called by another's lands inside its caller's
-span: one trace for the whole request, across contexts. cooper makes one
-`ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1` and gives it to all
-three (see `open-contexts.ts` above); it writes each trace once it ends, and leaves the
-worker's `job.…` spans out.
+`filterSpans(tracer, keep)` hands a tracer only the spans whose name it keeps. cooper
+sets a `ConsoleTracer` (`shared/observability`) when `COOPER_TRACE=1`, without the
+worker's `job.…` spans; it writes each trace once it ends. To send them to
+OpenTelemetry, `new OtlpTracer({ endpoint, service })` from `newt/otel` exports them
+to a collector over OTLP/HTTP, without its SDK: every few seconds, and the rest when
+`runContexts` stops (a tracer's `flush`).
+
+```ts
+// cooper/backend/open-contexts.ts
+return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+```

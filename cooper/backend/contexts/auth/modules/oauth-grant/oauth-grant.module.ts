@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, NoActor, UseCase } from 'newt/core'
+import { currentActor, eventsOf, findCurrentActor, Module, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { OauthClientNotFound } from '../oauth-client/errors/oauth-client-not-found'
 import type { OauthClientDTO } from '../oauth-client/oauth-client.schema'
@@ -23,16 +23,6 @@ import type { OauthGrant_Deps } from './oauth-grant.deps'
 import type { OauthGrant_Options } from './oauth-grant-options'
 import { OauthGrant_Repository } from './oauth-grant.repository'
 import { registerOauthGrantRoutes } from './oauth-grant.routes'
-
-/** Who is signed in, if anyone: a public route runs as someone only when they are. */
-function signedIn(): string | null {
-  try {
-    return currentActor().userId
-  } catch (error) {
-    if (error instanceof NoActor) return null
-    throw error
-  }
-}
 
 /** A PKCE challenge of S256: the base64url of a SHA-256, 43 characters. */
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/
@@ -103,7 +93,8 @@ export class OauthGrant_Module extends Module {
     const client = await this.deps.oauthClient.get(grant.clientId)
     const product = await this.deps.product.get(grant.productId)
     const { id: productId, name, signUp } = product
-    const userId = signedIn()
+    // Who is signed in, if anyone: a public route runs as someone only when they are.
+    const userId = findCurrentActor()?.userId ?? null
     const refused = userId !== null && !(await this.mayEnter(userId, product)) ? new NoProductAccess(name) : null
     return {
       id: grant.id,

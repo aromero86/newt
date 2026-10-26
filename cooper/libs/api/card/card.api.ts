@@ -6,7 +6,7 @@ import type {
   CardMoveDTO,
   CardSearchDTO,
 } from '../../../backend/contexts/boards/modules/card/card.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 

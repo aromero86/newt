@@ -1,4 +1,4 @@
-import type { ValueObject } from 'newt/core'
+import type { ValueObject } from 'newt/contract'
 import { z } from 'zod'
 import { InvalidBoardName } from '../errors/invalid-board-name'
 

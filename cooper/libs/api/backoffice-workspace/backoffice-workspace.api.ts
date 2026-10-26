@@ -1,5 +1,5 @@
 import type { RecentBoardDTO, WorkspaceBoardDTO, WorkspaceDetailDTO, WorkspaceMemberDTO, WorkspaceSummaryDTO } from '../../../backend/contexts/backoffice/modules/workspace/workspace.schema'
-import type { Page } from '../core/page'
+import type { Page } from 'newt/contract'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
 

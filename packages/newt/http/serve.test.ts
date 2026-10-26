@@ -87,4 +87,30 @@ describe('serve', () => {
     expect(output).toStartWith('500 ')
     expect(output).not.toContain('application/json')
   })
+
+  test('health: GET /api/health, or the path given, a 200 without a session', async () => {
+    const server = serve({ port: 0, router: router(), health: true })
+    servers.push(server)
+    const response = await fetch(new URL('/api/health', server.url))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'ok' })
+
+    const elsewhere = serve({ port: 0, router: router(), health: '/healthz' })
+    servers.push(elsewhere)
+    expect((await fetch(new URL('/healthz', elsewhere.url))).status).toBe(200)
+    expect((await fetch(new URL('/api/health', elsewhere.url))).status).toBe(404)
+  })
+
+  test('once told to stop, its health is a 503 while it drains, and it answers the rest', async () => {
+    const server = serve({ port: 0, router: router(), health: true, drainMs: 300 })
+    const url = server.url
+    const stopped = server.stop()
+
+    const health = await fetch(new URL('/api/health', url))
+    expect(health.status).toBe(503)
+    expect(await health.json()).toEqual({ status: 'stopping' })
+    expect((await fetch(new URL('/api/things', url))).status).toBe(200)
+    await stopped
+    await expect(fetch(new URL('/api/health', url))).rejects.toThrow()
+  })
 })

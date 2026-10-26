@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { Glob } from 'bun'
 import manifest from './package.json'
 
-// Applications in this repository (cooper) reach newt through the root tsconfig's alias, `newt/*` to
-// `packages/newt/*/index.ts`, not through this package's `exports`. They agree only while
-// every entry point is an `index.ts` and every `index.ts` is an entry point.
+// Every entry point is an `index.ts`, and every `index.ts` an entry point: a folder is a
+// subpath of the package or it is private to it. Applications (cooper) reach newt through
+// these `exports`, as a dependency of their own.
 describe('exports', () => {
   test('are exactly the folders with an index.ts, each to its own', async () => {
     const indexes = await Array.fromAsync(new Glob('**/index.ts').scan({ cwd: import.meta.dir }))

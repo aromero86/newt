@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { currentActor } from './current-actor'
+import { findCurrentActor } from './find-current-actor'
 import { NoActor } from './errors/no-actor'
 import { runAsActor } from './run-as-actor'
 
@@ -21,5 +22,12 @@ describe('currentActor', () => {
     expect(error.status).toBe(401)
     expect(error.code).toBe('not_signed_in')
     expect(error.message).toBe('Sign in to continue')
+  })
+})
+
+describe('findCurrentActor', () => {
+  test('is whoever the work runs as, and nobody outside a request', async () => {
+    expect(await runAsActor(actor, async () => findCurrentActor())).toEqual(actor)
+    expect(findCurrentActor()).toBeUndefined()
   })
 })

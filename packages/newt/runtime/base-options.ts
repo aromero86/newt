@@ -7,7 +7,7 @@ export type BaseOptions<S extends Store> = {
   name: string
   /** Its store, opened and up to date. */
   store: S
-  /** Who watches its invocations: none, by default. */
+  /** Who watches its invocations, if not the application's tracer (`setTracer`). */
   tracer?: Tracer
   /** How its worker runs the jobs of `handler` subscriptions. */
   jobs?: Partial<JobQueueOptions>

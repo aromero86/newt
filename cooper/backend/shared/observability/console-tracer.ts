@@ -19,11 +19,8 @@ export type TraceWriter = (line: string) => void
  * A tracer that writes each trace to the console once it ends: the use case called
  * from outside, with the ones it called inside it, how long each took, a conflict
  * retried and an error that is not a domain one. It is newt's `Tracer`, the same an
- * OpenTelemetry adapter implements: an application hands one to the base of each
- * context it wants to watch.
- *
- * The worker's own spans (`job.claim` every few seconds, `job.close`…) are left out:
- * what a job does is a use case, and that one is written.
+ * OpenTelemetry exporter implements: the application's one (`setTracer`), for every
+ * context.
  */
 export class ConsoleTracer implements Tracer {
 
@@ -33,8 +30,6 @@ export class ConsoleTracer implements Tracer {
   constructor(private readonly write: TraceWriter = line => console.log(line)) {}
 
   async startActiveSpan<T>(name: string, attributes: SpanAttributes, fn: (span: Span) => Promise<T>): Promise<T> {
-    if (name.startsWith('job.')) return fn({ setError() {}, addEvent() {}, end() {} })
-
     const parent = this.active.getStore()
     const traced: TracedSpan = { name, attributes, started: performance.now(), ms: 0, error: null, events: [], children: [] }
     parent?.children.push(traced)

@@ -1,3 +1,4 @@
+import type { ErrorBody } from 'newt/contract'
 import { ApiError } from './api-error'
 import type { QueryParams } from './query-params'
 
@@ -51,7 +52,7 @@ export abstract class Requester {
 
     if (!response.ok) {
       if (response.status === 401) Requester.onUnauthorized?.()
-      const failure = (await response.json().catch(() => null)) as { error?: string, code?: string } | null
+      const failure = (await response.json().catch(() => null)) as Partial<ErrorBody> | null
       throw new ApiError(response.status, failure?.error ?? response.statusText ?? 'Request failed', failure?.code)
     }
 
