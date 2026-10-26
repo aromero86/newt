@@ -19,6 +19,7 @@ import {
 import type { SQLQueryBindings } from 'bun:sqlite'
 import type { SqlStore } from '../sql'
 import { SqliteStore } from '../adapter-sqlite'
+import { SqliteStatements } from './sqlite-statements'
 
 const NO_TRANSACTIONS = 'Transactions run with `store.transaction`, never Kysely\'s own: its queries join the one in progress'
 
@@ -49,14 +50,17 @@ function dialectFor(store: SqliteStore | SqlStore): Dialect {
   if (store instanceof SqliteStore) {
     return {
       createAdapter: () => new SqliteAdapter(),
-      createDriver: () => new StoreDriver(async query => {
-        // The connection's cached statement for its SQL, run whole (`all`, `run`): never left halfway.
-        const statement = store.connection.query(query.sql)
-        const params = query.parameters as SQLQueryBindings[]
-        if (statement.columnNames.length > 0) return { rows: statement.all(...params) }
-        const { changes, lastInsertRowid } = statement.run(...params)
-        return { rows: [], numAffectedRows: BigInt(changes), insertId: BigInt(lastInsertRowid) }
-      }),
+      createDriver: () => {
+        const statements = new SqliteStatements(store.connection)
+        return new StoreDriver(async query => {
+          // A statement of its own, run whole (`all`, `run`): never left halfway.
+          const statement = statements.get(query.sql)
+          const params = query.parameters as SQLQueryBindings[]
+          if (statement.columnNames.length > 0) return { rows: statement.all(...params) }
+          const { changes, lastInsertRowid } = statement.run(...params)
+          return { rows: [], numAffectedRows: BigInt(changes), insertId: BigInt(lastInsertRowid) }
+        }, () => statements.finalize())
+      },
       createIntrospector: db => new SqliteIntrospector(db),
       createQueryCompiler: () => new SqliteQueryCompiler(),
     }
@@ -72,7 +76,7 @@ class StoreDriver implements Driver {
 
   private readonly connection: DatabaseConnection
 
-  constructor(execute: Execute) {
+  constructor(execute: Execute, private readonly destroyed: () => void = () => {}) {
     this.connection = {
       executeQuery: async <Row>(query: CompiledQuery) => await execute(query) as QueryResult<Row>,
       streamQuery: async function* <Row>(query: CompiledQuery): AsyncIterableIterator<QueryResult<Row>> {
@@ -101,5 +105,7 @@ class StoreDriver implements Driver {
 
   async releaseConnection(): Promise<void> {}
 
-  async destroy(): Promise<void> {}
+  async destroy(): Promise<void> {
+    this.destroyed()
+  }
 }

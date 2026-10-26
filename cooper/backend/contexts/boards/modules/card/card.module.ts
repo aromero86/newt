@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { ColumnDTO } from '../column/column.schema'
@@ -110,12 +110,7 @@ export class Card_Module extends Module {
   async search(input: CardSearchDTO, page: PageRequest): Promise<Page<CardDTO>> {
     const { text, filter } = CardSearchSchema.parse(input)
     const criteria = filter ? CardFilter.toCriteria<CardRow>(filter) : {}
-    const found = await this.repo.search(criteria, text, page)
-    return {
-      items: found.items.map(card => card.toDTO()),
-      hasMore: found.hasMore,
-      total: found.total,
-    }
+    return mapPage(await this.repo.search(criteria, text, page), card => card.toDTO())
   }
 
   /**

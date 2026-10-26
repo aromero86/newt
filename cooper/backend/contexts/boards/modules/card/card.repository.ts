@@ -1,8 +1,8 @@
-import { ConcurrencyConflict, criteriaTree, toPage, type Criteria, type CriteriaNode, type Page, type PageRequest } from 'newt/core'
+import { ConcurrencyConflict, toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
+import { whereOf } from 'newt/kysely'
 import { TableRepository } from 'newt/repository'
-import { sql, type Expression, type ExpressionBuilder, type SqlBool } from 'kysely'
+import { sql, type SqlBool } from 'kysely'
 import type { BoardsBase } from '../../boards-base'
-import type { BoardsDatabase } from '../../boards-database'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Card, MAX_CARDS, type CardCountByBoard, type CardCountByWorkspace, type CardDTO } from './card'
 import { TooManyCards } from './errors/too-many-cards'
@@ -90,9 +90,9 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
   /**
    * A page of the current workspace's cards that meet the criteria and, if `text` is
    * given, have it in their title or description, whatever its case: one query of
-   * Kysely, since criteria have no "contains", with the criteria in it too, and paged
-   * by id as `page` pages (the cursor is the last id of the page before). Nothing is
-   * read whole, however many cards match.
+   * Kysely, since criteria have no "contains", with the criteria in it too (`whereOf`
+   * says them as the store's tables do), and paged by id as `page` pages (the cursor
+   * is the last id of the page before). Nothing is read whole, however many cards match.
    *
    * What is portable to SQLite, Postgres and MySQL: `lower` on both sides of `like`,
    * so each database folds the column and the text alike (SQLite only A to Z; Postgres
@@ -104,7 +104,7 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
     const matching = this.base.db
       .selectFrom('card')
       .where('workspaceId', '=', currentWorkspaceId())
-      .where(eb => whereOf(eb, criteriaTree(criteria)))
+      .where(whereOf(this.store, criteria))
       .$if(pattern !== undefined, query => query.where(eb => eb.or([
         sql<SqlBool>`lower(${eb.ref('title')}) like lower(${pattern}) escape '!'`,
         sql<SqlBool>`lower(${eb.ref('description')}) like lower(${pattern}) escape '!'`,
@@ -148,8 +148,8 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
   /** Removes every card of a workspace, and its boards' counters, for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
   async purgeWorkspace(workspaceId: string): Promise<void> {
     await this.saveRows(async () => {
-      await this.base.db.deleteFrom('card').where('workspaceId', '=', workspaceId).execute()
-      await this.base.db.deleteFrom('card_counter').where('workspaceId', '=', workspaceId).execute()
+      await this.purge({ workspaceId })
+      await this.counters.deleteMany({ workspaceId })
     })
   }
 
@@ -164,21 +164,4 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
     await this.counters.update(counter.id, counter.version, { lastNumber: number })
     return number
   }
-}
-
-/**
- * Criteria as a condition of Kysely on the cards: what `CardFilter` lets a client send
- * (every one, at least one, `eq` and `in` on a field of the card). Anything else is a
- * mistake of the code, not of the client.
- */
-function whereOf(eb: ExpressionBuilder<BoardsDatabase, 'card'>, node: CriteriaNode): Expression<SqlBool> {
-  if (node.kind === 'all') return eb.and(node.of.map(each => whereOf(eb, each)))
-  if (node.kind === 'any') return eb.or(node.of.map(each => whereOf(eb, each)))
-  const field = node.field as 'boardId' | 'columnId' | 'assigneeId' | 'number' | 'id'
-  return eb.and(Object.entries(node.condition).map(([operator, operand]) => {
-    if (operator === 'eq') return operand === null ? eb(field, 'is', null) : eb(field, '=', operand as string)
-    // `in` with nothing in it holds for no card: an empty `or`.
-    if (operator === 'in') return (operand as string[]).length === 0 ? eb.or([]) : eb(field, 'in', operand as string[])
-    throw new Error(`A card search has no ${operator} on ${field}`)
-  }))
 }

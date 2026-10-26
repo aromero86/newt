@@ -48,6 +48,22 @@ describe('kyselyFor', () => {
     expect(updated.numUpdatedRows).toBe(2n)
   })
 
+  test('runs statements of its own: one of the application with the same SQL, read halfway, goes on where it was', async () => {
+    const db = kyselyFor<Database>(store)
+    await store.transaction(async () => {
+      for (const id of ['m1', 'm2', 'm3']) await db.insertInto('stock_movement').values({ id, productId: 'oil', quantity: 1, done: 0, version: 1 }).execute()
+    })
+    const query = db.selectFrom('stock_movement').select('id').orderBy('id')
+    const rows = store.connection.query(query.compile().sql).iterate() as Iterator<{ id: string }>
+
+    const first = rows.next().value
+    const whole = await query.execute()
+    const rest = [rows.next().value, rows.next().value]
+
+    expect([first, ...rest].map(row => row?.id)).toEqual(['m1', 'm2', 'm3'])
+    expect(whole.map(row => row.id)).toEqual(['m1', 'm2', 'm3'])
+  })
+
   test('refuses a write outside a transaction, and transactions of its own', async () => {
     const db = kyselyFor<Database>(store)
 

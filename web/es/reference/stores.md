@@ -73,6 +73,7 @@ interface Table<Row extends StoredRow> {
   update(id: string, version: number, changes: Partial<NewRow<Row>>): Promise<void>  // una versión más
   patch(id: string, changes: Partial<NewRow<Row>>): Promise<void>           // sea cual sea su versión
   delete(id: string, version: number): Promise<void>
+  deleteMany(criteria: Criteria<Row>): Promise<number>                     // sea cual sea su versión; cuántas
 }
 ```
 
@@ -184,7 +185,11 @@ otra cosa; los tests le dan `:memory:`.
   booleano se guarda como 0 o 1, y el JSON como texto.
 - **Las migraciones son SQL**: parejas de `000NN_<nombre>_up.sql` y
   `000NN_<nombre>_down.sql` en una carpeta, que se aplican todas o ninguna; dos con el
-  mismo número se rechazan. Un fichero se ejecuta sentencia a sentencia, separadas
+  mismo número se rechazan. El store guarda un checksum de cada fichero `up` que
+  aplica, y no abre si uno aplicado ha cambiado: un cambio es una migración nueva (o,
+  antes de compartirla, `down`, el cambio y `up` otra vez). Una aplicada antes de que
+  se guardaran los checksums se acepta tal como está.
+  Un fichero se ejecuta sentencia a sentencia, separadas
   como las lee SQLite (un trigger, con puntos y coma en su cuerpo, es una), y
   cualquier sentencia que falle hace fallar el fichero. Las migraciones se ejecutan
   con las claves foráneas desactivadas, así que una tabla reconstruida como documenta
@@ -236,7 +241,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
   registradas como aplicadas, y los cambios de estructura de la que falló, sin
   registrar. Dos procesos que migran a la vez esperan su turno (un bloqueo consultivo,
   un bloqueo con nombre): el segundo encuentra aplicadas las migraciones del primero.
-  Dos ficheros con el mismo número y distinto nombre son un error. Un fichero se
+  Dos ficheros con el mismo número y distinto nombre son un error, y también un
+  fichero `up` cambiado después de aplicarse, como en SQLite. Un fichero se
   separa en sentencias por sus puntos y coma, sin contar los que están en cadenas y
   nombres entre comillas (`'…'`, `"…"`, `` `…` ``, con escapes `\` en MySQL), en
   comentarios (`--`, `/* */`) y, en Postgres, en cuerpos entre dólares (`$$ … $$`), así
@@ -288,6 +294,16 @@ Postgres: pásalos por `Number(…)`. En Postgres y MySQL el store solo devuelve
 Kysely, así que los `numUpdatedRows` y `numDeletedRows` de una escritura son `0n` y no
 hay `insertId`: usa `returning` (Postgres) o vuelve a leer. Kysely es una dependencia
 *peer* opcional.
+
+`whereOf(store, criterios)` dice unos criterios como una condición de Kysely, igual que
+los dicen las tablas del store: todos los operadores y grupos, y el null, las
+mayúsculas y lo demás respondidos como responde `find`, sobre los campos de la tabla
+consultada.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+```
 
 ## Ficheros: `newt/adapter-files`
 

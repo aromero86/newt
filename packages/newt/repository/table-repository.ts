@@ -86,6 +86,18 @@ export abstract class TableRepository<
     return rows.map(row => this.toEntity(row))
   }
 
+  /**
+   * Removes for good the rows that meet the criteria, the ones deleted softly too, in
+   * every scope: the criteria alone say which (a workspace deleted, which nobody is
+   * in). For rows that will tell nothing, written as `saveRows` writes them; how many
+   * it removed.
+   */
+  protected async purge(criteria: Criteria<Row>): Promise<number> {
+    let removed = 0
+    await this.saveRows(async () => { removed = await this.table.deleteMany(criteria) })
+    return removed
+  }
+
   /** Saves them, and what they have to tell, at once: all or none. */
   async persist(...entities: E[]): Promise<void> {
     await this.save(entities, entity => this.write(entity))

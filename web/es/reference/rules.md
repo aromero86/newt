@@ -727,14 +727,14 @@ entero.
   tabla de enlaces que se reescribe entera, una purga) se escriben con
   `saveRows(write, { guard })`: en una transacción, bajo la regla de escritura y
   protegiendo lo que nombra. Un repositorio escribe con `save` o `saveRows`, nunca en
-  una transacción propia; `table.patch`, arriba, es la única excepción.
+  una transacción propia; `table.patch`, arriba, es la única excepción. Un
+  `TableRepository` borra sus filas para siempre con `purge(criterios)`, que escribe
+  como `saveRows`: en todos los ámbitos, también las borradas de forma suave.
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.repository.ts
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('board').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
   ```
 - **Un valor que muchos cambian a la vez (un stock, un saldo, un contador) no es un
@@ -777,18 +777,18 @@ entero.
   El cursor es el id del último elemento mostrado: los ids son v7, así que se ordenan
   por tiempo. `TableRepository.page` lo hace todo; las rutas leen la página con
   `pageRequestFrom(request)` (`?size` de 1 a 100, 20 por defecto, y `?cursor`). La
-  página de entidades se convierte en una página de DTOs escrita campo a campo, para
-  que se lea como lo que es:
+  página de entidades se convierte en una página de DTOs con `mapPage`:
 
   ```ts
   // cooper/backend/contexts/boards/modules/board/board.module.ts
-  const found = await this.repo.page({}, page, { newestFirst: true })
-  return {
-    items: found.items.map(board => board.toDTO()),
-    hasMore: found.hasMore,
-    total: found.total,
-  }
+  return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
   ```
+
+  Una página hecha a partir de otra (los miembros de un espacio de trabajo, a partir de
+  sus accesos) deja fuera los elementos que `mapPage` convierte en `undefined`, y dice
+  dónde empieza la siguiente, `nextCursor`: después del último elemento de la página de
+  la que se hizo. `allPages(read)` lee todas las páginas de una lista que nunca es
+  larga, de cien en cien.
 
   Una lista que el dominio acota puede venir entera, y dice por qué (las columnas de
   un tablero, como mucho diez).

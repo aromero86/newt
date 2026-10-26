@@ -1,18 +1,21 @@
 import type { Database as Sqlite } from 'bun:sqlite'
 import { readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import { migrationName, type Migrations } from '../port-store'
+import { migrationChecksum, migrationName, type Migrations } from '../port-store'
 import type { MigrationFile } from './migration-file'
 import { splitStatements } from './split-statements'
 
-/** A migration as the database remembers it: applied, and when. */
-type MigrationRecord = { version: number, name: string, created_at: string }
+/** A migration as the database remembers it: applied, when, and its up script's checksum (none if applied before they were kept). */
+type MigrationRecord = { version: number, name: string, created_at: string, checksum: string | null }
 
 /**
  * Applies and reverts the migrations in a folder: `000NN_<name>_up.sql` and
  * `000NN_<name>_down.sql` pairs, numbered in order. The database keeps the list of
  * what it applied in a table: `migrations` for its context's, another for the
  * framework's own (`framework_migrations`), so each one is numbered on its own.
+ *
+ * It remembers the checksum of each up script it applied, and refuses to go on when
+ * one applied was changed since: the database did not run what the folder says.
  */
 export class MigrationRunner implements Migrations {
 
@@ -39,11 +42,14 @@ export class MigrationRunner implements Migrations {
 
     return this.inTransaction(() => {
       this.verifyLastAppliedExists(files)
-      const appliedVersions = new Set(this.applied().map(record => record.version))
+      const applied = this.applied()
+      this.verifyChecksums(applied, files, sqlByVersion)
+      const appliedVersions = new Set(applied.map(record => record.version))
       const pending = files.filter(file => !appliedVersions.has(file.version))
       for (const migration of pending) {
-        this.runScript(sqlByVersion.get(migration.version)!)
-        this.sqlite.run(`INSERT INTO ${this.table} (version, name) VALUES (?, ?)`, [migration.version, migration.name])
+        const sql = sqlByVersion.get(migration.version)!
+        this.runScript(sql)
+        this.sqlite.run(`INSERT INTO ${this.table} (version, name, checksum) VALUES (?, ?, ?)`, [migration.version, migration.name, migrationChecksum(sql)])
       }
       return pending.map(migration => migrationName(migration.version, migration.name))
     })
@@ -123,17 +129,38 @@ export class MigrationRunner implements Migrations {
       CREATE TABLE IF NOT EXISTS ${this.table} (
         version INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        checksum TEXT
       )
     `)
+    // A table from before checksums were kept gets their column, holding the write lock, so two processes add it once.
+    const hasChecksum = () => this.sqlite.query(`SELECT 1 FROM pragma_table_info('${this.table}') WHERE name = 'checksum'`).get() !== null
+    if (hasChecksum()) return
+    this.sqlite.transaction(() => {
+      if (!hasChecksum()) this.sqlite.run(`ALTER TABLE ${this.table} ADD COLUMN checksum TEXT`)
+    }).immediate()
   }
 
   private applied(): MigrationRecord[] {
-    return this.sqlite.query<MigrationRecord, []>(`SELECT version, name, created_at FROM ${this.table} ORDER BY version ASC`).all()
+    return this.sqlite.query<MigrationRecord, []>(`SELECT version, name, created_at, checksum FROM ${this.table} ORDER BY version ASC`).all()
   }
 
   private lastApplied(): MigrationRecord | null {
-    return this.sqlite.query<MigrationRecord, []>(`SELECT version, name, created_at FROM ${this.table} ORDER BY version DESC LIMIT 1`).get() ?? null
+    return this.sqlite.query<MigrationRecord, []>(`SELECT version, name, created_at, checksum FROM ${this.table} ORDER BY version DESC LIMIT 1`).get() ?? null
+  }
+
+  /**
+   * A migration applied whose up script changed since must not start: the database
+   * did not run what the folder says. One applied before checksums were kept is taken
+   * as it is, and gets its checksum now.
+   */
+  private verifyChecksums(applied: MigrationRecord[], files: MigrationFile[], sqlByVersion: Map<number, string>): void {
+    for (const record of applied) {
+      if (!files.some(file => file.version === record.version && file.name === record.name)) continue
+      const checksum = migrationChecksum(sqlByVersion.get(record.version)!)
+      if (record.checksum === null) this.sqlite.run(`UPDATE ${this.table} SET checksum = ? WHERE version = ?`, [checksum, record.version])
+      else if (record.checksum !== checksum) throw new Error(`Migration ${migrationName(record.version, record.name)} was changed after it was applied: put its up file back as it was, and make the change a new migration`)
+    }
   }
 
   private async migrationFiles(): Promise<MigrationFile[]> {

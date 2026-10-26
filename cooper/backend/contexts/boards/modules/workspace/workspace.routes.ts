@@ -1,4 +1,4 @@
-import { currentActor } from 'newt/core'
+import { allPages, currentActor } from 'newt/core'
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import { InvitationNotOpen } from '../../../auth/modules/invitation/errors/invitation-not-open'
 import type { InvitationCreateDTO } from '../../../auth/modules/invitation/invitation.schema'
@@ -6,7 +6,7 @@ import type { TenantCreateDTO, TenantRenameDTO } from '../../../auth/modules/ten
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Workspace_Deps } from './workspace.deps'
-import { everything, type Workspace_Module } from './workspace.module'
+import type { Workspace_Module } from './workspace.module'
 import { workspaceInvitationOf, workspaceOf, type InvitationReviewDTO } from './workspace.schema'
 
 const noContent = () => new Response(null, { status: 204 })
@@ -51,7 +51,7 @@ export function registerWorkspaceRoutes(base: BoardsBase, workspaces: Workspace_
   })
 
   workspace.get('/invitations', async request => {
-    const pending = await everything(page => invitation.list(request.params.workspaceId, page))
+    const pending = await allPages(page => invitation.list(request.params.workspaceId, page))
     return Response.json(pending.map(workspaceInvitationOf))
   })
 

@@ -1,11 +1,13 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrationName, type Migrations } from '../port-store'
+import { migrationChecksum, migrationName, type Migrations } from '../port-store'
 import type { SqlServerDialect } from './sql-server-dialect'
 import { splitStatements } from './split-statements'
 
 type Pair = { version: number, name: string, up: string, down: string }
 type Run = (sql: string, params?: unknown[]) => Promise<Record<string, unknown>[]>
+/** A migration as the database remembers it: applied, and its up script's checksum (none if applied before they were kept). */
+type Applied = { version: number, name: string, checksum: string | null }
 
 /**
  * The migrations of a store on a database server: `000NN_<name>_up.sql` and `_down.sql`
@@ -17,6 +19,9 @@ type Run = (sql: string, params?: unknown[]) => Promise<Record<string, unknown>[
  * Two processes that migrate at once take turns: each holds a lock in the database
  * (an advisory lock, a named lock) while it migrates, and reads what is pending once
  * it has it, so the second finds the first's work done.
+ *
+ * It remembers the checksum of each up script it applied, and refuses to go on when
+ * one applied was changed since: the database did not run what the folder says.
  */
 export class SqlMigrationRunner implements Migrations {
 
@@ -37,11 +42,13 @@ export class SqlMigrationRunner implements Migrations {
       if (last && !files.some(file => file.version === last.version && file.name === last.name)) {
         throw new Error(`Last applied migration ${migrationName(last.version, last.name)} is not in the migrations folder`)
       }
+      await this.verifyChecksums(run, applied, files)
       const done = new Set(applied.map(record => record.version))
       const pending = files.filter(file => !done.has(file.version))
       for (const migration of pending) {
-        for (const statement of this.statements(await Bun.file(migration.up).text())) await run(statement)
-        await run(`INSERT INTO ${this.dialect.quote(this.table)} (version, name) VALUES (${this.dialect.param(1)}, ${this.dialect.param(2)})`, [migration.version, migration.name])
+        const sql = await Bun.file(migration.up).text()
+        for (const statement of this.statements(sql)) await run(statement)
+        await run(`INSERT INTO ${this.dialect.quote(this.table)} (version, name, checksum) VALUES (${this.dialect.param(1)}, ${this.dialect.param(2)}, ${this.dialect.param(3)})`, [migration.version, migration.name, migrationChecksum(sql)])
       }
       return pending.map(migration => migrationName(migration.version, migration.name))
     })
@@ -79,14 +86,34 @@ export class SqlMigrationRunner implements Migrations {
   }
 
   /**
+   * A migration applied whose up script changed since must not start: the database
+   * did not run what the folder says. One applied before checksums were kept is taken
+   * as it is, and gets its checksum now.
+   */
+  private async verifyChecksums(run: Run, applied: Applied[], files: Pair[]): Promise<void> {
+    for (const record of applied) {
+      const file = files.find(each => each.version === record.version && each.name === record.name)
+      if (!file) continue
+      const checksum = migrationChecksum(await Bun.file(file.up).text())
+      if (record.checksum === null) await run(`UPDATE ${this.dialect.quote(this.table)} SET checksum = ${this.dialect.param(1)} WHERE version = ${this.dialect.param(2)}`, [checksum, record.version])
+      else if (record.checksum !== checksum) throw new Error(`Migration ${migrationName(record.version, record.name)} was changed after it was applied: put its up file back as it was, and make the change a new migration`)
+    }
+  }
+
+  /**
    * Makes the table, in a transaction of its own: MySQL commits a `CREATE TABLE` at
-   * once, so in the migrations' transaction it would end it before they run.
+   * once, so in the migrations' transaction it would end it before they run. A table
+   * from before checksums were kept gets their column.
    */
   private async ensureTable(): Promise<void> {
     await this.transaction(async run => {
       // Two Postgres making it at once clash on its name.
       await this.lock(run)
-      await run(`CREATE TABLE IF NOT EXISTS ${this.dialect.quote(this.table)} (version INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL)`)
+      const table = this.dialect.quote(this.table)
+      await run(`CREATE TABLE IF NOT EXISTS ${table} (version INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL, checksum VARCHAR(64))`)
+      const schema = this.dialect.name === 'postgres' ? 'current_schema()' : 'DATABASE()'
+      const [column] = await run(`SELECT 1 AS found FROM information_schema.columns WHERE table_schema = ${schema} AND table_name = ${this.dialect.param(1)} AND column_name = 'checksum'`, [this.table])
+      if (!column) await run(`ALTER TABLE ${table} ADD COLUMN checksum VARCHAR(64)`)
     })
   }
 
@@ -106,9 +133,9 @@ export class SqlMigrationRunner implements Migrations {
     if (Number(row?.got) !== 1) throw new Error(`The lock on ${this.table} could not be taken`)
   }
 
-  private async applied(run: Run): Promise<{ version: number, name: string }[]> {
-    const rows = await run(`SELECT version, name FROM ${this.dialect.quote(this.table)} ORDER BY version`)
-    return rows.map(row => ({ version: Number(row.version), name: String(row.name) }))
+  private async applied(run: Run): Promise<Applied[]> {
+    const rows = await run(`SELECT version, name, checksum FROM ${this.dialect.quote(this.table)} ORDER BY version`)
+    return rows.map(row => ({ version: Number(row.version), name: String(row.name), checksum: typeof row.checksum === 'string' ? row.checksum : null }))
   }
 
   private async files(): Promise<Pair[]> {

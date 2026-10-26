@@ -68,6 +68,7 @@ interface Table<Row extends StoredRow> {
   update(id: string, version: number, changes: Partial<NewRow<Row>>): Promise<void>  // one version on
   patch(id: string, changes: Partial<NewRow<Row>>): Promise<void>           // whatever its version
   delete(id: string, version: number): Promise<void>
+  deleteMany(criteria: Criteria<Row>): Promise<number>                     // whatever their version; how many
 }
 ```
 
@@ -170,8 +171,11 @@ otherwise; the tests give `:memory:`.
   its column to name it back); `types` matters here: a boolean is kept as 0 or 1,
   JSON as text.
 - **Migrations are SQL**: pairs of `000NN_<name>_up.sql` and `000NN_<name>_down.sql`
-  in a folder, applied all or none; two with the same number are refused. A file
-  runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
+  in a folder, applied all or none; two with the same number are refused. The store
+  keeps a checksum of each up file it applied, and refuses to open once one applied
+  was changed: a change is a new migration (or, before it is shared, `down`, the
+  change, and `up` again). One applied before checksums were kept is taken as it is.
+  A file runs one statement at a time, split as SQLite reads it (a trigger, with semicolons
   in its body, is one), and any statement that fails fails it. Migrations run with
   foreign keys off, so a table rebuilt as SQLite documents it (create the new one,
   copy, drop, rename) keeps the rows that point at it; one that leaves a row pointing
@@ -217,7 +221,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
   then, the migrations before it recorded as applied, and the failed one's changes
   of structure, not recorded. Two processes that migrate at once take turns (an
   advisory lock, a named lock): the second finds the first's migrations applied.
-  Two files with the same number and different names are an error. A file is split
+  Two files with the same number and different names are an error, and an up file
+  changed after it was applied too, as on SQLite. A file is split
   into statements on its semicolons, leaving out those in strings and quoted names
   (`'…'`, `"…"`, `` `…` ``, with `\` escapes on MySQL), in comments (`--`, `/* */`)
   and, on Postgres, in dollar-quoted bodies (`$$ … $$`), so a Postgres function or
@@ -267,6 +272,15 @@ Postgres and MySQL, and a `COUNT` on Postgres: pass them through `Number(…)`. 
 Postgres and MySQL the store gives Kysely back only rows, so a write's
 `numUpdatedRows` and `numDeletedRows` are `0n` and there is no `insertId`: use
 `returning` (Postgres) or read again. Kysely is an optional peer dependency.
+
+`whereOf(store, criteria)` says criteria as a condition of Kysely, as the store's
+tables say them: every operator and group, null, case and the rest answered as
+`find` answers them, on the fields of the table queried.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+```
 
 ## Files: `newt/adapter-files`
 

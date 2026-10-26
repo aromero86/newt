@@ -19,8 +19,6 @@ export class Activity_Repository extends TableRepository<Activity, ActivityRow, 
 
   /** Forgets every entry of a workspace: auth deleted it (see `Board_Repository.purgeWorkspace`). */
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('activity').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
 }

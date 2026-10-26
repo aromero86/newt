@@ -1,4 +1,4 @@
-import { eventsOf, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import {
@@ -42,12 +42,7 @@ export class Board_Module extends Module {
   /** A page of the workspace's boards, the newest first. */
   @UseCase()
   async list(page: PageRequest): Promise<Page<BoardDTO>> {
-    const found = await this.repo.page({}, page, { newestFirst: true })
-    return {
-      items: found.items.map(board => board.toDTO()),
-      hasMore: found.hasMore,
-      total: found.total,
-    }
+    return mapPage(await this.repo.page({}, page, { newestFirst: true }), board => board.toDTO())
   }
 
   /** For other contexts (the backoffice): a page of a workspace's boards, the newest first. */

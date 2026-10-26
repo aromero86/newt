@@ -84,8 +84,6 @@ export class Column_Repository extends TableRepository<Column, ColumnRow, Boards
 
   /** Removes every column of a workspace for good: auth deleted it (see `Board_Repository.purgeWorkspace`). */
   async purgeWorkspace(workspaceId: string): Promise<void> {
-    await this.saveRows(async () => {
-      await this.base.db.deleteFrom('column').where('workspaceId', '=', workspaceId).execute()
-    })
+    await this.purge({ workspaceId })
   }
 }

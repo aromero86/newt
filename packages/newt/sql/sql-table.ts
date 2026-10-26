@@ -87,6 +87,11 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
     })
   }
 
+  async deleteMany(criteria: Criteria<Row>): Promise<number> {
+    const params: unknown[] = []
+    return this.writing(() => this.executor.run(`DELETE FROM ${this.dialect.quote(this.name)}${this.where(criteria, params)}`, params))
+  }
+
   /** Writes columns of the row with this id (and this version, when given); how many rows it changed. */
   private async set(values: Values, id: string, version?: number): Promise<number> {
     if (this.missing(id)) return 0
@@ -104,10 +109,10 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
   }
 
   /** A write in the transaction in progress, or one of its own; a collision is a `ConcurrencyConflict` there and then. */
-  private writing(fn: () => Promise<void>): Promise<void> {
+  private writing<T>(fn: () => Promise<T>): Promise<T> {
     return this.executor.transaction(async () => {
       try {
-        await fn()
+        return await fn()
       } catch (error) {
         throw this.dialect.isCollision(error) ? new ConcurrencyConflict() : error
       }

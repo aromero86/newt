@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { Module, toPage, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { Job } from 'newt/port-outbox'
 import type { CooperBase } from '../cooper-base'
 import { JobNotDead } from './errors/job-not-dead'
@@ -47,7 +47,7 @@ export class Outbox_Module extends Module {
       .filter(job => job.status === 'dead')
       .toSorted((a, b) => (a.id < b.id ? 1 : -1))
     const after = page.cursor ? dead.filter(job => job.id < page.cursor!) : dead
-    return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
+    return toPage(after.slice(0, page.size + 1).map(toDTO), page.size, dead.length)
   }
 
   /**

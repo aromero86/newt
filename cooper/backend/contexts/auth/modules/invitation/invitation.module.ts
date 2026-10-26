@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, SecretToken, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, mapPage, Module, SecretToken, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { NotTenantAdmin } from '../tenant/errors/not-tenant-admin'
 import { TenantNotFound } from '../tenant/errors/tenant-not-found'
@@ -58,7 +58,7 @@ export class Invitation_Module extends Module {
   async list(tenantId: string, page: PageRequest): Promise<Page<InvitationDTO>> {
     await this.assertAdmin(tenantId)
     const found = await this.repo.page({ tenantId, status: 'pending' }, page, { newestFirst: true })
-    return { items: found.items.map(invitation => invitation.contract()), hasMore: found.hasMore, total: found.total }
+    return mapPage(found, invitation => invitation.contract())
   }
 
   /** Its workspace's admin takes it back: its link opens nothing from then on. */

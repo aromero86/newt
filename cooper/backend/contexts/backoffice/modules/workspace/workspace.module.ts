@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { TenantDTO, TenantFilterDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import type { PersonDTO } from '../user/user.schema'
@@ -41,7 +41,7 @@ export class Workspace_Module extends Module {
     const { name } = WorkspaceSearchSchema.parse(input)
     const filter: TenantFilterDTO | undefined = name ? { field: 'name', op: 'ieq', value: name } : undefined
     const found = await this.deps.tenant.list(filter, page)
-    return { items: await this.summaries(found.items), hasMore: found.hasMore, total: found.total }
+    return { ...found, items: await this.summaries(found.items) }
   }
 
   @UseCase()
@@ -61,14 +61,10 @@ export class Workspace_Module extends Module {
     await this.deps.tenant.get(workspaceId)
     const accesses = await this.deps.access.listForTenant(workspaceId, page)
     const people = await this.people(accesses.items.map(access => access.userId))
-    return {
-      items: accesses.items.flatMap(access => {
-        const person = people.get(access.userId)
-        return person ? [{ ...person, id: access.id, userId: person.id, role: access.role, since: access.createdAt }] : []
-      }),
-      hasMore: accesses.hasMore,
-      total: accesses.total,
-    }
+    return mapPage(accesses, access => {
+      const person = people.get(access.userId)
+      return person && { ...person, id: access.id, userId: person.id, role: access.role, since: access.createdAt }
+    })
   }
 
   /** Its boards, the newest first, each with how many cards it has. */
@@ -80,11 +76,7 @@ export class Workspace_Module extends Module {
       this.deps.card.countByBoard(workspaceId),
     ])
     const cards = new Map(counts.map(count => [count.boardId, count.cards]))
-    return {
-      items: boards.items.map(board => ({ id: board.id, name: board.name, description: board.description, createdAt: board.createdAt, cards: cards.get(board.id) ?? 0 })),
-      hasMore: boards.hasMore,
-      total: boards.total,
-    }
+    return mapPage(boards, board => ({ id: board.id, name: board.name, description: board.description, createdAt: board.createdAt, cards: cards.get(board.id) ?? 0 }))
   }
 
   /** The boards created last across every workspace, each with its workspace's name: two calls. */
