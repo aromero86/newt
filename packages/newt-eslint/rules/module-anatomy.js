@@ -39,7 +39,7 @@ export const moduleAnatomy = {
           if (!files.includes(first) && !first.endsWith('.test.ts')) context.report({ node, messageId: 'file', data: { file: first, module } })
           return
         }
-        if (!(first in FOLDERS)) return context.report({ node, messageId: 'folder', data: { folder: first, folders: Object.keys(FOLDERS).join(', ') } })
+        if (!Object.hasOwn(FOLDERS, first)) return context.report({ node, messageId: 'folder', data: { folder: first, folders: Object.keys(FOLDERS).join(', ') } })
         const file = posix.basename(inside)
         if (first === 'events' && !file.startsWith(`${module}-`) && !file.endsWith('.test.ts')) context.report({ node, messageId: 'event', data: { module, file } })
       },

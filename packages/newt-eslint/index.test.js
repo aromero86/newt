@@ -18,7 +18,7 @@ async function complaints(path, code) {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'newt-eslint-'))
-  await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, module: 'ESNext', moduleResolution: 'bundler' }, include: ['**/*.ts'] }))
+  await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: true, module: 'ESNext', moduleResolution: 'bundler', paths: { '@/*': ['./src/*'] } }, include: ['**/*.ts'] }))
   eslint = new ESLint({ cwd: root, overrideConfigFile: true, overrideConfig: newt({ contexts: { folder: 'src/contexts', uses: { auth: [], ws: ['auth'], cs: ['auth'] } } }) })
 })
 
@@ -26,12 +26,25 @@ afterAll(() => rm(root, { recursive: true, force: true }))
 
 describe('the preset of newt', () => {
   test('keeps contexts a tree', async () => {
-    expect(await complaints('src/contexts/ws/ws.context.ts', "import { x } from '../cs/cs.context'\nexport const y = x\n")).toEqual(['no-restricted-imports'])
+    expect(await complaints('src/contexts/ws/ws.context.ts', "import { x } from '../cs/cs.context'\nexport const y = x\n")).toEqual(['newt/context-boundaries'])
+    expect(await complaints('src/contexts/ws/ws.context.ts', "import { x } from '@/contexts/cs/cs.context'\nexport const y = x\n")).toEqual(['newt/context-boundaries'])
     expect(await complaints('src/contexts/ws/ws.context.ts', "import { x } from '../auth/auth.context'\nexport const y = x\n")).toEqual([])
+  })
+
+  test('refuses contexts that are no tree', () => {
+    expect(() => newt({ contexts: { folder: 'src/contexts', uses: { auth: ['shop'], shop: ['auth'] } } })).toThrow('auth → shop → auth')
+    expect(() => newt({ contexts: { folder: 'src/contexts', uses: { shop: ['auth'] } } })).toThrow("uses 'auth', which is not in `uses`")
+  })
+
+  test("reads an alias of the tsconfig's paths as the file it names", async () => {
+    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', "import { x } from '@/contexts/ws/modules/brand/brand.repository'\nexport const y = x\n")).toEqual(['newt/module-boundaries'])
+    expect(await complaints('src/contexts/ws/modules/order/order.deps.ts', "import { x } from '@/contexts/ws/modules/brand/brand.module'\nexport const y = x\n")).toEqual([])
   })
 
   test('keeps a module writing through save', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => store.transaction(() => {})\n')).toEqual(['no-restricted-syntax'])
+    expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', "export const go = (store: { transaction(fn: () => void): void }) => store['transaction'](() => {})\n")).toEqual(['no-restricted-syntax'])
+    expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => { const { transaction } = store; transaction(() => {}) }\n')).toEqual(['no-restricted-syntax'])
   })
 
   test('refuses a promise left unawaited', async () => {
