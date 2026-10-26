@@ -69,6 +69,7 @@ function world(options: TableRepositoryOptions<ThingRow> = {}, rows: ThingRow[] 
     }),
     guard: async keys => void log.push(`guard ${keys.join(',')}`),
     afterCommit: fn => scope.afterCommit(fn),
+    afterRollback: fn => scope.afterRollback(fn),
     table: () => table as never,
     outbox: {} as never,
     migrations: {} as never,
@@ -211,6 +212,64 @@ describe('persist', () => {
     expect(thing.hasPendingChanges).toBe(true)
   })
 
+  test('inside a transaction that rolls back later, a new one is new again, with what it had to tell', async () => {
+    const { log, repo, store } = world()
+    const thing = Thing.create('one')
+
+    await store.transaction(async () => {
+      await repo.persist(thing)
+      throw new Error('later step failed')
+    }).catch(() => {})
+    log.length = 0
+    await repo.persist(thing)
+
+    expect([thing.isNew, thing.version]).toEqual([false, 1])
+    expect(log).toEqual(['checkWrite', 'begin', `insert ${JSON.stringify(thing.toDTO())}`, 'publish thing.created', 'commit'])
+  })
+
+  test('saved twice in one transaction, the second writes what changed since, one version on', async () => {
+    const { log, repo, store } = world()
+    const thing = Thing.create('one')
+
+    await store.transaction(async () => {
+      await repo.persist(thing)
+      thing.rename('two')
+      await repo.persist(thing)
+    })
+
+    expect(log.map(line => line.split(' ')[0])).toEqual(['begin', 'checkWrite', 'insert', 'publish', 'checkWrite', 'update', 'publish', 'commit'])
+    expect(log).toContain(`update ${thing.id}@1 ["name","updatedAt"]`)
+    expect(log).toContain('publish thing.renamed')
+    expect(thing.version).toBe(2)
+  })
+
+  test('a change after the save, in the same transaction, is still to save once it commits', async () => {
+    const { repo, store } = world()
+    const thing = Thing.create('one')
+
+    await store.transaction(async () => {
+      await repo.persist(thing)
+      thing.rename('two')
+    })
+
+    expect(thing.version).toBe(1)
+    expect(thing.getChanges()).toEqual({ name: 'two' })
+    expect(thing[takeEvents]().map(event => event.name)).toEqual(['thing.renamed'])
+  })
+
+  test('a conflict puts back the ones it already wrote', async () => {
+    const { repo, failNextWrite } = world()
+    const fresh = Thing.create('one')
+    const stale = Thing.fromRow(stored())
+    stale.rename('two')
+    failNextWrite()
+
+    await expect(repo.persist(fresh, stale)).rejects.toThrow(ConcurrencyConflict)
+
+    expect([fresh.isNew, fresh.version, fresh.hasPendingChanges]).toEqual([true, 0, true])
+    expect(fresh[takeEvents]().map(event => event.name)).toEqual(['thing.created'])
+  })
+
   test('the write rule is asked first, and a refusal writes nothing', async () => {
     const { log, repo, refuseWrites } = world()
     refuseWrites()
@@ -299,6 +358,18 @@ describe('a scope', () => {
 
     await expect(repo.persist(thing)).rejects.toThrow('not to the current one')
     expect(log).toContain('rollback')
+    expect(log.some(line => line.startsWith('update') || line.startsWith('delete'))).toBe(false)
+  })
+  test('refuses to save one stored in another, though moved to it', async () => {
+    const { log, repo } = world(scoped)
+    const moved = Thing.fromRow(stored({ name: 'two' }))
+    moved.rename('one')
+    const deleted = Thing.fromRow(stored({ name: 'two' }))
+    deleted.rename('one')
+    deleted.remove()
+
+    await expect(repo.persist(moved)).rejects.toThrow("belongs to name 'two'")
+    await expect(repo.persist(deleted)).rejects.toThrow("belongs to name 'two'")
     expect(log.some(line => line.startsWith('update') || line.startsWith('delete'))).toBe(false)
   })
 })

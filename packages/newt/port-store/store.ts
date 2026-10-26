@@ -38,6 +38,8 @@ export interface Store {
   guard(keys: string[]): Promise<void>
   /** Runs `fn` once the transaction in progress commits; at once outside one; never if it rolls back. */
   afterCommit(fn: () => void): void
+  /** Runs `fn` if the transaction in progress rolls back, latest first; never outside one. */
+  afterRollback(fn: () => void): void
   /** One of its tables, of rows with an id and a version: what `TableRepository` works on. */
   table<Row extends StoredRow>(name: string, options?: TableOptions<Row>): Table<Row>
   /** Where the jobs of `handler` subscriptions are written, in the transaction of the change that publishes them. */

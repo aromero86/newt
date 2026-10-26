@@ -198,6 +198,21 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
       })
     })
 
+    describe('afterRollback', () => {
+      test('runs once the outermost transaction rolls back, latest first, and never on a commit', async () => {
+        const log: string[] = []
+        await store.transaction(() => store.afterRollback(() => log.push('committed')))
+        await expect(store.transaction(async () => {
+          store.afterRollback(() => log.push('first'))
+          await store.transaction(() => store.afterRollback(() => log.push('second')))
+          await things.insert(thing({ name: 'ana' }))
+          throw new Error('boom')
+        })).rejects.toThrow('boom')
+
+        expect(log).toEqual(['second', 'first'])
+      })
+    })
+
     describe('a table', () => {
       test('keeps every kind of field as it was given', async () => {
         const row = thing({ name: 'ana', archived: true, rank: 2.5, note: 'hi', tags: ['a', 'b'] })
@@ -414,6 +429,63 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect([ana.isNew, ana.version]).toEqual([true, 0])
         await repo.persist(ana)
         expect([ana.isNew, ana.version]).toEqual([false, 1])
+      })
+
+      test('saved twice in the transaction around it, writes both, one version on each', async () => {
+        const repo = repository()
+        const ana = Thing.create('ana')
+
+        await store.transaction(async () => {
+          await repo.persist(ana)
+          ana.rename('bea')
+          await repo.persist(ana)
+        })
+
+        expect(ana.version).toBe(2)
+        expect((await things.find()).map(row => [row.name, row.version])).toEqual([['bea', 2]])
+      })
+
+      test('a change after the save, in the transaction around it, is still to save', async () => {
+        const repo = repository()
+        const ana = Thing.create('ana')
+
+        await store.transaction(async () => {
+          await repo.persist(ana)
+          ana.rename('bea')
+        })
+        expect([ana.version, ana.hasPendingChanges]).toEqual([1, true])
+        await repo.persist(ana)
+
+        expect((await things.find()).map(row => [row.name, row.version])).toEqual([['bea', 2]])
+      })
+
+      test('saved again after the transaction around it rolled back, it tells what it had to tell', async () => {
+        const base = new Base({ name: 'test', store })
+        const repo = new Things(base, things, { softDelete: true })
+        const heard: string[] = []
+        base.bus.subscribe('thing.created', event => { heard.push((event.payload as { name: string }).name) })
+        const ana = Thing.create('ana')
+
+        await expect(store.transaction(async () => {
+          await repo.persist(ana)
+          throw new Error('boom')
+        })).rejects.toThrow('boom')
+        await repo.persist(ana)
+        await Bun.sleep(5)
+
+        expect(heard).toEqual(['ana'])
+      })
+
+      test('stores a field cleared as none', async () => {
+        const repo = repository()
+        const ana = Thing.create('ana')
+        ana.annotate('hi')
+        await repo.persist(ana)
+        ana.annotate(undefined)
+        await repo.persist(ana)
+
+        expect((await things.find())[0]?.note).toBeNull()
+        expect((await repo.first())?.toDTO().note).toBeNull()
       })
 
       test('stamps the deleted ones, and finds them no more', async () => {
@@ -888,7 +960,7 @@ const ThingSchema = z.object({
   name: z.string(),
   archived: z.boolean(),
   rank: z.number(),
-  note: z.string().nullable(),
+  note: z.string().nullish(),
   tags: z.array(z.string()),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
@@ -908,6 +980,10 @@ class Thing extends Entity<typeof ThingSchema> {
 
   rename(name: string): void {
     this.change({ name })
+  }
+
+  annotate(note: string | undefined): void {
+    this.change({ note })
   }
 
   delete(): void {
