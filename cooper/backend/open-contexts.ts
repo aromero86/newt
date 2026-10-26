@@ -31,22 +31,30 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
 
 /**
  * What `boards` asks of auth, wired to auth's use cases and events. A workspace is a
- * tenant of the product `cooper`, and its members are those with access to it.
+ * tenant of the product `cooper`, and its members are those with access to it while
+ * it is there.
  * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */
 function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'log'> {
   const { access, user, tenant, token, invitation } = auth.modules
+  // A deleted tenant is not among them.
+  const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
+  // An access and a tenant still there: a deleted workspace's accesses go a moment
+  // after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+  const isMember = async (workspaceId: string, userId: string) => {
+    const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+    return granted !== null && alive
+  }
   return {
     workspaces: {
-      isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
+      isMember,
       member: async (workspaceId, userId) => {
-        if (!await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) return null
+        if (!await isMember(workspaceId, userId)) return null
         const [found] = await user.getMany([userId])
         return found ? { id: found.id, name: found.name, email: found.email } : null
       },
-      // A deleted tenant is not among them.
-      exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
+      exists,
     },
     tenants: tenant.events,
     access: access.events,

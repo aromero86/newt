@@ -6,7 +6,7 @@ import type { MemberDTO } from './member.schema'
  * module of auth. The context is handed one when it opens; a test, a fake.
  */
 export type Workspaces = {
-  /** Whether someone belongs to a workspace now: asked each time, so who leaves counts at once. */
+  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
