@@ -18,9 +18,19 @@ export type OpenContextsOptions = {
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { auth, mailer })
+  const boards = await Boards_Context.open(config.boards, { ...authNotWiredYet, mailer })
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth, boards })
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
+}
+
+/**
+ * What `boards` asks of auth, until its ports are wired to auth's use cases and
+ * events: nobody belongs to any workspace, and no event of auth is heard.
+ */
+const authNotWiredYet = {
+  workspaces: { isMember: async () => false, member: async () => null },
+  tenants: { created: { subscribe: () => () => {} }, deleted: { subscribe: () => () => {} } },
+  access: { revoked: { subscribe: () => () => {} } },
 }
 
 /** The last opened first: a context stops before those it uses. */
