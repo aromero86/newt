@@ -1,0 +1,111 @@
+# Lint
+
+`newt-eslint` is the lint of an application built with newt: what keeps every module
+the same, whoever writes it, and every context inside its borders.
+
+```bash
+bun add -d newt-eslint eslint
+```
+
+## The preset
+
+`newt(options)` gives the configuration: its rules, the TypeScript parser, and the
+files each rule looks at. The only option is `contexts`: the folder of the contexts,
+and which ones each one uses.
+
+```js
+// eslint.config.js
+import { newt } from 'newt-eslint'
+
+export default newt({
+  contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } },
+})
+```
+
+A module is a folder in a `modules/` folder, and its context is the folder that holds
+`modules/`. That is how `src/contexts/shop/modules/order/` and `app/modules/order/`
+are both found. A `modules/` at the project's root has the project itself as its
+context.
+
+## In cooper
+
+cooper keeps one `eslint.config.js` at the root of the repository. Its backend takes
+newt's preset, with its three contexts: `auth` uses none, `boards` uses `auth`, and
+`backoffice` uses both.
+
+```js
+// eslint.config.js
+import { newt } from 'newt-eslint'
+
+/**
+ * newt's preset, kept to some folders: each of its `**` patterns is looked for in each
+ * folder only, and the rest stays as it is (the contexts' folder is already inside).
+ */
+function within(folders, configs) {
+  return configs.map(config => config.files
+    ? { ...config, files: config.files.flatMap(pattern => pattern.startsWith('**/') ? folders.map(folder => `${folder}/${pattern}`) : [pattern]) }
+    : config)
+}
+
+const BACKEND = newt({
+  contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
+})
+
+export default [
+  { ignores: ['packages/**', 'docs/**', 'web/**', '**/dist/**'] },
+  ...within(['cooper/backend', 'cooper/scripts'], BACKEND),
+  // …
+]
+```
+
+The preset's patterns start with `**/`, so they would reach every TypeScript file of
+the repository. `within` narrows them to the backend and its scripts, since the same
+file also lints cooper's frontends with rules of their own (left out here). An
+application that is only a backend needs none of this: `export default newt({ … })`
+is the whole file.
+
+Run it with `bun run lint` (`eslint`).
+
+## The rules
+
+| Rule | What it says |
+|---|---|
+| `newt/module-anatomy` | A module is made of the files every module has, named after it: `<m>.module.ts`, `<m>.ts`, `<m>.schema.ts`, `<m>.repository.ts`, `<m>.routes.ts`, `<m>.workers.ts`, `<m>.deps.ts`, `<m>-options.ts`, its tests, and the folders `events`, `errors`, `value-objects` and `services`. An event's file is `<m>-<event>.ts`. |
+| `newt/module-boundaries` | A module imports from another only its module, schema, events, errors and value objects: never its entity, repository, tables, routes or workers, nor its folder (`../board`). |
+| `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, as the framework requires at startup: in any file of a module, the queue starts with that module, its callback calls that use case on the module itself (`this`, a name typed `<M>_Module`, or one named after it or its English plural, `cards` for `card`, also as `this.cards` unless the class gives that field another type), and it ends with the event it is subscribed under (`events.assigned` → `….assigned`). A callback that is neither written there nor a function of the file (`cards.notifyAssignee.bind(cards)`) is not looked into. |
+| `newt/context-boundaries` | With `contexts`: a context imports only the ones `uses` gives it. `uses` lists every context; one naming an unknown context, or a cycle, throws when the preset is built, and a context folder it does not list uses no other. |
+
+In cooper, `queue-name` reads `card.workers.ts` this way: the file is the `card`
+module's, the callback calls `cards.notifyAssignee` on a `Card_Module`, and the
+emitter is `events.assigned`, so the queue must be
+`card.notifyAssignee.on.card.assigned`.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.workers.ts
+cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+  strategy: 'handler',
+  queue: 'card.notifyAssignee.on.card.assigned',
+})
+```
+
+Both boundaries read where an import lands, however it is written: `import`,
+`export … from`, `import()`, `import x = require()` and `require()`; relative, with an
+extension (`./board.module.js`) or not, or an alias of the tsconfig's `paths` (which
+the rules read from the program typescript-eslint builds, as the preset does; without
+it, only relative imports are checked).
+
+## Besides its own rules
+
+The preset also refuses `transaction` inside a module, called or taken
+(`store.transaction(…)`, `store['transaction']`, `const { transaction } = store`): a
+module writes through its repository's `save` or `saveRows`. And a promise left
+unawaited (`@typescript-eslint/no-floating-promises`, which needs a `tsconfig.json`
+that includes every file it lints).
+
+The rules alone are `plugin`, for a configuration of your own.
+
+::: warning
+typescript-eslint does not run on TypeScript 7 yet: install TypeScript 6 as
+`typescript`, as the root `package.json` of the repository does:
+`"typescript": "npm:@typescript/typescript6@6.0.2"`.
+:::
