@@ -8,6 +8,7 @@ export type Messages = {
   reference_not_found: (params: { resource: string, id: string }) => string
   not_signed_in: () => string
   invalid_email: (params: { email: string }) => string
+  invalid_secret_token: () => string
   route_not_found: (params: { method: string, path: string }) => string
   method_not_allowed: (params: { method: string, path: string }) => string
   /** A request whose input does not pass its schema. */

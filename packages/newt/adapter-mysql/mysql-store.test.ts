@@ -14,6 +14,10 @@ import { MySqlStore } from './mysql-store'
  * (`mysql://root:test@127.0.0.1:3306/framework?sslmode=require`).
  */
 const url = process.env.FRAMEWORK_TEST_MYSQL_URL
+/** The database the URL names: the tests drop and make it again, so it is theirs alone. */
+const database = url ? new URL(url).pathname.slice(1) : ''
+/** The same server with no database named: one that may not exist yet cannot be signed in to. */
+const server = url ? Object.assign(new URL(url), { pathname: '/' }).href : ''
 
 const THING = `
 CREATE TABLE thing (
@@ -30,9 +34,9 @@ afterAll(async () => {
 
 /** A fresh, empty database: dropped and made again. */
 async function empty(): Promise<void> {
-  const admin = new SQL(url!)
-  await admin.unsafe('DROP DATABASE IF EXISTS framework')
-  await admin.unsafe('CREATE DATABASE framework')
+  const admin = new SQL(server)
+  await admin.unsafe(`DROP DATABASE IF EXISTS ${database}`)
+  await admin.unsafe(`CREATE DATABASE ${database}`)
   await admin.close()
 }
 

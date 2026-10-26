@@ -104,7 +104,7 @@ describe('checkWrite', () => {
 
   test('to another one, it is an error when the rule says so', async () => {
     const invocations = new Invocations(undefined, { context: 'shop' }, 'error')
-    await expect(writeFrom(invocations, 'order.place', 'stock.reserve')).rejects.toThrow('order.place writes to shop.stock outside a worker')
+    await expect(writeFrom(invocations, 'order.place', 'stock.reserve')).rejects.toThrow('[write rule] order.place writes to shop.stock outside a worker')
   })
 
   test('to another one it lists in writesTo, it may', async () => {
@@ -170,7 +170,7 @@ describe('checkWrite', () => {
     })
 
     expect(warnings).toHaveLength(2)
-    expect(warnings[0]).toContain('order.place writes to shop.stock')
+    expect(warnings[0]).toStartWith('[write rule] order.place writes to shop.stock')
     expect(warnings[1]).toContain('order.place writes to shop.invoice')
   })
 })

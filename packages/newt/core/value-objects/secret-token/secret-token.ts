@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ValueObject } from '../value-object'
+import { InvalidSecretToken } from './errors/invalid-secret-token'
 
 /**
  * An unguessable token handed to one person: a session cookie, a password reset
@@ -13,8 +14,11 @@ export const SecretToken = {
 
   schema: z.string().regex(/^[A-Za-z0-9_-]{43}$/).brand<'SecretToken'>(),
 
+  /** The token, checked: `InvalidSecretToken` (a 400) for anything that is not one. */
   from(value: string): SecretToken {
-    return SecretToken.schema.parse(value)
+    const parsed = SecretToken.schema.safeParse(value)
+    if (!parsed.success) throw new InvalidSecretToken()
+    return parsed.data
   },
 
   generate(): SecretToken {

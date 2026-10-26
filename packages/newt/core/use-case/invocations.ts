@@ -55,12 +55,12 @@ export class Invocations {
     if (this.writeRule === 'off' || !chain || inWorker.find()) return
     const { root, current } = chain
     if (root.module === current.module || root.writesTo.includes(current.module)) return
-    const message = `${root.useCase} writes to ${current.context ? `${current.context}.` : ''}${current.module} outside a worker: write it from a worker reacting to an event, or list it in its writesTo`
+    const message = `[write rule] ${root.useCase} writes to ${current.context ? `${current.context}.` : ''}${current.module} outside a worker: write it from a worker reacting to an event, or list it in its writesTo`
     if (this.writeRule === 'error') throw new Error(message)
     const pair = `${root.useCase}>${current.context}.${current.module}`
     if (this.warned.has(pair)) return
     this.warned.add(pair)
-    console.warn(`[write rule] ${message}`)
+    console.warn(message)
   }
 
   private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {

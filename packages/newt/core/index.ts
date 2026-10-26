@@ -73,6 +73,7 @@ export type { ValueObject } from './value-objects/value-object'
 export { Email } from './value-objects/email/email'
 export { InvalidEmail } from './value-objects/email/errors/invalid-email'
 export { SecretToken } from './value-objects/secret-token/secret-token'
+export { InvalidSecretToken } from './value-objects/secret-token/errors/invalid-secret-token'
 
 // Observability
 export type { Tracer } from './observability/tracer'

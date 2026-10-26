@@ -7,6 +7,7 @@ export const currentMessages: { value: Messages } = {
     reference_not_found: ({ resource, id }) => `The ${resource} ${id} does not exist`,
     not_signed_in: () => 'Sign in to continue',
     invalid_email: ({ email }) => `'${email}' is not a valid email`,
+    invalid_secret_token: () => 'The token is not valid',
     route_not_found: ({ method, path }) => `There is no route for ${method} ${path}`,
     method_not_allowed: ({ method, path }) => `${method} is not allowed on ${path}`,
     validation: () => 'The request is not valid',

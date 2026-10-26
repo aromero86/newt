@@ -169,7 +169,9 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   `ERR_MYSQL_PUBLIC_KEY_RETRIEVAL_NOT_ALLOWED`.
 - Their tests run the contract suite against real databases when
   `FRAMEWORK_TEST_POSTGRES_URL` and `FRAMEWORK_TEST_MYSQL_URL` are set, and are
-  skipped otherwise.
+  skipped otherwise. They empty the database the URL names before each test (the
+  `public` schema on Postgres, the whole database on MySQL): give them one of their
+  own, and run one suite on it at a time.
 
 ## Kysely: `newt/kysely`
 

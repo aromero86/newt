@@ -9,13 +9,17 @@ import { kyselyFor } from './kysely-for'
  * never one that matters.
  */
 const url = process.env.FRAMEWORK_TEST_MYSQL_URL
+/** The database the URL names: the tests drop and make it again, so it is theirs alone. */
+const database = url ? new URL(url).pathname.slice(1) : ''
+/** The same server with no database named: one that may not exist yet cannot be signed in to. */
+const server = url ? Object.assign(new URL(url), { pathname: '/' }).href : ''
 
 /** A fresh database with a table of things. */
 async function open(): Promise<MySqlStore> {
-  const admin = new SQL(url!)
-  await admin.unsafe('DROP DATABASE IF EXISTS framework')
-  await admin.unsafe('CREATE DATABASE framework')
-  await admin.unsafe(`CREATE TABLE framework.thing (
+  const admin = new SQL(server)
+  await admin.unsafe(`DROP DATABASE IF EXISTS ${database}`)
+  await admin.unsafe(`CREATE DATABASE ${database}`)
+  await admin.unsafe(`CREATE TABLE ${database}.thing (
     id VARCHAR(36) COLLATE utf8mb4_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_bin NOT NULL, \`rank\` DOUBLE NOT NULL
   )`)
   await admin.close()

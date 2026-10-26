@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { InvalidSecretToken } from './errors/invalid-secret-token'
 import { SecretToken } from './secret-token'
 
 describe('SecretToken', () => {
@@ -13,12 +14,19 @@ describe('SecretToken', () => {
     const token = SecretToken.generate()
 
     expect(SecretToken.from(token)).toBe(token)
-    expect(() => SecretToken.from('short')).toThrow()
+    expect(() => SecretToken.from('short')).toThrow(InvalidSecretToken)
     expect(() => SecretToken.from(`${token}A`)).toThrow()
     expect(() => SecretToken.from(` ${token}`)).toThrow()
     for (const char of ['+', '/', '.', '=']) {
       expect(() => SecretToken.from(`${'A'.repeat(42)}${char}`)).toThrow()
     }
+  })
+
+  test('one it refuses is a 400 that never repeats what was sent', () => {
+    const refused = (() => { try { SecretToken.from('leaked-guess') } catch (error) { return error as InvalidSecretToken } })()!
+
+    expect(refused).toMatchObject({ status: 400, code: 'invalid_secret_token' })
+    expect(refused.message).not.toContain('leaked-guess')
   })
 
   test('hashes with SHA-256: stored hashes depend on it never changing', () => {

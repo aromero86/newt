@@ -2616,7 +2616,8 @@ export const Email = {
 ```
 
 - **`from`** convierte lo que alguien escribió en el valor, o lanza un error de
-  validación (400).
+  validación (400): `InvalidEmail`, o `InvalidSecretToken`, que nunca repite el
+  token recibido.
 - **`schema`** describe cómo se guarda. Va en el esquema de la entidad.
 
 ### 21.2 El brand: que el compilador te cuide
@@ -2741,6 +2742,7 @@ setMessages({
     `La referencia ${resource} ${id} no existe`,
   not_signed_in: () => 'Inicia sesión para continuar',
   invalid_email: ({ email }) => `'${email}' no es un email válido`,
+  invalid_secret_token: () => 'El token no es válido',
   route_not_found: ({ method, path }) =>
     `No hay ninguna ruta para ${method} ${path}`,
   method_not_allowed: ({ method, path }) =>
