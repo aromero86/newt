@@ -51,6 +51,52 @@ describe('workspace', () => {
     })
   })
 
+  test('prepares nothing in a workspace auth deleted before its work ran', async () => {
+    await t.auth.createWorkspace('acme', 'ana')
+    await t.auth.deleteWorkspace('acme')
+    await t.settled()
+
+    // The work of `tenant.created`, run again late: after the workspace was purged.
+    await t.auth.tellCreatedAgain('acme')
+    await t.settled()
+
+    expect(await t.modules.board.listOf('acme', { size: 10 })).toMatchObject({ items: [], total: 0 })
+    expect(await t.modules.card.countByWorkspace(['acme'])).toEqual([{ workspaceId: 'acme', cards: 0 }])
+  })
+
+  test('gives the welcome board its columns and its card once, however many runs go at once', async () => {
+    t.auth.join('acme', 'ana')
+    // A first run that stopped halfway: the board, and none of its columns.
+    await inAcme(() => t.modules.board.create({ name: 'Welcome' }))
+
+    await Promise.all([t.auth.createWorkspace('acme', 'ana'), t.auth.createWorkspace('acme', 'ana'), t.auth.createWorkspace('acme', 'ana')])
+    await t.settled()
+
+    expect(await welcome()).toEqual({
+      boards: ['Welcome'],
+      columns: [['To do', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
+    })
+    expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done'])
+  })
+
+  test('gives a workspace one welcome board, however many runs start at once from nothing', async () => {
+    await Promise.all([t.auth.createWorkspace('acme', 'ana'), t.auth.createWorkspace('acme', 'ana'), t.auth.createWorkspace('acme', 'ana')])
+    await t.settled()
+
+    expect(await welcome()).toEqual({
+      boards: ['Welcome'],
+      columns: [['To do', [WELCOME_BOARD.card.title]], ['Doing', []], ['Done', []]],
+    })
+    expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done'])
+  })
+
+  test('refuses to prepare a workspace outside a worker: it writes in other modules', async () => {
+    t.auth.join('acme', 'ana')
+
+    await expect(inAcme(() => t.modules.workspace.prepare('acme'))).rejects.toThrow('[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo')
+    expect((await inAcme(() => t.modules.board.list({ size: 10 }))).total).toBe(0)
+  })
+
   test('removes all a workspace has once auth deletes it, and nothing of any other', async () => {
     await t.auth.createWorkspace('acme', 'ana')
     await t.auth.createWorkspace('globex', 'bea')

@@ -41,6 +41,8 @@ function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer'> {
         const [found] = await user.getMany([userId])
         return found ? { id: found.id, name: found.name, email: found.email } : null
       },
+      // A deleted tenant is not among them.
+      exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
     },
     tenants: tenant.events,
     access: access.events,

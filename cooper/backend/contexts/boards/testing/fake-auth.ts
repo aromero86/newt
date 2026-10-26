@@ -44,6 +44,7 @@ export class FakeAuth {
   readonly workspaces: Workspaces = {
     isMember: async (workspaceId, userId) => this.members.get(workspaceId)?.has(userId) ?? false,
     member: async (workspaceId, userId) => this.members.get(workspaceId)?.get(userId) ?? null,
+    exists: async workspaceId => this.members.has(workspaceId),
   }
 
   readonly tenants: TenantEvents
@@ -81,6 +82,14 @@ export class FakeAuth {
   /** A workspace is created, with its creator in it: `tenant.created`. */
   async createWorkspace(workspaceId: string, creatorId: string): Promise<void> {
     this.join(workspaceId, creatorId)
+    await this.tell(new Tenant_Created({ id: workspaceId }))
+  }
+
+  /**
+   * `tenant.created` told again, and nobody joins: as a job of it run late, after its
+   * workspace is gone.
+   */
+  async tellCreatedAgain(workspaceId: string): Promise<void> {
     await this.tell(new Tenant_Created({ id: workspaceId }))
   }
 

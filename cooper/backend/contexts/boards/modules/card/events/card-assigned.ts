@@ -1,8 +1,8 @@
 import type { DomainEvent } from 'newt/core'
 import type { CardDTO } from '../card.schema'
 
-/** The card, now assigned to `dto.assigneeId`, and who had it before, if anyone. */
-type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null }
+/** The card, now assigned to `dto.assigneeId`, who had it before, if anyone, and who assigned it. */
+type CardAssignment = { dto: CardDTO, previousAssigneeId: string | null, by: string }
 
 export class Card_Assigned implements DomainEvent<CardAssignment> {
   static readonly eventName = 'card.assigned'
