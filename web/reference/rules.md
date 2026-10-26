@@ -418,6 +418,10 @@ export class Board extends Entity<typeof BoardSchema> {
 - `create` for something new, `fromDTO` for something stored: `isNew` is decided by
   which one is called, never by whether an id is present. A new one gets its id
   (UUIDv7), `createdAt` and `updatedAt`.
+- Its schema is a `z.object`, which drops what it does not name, or a
+  `z.strictObject`. One that keeps it (`z.looseObject`, `.catchall`,
+  `.passthrough`) would carry a row's other columns into the entity: building the
+  entity refuses it.
 - **Only the entity changes itself**: `change()` is protected, so a use case calls the
   entity's methods (`update`, `archive`…), which say what happened with
   `trackEvent`. `change()` checks the whole entity against the schema (its refinements

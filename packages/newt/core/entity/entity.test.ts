@@ -228,6 +228,28 @@ describe('hasChanged', () => {
   })
 })
 
+describe('its schema', () => {
+  const shape = { id: z.string(), name: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') }
+  type Schema = z.ZodObject<typeof shape>
+  class Any extends Entity<Schema> {
+    /** A row with a column its schema does not name. */
+    static read(schema: Schema) {
+      return new Any(schema, { id: 'a1', name: 'a', version: 1, extra: 'column' } as EntityInput<z.infer<Schema>>, false)
+    }
+  }
+
+  test('may not keep the fields it does not name: a row\'s other columns would end up in the entity', () => {
+    for (const schema of [z.looseObject(shape), z.object(shape).catchall(z.string()), z.object(shape).passthrough()]) {
+      expect(() => Any.read(schema)).toThrow("Any's schema keeps fields it does not name")
+    }
+  })
+
+  test('drops them, or refuses them strictly', () => {
+    expect(Any.read(z.object(shape)).toDTO()).toEqual({ id: 'a1', name: 'a', createdAt: '', updatedAt: '' })
+    expect(() => Any.read(z.strictObject(shape))).toThrow(InvalidEntity)
+  })
+})
+
 describe('version', () => {
   test('is 0 until it is saved, and the one stored when read', () => {
     expect(Thing.create({ name: 'x', ref: null }).version).toBe(0)

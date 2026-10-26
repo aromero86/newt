@@ -22,6 +22,12 @@ const FRAMEWORK_FIELDS = ['version', 'deletedAt']
 const optionalOnly = (field: z.ZodType | undefined): boolean =>
   field !== undefined && field.safeParse(undefined).success && !field.safeParse(null).success
 
+/** A schema that keeps the fields it does not name, as `unknown` or as its catchall says: `z.strictObject` refuses them (a catchall of never). */
+const keepsUnnamed = (schema: EntitySchema): boolean => {
+  const catchall = schema.def.catchall
+  return catchall !== undefined && catchall._zod.def.type !== 'never'
+}
+
 export class Entity<TSchema extends EntitySchema> {
   private initial: z.infer<TSchema> | null
   private current: z.infer<TSchema>
@@ -40,6 +46,7 @@ export class Entity<TSchema extends EntitySchema> {
     isNew: boolean,
   ) {
     const id = input.id ?? Bun.randomUUIDv7()
+    if (keepsUnnamed(schema)) throw new Error(`${new.target.name}'s schema keeps fields it does not name (z.looseObject, .catchall, .passthrough): a row's other columns would end up in the entity. Make it a z.object, which drops them, or a z.strictObject`)
     if (!isNew && input.version === undefined) throw new Error(`${new.target.name} read from storage comes with its version`)
 
     // What the framework adds to a stored row is not the entity's data, unless its schema says so.

@@ -428,6 +428,9 @@ export class Board extends Entity<typeof BoardSchema> {
 - `create` para algo nuevo, `fromDTO` para algo guardado: `isNew` lo decide cuál de
   los dos se llama, nunca si hay un id o no. Una nueva recibe su id (UUIDv7),
   `createdAt` y `updatedAt`.
+- Su esquema es un `z.object`, que descarta lo que no nombra, o un `z.strictObject`.
+  Uno que lo guarda (`z.looseObject`, `.catchall`, `.passthrough`) metería en la
+  entidad las demás columnas de una fila: construir la entidad lo rechaza.
 - **Solo la entidad se cambia a sí misma**: `change()` es protegido, así que un caso de
   uso llama a los métodos de la entidad (`update`, `archive`…), que dicen qué ha
   pasado con `trackEvent`. `change()` comprueba la entidad entera contra el esquema
