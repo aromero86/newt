@@ -153,7 +153,11 @@ otherwise is a second responsibility, and goes to a module of its own.
 | `value-objects/<name>.ts` | Values with rules of their own that only it uses. |
 | `errors/<error>.ts` | One class per domain error. |
 | `events/<m>-<verb>.ts` | One class per domain event. |
+| `services/<name>.ts` | Logic its use cases share, one file each. |
 | `*.test.ts` | Tests, next to what they test. |
+
+[`newt-eslint`](../packages/newt-eslint) checks it, with how modules reach each other
+and how a handler's queue is named.
 
 Naming: folder `purchase-order`, class `PurchaseOrder_Module`, table
 `purchase_order`, child table `purchase_order__line`, use case

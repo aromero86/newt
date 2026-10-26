@@ -3406,6 +3406,11 @@ temas y añade las que han ido saliendo.
 | `events/<m>-<verbo>.ts` | Un evento por fichero. |
 | `errors/<error>.ts` | Un error por fichero. |
 | `value-objects/<nombre>.ts` | Sus value objects, si tiene. |
+| `services/<nombre>.ts` | La lógica que comparten sus casos de uso, un fichero cada una. |
+| `*.test.ts` | Sus tests, junto a lo que prueban. |
+
+[`newt-eslint`](../packages/newt-eslint) lo comprueba: la anatomía, que un módulo
+solo llegue a otro por lo que ofrece, y el nombre de la cola de cada `handler`.
 
 Nombres: carpeta `purchase-order`, clase `PurchaseOrder_Module`, entidad
 `PurchaseOrder`, tabla `purchase_order`, caso de uso `purchaseOrder.confirm`, evento

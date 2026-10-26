@@ -1,6 +1,6 @@
 import { Module, UseCase } from 'newt/core'
 import type { ShopBase } from '../../shop-base'
-import type { OrderDTO } from '../order/order'
+import type { OrderDTO } from '../order/order.schema'
 import type { Notification_Deps } from './notification.deps'
 import type { Notification_Options } from './notification-options'
 import { registerNotificationWorkers } from './notification.workers'
