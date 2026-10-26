@@ -1,5 +1,7 @@
+import { unlinkSync } from 'node:fs'
 import { mkdir, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
+import { ConcurrencyConflict } from '../core'
 import { TransactionScope, type Store, type StoredRow, type TableOptions } from '../port-store'
 import { FileCollection } from './file-collection'
 import { FileMigrations } from './file-migrations'
@@ -7,10 +9,10 @@ import { FileOutbox } from './file-outbox'
 import type { FileRecord } from './file-record'
 import type { FileStoreOptions } from './file-store-options'
 import { FileTable } from './file-table'
-import { lock } from './lock'
+import { isMissing } from './is-missing'
+import { lock, type Lock } from './lock'
 import { namesIn } from './names-in'
 import { readIfAny } from './read-if-any'
-import { removeIfAny } from './remove-if-any'
 import { writeAtomically } from './write-atomically'
 
 /** What a transaction is about to write: by collection, by id, the record or `null` to remove it. */
@@ -50,8 +52,10 @@ const turns = new WeakMap<Writes, Promise<unknown>>()
  *
  * Everything it does holds one lock, `_lock`, so several processes on one host can
  * share a folder: one transaction or read at a time, in this process and across
- * them. It reads every record of a collection to find some: for thousands of
- * records, not millions.
+ * them. Each file it writes is renamed into place only if the lock is still its own:
+ * a transaction whose lock was taken over while its process was stopped fails with a
+ * `ConcurrencyConflict` (a use case runs again). It reads every record of a
+ * collection to find some: for thousands of records, not millions.
  */
 export class FileStore implements Store {
 
@@ -93,12 +97,12 @@ export class FileStore implements Store {
 
   transaction<T>(fn: () => T | Promise<T>): Promise<T> {
     const writes: Writes = new Map()
-    let release: (() => Promise<void>) | undefined
+    let held: Lock | undefined
     return this.scope.run(fn, writes, {
-      begin: async () => { release = await this.lock() },
-      commit: () => this.commit(writes),
+      begin: async () => { held = await this.lock() },
+      commit: () => this.commit(writes, held!),
       rollback: () => {},
-      end: () => release?.(),
+      end: () => held?.release(),
     })
   }
 
@@ -169,41 +173,48 @@ export class FileStore implements Store {
   private reading<T>(fn: () => Promise<T>): Promise<T> {
     if (this.scope.inTransaction) return fn()
     return this.scope.exclusive(async () => {
-      const release = await this.lock()
+      const held = await this.lock()
       try {
         return await fn()
       } finally {
-        await release()
+        await held.release()
       }
     })
   }
 
   /** Takes the lock, and finishes a journal whoever held it last left behind. */
-  private async lock(): Promise<() => Promise<void>> {
-    const release = await lock(join(this.folder, LOCK))
+  private async lock(): Promise<Lock> {
+    const held = await lock(join(this.folder, LOCK))
     try {
       const journal = await readIfAny(join(this.folder, JOURNAL))
       // A journal cut short was never committed: the rename that commits writes it whole.
-      if (journal !== undefined) await this.finish(JSON.parse(journal) as JournalEntry[])
+      if (journal !== undefined) await this.finish(JSON.parse(journal) as JournalEntry[], held)
     } catch (error) {
-      await release()
+      await held.release()
       throw error
     }
-    return release
+    return held
   }
 
   /**
    * Commits through the journal. Once the journal is on the disk the transaction is
    * committed: if writing the records fails, the next one to take the lock writes
    * them, so this one is not told it failed.
+   *
+   * The journal goes in only if the lock is still this transaction's: one taken over
+   * while its process was stopped (its reads may be stale) fails with a
+   * `ConcurrencyConflict`, writing nothing; so does one that only read, whose reads
+   * may mix two transactions. Losing the lock after the journal is in leaves its
+   * records to the new holder, which finishes the journal first.
    */
-  private async commit(writes: Writes): Promise<void> {
+  private async commit(writes: Writes, held: Lock): Promise<void> {
     const entries: JournalEntry[] = [...writes].flatMap(([collection, records]) => [...records].map(([id, record]) => ({ collection, id, record })))
-    if (entries.length === 0) return
-    await writeAtomically(join(this.folder, JOURNAL), JSON.stringify(entries))
+    if (entries.length === 0) return held.fenced(() => {})
+    await writeAtomically(join(this.folder, JOURNAL), JSON.stringify(entries), held.fenced)
     try {
-      await this.apply(entries)
+      await this.apply(entries, held)
     } catch (error) {
+      if (error instanceof ConcurrencyConflict) return
       console.error('[files] a commit is in the journal but its records could not be written yet; the next lock writes them:', error)
     }
   }
@@ -215,29 +226,31 @@ export class FileStore implements Store {
    * so, until that is mended. An entry no store could ever write (one from a version
    * without the limits on names) is put aside in a file of its own instead.
    */
-  private async finish(entries: JournalEntry[]): Promise<void> {
+  private async finish(entries: JournalEntry[], held: Lock): Promise<void> {
     const unwritable = entries.filter(({ collection, id }) => !NAME.test(collection) || !ID.test(id))
     const rest = entries.filter(entry => !unwritable.includes(entry))
     if (unwritable.length > 0) {
       const aside = join(this.folder, `_journal.${Bun.randomUUIDv7()}.unwritable.json`)
       await writeAtomically(aside, JSON.stringify(unwritable))
-      await writeAtomically(join(this.folder, JOURNAL), JSON.stringify(rest))
+      await writeAtomically(join(this.folder, JOURNAL), JSON.stringify(rest), held.fenced)
       console.error(`[files] a journal left behind has records no file can be named for; they are in ${aside}, the rest is written`)
     }
     try {
-      await this.apply(rest)
+      await this.apply(rest, held)
     } catch (error) {
+      if (error instanceof ConcurrencyConflict) throw error
       throw new Error(`The store cannot finish the commit in ${join(this.folder, JOURNAL)}, and waits for it: ${String(error)}`, { cause: error })
     }
   }
 
-  private async apply(entries: JournalEntry[]): Promise<void> {
+  /** Each write holding the lock still: one taken over stops it, to the new holder. */
+  private async apply(entries: JournalEntry[], held: Lock): Promise<void> {
     for (const { collection, id, record } of entries) {
       const path = this.path(collection, id)
-      if (record) await writeAtomically(path, JSON.stringify(record, null, 2))
-      else await removeIfAny(path)
+      if (record) await writeAtomically(path, JSON.stringify(record, null, 2), held.fenced)
+      else held.fenced(() => removeIfAnySync(path))
     }
-    await removeIfAny(join(this.folder, JOURNAL))
+    held.fenced(() => removeIfAnySync(join(this.folder, JOURNAL)))
   }
 
   private async readRecord(collection: string, id: string): Promise<FileRecord | undefined> {
@@ -247,5 +260,13 @@ export class FileStore implements Store {
 
   private path(collection: string, id: string): string {
     return join(this.folder, collection, `${id}.json`)
+  }
+}
+
+function removeIfAnySync(path: string): void {
+  try {
+    unlinkSync(path)
+  } catch (error) {
+    if (!isMissing(error)) throw error
   }
 }

@@ -1,11 +1,14 @@
+import { renameSync } from 'node:fs'
 import { mkdir, open, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { removeIfAny } from './remove-if-any'
 
 /**
  * Writes a file whole or not at all: to a temporary one first, flushed to the disk,
  * then renamed over it. A crash halfway leaves the old one, never half of the new.
+ * With `fence`, the rename is done inside it, at once: a lock's `fenced`.
  */
-export async function writeAtomically(path: string, content: string): Promise<void> {
+export async function writeAtomically(path: string, content: string, fence?: (rename: () => void) => void): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const temporary = `${path}.${process.pid}.${Bun.randomUUIDv7()}.tmp`
   const file = await open(temporary, 'w')
@@ -15,7 +18,15 @@ export async function writeAtomically(path: string, content: string): Promise<vo
   } finally {
     await file.close()
   }
-  await rename(temporary, path)
+  if (!fence) await rename(temporary, path)
+  else {
+    try {
+      fence(() => renameSync(temporary, path))
+    } catch (error) {
+      await removeIfAny(temporary)
+      throw error
+    }
+  }
   await syncFolder(dirname(path))
 }
 

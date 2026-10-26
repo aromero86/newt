@@ -220,6 +220,53 @@ describe('a files store', () => {
     expect((await (await FileStore.connect({ folder: join(path, 'store') })).collection('counter').get('c'))?.value).toBe(40)
   })
 
+  test('a transaction whose lock was taken over while its process was stopped fails, and one run again commits', async () => {
+    const path = await folder()
+    const worker = join(path, 'worker.ts')
+    await Bun.write(worker, `
+      import { FileStore } from ${JSON.stringify(join(import.meta.dir, 'file-store.ts'))}
+      self.onmessage = async () => {
+        const store = await FileStore.connect({ folder: ${JSON.stringify(join(path, 'store'))} })
+        const counter = store.collection('counter')
+        let stopped = true
+        for (;;) {
+          try {
+            await store.transaction(async () => {
+              const now = (await counter.get('c'))?.value ?? 0
+              if (stopped) {
+                postMessage('holding')
+                // Stopped longer than a lock goes untouched: a long synchronous step, a GC pause, SIGSTOP.
+                Bun.sleepSync(6_000)
+              }
+              await counter.put({ id: 'c', value: now + 1 })
+            })
+            break
+          } catch (error) {
+            postMessage(error.constructor.name)
+            stopped = false
+          }
+        }
+        postMessage('done')
+      }`)
+    const each = new Worker(worker)
+    const said: string[] = []
+    const holding = new Promise<void>(ok => each.addEventListener('message', event => { if (event.data === 'holding') ok() }))
+    const done = new Promise<void>(ok => each.addEventListener('message', event => { said.push(event.data); if (event.data === 'done') ok() }))
+    each.postMessage('go')
+    await holding
+    const store = await FileStore.connect({ folder: join(path, 'store') })
+
+    await store.transaction(async () => {
+      const now = (await store.collection('counter').get('c'))?.value as number | undefined ?? 0
+      await store.collection('counter').put({ id: 'c', value: now + 1 })
+    })
+    await done
+    each.terminate()
+
+    expect(said).toEqual(['holding', 'ConcurrencyConflict', 'done'])
+    expect((await store.collection('counter').get('c'))?.value).toBe(2)
+  }, 20_000)
+
   test('closing waits for the transactions in progress', async () => {
     const store = await FileStore.open({ folder: await folder() })
     const log: string[] = []
