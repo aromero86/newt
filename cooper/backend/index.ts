@@ -2,7 +2,10 @@
 // served on its own port, with the worker of its jobs running.
 import { config } from './config'
 import { openContexts, stopContexts } from './open-contexts'
+import { setCooperMessages } from './shared/messages'
 
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
 const contexts = await openContexts(config)
 
 const servers = contexts.all.map(context => {
