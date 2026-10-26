@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { SQL } from 'bun'
 import { MySqlStore } from '../adapter-mysql'
 import { kyselyFor } from './kysely-for'
+import { expectWhereOfFindsAsTables, type PickRow } from './where-of.cases'
 
 /**
  * A MySQL to test against, when there is one: `FRAMEWORK_TEST_MYSQL_URL`. Without it,
@@ -21,6 +22,9 @@ async function open(): Promise<MySqlStore> {
   await admin.unsafe(`CREATE DATABASE ${database}`)
   await admin.unsafe(`CREATE TABLE ${database}.thing (
     id VARCHAR(36) COLLATE utf8mb4_0900_bin PRIMARY KEY, workspace_id VARCHAR(64) COLLATE utf8mb4_0900_bin NOT NULL, \`rank\` DOUBLE NOT NULL
+  )`)
+  await admin.unsafe(`CREATE TABLE ${database}.pick (
+    id VARCHAR(36) COLLATE utf8mb4_0900_bin PRIMARY KEY, name VARCHAR(64) COLLATE utf8mb4_0900_bin NOT NULL, archived BOOLEAN NOT NULL, note VARCHAR(64) COLLATE utf8mb4_0900_bin, version INTEGER NOT NULL
   )`)
   await admin.close()
   return MySqlStore.open({ url: url!, connections: 5 })
@@ -46,6 +50,15 @@ if (url) {
         })).rejects.toThrow('undone')
         expect(await db.selectFrom('thing').select('id').execute()).toEqual([{ id: 't1' }])
         await expect(db.transaction().execute(async () => {})).rejects.toThrow('store.transaction')
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('whereOf finds the rows the table finds, by the same criteria', async () => {
+      const store = await open()
+      try {
+        await expectWhereOfFindsAsTables(store, kyselyFor(store), store.table<PickRow>('pick'))
       } finally {
         await store.close()
       }

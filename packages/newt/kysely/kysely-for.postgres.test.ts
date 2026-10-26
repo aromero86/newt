@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { SQL } from 'bun'
 import { PostgresStore } from '../adapter-postgres'
 import { kyselyFor } from './kysely-for'
+import { expectWhereOfFindsAsTables, type PickRow } from './where-of.cases'
 
 /**
  * A Postgres to test against, when there is one: `FRAMEWORK_TEST_POSTGRES_URL`. Without
@@ -18,6 +19,7 @@ async function open(): Promise<PostgresStore> {
     id TEXT COLLATE "C" PRIMARY KEY, workspace_id TEXT COLLATE "C" NOT NULL, name TEXT COLLATE "C" NOT NULL, archived BOOLEAN NOT NULL, rank DOUBLE PRECISION NOT NULL,
     note TEXT COLLATE "C", tags JSONB NOT NULL, created_at TEXT COLLATE "C" NOT NULL, updated_at TEXT COLLATE "C" NOT NULL, deleted_at TEXT COLLATE "C", version INTEGER NOT NULL
   )`)
+  await admin.unsafe('CREATE TABLE pick (id TEXT COLLATE "C" PRIMARY KEY, name TEXT COLLATE "C" NOT NULL, archived BOOLEAN NOT NULL, note TEXT COLLATE "C", version INTEGER NOT NULL)')
   await admin.close()
   return PostgresStore.open({ url: url!, connections: 5 })
 }
@@ -67,6 +69,15 @@ if (url) {
 
         expect(await db.selectFrom('thing').select('id').execute()).toEqual([{ id: 't1' }])
         await expect(db.transaction().execute(async () => {})).rejects.toThrow('store.transaction')
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('whereOf finds the rows the table finds, by the same criteria', async () => {
+      const store = await open()
+      try {
+        await expectWhereOfFindsAsTables(store, kyselyFor(store), store.table<PickRow>('pick'))
       } finally {
         await store.close()
       }

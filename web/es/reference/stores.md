@@ -290,6 +290,16 @@ Kysely, así que los `numUpdatedRows` y `numDeletedRows` de una escritura son `0
 hay `insertId`: usa `returning` (Postgres) o vuelve a leer. Kysely es una dependencia
 *peer* opcional.
 
+`whereOf(store, criterios)` dice unos criterios como una condición de Kysely, igual que
+los dicen las tablas del store: todos los operadores y grupos, y el null, las
+mayúsculas y lo demás respondidos como responde `find`, sobre los campos de la tabla
+consultada.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+```
+
 ## Ficheros: `newt/adapter-files`
 
 ```ts

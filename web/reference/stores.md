@@ -269,6 +269,15 @@ Postgres and MySQL the store gives Kysely back only rows, so a write's
 `numUpdatedRows` and `numDeletedRows` are `0n` and there is no `insertId`: use
 `returning` (Postgres) or read again. Kysely is an optional peer dependency.
 
+`whereOf(store, criteria)` says criteria as a condition of Kysely, as the store's
+tables say them: every operator and group, null, case and the rest answered as
+`find` answers them, on the fields of the table queried.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+this.base.db.selectFrom('card').where('workspaceId', '=', currentWorkspaceId()).where(whereOf(this.store, criteria))
+```
+
 ## Files: `newt/adapter-files`
 
 ```ts
