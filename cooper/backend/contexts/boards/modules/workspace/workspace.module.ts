@@ -51,7 +51,7 @@ export class Workspace_Module extends Module {
     const { userId } = currentActor()
     const accesses = await everything(page => this.deps.auth.access.listForUser(userId, page, WORKSPACES_PRODUCT))
     const tenants = new Map((await this.deps.auth.tenant.getMany(accesses.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
-    // A workspace deleted a moment ago, whose accesses auth's worker has not taken away yet, is left out.
+    // A workspace deleted while this read, or whose accesses its deletion failed to take away (its worker will), is left out.
     return accesses.flatMap(access => {
       const tenant = tenants.get(access.tenantId ?? '')
       return tenant ? [workspaceOf(tenant, userId)] : []

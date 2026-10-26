@@ -4,7 +4,7 @@ import type { Metric_Module } from './metric.module'
 /**
  * What the metrics count, each from an event of another context: a `handler`, a job
  * saved with what happened, in that context's outbox and run by its worker until it
- * succeeds. Not `fireAndForget`: a number lost when the server stops would be wrong
+ * succeeds. Not `fire-and-forget`: a number lost when the server stops would be wrong
  * for good. Each one appends a row by the id of what it counts, so running it twice
  * counts once.
  */
