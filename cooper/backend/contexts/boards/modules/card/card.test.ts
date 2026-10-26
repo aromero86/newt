@@ -143,7 +143,8 @@ describe('card', () => {
   test('tells the assignee of a card created for them, and nobody of one assigned and unassigned at once', async () => {
     await create('Plan', { assigneeId: 'bea' })
     const design = await create('Design')
-    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
+    // To someone else than who gives it, who would hear of it but for the card read again.
+    await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
     await inAcme(() => t.modules.card.unassign(design.id))
 
     await t.settled()
