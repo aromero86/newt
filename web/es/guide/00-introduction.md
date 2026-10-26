@@ -57,6 +57,8 @@ con PKCE, tokens de acceso y de refresco, y registro dinámico de clientes. `boa
 ejemplo) se registra en `auth`, pide a la persona que inicie sesión y obtiene un token
 para `boards`. Con él llama a herramientas como `list_boards`, `create_card` o
 `move_card`, que llaman a los mismos casos de uso que la app web, como esa persona.
+Aun así, cooper sabe por dónde llegó cada cambio: quien actúa dice si fue por la web o
+por MCP, y la actividad de cada tarjeta lo enseña.
 
 cooper también tiene tres frontends web, uno por contexto, en `cooper/frontend`. Esta
 guía no los trata: va del backend.
@@ -137,7 +139,8 @@ cooper/
     index.ts              abre los contextos, sirve cada uno, los para
     config.ts             la configuración, de variables de entorno
     open-contexts.ts      abre auth, boards y backoffice, en ese orden
-    shared/               lo que usan todos los contextos: su base, su servidor, la sesión web, un mailer
+    shared/               lo que usan todos los contextos: su base, su servidor, el actor, la sesión web,
+                          el outbox, un mailer, un tracer, los mensajes de newt con palabras de cooper
     contexts/
       auth/               cuentas, workspaces, accesos, invitaciones, el servidor OAuth
       boards/             tableros, columnas y tarjetas; el servidor MCP en mcp/
@@ -145,6 +148,7 @@ cooper/
   scripts/
     dev.ts                bun run cooper
     seed.ts               bun run cooper:seed
+    migrations.ts         bun run cooper:migrations
 data/                     los ficheros SQLite (fuera de git)
 ```
 
@@ -159,7 +163,7 @@ cooper/backend/contexts/boards/
   initialize-modules.ts   sus módulos, cada uno después de los que usa
   migrations/             sus tablas, en SQL
   modules/
-    board/  column/  card/  member/  workspace/
+    board/  column/  card/  member/  workspace/  activity/
   mcp/                    su servidor MCP
   testing/                lo que abren sus tests
 ```

@@ -24,13 +24,14 @@ with every dependency in the root `package.json`, at an exact version:
     "lint": "eslint",
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",
+    "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     // …
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",
     "kysely": "0.29.6",
-    "zod": "4.3.6",
     // …
+    "zod": "4.3.6"
   },
   // …
 }
@@ -39,6 +40,12 @@ with every dependency in the root `package.json`, at an exact version:
 The backend needs little: `zod`, with which every piece of data is described, and
 `kysely` for the queries a table cannot express (chapter [22](./22-backoffice)). The
 MCP SDK is for `boards`' MCP server.
+
+The `cooper*` scripts run the application: `cooper` starts it in development,
+`cooper:seed` fills it with example data, and `cooper:migrations` shows, applies and
+reverts each context's migrations by hand (`bun run cooper:migrations status`,
+chapter [24](./24-migrations)). The server migrates on its own as it opens each
+context; the script is for looking before a deploy, or for going back one.
 
 You need Bun 1.4 or later. newt runs only on Bun: its stores are built on `bun:sqlite`
 and `Bun.SQL`, and its server on `Bun.serve`.
@@ -70,6 +77,7 @@ root `tsconfig.json`, which Bun reads to resolve imports:
   },
   "files": [],
   "references": [
+    { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }
@@ -77,14 +85,16 @@ root `tsconfig.json`, which Bun reads to resolve imports:
 }
 ```
 
-The repository is three TypeScript projects: what runs on the server, what runs in the
-browser, and the scripts. The backend's is plain TypeScript for Bun, strict and
-without the DOM:
+The repository is four TypeScript projects: the framework, what runs on the server,
+what runs in the browser, and the scripts. The backend's is plain TypeScript for Bun,
+strict and without the DOM, and it holds cooper's backend only:
 
 ```json
 // tsconfig.backend.json
 {
-  // What runs on the server, on Bun: the framework and cooper's backend. No DOM.
+  // cooper's backend, on Bun, with the framework it imports. No DOM. Apart from newt's
+  // own project (tsconfig.newt.json), as an application has newt apart: what cooper
+  // adds to newt's types (its Actor, shared/actor.ts) is cooper's only.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -96,10 +106,29 @@ without the DOM:
     "strict": true,
     "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
   },
-  "include": ["packages/**/*.ts", "cooper/backend/**/*.ts"],
+  "include": ["cooper/backend/**/*.ts"],
   "exclude": ["**/node_modules"]
 }
 ```
+
+Why is newt a project of its own (`tsconfig.newt.json`, the same options over
+`packages/**/*.ts`)? Because an application adds to newt's types. cooper says, once,
+how someone reached it: through the web or through the MCP server.
+
+```ts
+// cooper/backend/shared/actor.ts
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+A `declare module` reaches every file of the project it is in. In one project with
+cooper, newt's own code and tests would be checked against cooper's `Actor`, where
+`via` is required, and an actor of newt's tests, `{ userId }`, would be an error that
+is not newt's. Checked apart, newt is checked as it ships; cooper, as it uses it. Chapter
+[5](./05-who-and-where) is about the actor.
 
 ::: warning
 newt uses TypeScript's standard decorators (`@UseCase()`). Do **not** turn on
@@ -133,11 +162,11 @@ whoever writes an adapter.
 bun run typecheck
 ```
 
-It runs `bun check`, which follows the three projects of the root `tsconfig.json` and
+It runs `bun check`, which follows the four projects of the root `tsconfig.json` and
 reports what `tsc` would:
 
 ```
-✓ No type errors in 1,088 files across 3 projects
+✓ No type errors in 1,411 files across 4 projects
 ```
 
 Keep it clean. newt leans on the compiler more than most frameworks: a use case's
@@ -224,10 +253,10 @@ bun test cooper/backend/contexts/boards
 ```
 
 ```
- 33 pass
+ 48 pass
  0 fail
- 95 expect() calls
-Ran 33 tests across 5 files.
+ 130 expect() calls
+Ran 48 tests across 6 files.
 ```
 
 ## Where things go
@@ -257,6 +286,8 @@ chapter [3](./03-first-module) writes each file of `board`.
 - One root `package.json` with exact versions; cooper has none of its own.
 - newt is imported by its name (`newt/core`…), through the `paths` of the root
   `tsconfig.json`. Standard decorators: never `experimentalDecorators`.
+- The framework and the backend are separate TypeScript projects: what the
+  application adds to newt's types stays the application's.
 - `bun run typecheck`, `bun run lint` and `bun test` must stay clean.
 - newt-eslint keeps every module the same shape, keeps modules out of each other's
   insides, and keeps contexts to the ones they `use`.

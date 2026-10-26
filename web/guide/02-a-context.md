@@ -22,14 +22,33 @@ So cooper draws a line around each part:
   server, on its own port and, in production, its own domain.
 - **Contexts depend on each other without cycles.** `auth` uses none; `boards` uses
   `auth`; `backoffice` uses both. Each one is opened after the ones it uses, and
-  receives them.
+  receives their modules.
 - **A context reaches another only through its use cases and its events**, never
   through its store. `boards` asks `auth` "is Bob a member of Acme?" by calling a use
   case, never by reading `auth`'s tables.
 
-The lint keeps the second rule (chapter [1](./01-the-project)). The third is yours to
-keep: call the other context's `modules`, never its `base`. Chapter
-[19](./19-several-contexts) is about how contexts talk.
+The lint keeps the second rule (chapter [1](./01-the-project)). The types keep the
+third: a context is never handed another context, only the modules it uses from it,
+and those modules have use cases and events, never a store. Here is what `backoffice`
+is given:
+
+```ts
+// cooper/backend/contexts/backoffice/initialize-modules.ts
+/**
+ * What `backoffice`'s modules are given besides its base: the use cases of the
+ * contexts it reads, those it needs and nothing else. Never a context's base nor its
+ * store: another context is reached through its use cases and its events (ch. 23).
+ */
+export type Backoffice_ModuleDeps = {
+  auth: Pick<Auth_Modules, 'user' | 'access' | 'tenant' | 'token' | 'outbox'>
+  boards: Pick<Boards_Modules, 'board' | 'card' | 'outbox'>
+}
+```
+
+A `Pick` of the other context's `modules`: `backoffice` can call `boards.card`'s use
+cases, and has no way to `boards.base.store`, nor even to `boards.column`. What it
+uses from each context is written in one place, and growing it is a decision you
+see in a diff. Chapter [19](./19-several-contexts) is about how contexts talk.
 
 ## The base: what every module receives
 
@@ -139,6 +158,7 @@ to serve itself. Here is `boards`:
 // cooper/backend/contexts/boards/boards.context.ts
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import type { Tracer } from 'newt/core'
 import { ServedContext } from '../../shared/served-context'
 import { BoardsBase } from './boards-base'
 import type { Boards_Config } from './boards-config'
@@ -151,10 +171,10 @@ export class Boards_Context extends ServedContext {
     super('boards', base, config)
   }
 
-  /** Opened after `auth`, which it uses. */
-  static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+  /** Opened after `auth`, which it uses; watched by `tracer`, if one is given (ch. 30). */
+  static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
     const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-    const base = new BoardsBase({ name: 'boards', store })
+    const base = new BoardsBase({ name: 'boards', store, tracer })
     return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
   }
 
@@ -171,9 +191,11 @@ What to notice:
   then applies the SQL migrations in `migrations/` that it has not applied yet. When
   `open` returns, the tables are up to date, before any module reads them. Chapter
   [24](./24-migrations) is about migrations.
-- **`open` receives `deps`**: what `boards` needs from outside, `auth` among them.
-  Whoever opens the context hands them in. That is how a context gets the ones it uses
-  without importing how they are opened.
+- **`open` receives `deps`**: what `boards` needs from outside, `auth`'s use cases
+  among them. Whoever opens the context hands them in. That is how a context gets the
+  ones it uses without importing how they are opened.
+- **`tracer`** is optional: when given, the base reports to it every use case it runs
+  (more below).
 - **`initializeModules`** creates the modules, each one after the modules it uses:
 
 ```ts
@@ -187,7 +209,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl })
   // …
-  return { session, member, board, column, card, workspace }
+  return { session, member, board, column, card, workspace, activity, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>
@@ -263,9 +285,12 @@ ones it needs:
  */
 export async function openContexts(config: Config, options: OpenContextsOptions = {}) {
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
-  const auth = await Auth_Context.open(config.auth, { mailer })
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer })
-  const backoffice = await Backoffice_Context.open(config.backoffice, { auth, boards })
+  // One tracer for every context: a use case that calls another context's shows that
+  // call inside it, since they run in one process (ch. 30).
+  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
+  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
+  const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
@@ -279,8 +304,17 @@ export async function stopContexts(contexts: Awaited<ReturnType<typeof openConte
 
 `boardsOnAuth(auth)` turns `auth`'s use cases and events into what `boards` asks for,
 in `boards`' own words ("is this person a member of this workspace?"). Chapter
-[19](./19-several-contexts) shows it whole. For now, see the order: `auth` is opened
-first because `boards` needs it to open, and it is stopped last for the same reason.
+[19](./19-several-contexts) shows it whole. `backoffice` gets `auth.modules` and
+`boards.modules`, typed as the `Pick`s it declared: its code reaches only what it
+picked. For now, see the
+order: `auth` is opened first because `boards` needs it to open, and it is stopped last
+for the same reason.
+
+The tracer is one for all three. With `COOPER_TRACE=1`, every use case any context
+runs is written to the console when it ends, with the use cases it called inside it,
+and how long each took. The contexts run in one process, so when a `boards` use case
+calls `auth`'s, the second shows inside the first: one tracer per context would cut
+that trace in two. Chapter [22](./22-backoffice) shows what it writes.
 
 ## Start and stop
 
@@ -293,7 +327,10 @@ workers, and stops cleanly on a signal:
 // served on its own port, with the worker of its jobs running.
 import { config } from './config'
 import { openContexts, stopContexts } from './open-contexts'
+import { setCooperMessages } from './shared/messages'
 
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
 const contexts = await openContexts(config)
 
 const servers = contexts.all.map(context => {
@@ -312,6 +349,8 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 }
 ```
 
+- **Before anything**, `setCooperMessages()` gives newt's own error messages the
+  words cooper wants them in. Chapter [3](./03-first-module) shows it.
 - **On start**, each context opens (and migrates) its store, serves, and
   `context.start()` starts the loop that runs its workers, in this same process.
 - **On stop** (`SIGINT`, `SIGTERM`), the servers stop accepting requests first. Then
@@ -373,7 +412,7 @@ curl -s localhost:3002/api/workspaces/x/boards
 ```
 
 ```json
-{"error":"Sign in to continue","code":"not_signed_in"}
+{"error":"Your session has ended: sign in again to go on","code":"not_signed_in"}
 ```
 
 cooper's own test does the same with the three contexts, every database in memory and
@@ -417,7 +456,8 @@ test('opens the three contexts, serves each on its own port, and stops them', as
 ## In short
 
 - A context has its own store, modules and server. Contexts depend on each other
-  without cycles, and reach each other only through use cases and events.
+  without cycles, and reach each other only through use cases and events: hand a
+  context a `Pick` of the other's `modules`, never the context.
 - The base is what every module receives. Extend newt's `Base` with what your modules
   need (a router, Kysely), and type it with the store they really need: `Base<Store>`
   if any will do.

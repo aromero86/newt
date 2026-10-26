@@ -285,7 +285,8 @@ async list(boardId: string): Promise<ColumnDTO[]> {
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
  * A board's cards, column by column and from the top: whole, since a board is read
- * as one screen. The list that grows without end, the search, comes by pages.
+ * as one screen and holds at most `MAX_CARDS`. The list that grows without end, the
+ * search, comes by pages.
  */
 @UseCase()
 async listInBoard(boardId: string): Promise<CardDTO[]> {
@@ -294,16 +295,46 @@ async listInBoard(boardId: string): Promise<CardDTO[]> {
 }
 ```
 
-A board's columns are at most ten: a rule the module keeps (chapter
-[8](./08-rules-over-rows)), so the list has a bound. A board's cards are what its
-screen shows at once. The rule is not "never an array"; it is "never a list without a
-bound". When a list's size is set by a rule of the domain, it may be whole; when it
-grows with use (boards of a workspace, the search over every card), it is paged.
+Both bounds are rules of the domain, kept by their modules (chapter
+[8](./08-rules-over-rows)):
 
-::: warning
-A board's cards have no hard limit in cooper: a board with thousands of cards would
-send them all. The search, which pages, is how you look across many cards (chapter
-[23](./23-search)). If your screen can grow without bound, page it too.
+```ts
+// cooper/backend/contexts/boards/modules/column/column.schema.ts
+export const MAX_COLUMNS = 10
+```
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.schema.ts
+export const MAX_CARDS = 500
+```
+
+A board has at most ten columns and at most 500 cards; the 501st is refused with
+`card.too_many`, however many people create cards at once. So each list has a bound,
+and its size is known before anyone asks. The rule is not "never an array"; it is
+"never a list without a bound". When a list's size is set by a rule of the domain, it
+may be whole; when it grows with use (boards of a workspace, the search over every
+card), it is paged.
+
+A test holds the bound and the list together: past the limit, creating fails, and the
+list stays at its size.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
+  await Promise.all(Array.from({ length: MAX_CARDS - 3 }, (_, i) => create(`Task ${i}`)))
+
+  const created = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => create(`More ${i}`)))
+
+  expect(created.filter(each => each.status === 'fulfilled')).toHaveLength(3)
+  for (const each of created.filter(each => each.status === 'rejected')) expect(each.reason).toMatchObject({ code: 'card.too_many' })
+  expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
+})
+```
+
+::: tip
+If you make a list whole, give it its bound in the same change: the limit in the
+schema, its error, and the check where the entity is saved. A whole list without a
+bound is a page you forgot to write.
 :::
 
 ## Use cases for other callers

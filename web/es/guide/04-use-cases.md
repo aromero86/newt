@@ -287,7 +287,8 @@ async list(boardId: string): Promise<ColumnDTO[]> {
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 /**
  * A board's cards, column by column and from the top: whole, since a board is read
- * as one screen. The list that grows without end, the search, comes by pages.
+ * as one screen and holds at most `MAX_CARDS`. The list that grows without end, the
+ * search, comes by pages.
  */
 @UseCase()
 async listInBoard(boardId: string): Promise<CardDTO[]> {
@@ -296,18 +297,46 @@ async listInBoard(boardId: string): Promise<CardDTO[]> {
 }
 ```
 
-Las columnas de un tablero son como mucho diez: una regla que guarda el módulo
-(capítulo [8](./08-rules-over-rows)), así que la lista tiene un límite. Las tarjetas de
-un tablero son lo que su pantalla enseña de una vez. La regla no es "nunca un array";
-es "nunca una lista sin límite". Cuando el tamaño de una lista lo fija una regla del
-dominio, puede ir entera; cuando crece con el uso (los tableros de un workspace, la
-búsqueda en todas las tarjetas), se pagina.
+Los dos límites son reglas del dominio, y las guardan sus módulos (capítulo
+[8](./08-rules-over-rows)):
 
-::: warning Cuidado
-Las tarjetas de un tablero no tienen un límite estricto en cooper: un tablero con miles
-de tarjetas las mandaría todas. La búsqueda, que pagina, es la forma de mirar muchas
-tarjetas (capítulo [23](./23-search)). Si tu pantalla puede crecer sin límite, pagínala
-también.
+```ts
+// cooper/backend/contexts/boards/modules/column/column.schema.ts
+export const MAX_COLUMNS = 10
+```
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.schema.ts
+export const MAX_CARDS = 500
+```
+
+Un tablero tiene como mucho diez columnas y como mucho 500 tarjetas; la 501 se rechaza
+con `card.too_many`, por mucha gente que cree tarjetas a la vez. Así cada lista tiene
+un límite, y su tamaño se sabe antes de que nadie pregunte. La regla no es "nunca un
+array"; es "nunca una lista sin límite". Cuando el tamaño de una lista lo fija una
+regla del dominio, puede ir entera; cuando crece con el uso (los tableros de un
+workspace, la búsqueda en todas las tarjetas), se pagina.
+
+Un test sostiene juntos el límite y la lista: pasado el límite, crear falla, y la lista
+se queda en su tamaño.
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
+  await Promise.all(Array.from({ length: MAX_CARDS - 3 }, (_, i) => create(`Task ${i}`)))
+
+  const created = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => create(`More ${i}`)))
+
+  expect(created.filter(each => each.status === 'fulfilled')).toHaveLength(3)
+  for (const each of created.filter(each => each.status === 'rejected')) expect(each.reason).toMatchObject({ code: 'card.too_many' })
+  expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
+})
+```
+
+::: tip Consejo
+Si haces una lista entera, dale su límite en el mismo cambio: el máximo en el esquema,
+su error y la comprobación donde se guarda la entidad. Una lista entera sin límite es
+una página que se te olvidó escribir.
 :::
 
 ## Casos de uso para otros

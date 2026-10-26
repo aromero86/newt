@@ -24,13 +24,14 @@ todas las dependencias en el `package.json` de la raíz, en versión exacta:
     "lint": "eslint",
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",
+    "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     // …
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",
     "kysely": "0.29.6",
-    "zod": "4.3.6",
     // …
+    "zod": "4.3.6"
   },
   // …
 }
@@ -39,6 +40,12 @@ todas las dependencias en el `package.json` de la raíz, en versión exacta:
 El backend necesita poco: `zod`, con el que se describen todos los datos, y `kysely`
 para las consultas que una tabla no sabe expresar (capítulo
 [22](./22-backoffice)). El SDK de MCP es para el servidor MCP de `boards`.
+
+Los scripts `cooper*` ponen en marcha la aplicación: `cooper` la arranca en desarrollo,
+`cooper:seed` la llena de datos de ejemplo y `cooper:migrations` enseña, aplica y
+deshace a mano las migraciones de cada contexto (`bun run cooper:migrations status`,
+capítulo [24](./24-migrations)). El servidor migra solo al abrir cada contexto; el
+script sirve para mirar antes de desplegar, o para volver una atrás.
 
 Necesitas Bun 1.4 o posterior. newt solo funciona con Bun: sus stores están hechos
 sobre `bun:sqlite` y `Bun.SQL`, y su servidor sobre `Bun.serve`.
@@ -70,6 +77,7 @@ del `tsconfig.json` de la raíz, que Bun lee para resolver los imports:
   },
   "files": [],
   "references": [
+    { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }
@@ -77,14 +85,16 @@ del `tsconfig.json` de la raíz, que Bun lee para resolver los imports:
 }
 ```
 
-El repositorio son tres proyectos de TypeScript: lo que corre en el servidor, lo que
-corre en el navegador y los scripts. El del backend es TypeScript normal para Bun,
-estricto y sin el DOM:
+El repositorio son cuatro proyectos de TypeScript: el framework, lo que corre en el
+servidor, lo que corre en el navegador y los scripts. El del backend es TypeScript
+normal para Bun, estricto y sin el DOM, y solo contiene el backend de cooper:
 
 ```json
 // tsconfig.backend.json
 {
-  // What runs on the server, on Bun: the framework and cooper's backend. No DOM.
+  // cooper's backend, on Bun, with the framework it imports. No DOM. Apart from newt's
+  // own project (tsconfig.newt.json), as an application has newt apart: what cooper
+  // adds to newt's types (its Actor, shared/actor.ts) is cooper's only.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -96,10 +106,29 @@ estricto y sin el DOM:
     "strict": true,
     "paths": { "newt/*": ["./packages/newt/*/index.ts"] }
   },
-  "include": ["packages/**/*.ts", "cooper/backend/**/*.ts"],
+  "include": ["cooper/backend/**/*.ts"],
   "exclude": ["**/node_modules"]
 }
 ```
+
+¿Por qué newt es un proyecto aparte (`tsconfig.newt.json`, con las mismas opciones
+sobre `packages/**/*.ts`)? Porque una aplicación añade cosas a los tipos de newt.
+cooper dice, una sola vez, cómo ha llegado alguien: por la web o por el servidor MCP.
+
+```ts
+// cooper/backend/shared/actor.ts
+declare module 'newt/core' {
+  interface Actor {
+    via: ActorVia
+  }
+}
+```
+
+Un `declare module` alcanza a todos los ficheros de su proyecto. En un solo proyecto
+con cooper, el código y los tests de newt se comprobarían contra el `Actor` de cooper,
+donde `via` es obligatorio, y un actor de los tests de newt, `{ userId }`, sería un
+error que no es de newt. Por separado, newt se comprueba tal como se distribuye; cooper,
+tal como lo usa. El capítulo [5](./05-who-and-where) trata del actor.
 
 ::: warning Cuidado
 newt usa los decoradores estándar de TypeScript (`@UseCase()`). **No** actives
@@ -133,11 +162,11 @@ escriba un adaptador.
 bun run typecheck
 ```
 
-Ejecuta `bun check`, que sigue los tres proyectos del `tsconfig.json` de la raíz y
+Ejecuta `bun check`, que sigue los cuatro proyectos del `tsconfig.json` de la raíz y
 avisa de lo mismo que avisaría `tsc`:
 
 ```
-✓ No type errors in 1,088 files across 3 projects
+✓ No type errors in 1,411 files across 4 projects
 ```
 
 Mantenlo limpio. newt se apoya en el compilador más que la mayoría de frameworks: la
@@ -227,10 +256,10 @@ bun test cooper/backend/contexts/boards
 ```
 
 ```
- 33 pass
+ 48 pass
  0 fail
- 95 expect() calls
-Ran 33 tests across 5 files.
+ 130 expect() calls
+Ran 48 tests across 6 files.
 ```
 
 ## Dónde va cada cosa
@@ -260,6 +289,8 @@ contiene, y el capítulo [3](./03-first-module) escribe cada fichero de `board`.
 - Un solo `package.json` en la raíz, con versiones exactas; cooper no tiene uno propio.
 - newt se importa por su nombre (`newt/core`…), gracias a los `paths` del
   `tsconfig.json` de la raíz. Decoradores estándar: nunca `experimentalDecorators`.
+- El framework y el backend son proyectos de TypeScript distintos: lo que la
+  aplicación añade a los tipos de newt se queda en la aplicación.
 - `bun run typecheck`, `bun run lint` y `bun test` tienen que quedar limpios.
 - newt-eslint mantiene todos los módulos con la misma forma, impide que un módulo se
   meta en las tripas de otro y limita cada contexto a los que dice que usa (`uses`).

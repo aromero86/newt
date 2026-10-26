@@ -383,23 +383,59 @@ Los errores de un módulo viven en su carpeta `errors/`, uno por fichero. El `co
 Bajo `/api`, el cliente recibe siempre `{ error, code }` (y, si el cuerpo no pasó el
 esquema, sus `issues`).
 
-### Los mensajes del framework, en tu idioma
+### Los mensajes del framework, con tus palabras
 
 Los errores propios del framework (`not_signed_in`, `validation`,
-`concurrency_conflict`…) hablan inglés. cooper está en inglés, así que los deja como
-están. Una aplicación en otro idioma los sustituye **una vez, al arrancar**, con
-`setMessages` de `newt/core`; el mensaje que no le dé se queda en inglés. Del propio
-test del framework:
+`concurrency_conflict`…) tienen mensajes en inglés llano: correctos, pero escritos
+para un desarrollador. Una aplicación los sustituye **una vez, al arrancar**, con
+`setMessages` de `newt/core`, para hablarle a quien la usa, o para hablar otro idioma.
+cooper sigue en inglés y cambia el tono:
 
 ```ts
-// packages/newt/core/messages/set-messages.test.ts
-setMessages({ reference_not_found: ({ resource, id }) => `No existe ${resource} ${id}` })
+// cooper/backend/shared/messages.ts
+import { setMessages, type Messages } from 'newt/core'
 
-expect(message('reference_not_found', { resource: 'ciudad', id: 'c1' })).toBe('No existe ciudad c1')
-expect(message('internal')).toBe('Something went wrong')
+/**
+ * What cooper says when something newt owns goes wrong, in cooper's words: newt's
+ * defaults are plain and right, these speak to the person using the app. Its own
+ * errors' messages each module writes itself (`errors/`); the `code` a client acts
+ * on never changes (ch. 22.2).
+ */
+export const cooperMessages: Partial<Messages> = {
+  concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
+  not_signed_in: () => 'Your session has ended: sign in again to go on',
+  validation: () => 'Some of what was sent is not right: check the fields and try again',
+  route_not_found: ({ method, path }) => `Cooper has nothing at ${method} ${path}`,
+  internal: () => 'Something went wrong on our side. Try again in a moment.',
+}
+
+/**
+ * Sets cooper's messages for the whole process: once, as the server starts
+ * (`index.ts`), before any request. Every context answers with them.
+ */
+export function setCooperMessages(): void {
+  setMessages(cooperMessages)
+}
 ```
 
-Los mensajes de tus propios errores los escribes tú, en el idioma de tu aplicación.
+Es `Partial`: el mensaje que no da se queda con el de newt. Solo cambia el mensaje; el
+`code` sigue siendo `not_signed_in`, y un cliente que actúa según él no nota nada. Los
+mensajes son del proceso, no de un contexto, así que `index.ts` los pone antes de abrir
+ninguno (capítulo [2](./02-a-context)). El test de cooper lo ejecuta en un proceso
+propio, porque los demás tests del mismo proceso leen los de newt:
+
+```ts
+// cooper/backend/shared/messages.test.ts
+expect(JSON.parse(await new Response(child.stdout).text())).toEqual({
+  conflict: 'Someone else changed this a moment ago. Reload it and try again.',
+  reference: 'That column is not there any more (c1)',
+  route: { status: 404, body: { error: 'Cooper has nothing at GET /api/nothing', code: 'route_not_found' } },
+})
+```
+
+Los mensajes de tus propios errores los escribes tú, en cada clase de error, como
+arriba.
 
 ## 6. El repositorio
 
@@ -437,19 +473,20 @@ export class Board_Repository extends TableRepository<Board, BoardRow, BoardsBas
    * Saves a board only if no other one of its workspace has its name, whatever the
    * case: counted again after writing it, in its transaction, guarding the name in
    * lower case, so no other save of that name slips in between. `Roadmap` and
-   * `ROADMAP` created at once cannot both have it (ch. 10).
+   * `ROADMAP` created at once cannot both have it. Only A to Z are folded, as `ieq`
+   * and the table's unique index compare: `Ärger` and `ärger` are two names.
    */
   async persistWithNameFree(board: Board): Promise<void> {
     const { workspaceId, name } = board
     await this.save([board], each => this.write(each), {
-      guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+      guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
       after: async () => {
         if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
       },
     })
   }
 
-  // … purgeWorkspace, for when auth deletes a workspace (chapter 16)
+  // … recentInEveryScope, for the staff (chapter 22), and purgeWorkspace, for when auth deletes a workspace (chapter 16)
 }
 ```
 
@@ -591,7 +628,7 @@ export class Board_Module extends Module {
     await this.repo.persist(board)
   }
 
-  // … listOf, findByName and purgeWorkspace, for other modules and contexts
+  // … listOf, recentInEveryWorkspace, findByName and purgeWorkspace, for other modules and contexts
 
   private load(id: string): Promise<Board> {
     return this.resolve(() => this.repo.find({ id }), () => new BoardNotFound(id))
@@ -714,7 +751,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   // …
-  return { session, member, board, column, card, workspace }
+  return { session, member, board, column, card, workspace, activity, outbox }
 }
 ```
 
@@ -735,22 +772,24 @@ cookie de sesión:
 export async function openTestBoards() {
   const auth = await FakeAuth.open()
   const mails: Mail[] = []
+  const lines: string[] = []
   const boards = await Boards_Context.open({ ...config.boards, dbPath: ':memory:', port: 0 }, {
     workspaces: auth.workspaces,
     tenants: auth.tenants,
     access: auth.access,
     auth: auth.modules,
     mailer: { send: async mail => { mails.push(mail) } },
+    log: line => { lines.push(line) },
   })
   boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
-    return userId ? { userId } : null
+    return userId ? { userId, via: 'web' as const } : null
   })
   return {
     // …
-    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` does. */
-    as<T>(userId: string, workspaceId: string, fn: () => Promise<T>): Promise<T> {
-      return runAsActor({ userId }, () => inWorkspace(boards.modules.member, workspaceId, fn))
+    /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
+    as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
+      return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
     // …
   }
@@ -869,6 +908,11 @@ x-user: bea
 La última es Bea, que no está en Acme. Para ella, Acme no existe: el capítulo
 [5](./05-who-and-where) explica por qué es un 404 y no un 403.
 
+El test no llama a `setCooperMessages`, así que la respuesta de `validation` de arriba
+lleva el mensaje propio de newt. El servidor en marcha responde a la misma petición con
+el de cooper: `"Some of what was sent is not right: check the fields and try again"`,
+y el mismo `code` y los mismos `issues`.
+
 En la app en marcha, después de `bun run cooper:seed`, las filas están en
 `data/cooper-boards.db`:
 
@@ -898,7 +942,9 @@ primer guardado.
   al compilar.
 - Solo la entidad se cambia a sí misma, con métodos de negocio que anotan sus eventos.
   Nace por `create` o se lee por `fromDTO`. Fuera de su módulo, solo existe su DTO.
-- Cada error es una clase con un `code` estable; su base decide el código HTTP.
+- Cada error es una clase con un `code` estable; su base decide el código HTTP. Los
+  mensajes propios de newt se cambian una vez, al arrancar, con `setMessages`; sus
+  códigos no cambian nunca.
 - Solo el repositorio toca el store.
 - Los casos de uso validan su entrada, devuelven DTOs y se llaman `<módulo>.<método>`.
 - Una ruta lee, llama a un caso de uso y responde: sin lógica y sin `try/catch`.

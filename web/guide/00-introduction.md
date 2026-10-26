@@ -56,7 +56,9 @@ sign people in through it, as any other app would.
 `boards` also has an **MCP server** at `/mcp`. An AI assistant (Claude, for one)
 registers itself with `auth`, asks the person to sign in, and gets a token for
 `boards`. With it, it calls tools such as `list_boards`, `create_card` or `move_card`,
-which call the same use cases as the web app, as that person.
+which call the same use cases as the web app, as that person. cooper still knows how
+each change came in: the person acting says whether it was through the web or through
+MCP, and each card's activity shows it.
 
 cooper also has three web frontends, one per context, in `cooper/frontend`. This guide
 does not cover them: it is about the backend.
@@ -135,7 +137,8 @@ cooper/
     index.ts              opens the contexts, serves each one, stops them
     config.ts             the settings, from environment variables
     open-contexts.ts      opens auth, boards and backoffice, in that order
-    shared/               what every context uses: its base, its server, the web session, a mailer
+    shared/               what every context uses: its base, its server, the actor, the web session,
+                          the outbox, a mailer, a tracer, newt's messages in cooper's words
     contexts/
       auth/               accounts, workspaces, access, invitations, the OAuth server
       boards/             boards, columns and cards; the MCP server in mcp/
@@ -143,6 +146,7 @@ cooper/
   scripts/
     dev.ts                bun run cooper
     seed.ts               bun run cooper:seed
+    migrations.ts         bun run cooper:migrations
 data/                     the SQLite files (not in git)
 ```
 
@@ -157,7 +161,7 @@ cooper/backend/contexts/boards/
   initialize-modules.ts   its modules, each after the ones it uses
   migrations/             its tables, in SQL
   modules/
-    board/  column/  card/  member/  workspace/
+    board/  column/  card/  member/  workspace/  activity/
   mcp/                    its MCP server
   testing/                what its tests open
 ```
