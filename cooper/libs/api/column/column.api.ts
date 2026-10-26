@@ -24,7 +24,7 @@ export class ColumnApi extends Requester {
     return this.post<ColumnDTO>(`/${workspaceId}/columns/${columnId}/move`, input)
   }
 
-  /** Only an empty one: a 409 `card.column_not_empty` otherwise. */
+  /** Only an empty one, and not the board's last: a 409 `card.column_not_empty` or `column.last` otherwise. */
   remove(workspaceId: string, columnId: string) {
     return this.delete<void>(`/${workspaceId}/columns/${columnId}`)
   }

@@ -34,9 +34,11 @@ export function BoardLane({ column, cards, columns, members, onRename, onAddCard
     { label: 'Move left', icon: ArrowLeftIcon, disabled: place === 0, onSelect: () => void board.moveColumn(column, place - 1) },
     { label: 'Move right', icon: ArrowRightIcon, disabled: place === columns.length - 1, onSelect: () => void board.moveColumn(column, place + 1) },
     { separator: true },
-    cards.length > 0
-      ? { label: 'Remove (move its cards out first)', icon: Trash2Icon, disabled: true, onSelect: () => {} }
-      : { label: 'Remove', icon: Trash2Icon, tone: 'destructive', onSelect: () => void board.removeColumn(column) },
+    columns.length === 1
+      ? { label: 'Remove (a board keeps one column)', icon: Trash2Icon, disabled: true, onSelect: () => {} }
+      : cards.length > 0
+        ? { label: 'Remove (move its cards out first)', icon: Trash2Icon, disabled: true, onSelect: () => {} }
+        : { label: 'Remove', icon: Trash2Icon, tone: 'destructive', onSelect: () => void board.removeColumn(column) },
   ]
 
   function cardMenu(card: CardDTO, index: number): MenuItem[] {

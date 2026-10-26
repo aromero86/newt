@@ -231,6 +231,7 @@ export class Card_Module extends Module {
       const left = await this.repo.inColumn(column.id)
       if (left.length === 0) return
       const [first] = await this.deps.column.list(column.boardId)
+      // Never none: a board keeps one column at least (`column.remove`).
       if (!first) return
       const bottom = await this.repo.count({ columnId: first.id })
       left.forEach((card, index) => card.moveTo(first.id, bottom + index, BOARDS))

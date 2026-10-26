@@ -16,6 +16,7 @@ import type { Column_Deps } from './column.deps'
 import { Column_Repository } from './column.repository'
 import { registerColumnRoutes } from './column.routes'
 import { ColumnNotFound } from './errors/column-not-found'
+import { LastColumn } from './errors/last-column'
 import { TooManyColumns } from './errors/too-many-columns'
 import { Column_Added } from './events/column-added'
 import { Column_Moved } from './events/column-moved'
@@ -115,12 +116,15 @@ export class Column_Module extends Module {
    * Removes a column, and the ones to its right move one place left. Whether it is
    * empty is not known here, where cards are not: `card.removeColumn` asks the cards
    * first, and is what the API calls. A card left in it anyway (moved in at that very
-   * moment) is taken to another column by a worker of the cards.
+   * moment) is taken to another column by a worker of the cards, so a board keeps one
+   * column at least: its last one is not removed.
    */
   @UseCase()
   async remove(id: string): Promise<void> {
     const column = await this.load(id)
     const others = (await this.repo.ofBoard(column.boardId)).filter(each => each.id !== id)
+    // For a clear answer in the usual case: the save counts again, where nothing slips in.
+    if (others.length === 0) throw new LastColumn(column.boardId)
     others.forEach((each, index) => each.reposition(index))
     column.remove()
     await this.repo.persistOrder([column, ...others], column.boardId)

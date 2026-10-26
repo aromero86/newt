@@ -83,15 +83,17 @@ describe('boards, through its API', () => {
     expect((await call<unknown[]>('GET', `/acme/boards/${id}/cards`)).body).toHaveLength(2)
   })
 
-  test('removes a column only when it is empty', async () => {
+  test('removes a column only when it is empty, and never the board\'s last', async () => {
     const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
     const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    const done = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })).body.id
     const card = (await call<{ id: string }>('POST', `/acme/boards/${id}/cards`, { columnId: todo, title: 'Plan' })).body.id
 
     expect(await call('DELETE', `/acme/columns/${todo}`)).toMatchObject({ status: 409, body: { code: 'card.column_not_empty' } })
     expect((await call('DELETE', `/acme/cards/${card}`)).status).toBe(204)
     expect((await call('DELETE', `/acme/columns/${todo}`)).status).toBe(204)
-    expect((await call<unknown[]>('GET', `/acme/boards/${id}/columns`)).body).toEqual([])
+    expect((await call<{ id: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.id)).toEqual([done])
+    expect(await call('DELETE', `/acme/columns/${done}`)).toMatchObject({ status: 409, body: { code: 'column.last' } })
   })
 
   test('searches cards with a filter in the body, and refuses one it does not allow', async () => {
