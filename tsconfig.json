@@ -1,9 +1,12 @@
 {
-  // The whole repository as its projects: for now, the framework (newt), its graph (newt-graph). `bun check`
-  // follows the references. The application the tutorial builds adds its own.
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph) and what runs on the
+  // server (cooper's backend). `bun check` follows the references. newt is not among
+  // any paths: it is a workspace package, reached through its `exports` as any
+  // application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
-    { "path": "./tsconfig.newt-graph.json" }
+    { "path": "./tsconfig.newt-graph.json" },
+    { "path": "./tsconfig.backend.json" }
   ]
 }
