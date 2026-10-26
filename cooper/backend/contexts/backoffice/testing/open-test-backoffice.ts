@@ -55,7 +55,7 @@ export async function openTestBackoffice(options: Pick<OpenContextsOptions, 'clo
     },
     /**
      * Until the background work is done, in the order it flows: auth's events (heard
-     * by boards), then boards'.
+     * by boards and by the metrics), then boards' (the cards the metrics count).
      */
     async settled(): Promise<void> {
       for (let round = 0; round < 2; round++) {

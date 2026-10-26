@@ -5,7 +5,7 @@ import { defineConfig, type UserConfig } from 'vite'
 
 type CooperApp = {
   /** The app's folder name under cooper/frontend, and under dist/cooper once built. */
-  name: 'auth' | 'boards'
+  name: 'auth' | 'boards' | 'backoffice'
   /** The dev server's port. */
   port: number
   /** Paths the dev server hands to the backend: the app reaches it through its own origin. */
@@ -13,7 +13,7 @@ type CooperApp = {
 }
 
 /** Each context's port in dev, as the backend reads it (`COOPER_<NAME>_PORT`), with its defaults. */
-const BACKEND_PORTS = { auth: 3001, boards: 3002 } as const
+const BACKEND_PORTS = { auth: 3001, boards: 3002, backoffice: 3003 } as const
 
 /** The app's context in dev, which the proxied paths go to. */
 function backendOf(name: CooperApp['name']): string {
@@ -23,7 +23,7 @@ function backendOf(name: CooperApp['name']): string {
 const libs = (name: string) => fileURLToPath(new URL(`../libs/${name}`, import.meta.url))
 
 /**
- * What the two apps share: React, Tailwind, the aliases of cooper's libraries,
+ * What the three apps share: React, Tailwind, the aliases of cooper's libraries,
  * a fixed dev port that proxies to the app's context, and the build in
  * `dist/cooper/<name>`, which that context serves in production.
  */

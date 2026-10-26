@@ -1,8 +1,9 @@
 // bun run cooper:seed: cooper's demo data, written through the contexts' use cases as
-// anyone would: Ana's workspace Acme, where Bob joined by accepting her invitation.
-// Safe to run again: what is there stays.
+// anyone would: a staff user with access to the backoffice, and Ana's workspace Acme,
+// where Bob joined by accepting her invitation. Safe to run again: what is there stays.
 import { runAsActor, type Email } from 'newt/core'
 import { config } from '../backend/config'
+import { PRODUCTS } from '../backend/contexts/auth/modules/product/product.schema'
 import { inWorkspace } from '../backend/contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from '../backend/open-contexts'
 import { ConsoleMailer } from '../backend/shared/mail/console-mailer'
@@ -29,6 +30,9 @@ try {
 
   /** An account, made the first time. */
   const account = async (email: string, name: string) => (await user.findByEmail(email)) ?? user.signUp({ email, name, password: PASSWORD })
+
+  const staff = await account('staff@cooper.dev', 'Cooper Staff')
+  await access.admit({ userId: staff.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
 
   const ana = await account('ana@cooper.dev', 'Ana García')
   const bob = await account('bob@cooper.dev', 'Bob Smith')
@@ -75,6 +79,7 @@ try {
     '',
     'cooper is seeded. Every account\'s password is', `  ${PASSWORD}`,
     '',
+    `  staff@cooper.dev   the staff: the backoffice, ${config.backoffice.publicUrl}`,
     `  ana@cooper.dev     Acme's admin, ${config.boards.publicUrl}: its boards Welcome and Launch`,
     '  bob@cooper.dev     a member of Acme, who accepted Ana\'s invitation',
     '',

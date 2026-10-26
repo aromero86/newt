@@ -28,14 +28,14 @@ describe('the backoffice API', () => {
     const sam = await t.staffMember('Sam')
     const ana = await t.staffMember('Ana')
 
-    for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff']) {
+    for (const path of ['/api/session', '/api/workspaces', '/api/users', '/api/staff', '/api/metrics', '/api/jobs/boards']) {
       expect((await get(path)).status).toBe(401)
       expect((await get(path, ana.id)).status).toBe(200)
     }
     expect(await (await get('/api/session', ana.id)).json()).toMatchObject({ user: { id: ana.id, name: 'Ana', email: 'ana@cooper.test' } })
 
     await t.as(sam, () => t.modules.staff.revoke(ana.id))
-    for (const path of ['/api/session', '/api/workspaces', '/api/users/' + sam.id, '/api/staff']) {
+    for (const path of ['/api/session', '/api/workspaces', '/api/users/' + sam.id, '/api/staff', '/api/metrics']) {
       const response = await get(path, ana.id)
       expect(response.status).toBe(403)
       expect(await response.json()).toMatchObject({ code: 'staff.not_staff' })

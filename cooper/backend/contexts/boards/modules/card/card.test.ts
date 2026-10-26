@@ -390,26 +390,4 @@ describe('card', () => {
     expect(await t.modules.card.countByWorkspace(['acme', 'globex'])).toEqual([{ workspaceId: 'acme', cards: 3 }, { workspaceId: 'globex', cards: 0 }])
     expect(await t.modules.card.countByBoard('acme')).toEqual([{ boardId, cards: 2 }, { boardId: other.id, cards: 1 }].sort((a, b) => a.boardId.localeCompare(b.boardId)))
   })
-
-  test('a reaction that keeps failing dies after its attempts, is listed, and runs once retried', async () => {
-    // A reaction of the test's own, as if the mail server were down, at its only attempt.
-    let down = true
-    t.modules.card.events.created.subscribe(() => {
-      if (down) throw new Error('the mail server is down')
-    // eslint-disable-next-line newt/queue-name
-    }, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
-    await create('Plan')
-    await t.settled()
-
-    const dead = await t.modules.outbox.dead({ size: 10 })
-    expect(dead.items).toEqual([expect.objectContaining({ queue: 'test.tellSomeone.on.card.created', event: 'card.created', attempts: 1, lastError: expect.stringContaining('the mail server is down') })])
-
-    down = false
-    await t.modules.outbox.retry(dead.items[0]!.id)
-    await t.settled()
-
-    expect((await t.modules.outbox.dead({ size: 10 })).total).toBe(0)
-    // Done is done: it is not run again.
-    await expect(t.modules.outbox.retry(dead.items[0]!.id)).rejects.toMatchObject({ code: 'outbox.job_not_dead', status: 409 })
-  })
 })

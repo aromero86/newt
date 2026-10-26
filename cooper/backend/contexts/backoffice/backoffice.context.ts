@@ -9,7 +9,7 @@ import { initializeModules, type Backoffice_ModuleDeps, type Backoffice_Modules 
 /**
  * The staff's console: it reads `auth` and `boards`, and changes them only through
  * their use cases. Only the staff (access to the `backoffice` app in `auth`) enter it.
- * Its own database keeps its web sessions.
+ * Its own database keeps its web sessions and its analytics.
  */
 export class Backoffice_Context extends ServedContext {
 

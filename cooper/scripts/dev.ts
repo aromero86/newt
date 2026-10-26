@@ -9,7 +9,7 @@ import { config } from '../backend/config'
 const watch = Bun.argv.includes('--watch')
 
 /** A frontend's Vite server, on the port of its context's public URL. */
-const frontend = (name: 'auth' | 'boards') => {
+const frontend = (name: 'auth' | 'boards' | 'backoffice') => {
   const url = config[name].publicUrl
   return { name: `${name} UI`, url, cmd: ['bun', 'x', 'vite', `cooper/frontend/${name}`, '--port', new URL(url).port, '--strictPort'] }
 }
@@ -17,13 +17,14 @@ const frontend = (name: 'auth' | 'boards') => {
 const SERVICES = [
   frontend('auth'),
   frontend('boards'),
+  frontend('backoffice'),
   { name: 'backend', url: `http://localhost:${config.auth.port}/api/health`, cmd: ['bun', ...(watch ? ['--watch'] : []), 'cooper/backend/index.ts'] },
 ]
 
 // The backend serves every context, each one on its own port: they must all be free.
 const PORTS = [
   ...SERVICES.filter(service => service.name !== 'backend').map(({ name, url }) => ({ name, port: Number(new URL(url).port) })),
-  ...(['auth', 'boards'] as const).map(name => ({ name: `${name} API`, port: config[name].port })),
+  ...(['auth', 'boards', 'backoffice'] as const).map(name => ({ name: `${name} API`, port: config[name].port })),
 ]
 
 // Nothing starts unless every port is free: `bun --watch`, for one, stays alive after
@@ -98,7 +99,7 @@ async function waitUntilUp(url: string) {
 // Once everything answers, print where each frontend lives.
 void Promise.all(SERVICES.map(({ url }) => waitUntilUp(url))).then(() => {
   if (stopping) return
-  const names = ['auth', 'boards'] as const
+  const names = ['auth', 'boards', 'backoffice'] as const
   const width = Math.max(...names.map(name => name.length))
   console.log(['', ...names.map(name => `  ${name.padEnd(width)}  ${config[name].publicUrl}  (API on port ${config[name].port})`), ''].join('\n'))
 })
