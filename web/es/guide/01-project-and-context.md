@@ -342,7 +342,7 @@ const server = serve(boards.serving())
 console.log(`boards listening on ${server.url}`)
 ```
 
-Por ahora Ctrl+C lo para tal cual. Cuando cooper tenga tres contextos, el capítulo
+Por ahora Ctrl+C lo para tal cual. Cuando cooper tenga un segundo contexto, el capítulo
 [17](./17-auth) le pasará este fichero a `runContexts`, que además los para en orden.
 
 ## Su primer test

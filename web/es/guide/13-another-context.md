@@ -261,7 +261,7 @@ trabajo.
   la llamada no compilaría. Tipa el parámetro, como aquí, para que el guard funcione.
 
 Por ahora el nombre del producto está escrito aquí como `'cooper'`. auth lo nombra con
-una constante, `WORKSPACES_PRODUCT`, que no existe hasta el capítulo 17; entonces
+una constante, `WORKSPACES_PRODUCT`, que aquí no se puede usar hasta el capítulo 20; entonces
 sustituirá al string.
 
 ## Dejar las tarjetas sin asignado

@@ -255,7 +255,7 @@ job.
   the call would not compile. Type the parameter, as here, for the guard to take.
 
 For now the product's name is written here as `'cooper'`. auth names it with a
-constant, `WORKSPACES_PRODUCT`, which does not exist until chapter 17; it replaces the
+constant, `WORKSPACES_PRODUCT`, which is not usable here until chapter 20; it replaces the
 string then.
 
 ## Leaving the cards without an assignee

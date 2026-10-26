@@ -338,7 +338,7 @@ const server = serve(boards.serving())
 console.log(`boards listening on ${server.url}`)
 ```
 
-For now Ctrl+C stops it as it is. When cooper has three contexts, chapter
+For now Ctrl+C stops it as it is. When cooper has a second context, chapter
 [17](./17-auth) hands this file to `runContexts`, which also stops them in order.
 
 ## Its first test
