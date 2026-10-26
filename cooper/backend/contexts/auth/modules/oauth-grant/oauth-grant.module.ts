@@ -164,7 +164,7 @@ export class OauthGrant_Module extends Module {
 
     grant.redeem()
     await this.repo.persist(grant)
-    const { id, userId, productId, resource } = grant.contract()
+    const { id, userId, productId, resource } = grant.toDTO()
     return { grantId: id, userId: userId!, clientId, productId, resource }
   }
 

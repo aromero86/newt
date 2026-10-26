@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Entity, type EntityInput } from 'newt/core'
-import { OauthClientSchema, type OauthClientDTO } from './oauth-client.schema'
+import { OauthClientSchema } from './oauth-client.schema'
 import { ClientSecret } from './value-objects/client-secret'
 
 export * from './oauth-client.schema'
@@ -21,10 +21,10 @@ const UNNAMED = 'An unnamed application'
  * follows the product as cooper's code declares it; one that registered itself (an
  * MCP client) is public and does not change.
  */
-export class OauthClient extends Entity<typeof OauthClientEntitySchema> {
+export class OauthClient extends Entity<typeof OauthClientEntitySchema, typeof OauthClientSchema> {
 
   private constructor(input: EntityInput<OauthClientEntityDTO>, isNew: boolean) {
-    super(OauthClientEntitySchema, input, isNew)
+    super(OauthClientEntitySchema, input, isNew, OauthClientSchema)
   }
 
   static fromDTO(dto: OauthClientEntityDTO & { version: number }): OauthClient {
@@ -61,11 +61,5 @@ export class OauthClient extends Entity<typeof OauthClientEntitySchema> {
   accepts(secret: string | undefined): boolean {
     if (this.data.secretHash === null) return secret === undefined
     return secret !== undefined && ClientSecret.matches(secret, this.data.secretHash)
-  }
-
-  /** What anyone else sees of it: never its secret's hash. */
-  contract(): OauthClientDTO {
-    const { secretHash: _, ...client } = this.toDTO()
-    return client
   }
 }

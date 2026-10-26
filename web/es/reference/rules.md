@@ -431,6 +431,22 @@ export class Board extends Entity<typeof BoardSchema> {
 - Su esquema es un `z.object`, que descarta lo que no nombra, o un `z.strictObject`.
   Uno que lo guarda (`z.looseObject`, `.catchall`, `.passthrough`) metería en la
   entidad las demás columnas de una fila: construir la entidad lo rechaza.
+- **Una entidad con secretos** (el hash de una contraseña, el de un token) tiene un
+  esquema público junto al suyo, y lo dice: `toDTO` da solo sus campos, y su
+  repositorio los guarda todos. Su propio esquema extiende el público, así que muestra
+  algunos de sus campos y nunca otro; una que dice tener esquema público y no lo pasa
+  no compila:
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/user/user.ts
+  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+
+  export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
+    private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
+      super(UserEntitySchema, input, isNew, UserSchema)
+    }
+  }
+  ```
 - **Solo la entidad se cambia a sí misma**: `change()` es protegido, así que un caso de
   uso llama a los métodos de la entidad (`update`, `archive`…), que dicen qué ha
   pasado con `trackEvent`. `change()` comprueba la entidad entera contra el esquema

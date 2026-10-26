@@ -422,6 +422,22 @@ export class Board extends Entity<typeof BoardSchema> {
   `z.strictObject`. One that keeps it (`z.looseObject`, `.catchall`,
   `.passthrough`) would carry a row's other columns into the entity: building the
   entity refuses it.
+- **An entity with secrets** (a password's hash, a token's) has a public schema
+  beside its own, and says so: `toDTO` gives only its fields, and its repository
+  stores them all. Its own schema extends the public one, so it shows some of its
+  fields and never another; one that says it has a public schema and does not pass it
+  does not compile:
+
+  ```ts
+  // cooper/backend/contexts/auth/modules/user/user.ts
+  const UserEntitySchema = UserSchema.extend({ passwordHash: z.string().min(1) })
+
+  export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
+    private constructor(input: EntityInput<UserEntityDTO>, isNew: boolean) {
+      super(UserEntitySchema, input, isNew, UserSchema)
+    }
+  }
+  ```
 - **Only the entity changes itself**: `change()` is protected, so a use case calls the
   entity's methods (`update`, `archive`…), which say what happened with
   `trackEvent`. `change()` checks the whole entity against the schema (its refinements

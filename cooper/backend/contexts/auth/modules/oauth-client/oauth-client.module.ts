@@ -36,7 +36,7 @@ export class OauthClient_Module extends Module {
   async register(input: OauthClientRegisterDTO): Promise<OauthClientDTO> {
     const client = OauthClient.register(OauthClientRegisterSchema.parse(input))
     await this.repo.persist(client)
-    return client.contract()
+    return client.toDTO()
   }
 
   /**
@@ -54,12 +54,12 @@ export class OauthClient_Module extends Module {
       clients.push(existing ?? OauthClient.forProduct({ productId: product.id, ...declared }))
     }
     await this.repo.persist(...clients)
-    return clients.map(client => client.contract())
+    return clients.map(client => client.toDTO())
   }
 
   @UseCase()
   async get(clientId: string): Promise<OauthClientDTO> {
-    return (await this.load(clientId)).contract()
+    return (await this.load(clientId)).toDTO()
   }
 
   /**
@@ -70,7 +70,7 @@ export class OauthClient_Module extends Module {
   async authenticate(clientId: string, secret: string | undefined): Promise<OauthClientDTO> {
     const client = await this.repo.first({ clientId })
     if (!client || !client.accepts(secret)) throw new InvalidClient()
-    return client.contract()
+    return client.toDTO()
   }
 
   private load(clientId: string): Promise<OauthClient> {

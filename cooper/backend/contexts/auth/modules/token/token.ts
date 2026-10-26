@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Entity, SecretToken, type EntityInput } from 'newt/core'
-import { TokenSchema, type TokenDTO, type TokenPairDTO, type TokenVerifiedDTO } from './token.schema'
+import { TokenSchema, type TokenPairDTO, type TokenVerifiedDTO } from './token.schema'
 
 export * from './token.schema'
 
@@ -37,10 +37,10 @@ function fresh(lifetime: TokenLifetime) {
  * The access and refresh tokens a grant was traded for. The client holds them; the
  * store only their hashes. Each refresh replaces both, so a refresh token works once.
  */
-export class Token extends Entity<typeof TokenEntitySchema> {
+export class Token extends Entity<typeof TokenEntitySchema, typeof TokenSchema> {
 
   private constructor(input: EntityInput<TokenEntityDTO>, isNew: boolean) {
-    super(TokenEntitySchema, input, isNew)
+    super(TokenEntitySchema, input, isNew, TokenSchema)
   }
 
   static fromDTO(dto: TokenEntityDTO & { version: number }): Token {
@@ -86,10 +86,5 @@ export class Token extends Entity<typeof TokenEntitySchema> {
   verified(): TokenVerifiedDTO {
     const { userId, clientId, productId, resource, accessExpiresAt } = this.data
     return { userId, clientId, productId, resource, expiresAt: accessExpiresAt }
-  }
-
-  contract(): TokenDTO {
-    const { accessTokenHash: _a, refreshTokenHash: _r, previousRefreshTokenHash: _p, ...token } = this.toDTO()
-    return token
   }
 }

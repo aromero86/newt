@@ -34,7 +34,7 @@ export class User_Module extends Module {
     // For a clear answer in the usual case: the save checks it again, where nothing slips in between.
     if (await this.repo.count({ email: user.email }) > 0) throw new EmailTaken()
     await this.repo.persistWithEmailFree(user)
-    return user.contract()
+    return user.toDTO()
   }
 
   /** The account of this email if the password is its own; null otherwise, as slowly either way. */
@@ -43,19 +43,19 @@ export class User_Module extends Module {
     const parsed = Email.schema.safeParse(email.trim().toLowerCase())
     const user = parsed.success ? await this.repo.first({ email: parsed.data }) : undefined
     const matches = await Bun.password.verify(password, user?.passwordHash ?? NOBODY)
-    return user && matches ? user.contract() : null
+    return user && matches ? user.toDTO() : null
   }
 
   @UseCase()
   async get(id: string): Promise<UserDTO> {
-    return (await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))).contract()
+    return (await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))).toDTO()
   }
 
   /** For other modules and contexts: the ones with these ids, in no order; an id of none is not there. */
   @UseCase()
   async getMany(ids: string[]): Promise<UserDTO[]> {
     if (ids.length === 0) return []
-    return (await this.repo.find({ id: { in: [...new Set(ids)] } })).map(user => user.contract())
+    return (await this.repo.find({ id: { in: [...new Set(ids)] } })).map(user => user.toDTO())
   }
 
   /** The account of an email, whatever its case, if there is one. */
@@ -63,7 +63,7 @@ export class User_Module extends Module {
   async findByEmail(email: string): Promise<UserDTO | null> {
     const parsed = Email.schema.safeParse(email.trim().toLowerCase())
     if (!parsed.success) return null
-    return (await this.repo.first({ email: parsed.data }))?.contract() ?? null
+    return (await this.repo.first({ email: parsed.data }))?.toDTO() ?? null
   }
 
   /** Every account, newest first, as the staff look them up: only what `UserFilter` allows. */
@@ -71,6 +71,6 @@ export class User_Module extends Module {
   async list(filter: unknown, page: PageRequest): Promise<Page<UserDTO>> {
     const criteria = filter === undefined ? {} : UserFilter.toCriteria<UserRow>(UserFilter.schema.parse(filter))
     const found = await this.repo.page(criteria, page, { newestFirst: true })
-    return { items: found.items.map(user => user.contract()), hasMore: found.hasMore, total: found.total }
+    return { items: found.items.map(user => user.toDTO()), hasMore: found.hasMore, total: found.total }
   }
 }

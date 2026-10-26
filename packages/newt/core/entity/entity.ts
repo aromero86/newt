@@ -11,6 +11,7 @@ import { EventWithoutChange } from './errors/event-without-change'
 import { SaveRolledBack } from './errors/save-rolled-back'
 import { markPersisted } from './mark-persisted'
 import { restoreSaved, savedState, type SavedState } from './saved-state'
+import { storedFields } from './stored-fields'
 import { takeEvents } from './take-events'
 import type { EntitySchema } from './entity-schema'
 
@@ -29,11 +30,19 @@ const keepsUnnamed = (schema: EntitySchema): boolean => {
   return catchall !== undefined && catchall._zod.def.type !== 'never'
 }
 
-export class Entity<TSchema extends EntitySchema> {
+/**
+ * An entity: its data, kept valid by its schema, what changed of it, and what it has
+ * to tell. `TPublic`, when its data holds secrets (a password's hash), is the schema
+ * of what anyone else sees: `toDTO` gives only its fields, and its repository stores
+ * them all.
+ */
+export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema = TSchema> {
   private initial: z.infer<TSchema> | null
   private current: z.infer<TSchema>
   private _isNew: boolean
   private _version: number
+  /** The fields `toDTO` gives: all of them, unless it has a public schema. */
+  private readonly publicFields?: string[]
 
   private domainEvents: DomainEvent[] = []
   /** Deleted, and whether its repository already saved that. */
@@ -43,13 +52,20 @@ export class Entity<TSchema extends EntitySchema> {
   /** Whether a save it was in rolled back: it is not saved again. */
   private rolledBack = false
 
+  /** `publicSchema`, what anyone else sees of it, is given when it differs from `schema`: an entity with secrets. */
   protected constructor(
     protected readonly schema: TSchema,
     input: EntityInput<z.infer<TSchema>>,
     isNew: boolean,
+    ...[publicSchema]: [TPublic] extends [TSchema] ? [publicSchema?: TPublic] : [publicSchema: TPublic]
   ) {
     const id = input.id ?? Bun.randomUUIDv7()
     if (keepsUnnamed(schema)) throw new Error(`${new.target.name}'s schema keeps fields it does not name (z.looseObject, .catchall, .passthrough): a row's other columns would end up in the entity. Make it a z.object, which drops them, or a z.strictObject`)
+    if (publicSchema && publicSchema !== schema) {
+      this.publicFields = Object.keys(publicSchema.shape)
+      const unknown = this.publicFields.find(field => !Object.hasOwn(schema.shape, field))
+      if (unknown) throw new Error(`${new.target.name}'s public schema has '${unknown}', which its schema does not: it shows some of its fields, never others`)
+    }
     if (!isNew && input.version === undefined) throw new Error(`${new.target.name} read from storage comes with its version`)
 
     // What the framework adds to a stored row is not the entity's data, unless its schema says so.
@@ -205,7 +221,15 @@ export class Entity<TSchema extends EntitySchema> {
     return changes !== null && field in changes
   }
 
-  toDTO(): z.infer<TSchema> {
+  /** What anyone else sees of it, a copy: with a public schema, only its fields. */
+  toDTO(): z.infer<TPublic> {
+    const fields = this.publicFields
+    const shown = fields ? Object.fromEntries(Object.entries(this.current as Fields).filter(([field]) => fields.includes(field))) : this.current
+    return structuredClone(shown) as z.infer<TPublic>
+  }
+
+  /** What its repository stores: all its fields, a copy. */
+  [storedFields](): z.infer<TSchema> {
     return structuredClone(this.current)
   }
 

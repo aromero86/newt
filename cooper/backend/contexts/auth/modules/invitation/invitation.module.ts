@@ -50,7 +50,7 @@ export class Invitation_Module extends Module {
     if (member || await this.repo.count({ tenantId, email: invitation.email, status: 'pending' }) > 0) throw new AlreadyInvited(invitation.email)
 
     await this.repo.persist(invitation)
-    return invitation.contract()
+    return invitation.toDTO()
   }
 
   /** The invitations of a workspace still waiting, the newest first: for its admin. */
@@ -58,7 +58,7 @@ export class Invitation_Module extends Module {
   async list(tenantId: string, page: PageRequest): Promise<Page<InvitationDTO>> {
     await this.assertAdmin(tenantId)
     const found = await this.repo.page({ tenantId, status: 'pending' }, page, { newestFirst: true })
-    return { items: found.items.map(invitation => invitation.contract()), hasMore: found.hasMore, total: found.total }
+    return { items: found.items.map(invitation => invitation.toDTO()), hasMore: found.hasMore, total: found.total }
   }
 
   /** Its workspace's admin takes it back: its link opens nothing from then on. */
@@ -100,7 +100,7 @@ export class Invitation_Module extends Module {
     await this.deps.access.admit({ userId, productId: this.options.productId, tenantId: invitation.tenantId, role: 'member' })
     invitation.accept(userId)
     await this.repo.persist(invitation)
-    return invitation.contract()
+    return invitation.toDTO()
   }
 
   /**

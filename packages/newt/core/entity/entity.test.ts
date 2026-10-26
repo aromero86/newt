@@ -8,6 +8,7 @@ import { EventWithoutChange } from './errors/event-without-change'
 import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { markPersisted } from './mark-persisted'
+import { storedFields } from './stored-fields'
 import { takeEvents } from './take-events'
 
 const ThingSchema = z.object({
@@ -247,6 +248,55 @@ describe('its schema', () => {
   test('drops them, or refuses them strictly', () => {
     expect(Any.read(z.object(shape)).toDTO()).toEqual({ id: 'a1', name: 'a', createdAt: '', updatedAt: '' })
     expect(() => Any.read(z.strictObject(shape))).toThrow(InvalidEntity)
+  })
+})
+
+describe('a public schema', () => {
+  const AccountSchema = z.object({ id: z.string(), email: z.string(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
+  const AccountEntitySchema = AccountSchema.extend({ passwordHash: z.string() })
+  type AccountRow = z.infer<typeof AccountEntitySchema> & { version: number }
+
+  class Account extends Entity<typeof AccountEntitySchema, typeof AccountSchema> {
+    static read(row: AccountRow) {
+      return new Account(AccountEntitySchema, row, false, AccountSchema)
+    }
+    rehash(passwordHash: string) {
+      this.change({ passwordHash })
+    }
+  }
+  const row = { id: 'a1', email: 'ana@example.com', passwordHash: 'secret', createdAt: '', updatedAt: '', version: 1 }
+
+  test('is all toDTO gives: what it keeps besides stays inside', () => {
+    expect(Account.read(row).toDTO()).toEqual({ id: 'a1', email: 'ana@example.com', createdAt: '', updatedAt: '' })
+  })
+
+  test('leaves its repository all its fields to store, and what changed of them', () => {
+    const account = Account.read(row)
+    account.rehash('another')
+
+    expect(account[storedFields]()).toEqual({ id: 'a1', email: 'ana@example.com', passwordHash: 'another', createdAt: '', updatedAt: expect.any(String) })
+    expect(account.getChanges()).toEqual({ passwordHash: 'another' })
+  })
+
+  test('shows some of its fields, never one it does not have', () => {
+    class Wrong extends Entity<typeof AccountSchema, typeof AccountEntitySchema> {
+      static read() {
+        return new Wrong(AccountSchema, row, false, AccountEntitySchema)
+      }
+    }
+
+    expect(() => Wrong.read()).toThrow("Wrong's public schema has 'passwordHash', which its schema does not")
+  })
+
+  test('is given whenever the entity says it has one', () => {
+    class Forgotten extends Entity<typeof AccountEntitySchema, typeof AccountSchema> {
+      static read() {
+        // @ts-expect-error: its public schema is missing
+        return new Forgotten(AccountEntitySchema, row, false)
+      }
+    }
+
+    expect(Forgotten.read()).toBeDefined()
   })
 })
 

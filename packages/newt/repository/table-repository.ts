@@ -1,5 +1,5 @@
 import { allOf, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
-import { savedState } from '../core/internal'
+import { savedState, storedFields } from '../core/internal'
 import type { FindOptions, NewRow, StoredRow, Table } from '../port-store'
 import { Repository } from './repository'
 import type { RepositoryBase } from './repository-base'
@@ -20,9 +20,10 @@ import type { TableRepositoryOptions } from './table-repository-options'
  * }
  * ```
  *
- * A row is the entity's DTO with its version (and `deletedAt` when soft deleted); a
- * repository whose rows differ says how in `toRow` and `toChanges`. What a table
- * cannot ask, it asks its store's adapter directly.
+ * A row is all the entity's fields (the secrets its `toDTO` leaves out too) with its
+ * version (and `deletedAt` when soft deleted); a repository whose rows differ says
+ * how in `toRow` and `toChanges`. What a table cannot ask, it asks its store's
+ * adapter directly.
  */
 export abstract class TableRepository<
   E extends Entity<EntitySchema>,
@@ -36,16 +37,16 @@ export abstract class TableRepository<
 
   protected abstract toEntity(row: Row): E
 
-  /** The row a new entity is stored as. */
+  /** The row a new entity is stored as: all its fields. */
   protected toRow(entity: E): NewRow<Row> {
-    const row = entity.toDTO() as Record<string, unknown>
+    const row = entity[storedFields]() as Record<string, unknown>
     return (this.options.softDelete ? { ...row, deletedAt: null } : row) as NewRow<Row>
   }
 
   /** What changed of a stored entity, as its row's fields: a field cleared is written as null. */
   protected toChanges(entity: E): Partial<NewRow<Row>> {
     const changes = Object.entries(entity.getChanges() ?? {}).map(([field, value]) => [field, value === undefined ? null : value])
-    return { ...Object.fromEntries(changes), updatedAt: entity.toDTO().updatedAt } as unknown as Partial<NewRow<Row>>
+    return { ...Object.fromEntries(changes), updatedAt: entity[storedFields]().updatedAt } as unknown as Partial<NewRow<Row>>
   }
 
   /** The ones that meet the criteria, by id unless told otherwise. */
@@ -113,7 +114,7 @@ export abstract class TableRepository<
   private assertInScope(entity: E): void {
     const { scope } = this.options
     if (!scope) return
-    const value = (entity.toDTO() as Record<string, unknown>)[scope.field]
+    const value = (entity[storedFields]() as Record<string, unknown>)[scope.field]
     const stored = entity.isNew ? value : (entity[savedState]().initial as Record<string, unknown>)[scope.field]
     for (const each of [value, stored]) {
       if (each !== scope.current()) throw new Error(`${entity.constructor.name} ${entity.id} belongs to ${scope.field} '${String(each)}', not to the current one: a repository saves only its scope's`)

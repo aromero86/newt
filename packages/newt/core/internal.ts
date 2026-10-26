@@ -5,6 +5,8 @@
 export { markPersisted } from './entity/mark-persisted'
 export { takeEvents } from './entity/take-events'
 export { assertSavable } from './entity/assert-savable'
+/** And read all its fields to store them, its secrets too. */
+export { storedFields } from './entity/stored-fields'
 /** And put it back as it was saved when that save rolls back. */
 export { restoreSaved, savedState } from './entity/saved-state'
 
