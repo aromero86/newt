@@ -26,6 +26,10 @@ describe('isSameClaim', () => {
     expect(isSameClaim(job({ attempts: 3 }), job({ attempts: 2 }))).toBe(false)
   })
 
+  test('nor does a claim made after a retry started its attempts over', () => {
+    expect(isSameClaim(job({ attempts: 1, lockedBy: 'worker-1/7' }), job({ attempts: 1, lockedBy: 'worker-1/3' }))).toBe(false)
+  })
+
   test('a job no longer running belongs to no claim', () => {
     for (const status of ['pending', 'done', 'dead'] as const) {
       expect(isSameClaim(job({ status }), job())).toBe(false)

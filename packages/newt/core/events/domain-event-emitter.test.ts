@@ -105,6 +105,26 @@ describe('DomainEventEmitter.subscribe, further', () => {
   })
 })
 
+describe('a payload', () => {
+  test('is JSON, as a handler gets it back from its stored job: a Date is not', () => {
+    // @ts-expect-error a Date would reach a `handler` as a string
+    class Due implements DomainEvent<{ dueAt: Date }> {
+      static readonly eventName = 'invoice.due'
+      readonly name = Due.eventName
+      readonly occurredAt = ''
+      constructor(readonly payload: { dueAt: Date }) {}
+    }
+    class DueOn implements DomainEvent<{ dueAt: string, paidAt?: string }> {
+      static readonly eventName = 'invoice.due'
+      readonly name = DueOn.eventName
+      readonly occurredAt = ''
+      constructor(readonly payload: { dueAt: string, paidAt?: string }) {}
+    }
+
+    expect(eventsOf(recordingBus().bus, { due: DueOn }).due.name).toBe(Due.eventName)
+  })
+})
+
 describe('eventsOf', () => {
   test('gives each event its own emitter, named after it', () => {
     const { bus, subscriptions } = recordingBus()

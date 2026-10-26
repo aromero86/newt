@@ -88,7 +88,51 @@ describe('the invocation chain', () => {
     expect(seen).toEqual({
       root: { context: 'shop', module: 'order', useCase: 'order.place', writesTo: ['stock'] },
       current: { context: 'shop', module: 'stock', useCase: 'stock.reserve' },
+      retry: { allowed: true },
     })
+  })
+})
+
+describe('on a conflict', () => {
+  test('only the first use case of a chain runs again, with all it calls', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' })
+    let inner = 0
+
+    await invocations.run('order.place', () => invocations.run('stock.reserve', async () => {
+      inner++
+      throw new ConcurrencyConflict()
+    })).catch(() => {})
+
+    expect(inner).toBe(4)
+  })
+
+  test('one that must not run twice keeps the ones above it from running it again', async () => {
+    const shop = new Invocations(undefined, { context: 'shop' })
+    const billing = new Invocations(undefined, { context: 'billing' })
+    let invoices = 0
+    let orders = 0
+
+    // invoice.create says it must not run twice; order.place, which calls it, does not
+    // know, and checkout.run, of another context, calls that.
+    const place = () => shop.run('order.place', async () => {
+      await billing.run('invoice.create', async () => { invoices++ }, { retryOnConflict: false })
+      if (orders++ === 0) throw new ConcurrencyConflict()
+    })
+    await expect(billing.run('checkout.run', place)).rejects.toBeInstanceOf(ConcurrencyConflict)
+
+    expect([invoices, orders]).toEqual([1, 1])
+  })
+
+  test('a chain that has not reached it yet still runs again', async () => {
+    const invocations = new Invocations(undefined, { context: 'shop' })
+    let runs = 0
+
+    await invocations.run('order.place', async () => {
+      if (runs++ === 0) throw new ConcurrencyConflict()
+      await invocations.run('invoice.create', async () => {}, { retryOnConflict: false })
+    })
+
+    expect(runs).toBe(2)
   })
 })
 

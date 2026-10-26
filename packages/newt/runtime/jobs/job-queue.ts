@@ -21,6 +21,14 @@ const DEFAULT_ATTEMPTS = 5
 
 const PURGE_EVERY_MS = 60 * 60_000
 
+/**
+ * No context at all: this module's, taken as it loads, before any request or script
+ * enters a scope. Jobs run in it, never in that of whoever made the queue (a context
+ * opened lazily, inside a request), started the worker or waits for it (`idle`), so
+ * a handler has no actor nor scope but the ones it sets itself.
+ */
+const detached = AsyncLocalStorage.snapshot()
+
 /** `<handler's module>.<use case it calls>.on.<event>`: `mail.sendWelcome.on.user.created`. */
 const NAME = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.on\.(.+)$/
 
@@ -34,16 +42,17 @@ const NAME = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\.on\.(.+)$/
 export class JobQueue {
 
   private readonly registrations = new Map<string, Registration>()
-  /**
-   * The context it was made in, at startup: jobs run in it, never in that of whoever
-   * started the worker or waits for it (`idle`), so a handler has no actor nor scope
-   * but the ones it sets itself.
-   */
-  private readonly detached = AsyncLocalStorage.snapshot()
   /** Who holds a lease: this process, until it stops. */
   private readonly worker = Bun.randomUUIDv7()
+  /** How many claims it made: each one locks its jobs as `<worker>/<claim>`, a name no claim used before. */
+  private claims = 0
   private readonly options: JobQueueOptions
   private readonly inFlight = new Set<Promise<void>>()
+  /**
+   * The claims on their way, each with the places it took: the jobs it brings are in
+   * the database already but not yet in `inFlight`, and count as if they were.
+   */
+  private readonly claiming = new Map<Promise<unknown>, number>()
   private loop: Promise<void> | null = null
   private running = false
   private woken = false
@@ -64,6 +73,7 @@ export class JobQueue {
 
   register(name: string, pattern: string, handler: EventHandler, attempts = DEFAULT_ATTEMPTS): () => void {
     if (NAME.exec(name)?.[1] !== pattern) throw new Error(`A handler of '${pattern}' is named '<handler's module>.<use case it calls>.on.${pattern}', not '${name}'`)
+    if (!Number.isInteger(attempts) || attempts < 1) throw new Error(`The handler '${name}' runs at least once: its attempts are a whole number from 1, not ${attempts}`)
     if (this.registrations.has(name)) throw new Error(`A handler named '${name}' is subscribed already`)
     this.registrations.set(name, { pattern, handler, attempts })
     return () => { this.registrations.delete(name) }
@@ -100,10 +110,13 @@ export class JobQueue {
     this.signal?.()
   }
 
-  /** Resolves once no job is ready nor in progress: for scripts and tests, before they close. */
+  /**
+   * Resolves once no job is ready nor in progress: for scripts and tests, before they
+   * close. It waits for the worker's claims on their way too, whose jobs it would not see.
+   */
   async idle(): Promise<void> {
-    do await Promise.all(this.inFlight)
-    while (await this.drain() > 0 || this.inFlight.size > 0)
+    do await Promise.all([...this.inFlight, ...this.claiming.keys()])
+    while (await this.drain() > 0 || this.inFlight.size > 0 || this.claiming.size > 0)
   }
 
   /**
@@ -142,18 +155,35 @@ export class JobQueue {
   /**
    * Claims what is ready while there is room, and starts it; how many it started.
    * It does not wait for them: a slow job holds one place, not the worker, and each
-   * one that ends wakes the worker to fill its place.
+   * one that ends wakes the worker to fill its place. The places a claim asks for are
+   * taken before it is sent, so the worker and an `idle` draining beside it never run
+   * more than `concurrency` together.
    */
   private async drain(): Promise<number> {
     let started = 0
     for (;;) {
-      const room = this.options.concurrency - this.inFlight.size
+      const room = this.options.concurrency - this.inFlight.size - this.taken()
       if (room <= 0) return started
-      const claimed = await this.claim(room)
+      const claim = this.claim(room)
+      const settled = claim.then(() => {}, () => {})
+      this.claiming.set(settled, room)
+      let claimed: Job[]
+      try {
+        claimed = await claim
+      } finally {
+        this.claiming.delete(settled)
+      }
       if (claimed.length === 0) return started
       for (const each of claimed) this.track(each)
       started += claimed.length
     }
+  }
+
+  /** The places the claims on their way took. */
+  private taken(): number {
+    let places = 0
+    for (const room of this.claiming.values()) places += room
+    return places
   }
 
   private track(claimed: Job): void {
@@ -170,7 +200,8 @@ export class JobQueue {
   private claim(limit: number): Promise<Job[]> {
     const queues = [...this.registrations.keys()]
     if (queues.length === 0) return Promise.resolve([])
-    return this.invocations.run('job.claim', () => this.store.claim(queues, limit, this.worker, this.later(this.options.leaseMs)))
+    const lockedBy = `${this.worker}/${++this.claims}`
+    return this.invocations.run('job.claim', () => this.store.claim(queues, limit, lockedBy, this.later(this.options.leaseMs)))
   }
 
   private async process(claimed: Job): Promise<void> {
@@ -184,7 +215,7 @@ export class JobQueue {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
     }, this.options.leaseMs / 3)
     try {
-      await this.detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent)))
+      await detached(() => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent)))
       await this.close(claimed, { status: 'done', lastError: null })
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)

@@ -2,15 +2,18 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DomainEvent, EventBus, EventHandler } from '../../core'
 import { eventNameMatches } from './event-name-matches'
 
+/**
+ * No context at all: this module's, taken as it loads, before any request or script
+ * enters a scope. Handlers run in it, never in the publisher's nor in that of
+ * whatever made the bus (a context opened lazily, inside a request). Like a job's, a
+ * handler inherits nothing of whatever published, not its actor: it reacts on its
+ * own, with no actor but one it sets itself.
+ */
+const detached = AsyncLocalStorage.snapshot()
+
 export class InMemoryEventBus implements EventBus {
 
   private subscriptions: { pattern: string; handler: EventHandler }[] = []
-  /**
-   * The context it was made in, at startup: handlers run in it, never in the
-   * publisher's. Like a job's, a handler inherits nothing of whatever published, not
-   * its actor: it reacts on its own, with no actor but one it sets itself.
-   */
-  private readonly detached = AsyncLocalStorage.snapshot()
 
   publish(event: DomainEvent): void {
     for (const sub of this.subscriptions) {
@@ -18,7 +21,7 @@ export class InMemoryEventBus implements EventBus {
         continue
       }
       Promise.resolve()
-        .then(() => this.detached(() => sub.handler(event)))
+        .then(() => detached(() => sub.handler(event)))
         .catch(err => console.error(`[EventBus] handler error for '${event.name}':`, err))
     }
   }

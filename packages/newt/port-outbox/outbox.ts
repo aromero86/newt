@@ -13,7 +13,8 @@ export interface Outbox {
   /**
    * Claims up to `limit` jobs of these queues, at once, so no other worker claims the
    * same ones: pending and due, or running with their lease run out. Each claim counts
-   * one more attempt.
+   * one more attempt, and is locked by `worker`: a name no claim used before (the
+   * worker's, and which of its claims), since it fences the claim with `attempts`.
    */
   claim(queues: string[], limit: number, worker: string, leaseUntil: string): Promise<Job[]>
   /** Moves the lease of a claim on, if it is still the claim it was. */

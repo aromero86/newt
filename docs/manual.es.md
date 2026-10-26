@@ -543,6 +543,10 @@ export class Product_Updated implements DomainEvent<ProductChange> {
 }
 ```
 
+El payload es JSON (`DomainEvent<T extends Json>`): una reacción `handler` lo recibe
+del trabajo guardado, así que una fecha viaja como su texto ISO, nunca como `Date`. Y
+es un `type`, no una `interface`, que TypeScript no acepta como JSON.
+
 El nombre sigue la forma `<módulo>.<verbo en pasado>`. Para un `updated`, el payload
 cuenta la **transición** entera:
 
@@ -1319,9 +1323,9 @@ async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
 ```
 
 Ante un conflicto, el caso de uso se ejecuta de nuevo **desde el principio**, hasta
-tres veces más. Al final quedan los dos cambios. Si llama a otro caso de uso, cada
-uno reintenta por su cuenta: el de dentro puede ejecutarse hasta cuatro veces en
-cada intento del de fuera, otra razón para que sean repetibles.
+tres veces más. Al final quedan los dos cambios. Si llama a otro caso de uso, solo
+reintenta el primero de la cadena, con todo lo que llama: el de dentro deja pasar el
+conflicto hasta él, y se ejecuta de nuevo en cada intento del de fuera.
 
 Funciona porque un caso de uso **carga, cambia y guarda, y no hace nada
 irreversible antes de guardar**: lo irreversible sale de los workers. Un caso de uso
@@ -1329,7 +1333,9 @@ que mandara un email y después guardara lo mandaría dos veces al reintentar (y
 eso los emails salen de los workers: capítulo 16).
 
 Si uno tiene que hacer algo antes de guardar que no debe pasar dos veces (llamar a
-otro contexto, que ya guardó lo suyo), se dice donde se ve, con el motivo al lado:
+otro contexto, que ya guardó lo suyo), se dice donde se ve, con el motivo al lado. Vale
+para toda la cadena: ninguno reintenta, tampoco los que lo llamaron, aunque sean de
+otro contexto:
 
 ```ts
 // Abre la sesión en auth antes de guardar: repetirlo abriría otra.
