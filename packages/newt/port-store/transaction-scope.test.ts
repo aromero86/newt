@@ -110,6 +110,40 @@ describe('afterCommit', () => {
   })
 })
 
+describe('afterRollback', () => {
+  test('runs once the outermost rolls back, latest first', async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    await scope.run(async () => {
+      scope.afterRollback(() => log.push('first'))
+      await scope.run(() => scope.afterRollback(() => log.push('second')), undefined, steps(log))
+      throw new Error('boom')
+    }, undefined, steps(log)).catch(() => {})
+
+    expect(log).toEqual(['begin', 'rollback', 'end', 'second', 'first'])
+  })
+
+  test('never runs on a commit, nor outside a transaction', async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    scope.afterRollback(() => log.push('outside'))
+    await scope.run(() => scope.afterRollback(() => log.push('callback')), undefined, steps(log))
+
+    expect(log).toEqual(['begin', 'commit', 'end'])
+  })
+
+  test('runs when the commit fails', async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    await scope.run(() => scope.afterRollback(() => log.push('callback')), undefined, { ...steps(log), commit: () => { throw new Error('disk full') } }).catch(() => {})
+
+    expect(log).toEqual(['begin', 'rollback', 'end', 'callback'])
+  })
+})
+
 describe('a commit that fails', () => {
   test('rolls back, ends, throws, and runs no callback', async () => {
     const scope = new TransactionScope()

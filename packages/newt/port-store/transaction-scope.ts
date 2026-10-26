@@ -10,7 +10,7 @@ type Steps = {
   end?(): void | Promise<void>
 }
 
-type Transaction<State> = { open: boolean, state: State, committed: (() => void)[] }
+type Transaction<State> = { open: boolean, state: State, committed: (() => void)[], rolledBack: (() => void)[] }
 
 /** How long a call waits for the store by default before it gives up, saying why. */
 const WAIT_TIMEOUT_MS = 30_000
@@ -25,6 +25,7 @@ const WAIT_TIMEOUT_MS = 30_000
  * - once it starts committing it is closed: a write that comes late runs in a
  *   transaction of its own, after it, instead of being lost;
  * - `afterCommit` runs once it commits, each callback on its own, never on a rollback;
+ *   `afterRollback`, once it rolls back, latest first, never on a commit;
  * - a call that waits too long fails saying why, instead of hanging: the usual cause
  *   is code inside a transaction that lost it (`AsyncLocalStorage.snapshot`, an
  *   `EventEmitter`) and so waits for the very transaction it is part of.
@@ -58,7 +59,8 @@ export class TransactionScope<State = undefined> {
   async run<T>(fn: () => T | Promise<T>, state: State, steps: Steps): Promise<T> {
     if (this.inTransaction) return fn()
 
-    const transaction: Transaction<State> = { open: true, state, committed: [] }
+    const transaction: Transaction<State> = { open: true, state, committed: [], rolledBack: [] }
+    let committed = false
     const body = async () => {
       await steps.begin()
       try {
@@ -73,6 +75,7 @@ export class TransactionScope<State = undefined> {
         transaction.open = false
         try {
           await steps.commit()
+          committed = true
         } catch (error) {
           await steps.rollback()
           throw error
@@ -82,15 +85,25 @@ export class TransactionScope<State = undefined> {
         await steps.end?.()
       }
     }
-    const result = this.serial ? await this.exclusive(body) : await body()
-    for (const each of transaction.committed) {
+    let result: T
+    try {
+      result = this.serial ? await this.exclusive(body) : await body()
+    } catch (error) {
+      if (!committed) this.runEach(transaction.rolledBack.reverse(), 'a callback after a rollback failed; the transaction is rolled back:')
+      throw error
+    }
+    this.runEach(transaction.committed, 'a callback after a commit failed; the transaction is committed:')
+    return result
+  }
+
+  private runEach(callbacks: (() => void)[], failure: string): void {
+    for (const each of callbacks) {
       try {
         each()
       } catch (error) {
-        console.error('[store] a callback after a commit failed; the transaction is committed:', error)
+        console.error(`[store] ${failure}`, error)
       }
     }
-    return result
   }
 
   /**
@@ -107,6 +120,15 @@ export class TransactionScope<State = undefined> {
     const transaction = this.current.getStore()
     if (transaction?.open) transaction.committed.push(fn)
     else fn()
+  }
+
+  /**
+   * Runs `fn` if the transaction in progress rolls back, latest first, so each undoes
+   * what it was registered for in the reverse order it was done; never outside one.
+   */
+  afterRollback(fn: () => void): void {
+    const transaction = this.current.getStore()
+    if (transaction?.open) transaction.rolledBack.push(fn)
   }
 
   /** Runs `fn` once everything before it ended, holding what comes after until it does. */

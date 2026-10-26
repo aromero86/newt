@@ -118,6 +118,10 @@ export class SqliteStore implements Store {
     this.scope.afterCommit(fn)
   }
 
+  afterRollback(fn: () => void): void {
+    this.scope.afterRollback(fn)
+  }
+
   async close(): Promise<void> {
     await this.scope.drain()
     this.reader.close()

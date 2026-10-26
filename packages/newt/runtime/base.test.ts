@@ -24,6 +24,7 @@ function fakeStore(log: string[]): Store {
     }),
     guard: async () => {},
     afterCommit: fn => scope.afterCommit(fn),
+    afterRollback: fn => scope.afterRollback(fn),
     table: () => { throw new Error('no tables here') },
     outbox,
     migrations: {} as never,

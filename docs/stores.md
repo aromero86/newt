@@ -12,6 +12,7 @@ check with the contract suite.
 interface Store {
   transaction<T>(fn: () => T | Promise<T>): Promise<T>
   afterCommit(fn: () => void): void
+  afterRollback(fn: () => void): void
   table<Row extends StoredRow>(name: string, options?: TableOptions<Row>): Table<Row>
   guard(keys: string[]): Promise<void>
   readonly outbox: Outbox
@@ -36,7 +37,9 @@ interface Store {
   whose id or unique value is taken, throws `ConcurrencyConflict`.
 - `afterCommit` runs a function once the transaction in progress commits; at once
   outside one; never if it rolls back. It is how events reach their `fireAndForget`
-  handlers only for what was saved, and how entities learn they were saved.
+  handlers only for what was saved. `afterRollback` runs one if it rolls back, the
+  latest first; never on a commit, nor outside one: it is how a save puts its
+  entities back as they were when what it wrote is undone.
 - **A call waits its turn, but not forever**: 30 s by default (`waitTimeoutMs`),
   then it fails saying why. The usual cause is code inside a transaction that lost
   it (`AsyncLocalStorage.snapshot`, an `EventEmitter`) and asks for the store, so
@@ -245,9 +248,9 @@ adapter shares:
 
 - `TransactionScope` is the machinery of transactions: the current one following
   the code, a call inside one joining it, a late write running after it instead of
-  being lost, `afterCommit`, and, for a store whose transactions take turns
-  (`serial`, the default), the queue and the wait that gives up saying why. An
-  adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
+  being lost, `afterCommit` and `afterRollback`, and, for a store whose transactions
+  take turns (`serial`, the default), the queue and the wait that gives up saying
+  why. An adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
   as every adapter here does.
 - `criteriaTree(criteria)` turns criteria into a tree (`all`, `any`, a condition on
   a field) to translate into a query; `matches(row, criteria)` and `compare(a, b)`
