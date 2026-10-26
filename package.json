@@ -11,6 +11,7 @@
     "lint": "eslint",
     "docs:dev": "vitepress dev web --port 5180",
     "docs:build": "vitepress build web",
+    "docs:check": "bun web/scripts/check-tutorial.ts",
     "cooper": "bun run cooper/scripts/dev.ts --watch",
     "cooper:seed": "bun run cooper/scripts/seed.ts",
     "cooper:migrations": "bun run cooper/scripts/migrations.ts",
