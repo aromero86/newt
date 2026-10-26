@@ -3,7 +3,8 @@ import { mysqlDialect } from './mysql-dialect'
 
 /**
  * The MySQL store, on `Bun.SQL`. Its migrations are MySQL SQL; MySQL commits a
- * change of structure at once, so a batch that fails halfway keeps what it did. An
+ * change of structure at once, with what came before it, so a batch that fails after
+ * one keeps that (a batch of data alone is all or none). An
  * entity table has `id VARCHAR(36) PRIMARY KEY` and `version INTEGER NOT NULL`; text
  * columns are best `utf8mb4_0900_bin`; a unique value among the rows not deleted is a
  * functional unique index on `(IF(deleted_at IS NULL, col, NULL))`.

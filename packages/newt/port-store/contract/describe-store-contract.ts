@@ -842,6 +842,20 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect((await store.outbox.list())[0]).toMatchObject({ status: 'done', lastError: null, lockedUntil: null })
       })
 
+      test('a claim from before a retry closes nothing of the claim after it', async () => {
+        await store.outbox.add([job('a.b.on.c')])
+        const [stale] = await store.outbox.claim(['a.b.on.c'], 1, 'A/1', at(-1_000))
+        const [buried] = await store.outbox.claim(['a.b.on.c'], 1, 'B/1', lease())
+        await store.outbox.close(buried!, { status: 'dead', lastError: 'gave up' })
+        await store.outbox.retry(stale!.id)
+        await store.outbox.claim(['a.b.on.c'], 1, 'C/1', lease())
+
+        await store.outbox.renew(stale!, at(120_000))
+        await store.outbox.close(stale!, { status: 'dead', lastError: 'stale' })
+
+        expect((await store.outbox.list())[0]).toMatchObject({ status: 'running', attempts: 1, lockedBy: 'C/1', lastError: 'gave up' })
+      })
+
       test('purges only jobs done: pending, running and dead ones stay', async () => {
         await store.outbox.add([{ ...job('a.b.on.c'), id: 'pending' }, { ...job('a.b.on.c'), id: 'dead' }, { ...job('a.b.on.c'), id: 'running' }])
         const claimed = await store.outbox.claim(['a.b.on.c'], 2, 'w1', lease())

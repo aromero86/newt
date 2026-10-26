@@ -39,6 +39,7 @@ export { setMessages } from './messages/set-messages'
 
 // Events
 export type { DomainEvent } from './events/domain-event'
+export type { Json } from './events/json'
 export type { DomainEventClass } from './events/domain-event-class'
 export { DomainEventEmitter } from './events/domain-event-emitter'
 export type { Subscription } from './events/subscription'

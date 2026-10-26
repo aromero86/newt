@@ -3008,7 +3008,7 @@ nada, pero si algo falla después de un cambio de estructura, lo confirmado se q
 (las migraciones anteriores, anotadas como aplicadas, y los cambios de estructura de
 la que falló, sin anotar).
 
-En Postgres y MySQL, dos procesos que arrancan a la vez se turnan: el segundo espera
+En SQLite, Postgres y MySQL, dos procesos que arrancan a la vez se turnan: el segundo espera
 al primero y encuentra sus migraciones aplicadas. Y dos ficheros con el mismo número
 y distinto nombre (dos ramas que se juntan) son un error: renumera una de las dos.
 
@@ -3118,7 +3118,7 @@ protegiendo lo que diga su `guard`:
 ```ts
 // note.repository.ts, en el ejemplo de notes
 async recordActivity(noteId: string, what: string, at: string): Promise<void> {
-  // El id de un registro en ficheros es letras, números, '.', '-' y '_': la fecha, en dígitos.
+  // El id de un registro en ficheros es letras, números, '.', '-' y '_' (hasta 100): la fecha, en dígitos.
   const id = `${noteId}.${what}.${at.replace(/[^0-9]/g, '')}`
   await this.saveRows(() => this.store.collection('activity').put({ id, noteId, what, at }))
 }
