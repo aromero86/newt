@@ -7,6 +7,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/newt/package.json packages/newt/
 COPY packages/newt-eslint/package.json packages/newt-eslint/
+COPY packages/newt-graph/package.json packages/newt-graph/
 RUN bun install --frozen-lockfile
 
 COPY . .
