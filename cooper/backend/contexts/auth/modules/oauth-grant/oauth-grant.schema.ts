@@ -56,6 +56,12 @@ export const OauthGrantReviewSchema = z.object({
   redirectHost: z.string(),
   /** Still waiting for an answer: not answered, not expired. */
   open: z.boolean(),
+  /**
+   * Why the signed-in person may not enter the product (`oauthGrant.no_access`), so
+   * approving would fail: the UI shows it instead of asking. Null when they may, or
+   * when nobody is signed in to auth yet.
+   */
+  refused: z.object({ code: z.string(), message: z.string() }).nullable(),
 })
 
 /** Where the browser goes next: back to the client, with a code or a refusal. */

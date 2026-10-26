@@ -68,6 +68,19 @@ export class Session_Module extends Module {
     await this.repo.persist(session)
   }
 
+  /**
+   * Where the browser goes back to once signed out: the address asked for, if it is
+   * on a product's own origin; auth's start (`/`) otherwise, never an address nobody
+   * vouched for.
+   */
+  @UseCase()
+  async returnAddress(redirect: string | undefined): Promise<string> {
+    const url = URL.parse(redirect ?? '')
+    if (!url) return '/'
+    const origins = (await this.deps.product.list()).map(product => new URL(product.publicUrl).origin)
+    return origins.includes(url.origin) ? url.toString() : '/'
+  }
+
   /** The signed-in person. */
   @UseCase()
   async me(): Promise<UserDTO> {

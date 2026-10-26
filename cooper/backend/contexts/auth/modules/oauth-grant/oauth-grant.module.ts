@@ -1,7 +1,8 @@
-import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
+import { currentActor, eventsOf, Module, NoActor, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { OauthClientNotFound } from '../oauth-client/errors/oauth-client-not-found'
 import type { OauthClientDTO } from '../oauth-client/oauth-client.schema'
+import type { ProductDTO } from '../product/product.schema'
 import { AuthorizationNotFound } from './errors/authorization-not-found'
 import { AuthorizationNotOpen } from './errors/authorization-not-open'
 import { InvalidAuthorizationRequest } from './errors/invalid-authorization-request'
@@ -23,6 +24,16 @@ import type { OauthGrant_Options } from './oauth-grant-options'
 import { OauthGrant_Repository } from './oauth-grant.repository'
 import { registerOauthGrantRoutes } from './oauth-grant.routes'
 
+/** Who is signed in, if anyone: a public route runs as someone only when they are. */
+function signedIn(): string | null {
+  try {
+    return currentActor().userId
+  } catch (error) {
+    if (error instanceof NoActor) return null
+    throw error
+  }
+}
+
 /** A PKCE challenge of S256: the base64url of a SHA-256, 43 characters. */
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/
 
@@ -36,7 +47,7 @@ export class OauthGrant_Module extends Module {
 
   static initialize(base: AuthBase, deps: OauthGrant_Deps, options: OauthGrant_Options): OauthGrant_Module {
     const module = new OauthGrant_Module(base, new OauthGrant_Repository(base), deps)
-    registerOauthGrantRoutes(base, module, options)
+    registerOauthGrantRoutes(base, module, deps, options)
     return module
   }
 
@@ -81,12 +92,19 @@ export class OauthGrant_Module extends Module {
     return { id: grant.id }
   }
 
-  /** What auth's UI shows of a request: to anyone with its address, signed in or not. */
+  /**
+   * What auth's UI shows of a request: to anyone with its address, signed in or not.
+   * To someone signed in whom the product will not let in, it says so upfront
+   * (`refused`), as `approve` would: the UI shows why, instead of asking.
+   */
   @UseCase()
   async review(id: string): Promise<OauthGrantReviewDTO> {
     const grant = await this.load(id)
     const client = await this.deps.oauthClient.get(grant.clientId)
-    const { id: productId, name, signUp } = await this.deps.product.get(grant.productId)
+    const product = await this.deps.product.get(grant.productId)
+    const { id: productId, name, signUp } = product
+    const userId = signedIn()
+    const refused = userId !== null && !(await this.mayEnter(userId, product)) ? new NoProductAccess(name) : null
     return {
       id: grant.id,
       clientName: client.name,
@@ -94,6 +112,7 @@ export class OauthGrant_Module extends Module {
       firstParty: grant.firstParty,
       redirectHost: new URL(grant.redirectUri).host,
       open: grant.is('pending'),
+      refused: refused && { code: refused.code, message: refused.message },
     }
   }
 
@@ -108,7 +127,7 @@ export class OauthGrant_Module extends Module {
     const grant = await this.load(id)
     if (!grant.is('pending')) throw new AuthorizationNotOpen()
     const product = await this.deps.product.get(grant.productId)
-    if (product.access === 'granted' && !(await this.deps.access.check(userId, product.id, null))) throw new NoProductAccess(product.name)
+    if (!(await this.mayEnter(userId, product))) throw new NoProductAccess(product.name)
 
     const code = grant.approve(userId)
     await this.repo.persist(grant)
@@ -147,6 +166,11 @@ export class OauthGrant_Module extends Module {
     await this.repo.persist(grant)
     const { id, userId, productId, resource } = grant.contract()
     return { grantId: id, userId: userId!, clientId, productId, resource }
+  }
+
+  /** A product that lets in only whom it was told lets in those with access to all of it. */
+  private async mayEnter(userId: string, product: ProductDTO): Promise<boolean> {
+    return product.access !== 'granted' || (await this.deps.access.check(userId, product.id, null)) !== null
   }
 
   private load(id: string): Promise<OauthGrant> {

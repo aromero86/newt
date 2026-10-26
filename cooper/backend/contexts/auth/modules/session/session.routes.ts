@@ -34,4 +34,14 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
   }, { public: true })
 
   base.http.get('/session', async () => Response.json(await sessions.me()))
+
+  // Where an app sends the browser once it signed someone out of itself: auth's session
+  // ends too, so signing in again asks who it is. The browser goes back to `redirect`
+  // if it is an address of one of cooper's products, to auth's start otherwise.
+  base.oauth.get('/logout', async request => {
+    await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
+    request.cookies.delete({ name: SessionCookie, path: '/' })
+    const location = await sessions.returnAddress(new URL(request.url).searchParams.get('redirect') ?? undefined)
+    return new Response(null, { status: 302, headers: { location } })
+  }, { public: true })
 }

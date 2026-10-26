@@ -3,7 +3,7 @@ import { DomainError } from 'newt/core'
 import type { CooperBase } from '../cooper-base'
 import type { WebSession_Module } from './web-session.module'
 import type { WebSession_Options } from './web-session-options'
-import { webSessionCookies } from './web-session.schema'
+import { webSessionCookies, type WebSessionSignOutDTO } from './web-session.schema'
 
 /** How long a sign-in may take, from leaving for auth to coming back. */
 const SIGN_IN_SECONDS = 10 * 60
@@ -49,11 +49,14 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
 
   base.http.get('/session', async () => Response.json(await sessions.me()))
 
-  // Public: signing out with a session already gone still clears the cookie.
+  // Public: signing out with a session already gone still clears the cookie. The
+  // browser goes on to auth, to sign out there too and come back: otherwise signing
+  // in again would sign the same person in, with no way to switch accounts.
   base.http.post('/session/sign-out', async request => {
     await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
     request.cookies.delete({ name: cookies.session, path: '/' })
-    return new Response(null, { status: 204 })
+    const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+    return Response.json({ next } satisfies WebSessionSignOutDTO)
   }, { public: true })
 
   /** The session lives in a cookie the page's scripts cannot read, sent only to this context. */

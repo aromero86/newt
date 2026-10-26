@@ -125,9 +125,14 @@ describe('the web session of a context', () => {
     // The code was spent: the same callback again opens nothing.
     expect(new URL((await as(redirectTo)).headers.get('location')!, clientUrl('/')).searchParams.get('signInError')).toBe('session.sign_in_expired')
 
-    expect((await as(clientUrl('/api/session/sign-out'), { method: 'POST' })).status).toBe(204)
+    // Signing out goes on to auth, which ends its own session too and sends the browser back.
+    const { next } = (await (await as(clientUrl('/api/session/sign-out'), { method: 'POST' })).json()) as { next: string }
+    expect(next).toBe(authUrl(`/oauth/logout?${new URLSearchParams({ redirect: `http://localhost:${servers[1]!.port}` })}`))
     expect((await as(clientUrl('/api/session'))).status).toBe(401)
     expect((await as(clientUrl('/api/whoami'))).status).toBe(401)
+    const loggedOut = await as(next)
+    expect(loggedOut.headers.get('location')).toBe(clientUrl('/'))
+    expect((await as(authUrl('/api/session'))).status).toBe(401)
   })
 
   test('refuses a callback that is not the answer to its own sign-in', async () => {
