@@ -128,7 +128,7 @@ cannot undo before the save:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
   @UseCase()
-  async edit(id: string, input: CardEditDTO): Promise<CardDTO> {
+  async edit(id: string, input: unknown): Promise<CardDTO> {
     const changes = CardEditSchema.parse(input)
     const card = await this.load(id)
     card.edit(changes, actingAuthor())

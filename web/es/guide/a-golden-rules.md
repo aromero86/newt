@@ -7,7 +7,7 @@ mantiene ordenado.
 ## Las que nunca se rompen
 
 1. **Un módulo, una responsabilidad.** Si describirlo necesita una "y", son dos. ([2](./02-first-module))
-2. **Una ruta no piensa.** Lee la petición, llama a un caso de uso y responde. ([2](./02-first-module))
+2. **Una ruta no piensa.** Lee la petición, llama a un caso de uso con el cuerpo tal como llegó, y responde; el caso de uso lo valida (`newt/route-body`). ([2](./02-first-module))
 3. **Solo la entidad se cambia a sí misma**, con métodos que dicen qué ha pasado. ([2](./02-first-module))
 4. **Solo el repositorio toca el store.** ([2](./02-first-module))
 5. **Una transacción es un guardado**, nunca un caso de uso entero. ([6](./06-rules-over-rows))
@@ -22,7 +22,8 @@ mantiene ordenado.
 
 - El backend es un proyecto TypeScript propio que importa newt por su nombre; decoradores estándar, nunca `experimentalDecorators`. ([1](./01-project-and-context))
 - Un contexto abre su store, crea su base e inicializa sus módulos; recibe su config y nunca lee el entorno. ([1](./01-project-and-context))
-- Todos los módulos tienen los mismos archivos, con su nombre ([apéndice B](./b-module-anatomy)); el lint los mantiene así. ([2](./02-first-module))
+- Todos los módulos tienen los mismos archivos, con su nombre ([apéndice B](./b-module-anatomy)); el lint los mantiene así, y `newt add module` los escribe ([apéndice G](./g-command-line)). ([2](./02-first-module))
+- El `AGENTS.md` de la aplicación dice lo que es propio de ella (contextos, convenciones, comandos) y manda a los agentes de programación a las reglas de newt, que viajan con el paquete; `newt init` lo escribe. ([1](./01-project-and-context))
 - El `*.schema.ts` de un módulo es su contrato: los esquemas de entrada toman solo lo que envía un cliente, y reutilizan las reglas del esquema completo; de newt toma solo `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - Un objeto de valor guarda las reglas de un valor en un solo sitio: `from` perdona lo que alguien escribió, `schema` es estricto con lo que se guarda. ([2](./02-first-module))
 - Un módulo llega a otro solo a través de su módulo, su esquema, sus eventos, sus errores y sus objetos de valor (`newt/module-boundaries`). ([6](./06-rules-over-rows))
@@ -31,6 +32,8 @@ mantiene ordenado.
 ## Casos de uso
 
 - Valida, carga, decide, cambia la entidad, guarda una vez, devuelve DTOs. ([2](./02-first-module))
+- Todo método público de un módulo es un `@UseCase`; lo que no lo es, es `private` (`newt/use-case`). ([2](./02-first-module))
+- Un caso de uso al que llama una ruta recibe su entrada como `unknown` y la valida con su esquema de entrada. ([2](./02-first-module))
 - Valida dos veces: la entrada en el caso de uso (un 400), el estado en la entidad (`InvalidEntity`, un 500: un bug). ([3](./03-pages-and-errors))
 - **Quién** es el actor: `currentActor()`, nunca un id de usuario pasado a mano. ([4](./04-who-and-where))
 - Extiende `Actor` para quién es alguien y cómo ha entrado (`via`), nunca para lo que puede hacer. ([4](./04-who-and-where), [24](./24-mcp-server))
@@ -43,6 +46,7 @@ mantiene ordenado.
 
 ## Guardar
 
+- Todo repositorio dice su scope: el `{ field, current }` de un tenant, o `'none'` con el motivo en un comentario; si falta, no compila. ([2](./02-first-module), [4](./04-who-and-where))
 - Cada fila tiene una versión; guardar una que alguien ha guardado después es un `ConcurrencyConflict` (409), y no se escribe nada. ([8](./08-two-people-one-card))
 - Una regla sobre varias filas se comprueba en el `after` del guardado, que nombra lo que protege en `guard`, con claves tan estrechas como la regla. ([6](./06-rules-over-rows))
 - Un guardado que lee filas y no protege nada se rechaza (la regla del guard): `guard: []` cuando no hace falta. ([6](./06-rules-over-rows))
@@ -91,6 +95,7 @@ mantiene ordenado.
 - Un cliente filtra solo por lo que permite `defineFilter`; las reglas del sistema van junto a su filtro, nunca dentro. ([15](./15-kysely), [18](./18-tenants-and-access))
 - Una consulta para la página y su total; nunca ids traídos para enviarlos de vuelta en un `in`. ([15](./15-kysely))
 - La búsqueda de texto vive detrás de un puerto propio, demostrado por una suite de contrato; una proyección va un momento por detrás, y las reglas nunca la leen. ([16](./16-search-port))
+- Los jobs de una proyección pueden llegar en cualquier orden: guarda la copia más nueva, y una eliminada deja una lápida para que una copia tardía no la traiga de vuelta. ([16](./16-search-port))
 - Una lectura a través de todos los scopes es `findInEveryScope`, con un nombre que lo dice. ([4](./04-who-and-where))
 - Las analíticas solo añaden, y cada fila tiene su id. ([26](./26-dead-jobs-and-analytics))
 

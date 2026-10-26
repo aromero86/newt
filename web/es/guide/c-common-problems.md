@@ -9,6 +9,13 @@ dos, y es aquello según lo que actúa un cliente.
 
 ## Guardar {#saving}
 
+**`Property 'scope' is missing in type '{ softDelete: true; }' but required in type 'TableRepositoryOptions<BoardRow>'.`**
+`bun check` rechaza un `TableRepository` que no dice a qué pertenecen sus filas. Todo
+repositorio dice su `scope`: el `{ field, current }` de un tenant (el de boards,
+`{ field: 'workspaceId', current: currentWorkspaceId }`), o `'none'` para filas de
+ningún tenant, con el motivo en un comentario al lado. Es obligatorio para que un scope
+nunca se pierda por omitirlo ([capítulo 4](./04-who-and-where)).
+
 **"Someone else changed this a moment ago. Reload it and try again." / "Someone changed it in the meantime. Try again." (`concurrency_conflict`, 409)**
 Dos guardados de la misma fila a la vez, y el caso de uso ya se ejecutó cuatro veces:
 newt ejecuta un caso de uso otra vez desde el principio ante un `ConcurrencyConflict`,
@@ -291,6 +298,18 @@ escuchando. Páralo, o mueve cooper con las variables `COOPER_*_PORT` y
 Has abierto el puerto propio de un contexto sin construir los frontends. En desarrollo,
 abre las URLs de los servidores Vite (5171, 5172, 5173). En producción, ejecuta primero
 `bun run cooper:build` ([capítulo 23](./23-frontends), [capítulo 29](./29-shipping)).
+
+**El lint: "'unassign' is a public method of Card_Module without @UseCase: …" (`newt/use-case`)**
+Un método de un módulo que puede llamar cualquiera que lo tenga, sin `@UseCase`: se
+ejecutaría fuera de la regla de escritura, del reintento ante un conflicto y de la
+traza. Márcalo con `@UseCase()`, o hazlo `private` si solo lo llama el módulo
+([apéndice B](./b-module-anatomy#newt-use-case)).
+
+**El lint: "The body is not CardEditDTO until something parses it: …" (`newt/route-body`)**
+Una ruta dice el tipo del cuerpo (`await request.json() as CardEditDTO`) antes de que
+nada lo compruebe. Pasa `await request.json()` tal como llegó, y deja que el caso de uso
+reciba `input: unknown` y lo valide con su esquema de entrada; un cuerpo que no encaja
+es entonces un 400 ([apéndice B](./b-module-anatomy#newt-route-body)).
 
 **El lint se detiene antes de lintear nada: "newt-eslint: contexts never use each other in a cycle, …"**
 El `contexts.uses` de `eslint.config.js` nombra un contexto que no lista, o forma un

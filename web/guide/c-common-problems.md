@@ -9,6 +9,13 @@ is what a client acts on.
 
 ## Saving
 
+**`Property 'scope' is missing in type '{ softDelete: true; }' but required in type 'TableRepositoryOptions<BoardRow>'.`**
+`bun check` refuses a `TableRepository` that does not say what its rows belong to.
+Every repository states its `scope`: a tenant's `{ field, current }` (boards'
+`{ field: 'workspaceId', current: currentWorkspaceId }`), or `'none'` for rows of no
+tenant, with the reason in a comment beside it. It is required so that a scope is never
+dropped by leaving it out ([chapter 4](./04-who-and-where)).
+
 **"Someone else changed this a moment ago. Reload it and try again." / "Someone changed it in the meantime. Try again." (`concurrency_conflict`, 409)**
 Two saves of the same row at once, and the use case already ran four times: newt runs a
 use case again from the start on a `ConcurrencyConflict`, up to three more times, and
@@ -280,6 +287,17 @@ variables; in development the Vite servers' proxies read the same `COOPER_*_PORT
 You opened a context's own port without building the frontends. In development, open
 the Vite servers' URLs (5171, 5172, 5173). In production, run `bun run cooper:build`
 first ([chapter 23](./23-frontends), [chapter 29](./29-shipping)).
+
+**The lint: "'unassign' is a public method of Card_Module without @UseCase: …" (`newt/use-case`)**
+A method of a module that anyone holding it may call, without `@UseCase`: it would run
+outside the write rule, the retry on a conflict and the trace. Mark it `@UseCase()`, or
+make it `private` if only the module calls it ([appendix B](./b-module-anatomy#newt-use-case)).
+
+**The lint: "The body is not CardEditDTO until something parses it: …" (`newt/route-body`)**
+A route says the body's type (`await request.json() as CardEditDTO`) before anything
+checked it. Pass `await request.json()` as it came, and let the use case take `input:
+unknown` and parse it with its input schema; a body that does not fit is then a 400
+([appendix B](./b-module-anatomy#newt-route-body)).
 
 **The lint stops before linting anything: "newt-eslint: contexts never use each other in a cycle, …"**
 `contexts.uses` in `eslint.config.js` names a context it does not list, or makes a

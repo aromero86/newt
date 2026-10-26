@@ -6,7 +6,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 ## The ones that never break
 
 1. **One module, one responsibility.** If describing it needs an "and", it is two. ([2](./02-first-module))
-2. **A route does not think.** It reads the request, calls a use case and answers. ([2](./02-first-module))
+2. **A route does not think.** It reads the request, calls a use case with the body as it came, and answers; the use case parses it (`newt/route-body`). ([2](./02-first-module))
 3. **Only the entity changes itself**, with methods that say what happened. ([2](./02-first-module))
 4. **Only the repository touches the store.** ([2](./02-first-module))
 5. **A transaction is one save**, never a whole use case. ([6](./06-rules-over-rows))
@@ -21,7 +21,8 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 
 - The backend is a TypeScript project of its own, importing newt by its name; standard decorators, never `experimentalDecorators`. ([1](./01-project-and-context))
 - A context opens its store, creates its base and initializes its modules; it receives its config and never reads the environment. ([1](./01-project-and-context))
-- Every module has the same files, named after it ([appendix B](./b-module-anatomy)); the lint keeps them so. ([2](./02-first-module))
+- Every module has the same files, named after it ([appendix B](./b-module-anatomy)); the lint keeps them so, and `newt add module` writes them ([appendix G](./g-command-line)). ([2](./02-first-module))
+- The application's `AGENTS.md` says what is its own (contexts, conventions, commands) and sends coding agents to newt's rules, which ship with the package; `newt init` writes it. ([1](./01-project-and-context))
 - A module's `*.schema.ts` is its contract: input schemas take only what a client sends, and reuse the rules of the whole one; from newt it takes only `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - A value object keeps a value's rules in one place: `from` forgives what someone typed, `schema` is strict about what is kept. ([2](./02-first-module))
 - A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`). ([6](./06-rules-over-rows))
@@ -30,6 +31,8 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 ## Use cases
 
 - Validate, load, decide, change the entity, save once, return DTOs. ([2](./02-first-module))
+- Every public method of a module is a `@UseCase`; what is not one is `private` (`newt/use-case`). ([2](./02-first-module))
+- A use case a route calls takes its input as `unknown` and parses it with its input schema. ([2](./02-first-module))
 - Validate twice: the input in the use case (a 400), the state in the entity (`InvalidEntity`, a 500: a bug). ([3](./03-pages-and-errors))
 - **Who** is the actor: `currentActor()`, never a user id passed by hand. ([4](./04-who-and-where))
 - Extend `Actor` for who someone is and how they came in (`via`), never for what they may do. ([4](./04-who-and-where), [24](./24-mcp-server))
@@ -42,6 +45,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 
 ## Saving
 
+- Every repository states its scope: a tenant's `{ field, current }`, or `'none'` with the reason in a comment; leaving it out does not compile. ([2](./02-first-module), [4](./04-who-and-where))
 - Every row has a version; saving one someone saved since is a `ConcurrencyConflict` (409), and nothing is written. ([8](./08-two-people-one-card))
 - A rule over several rows is checked in the save's `after`, which names what it protects in `guard`, keys as narrow as the rule. ([6](./06-rules-over-rows))
 - A save that reads rows and guards nothing is refused (the guard rule): `guard: []` when nothing needs it. ([6](./06-rules-over-rows))
@@ -90,6 +94,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 - A client filters only by what `defineFilter` allows; the system's rules go beside its filter, never inside. ([15](./15-kysely), [18](./18-tenants-and-access))
 - One query for the page and its total; never ids fetched to be sent back in an `in`. ([15](./15-kysely))
 - Text search lives behind a port of your own, proved by a contract suite; a projection is a moment behind, and rules never read it. ([16](./16-search-port))
+- A projection's jobs may come in any order: it keeps the newer copy, and a removed one leaves a tombstone so a late copy does not bring it back. ([16](./16-search-port))
 - A read across every scope is `findInEveryScope`, behind a name that says so. ([4](./04-who-and-where))
 - Analytics only appends, and every row has its id. ([26](./26-dead-jobs-and-analytics))
 

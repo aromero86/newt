@@ -12,9 +12,9 @@ que da.
 |---|---|---|
 | `<m>.schema.ts` | Los esquemas zod, los tipos DTO, los esquemas de entrada y los filtros: el **contrato público** del módulo. Lo importan otros módulos, otros contextos y los clientes de la API. Importa solo zod, `newt/contract`, objetos de valor y otros esquemas. | [2](./02-first-module), [23](./23-frontends) |
 | `<m>.ts` | La entidad, una clase que extiende `Entity`: el único código que cambia el estado del módulo. Reexporta el esquema. | [2](./02-first-module) |
-| `<m>.repository.ts` | El único archivo que toca el store: un `TableRepository` sobre la tabla del módulo, sus guardados con su `guard`, `before` y `after`, y cualquier consulta Kysely. | [2](./02-first-module), [6](./06-rules-over-rows) |
-| `<m>.module.ts` | `<M>_Module`: sus casos de uso (`@UseCase`), sus `events` (`eventsOf(base.bus, { … })`), y `static initialize`, que construye el repositorio y registra rutas y workers. | [2](./02-first-module), [10](./10-events) |
-| `<m>.routes.ts` | Sus rutas, si tiene alguna: leen la petición, llaman a un caso de uso, responden. | [2](./02-first-module) |
+| `<m>.repository.ts` | El único archivo que toca el store: un `TableRepository` sobre la tabla del módulo, que dice su `scope` (el `{ field, current }` de un tenant, o `'none'` con el motivo), sus guardados con su `guard`, `before` y `after`, y cualquier consulta Kysely. | [2](./02-first-module), [4](./04-who-and-where), [6](./06-rules-over-rows) |
+| `<m>.module.ts` | `<M>_Module`: sus casos de uso (`@UseCase`: todo método público es uno, los demás son `private`), sus `events` (`eventsOf(base.bus, { … })`), y `static initialize`, que construye el repositorio y registra rutas y workers. | [2](./02-first-module), [10](./10-events) |
+| `<m>.routes.ts` | Sus rutas, si tiene alguna: leen la petición, llaman a un caso de uso con el cuerpo tal como llegó (`await request.json()`), responden. | [2](./02-first-module) |
 | `<m>.workers.ts` | Sus reacciones a eventos y programaciones (`….subscribe(…, { strategy: 'handler', queue })`), si tiene alguna. | [11](./11-reacting) |
 | `<m>.deps.ts` | `<M>_Deps`: los módulos de su contexto a los que llama, y los puertos que necesita de fuera de su contexto, importados como tipos. | [4](./04-who-and-where), [13](./13-another-context) |
 | `<m>-options.ts` | `<M>_Options`: con qué lo configura su contexto (un mailer, una URL, un número de días, un adaptador). | [7](./07-cards-and-a-counter), [12](./12-failures) |
@@ -54,6 +54,11 @@ cooper/backend/contexts/boards/modules/board/
   errors/          board-not-found.ts, board-name-taken.ts, invalid-board-name.ts
   value-objects/   board-name.ts
 ```
+
+`bunx newt add module <carpeta-del-contexto> <nombre>` escribe el esqueleto de un
+módulo nuevo con estos archivos y nombres: esquema, entidad, repositorio, módulo, deps,
+rutas, un evento, un error y un test ([apéndice G](./g-command-line)). Su repositorio
+dice `scope: 'none'` hasta que lo decidas.
 
 Y un módulo que no guarda nada no tiene entidad ni repositorio: el `workspace` del
 backoffice es un módulo, sus deps, sus rutas, su esquema y su test
@@ -119,7 +124,7 @@ const BACKEND = newt({
 // …
 ```
 
-Ejecútalo con `bun run lint`. El preset activa siete comprobaciones: cinco reglas propias
+Ejecútalo con `bun run lint`. El preset activa nueve comprobaciones: siete reglas propias
 de newt (`newt/…`), una restricción y una regla de typescript-eslint. Los errores de
 abajo son reales: cada uno se escribió a propósito en `card/` y se pasó por el lint.
 
@@ -199,10 +204,10 @@ está; que su callback llama a ese caso de uso en ese módulo; y que termina con
 al que está suscrita (`events.assigned` → `….assigned`). Señala cuatro errores distintos:
 
 ```ts
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'notify-assignee' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'board.notifyAssignee.on.card.assigned' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'card.notify.on.card.assigned' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'card.notifyAssignee.on.card.created' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'notify-assignee' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'board.notifyAssignee.on.card.assigned' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'card.notify.on.card.assigned' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'card.notifyAssignee.on.card.created' })
 ```
 
 ```text
@@ -217,6 +222,63 @@ que no termina con su evento ([apéndice C](./c-common-problems#workers)); el li
 detecta eso y lo demás en el editor ([capítulo 11](./11-reacting)). Una suscripción que
 no es de ningún módulo (la reacción propia de un test) no tiene un caso de uso que
 nombrar: desactiva la regla para esa línea, diciendo por qué.
+
+### `newt/use-case`
+
+**Dónde**: cada `*.module.ts` que lintea el preset, esté donde esté (también el de un
+módulo de `shared/`).
+**Qué comprueba**: que, en una clase que extiende `Module`, todo método público lleva
+`@UseCase`. Un método sin marcar se ejecutaría fuera de lo que recibe un caso de uso: la
+regla de escritura, el reintento ante un conflicto, su span en la traza. Uno al que solo
+llama el propio módulo es `private` (o `protected`). Una función en un campo público
+también se rechaza, porque un decorador no puede marcarla. Los métodos estáticos, el
+constructor y los getters quedan fuera.
+
+```ts
+  // @UseCase() left off
+  async unassign(id: string): Promise<CardDTO> {
+  // …
+  // private left off
+  load(id: string): Promise<Card> {
+```
+
+```text
+card/card.module.ts
+  185:9  error  'unassign' is a public method of Card_Module without @UseCase: whatever a module offers is a use case. Mark it @UseCase(), or make it private if only the module calls it  newt/use-case
+  350:3  error  'load' is a public method of Card_Module without @UseCase: whatever a module offers is a use case. Mark it @UseCase(), or make it private if only the module calls it  newt/use-case
+```
+
+Arreglo: `@UseCase()` en lo que ofrece el módulo, `private` en sus funciones auxiliares
+([capítulo 2](./02-first-module)).
+
+### `newt/route-body`
+
+**Dónde**: cada `*.routes.ts` que lintea el preset, esté donde esté.
+**Qué comprueba**: que una ruta pasa el cuerpo a un caso de uso tal como llegó. `await
+request.json() as X`, `<X>await request.json()` y `const body: X = await
+request.json()` dicen que el cuerpo es un `X` antes de que nada lo compruebe: un caso de
+uso que olvidara validarlo lo recibiría sin comprobar, y el compilador no avisaría. `as
+unknown`, o el `parse` de un esquema en la ruta, está bien.
+
+```ts
+  workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json() as CardEditDTO)))
+
+  workspace.post('/cards/:cardId/move', async request => {
+    const body: CardMoveDTO = await request.json()
+    return Response.json(await cards.move(request.params.cardId, body))
+  })
+```
+
+```text
+card/card.routes.ts
+  22:108  error  The body is not CardEditDTO until something parses it: pass `await request.json()` as it came to a use case that takes `unknown` and parses it with its input schema  newt/route-body
+  25:11   error  The body is not CardMoveDTO until something parses it: pass `await request.json()` as it came to a use case that takes `unknown` and parses it with its input schema  newt/route-body
+```
+
+Arreglo: pasa `await request.json()` tal cual a un caso de uso que recibe `input:
+unknown` y lo valida con su esquema de entrada ([capítulo 2](./02-first-module)). Un
+caso de uso al que llama un worker con un valor tipado puede recibir su DTO
+(`card.createFirst`, [capítulo 14](./14-sagas)).
 
 ### `newt/context-boundaries`
 
@@ -284,6 +346,9 @@ La regla necesita que cada archivo linteado esté en un proyecto TypeScript: el
 - Lo que importan los objetos de valor de un esquema: `newt/schema-imports` lee solo
   los imports del propio esquema. Un objeto de valor que importa `newt/core` llega al
   frontend a través de él, y Vite avisa de `node:async_hooks` ([capítulo 23](./23-frontends)).
+- El scope de un repositorio: lo comprueba el compilador. `scope` es obligatorio en las
+  opciones de un `TableRepository` (`RepositoryScope` o `'none'`), así que si falta no
+  compila ([capítulo 4](./04-who-and-where)).
 - La regla de escritura y la regla del guard: newt las comprueba mientras se ejecuta el
   código ([capítulo 8](./08-two-people-one-card), [capítulo 6](./06-rules-over-rows)).
 

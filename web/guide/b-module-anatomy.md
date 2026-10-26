@@ -11,9 +11,9 @@ what each holds, then every rule of `newt-eslint`, with the error each one gives
 |---|---|---|
 | `<m>.schema.ts` | The zod schemas, the DTO types, the input schemas and the filters: the module's **public contract**. Other modules, other contexts and the API clients import it. It imports only zod, `newt/contract`, value objects and other schemas. | [2](./02-first-module), [23](./23-frontends) |
 | `<m>.ts` | The entity, a class extending `Entity`: the only code that changes the module's state. It re-exports the schema. | [2](./02-first-module) |
-| `<m>.repository.ts` | The only file that touches the store: a `TableRepository` over the module's table, its saves with their `guard`, `before` and `after`, and any Kysely query. | [2](./02-first-module), [6](./06-rules-over-rows) |
-| `<m>.module.ts` | `<M>_Module`: its use cases (`@UseCase`), its `events` (`eventsOf(base.bus, { … })`), and `static initialize`, which builds the repository and registers routes and workers. | [2](./02-first-module), [10](./10-events) |
-| `<m>.routes.ts` | Its routes, if it has any: read the request, call a use case, answer. | [2](./02-first-module) |
+| `<m>.repository.ts` | The only file that touches the store: a `TableRepository` over the module's table, which states its `scope` (a tenant's `{ field, current }`, or `'none'` with the reason), its saves with their `guard`, `before` and `after`, and any Kysely query. | [2](./02-first-module), [4](./04-who-and-where), [6](./06-rules-over-rows) |
+| `<m>.module.ts` | `<M>_Module`: its use cases (`@UseCase`: every public method is one, the rest are `private`), its `events` (`eventsOf(base.bus, { … })`), and `static initialize`, which builds the repository and registers routes and workers. | [2](./02-first-module), [10](./10-events) |
+| `<m>.routes.ts` | Its routes, if it has any: read the request, call a use case with the body as it came (`await request.json()`), answer. | [2](./02-first-module) |
 | `<m>.workers.ts` | Its reactions to events and schedules (`….subscribe(…, { strategy: 'handler', queue })`), if it has any. | [11](./11-reacting) |
 | `<m>.deps.ts` | `<M>_Deps`: the modules of its context it calls, and the ports it needs from outside its context, imported as types. | [4](./04-who-and-where), [13](./13-another-context) |
 | `<m>-options.ts` | `<M>_Options`: what its context configures it with (a mailer, a URL, a number of days, an adapter). | [7](./07-cards-and-a-counter), [12](./12-failures) |
@@ -53,6 +53,11 @@ cooper/backend/contexts/boards/modules/board/
   errors/          board-not-found.ts, board-name-taken.ts, invalid-board-name.ts
   value-objects/   board-name.ts
 ```
+
+`bunx newt add module <context-folder> <name>` writes a new module's skeleton with
+these files and names: schema, entity, repository, module, deps, routes, one event, one
+error and a test ([appendix G](./g-command-line)). Its repository says `scope: 'none'`
+until you decide it.
 
 And a module that keeps nothing has no entity and no repository: the backoffice's
 `workspace` is a module, its deps, its routes, its schema and its test
@@ -116,7 +121,7 @@ const BACKEND = newt({
 // …
 ```
 
-Run it with `bun run lint`. The preset turns on seven checks: five rules of newt's own
+Run it with `bun run lint`. The preset turns on nine checks: seven rules of newt's own
 (`newt/…`), one restriction, and one rule of typescript-eslint. The errors below are
 real: each was written into `card/` on purpose and linted.
 
@@ -195,10 +200,10 @@ module; and it ends with the event it is subscribed under (`events.assigned` →
 `….assigned`). It reports four different mistakes:
 
 ```ts
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'notify-assignee' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'board.notifyAssignee.on.card.assigned' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'card.notify.on.card.assigned' })
-cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), { strategy: 'handler', queue: 'card.notifyAssignee.on.card.created' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'notify-assignee' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'board.notifyAssignee.on.card.assigned' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'card.notify.on.card.assigned' })
+cards.events.assigned.subscribe(({ dto, by }, { id }) => cards.notifyAssignee(dto, by, id), { strategy: 'handler', queue: 'card.notifyAssignee.on.card.created' })
 ```
 
 ```text
@@ -213,6 +218,62 @@ does not end with its event ([appendix C](./c-common-problems#workers)); the lin
 catches that and the rest in the editor ([chapter 11](./11-reacting)). A subscription
 that is no module's (a test's own reaction) has no use case to name: turn the rule off
 for that line, saying why.
+
+### `newt/use-case`
+
+**Where**: every `*.module.ts` the preset lints, wherever it is (a `shared/` module's
+too).
+**What it checks**: in a class that extends `Module`, every public method is marked
+`@UseCase`. A method left unmarked would run outside what a use case gets: the write
+rule, the retry on a conflict, its span in the trace. One only the module calls is
+`private` (or `protected`). A function in a public field is refused too, since a
+decorator cannot mark it. Static methods, the constructor and getters are left alone.
+
+```ts
+  // @UseCase() left off
+  async unassign(id: string): Promise<CardDTO> {
+  // …
+  // private left off
+  load(id: string): Promise<Card> {
+```
+
+```text
+card/card.module.ts
+  185:9  error  'unassign' is a public method of Card_Module without @UseCase: whatever a module offers is a use case. Mark it @UseCase(), or make it private if only the module calls it  newt/use-case
+  350:3  error  'load' is a public method of Card_Module without @UseCase: whatever a module offers is a use case. Mark it @UseCase(), or make it private if only the module calls it  newt/use-case
+```
+
+Fix: `@UseCase()` on what the module offers, `private` on its helpers
+([chapter 2](./02-first-module)).
+
+### `newt/route-body`
+
+**Where**: every `*.routes.ts` the preset lints, wherever it is.
+**What it checks**: a route hands the body to a use case as it came. `await
+request.json() as X`, `<X>await request.json()` and `const body: X = await
+request.json()` say the body is an `X` before anything checked it: a use case that
+forgot to parse would get it unchecked, and the compiler would not tell. `as unknown`,
+or a schema's `parse` in the route, is fine.
+
+```ts
+  workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json() as CardEditDTO)))
+
+  workspace.post('/cards/:cardId/move', async request => {
+    const body: CardMoveDTO = await request.json()
+    return Response.json(await cards.move(request.params.cardId, body))
+  })
+```
+
+```text
+card/card.routes.ts
+  22:108  error  The body is not CardEditDTO until something parses it: pass `await request.json()` as it came to a use case that takes `unknown` and parses it with its input schema  newt/route-body
+  25:11   error  The body is not CardMoveDTO until something parses it: pass `await request.json()` as it came to a use case that takes `unknown` and parses it with its input schema  newt/route-body
+```
+
+Fix: pass `await request.json()` as it is, to a use case that takes `input: unknown`
+and parses it with its input schema ([chapter 2](./02-first-module)). A use case a
+worker calls with a typed value may take its DTO (`card.createFirst`,
+[chapter 14](./14-sagas)).
 
 ### `newt/context-boundaries`
 
@@ -279,6 +340,9 @@ part ([chapter 20](./20-wiring-contexts)).
 - What a schema's value objects import: `newt/schema-imports` reads only the schema's
   own imports. A value object that imports `newt/core` reaches the frontend through
   it, and Vite warns about `node:async_hooks` ([chapter 23](./23-frontends)).
+- A repository's scope: the compiler does. `scope` is required in a
+  `TableRepository`'s options (`RepositoryScope` or `'none'`), so leaving it out does
+  not compile ([chapter 4](./04-who-and-where)).
 - The write rule and the guard rule: newt checks those as the code runs
   ([chapter 8](./08-two-people-one-card), [chapter 6](./06-rules-over-rows)).
 
