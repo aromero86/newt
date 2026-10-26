@@ -105,9 +105,13 @@ describe('workspace', () => {
     await t.auth.createWorkspace('acme', 'ana')
     await t.auth.createWorkspace('globex', 'bea')
     await t.settled()
+    const indexed = (workspaceId: string) => t.search.search(workspaceId, { criteria: {} }, { size: 10 }).then(page => page.total)
+    expect([await indexed('acme'), await indexed('globex')]).toEqual([1, 1])
 
     await t.auth.deleteWorkspace('acme')
     await t.settled()
+    // The search forgets its cards too.
+    expect([await indexed('acme'), await indexed('globex')]).toEqual([0, 1])
 
     expect(await t.modules.board.listOf('acme', { size: 10 })).toMatchObject({ items: [], total: 0 })
     expect(await t.modules.card.countByWorkspace(['acme', 'globex'])).toEqual([{ workspaceId: 'acme', cards: 0 }, { workspaceId: 'globex', cards: 1 }])

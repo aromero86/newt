@@ -20,6 +20,8 @@ export class Boards_Context extends ServedContext {
     const store = await SqliteStore.open({ path: config.database, migrations: join(import.meta.dir, 'migrations', 'sqlite') })
     const base = new BoardsBase({ name: 'boards', store })
     const modules = initializeModules(base, config, deps)
+    // The cards' search starts empty in memory: every card is indexed before anyone searches.
+    await modules.card.reindex()
     return new Boards_Context(base, modules, config)
   }
 }

@@ -1,7 +1,6 @@
-import { toPage, type Criteria, type Page, type PageRequest } from 'newt/core'
+import { toPage, type Page, type PageRequest } from 'newt/core'
 import { whereOf } from 'newt/kysely'
 import { TableRepository } from 'newt/repository'
-import { sql, type SqlBool } from 'kysely'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Card, MAX_CARDS, type CardCountByBoard, type CardCountByWorkspace, type CardDTO } from './card'
@@ -88,26 +87,13 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
   }
 
   /**
-   * A page of the current workspace's cards that meet the criteria and have the text in
-   * their title or description, whatever its case: criteria have no "contains", so it
-   * is one query of Kysely, with the criteria in it (`whereOf` says them as the store's
-   * tables do), paged by id. `%` and `_` are only themselves: `!` escapes them.
+   * A page of the cards of every workspace, by id: for indexing them all again, never
+   * for a workspace's own work.
    */
-  async search(criteria: Criteria<CardDTO>, text: string | undefined, page: PageRequest): Promise<Page<Card>> {
-    const pattern = `%${(text ?? '').replace(/[!%_]/g, '!$&')}%`
-    const matching = this.base.db
-      .selectFrom('card')
-      .where('workspaceId', '=', currentWorkspaceId())
-      .where(whereOf(this.store, criteria))
-      .where(eb => eb.or([
-        sql<SqlBool>`lower(${eb.ref('title')}) like lower(${pattern}) escape '!'`,
-        sql<SqlBool>`lower(${eb.ref('description')}) like lower(${pattern}) escape '!'`,
-      ]))
-    const [rows, counted] = await Promise.all([
-      matching.selectAll().$if(page.cursor !== undefined, query => query.where('id', '>', page.cursor!)).orderBy('id').limit(page.size + 1).execute(),
-      matching.select(eb => eb.fn.countAll<number>().as('total')).executeTakeFirstOrThrow(),
-    ])
-    return toPage(rows.map(row => this.toEntity(row)), page.size, Number(counted.total))
+  async pageInEveryScope(page: PageRequest): Promise<Page<Card>> {
+    const after = page.cursor === undefined ? {} : { id: { gt: page.cursor } }
+    const [cards, total] = await Promise.all([this.findInEveryScope(after, { limit: page.size + 1 }), this.table.count({})])
+    return toPage(cards, page.size, total)
   }
 
   /**

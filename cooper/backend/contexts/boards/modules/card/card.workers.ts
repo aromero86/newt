@@ -21,6 +21,14 @@ export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
     queue: 'card.notifyAssignee.on.card.assigned',
   })
 
+  // The search finds each card as it is now: whatever happened to it, it is indexed again, or removed.
+  cards.events.created.subscribe(card => cards.indexCard(card.workspaceId, card.id), { strategy: 'handler', queue: 'card.indexCard.on.card.created' })
+  cards.events.edited.subscribe(({ dto }) => cards.indexCard(dto.workspaceId, dto.id), { strategy: 'handler', queue: 'card.indexCard.on.card.edited' })
+  cards.events.moved.subscribe(({ dto }) => cards.indexCard(dto.workspaceId, dto.id), { strategy: 'handler', queue: 'card.indexCard.on.card.moved' })
+  cards.events.assigned.subscribe(({ dto }) => cards.indexCard(dto.workspaceId, dto.id), { strategy: 'handler', queue: 'card.indexCard.on.card.assigned' })
+  cards.events.unassigned.subscribe(({ dto }) => cards.indexCard(dto.workspaceId, dto.id), { strategy: 'handler', queue: 'card.indexCard.on.card.unassigned' })
+  cards.events.deleted.subscribe(card => cards.indexCard(card.workspaceId, card.id), { strategy: 'handler', queue: 'card.indexCard.on.card.deleted' })
+
   // A card points at its column: when a column goes, no card is left in it. A card
   // checks its column before its save, so the column may go in between: a card
   // created in one, or moved to one, looks again once saved. Whichever looks last finds it.

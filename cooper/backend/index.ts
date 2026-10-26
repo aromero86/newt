@@ -2,6 +2,7 @@
 import { serve } from 'newt/http'
 import { config } from './config'
 import { Boards_Context } from './contexts/boards/boards.context'
+import { MemoryCardSearch } from './contexts/boards/search/memory-card-search'
 import { FakeAuth } from './contexts/boards/testing/fake-auth'
 import { ConsoleMailer } from './shared/mail/console-mailer'
 import { setCooperMessages } from './shared/messages'
@@ -21,6 +22,7 @@ const boards = await Boards_Context.open(config.boards, {
   tenants: auth.tenants,
   access: auth.access,
   mailer: new ConsoleMailer(config.mail.from),
+  search: new MemoryCardSearch(),
   log: line => console.log(line),
 })
 // For now, who sends a request says who they are in an `x-user` header (chapter 22 signs them in).

@@ -316,6 +316,8 @@ describe('card', () => {
     await create('Design the logo', { columnId: doing, assigneeId: 'bea' })
     await create('Plan the party', { columnId: doing })
     await create('100% done_ish')
+    // The search is a moment behind: each card is indexed by a worker.
+    await t.settled()
     const search = (input: object, size = 10) => inAcme(() => t.modules.card.search(input, { size }))
     const titles = (page: { items: CardDTO[] }) => page.items.map(card => card.title)
 
@@ -330,12 +332,52 @@ describe('card', () => {
     await expect(search({ filter: { field: 'title', op: 'eq', value: 'x' } })).rejects.toThrow()
   })
 
-  test('finds a card by its title whatever the case of A to Z, and other letters as they are written', async () => {
+  test('finds a card by the text of its title as it is written, letters beyond A to Z too', async () => {
     await create('Ärger im Büro')
+    await t.settled()
 
     const found = await inAcme(() => t.modules.card.search({ text: 'ÄRGER IM' }, { size: 10 }))
 
     expect(found.items.map(card => card.title)).toEqual(['Ärger im Büro'])
+  })
+
+  test('finds a card as it is now, a moment after each change, and none once deleted', async () => {
+    const card = await create('Plan')
+    const search = (text: string) => inAcme(() => t.modules.card.search({ text }, { size: 10 })).then(page => page.items.map(each => each.title))
+    expect(await search('plan')).toEqual([])
+    await t.settled()
+    expect(await search('plan')).toEqual(['Plan'])
+
+    await inAcme(() => t.modules.card.edit(card.id, { title: 'Design' }))
+    await t.settled()
+    expect(await search('plan')).toEqual([])
+    expect(await search('design')).toEqual(['Design'])
+
+    await inAcme(() => t.modules.card.delete(card.id))
+    expect(await search('design')).toEqual([])
+    await t.settled()
+    expect(await t.search.search('acme', { criteria: {} }, { size: 10 })).toMatchObject({ items: [], total: 0 })
+  })
+
+  test('indexes again every card of every workspace, page by page, those written past its events too', async () => {
+    // Written as rows, as a search that lost its index finds them: 1,001 cards of three boards.
+    const now = new Date().toISOString()
+    const rows = Array.from({ length: 1_001 }, (_, i) => ({
+      id: Bun.randomUUIDv7(), workspaceId: i < 1_000 ? 'acme' : 'globex', boardId: `board-${Math.floor(i / 500)}`, columnId: todo, number: i % 500 + 1,
+      title: `Task ${i}`, description: '', assigneeId: i % 2 === 0 ? 'bea' : null, position: i % 500, createdAt: now, updatedAt: now, version: 1,
+    }))
+    await t.writeCards(rows)
+    const search = (input: object, cursor?: string) => inAcme(() => t.modules.card.search(input, { size: 2, cursor }))
+    expect(await search({ text: 'task' })).toMatchObject({ total: 0 })
+
+    await t.modules.card.reindex()
+
+    const first = await search({ text: 'TASK' })
+    expect(first).toMatchObject({ hasMore: true, total: 1_000 })
+    expect(first.items.map(card => card.title)).toEqual(['Task 0', 'Task 1'])
+    expect((await search({ text: 'task' }, first.nextCursor)).items.map(card => card.title)).toEqual(['Task 2', 'Task 3'])
+    expect(await search({ text: 'task', filter: { field: 'assignee', op: 'eq', value: 'bea' } })).toMatchObject({ total: 500 })
+    expect(await t.as('carl', 'globex', () => t.modules.card.search({ text: 'task' }, { size: 2 }))).toMatchObject({ items: [{ title: 'Task 1000' }], total: 1 })
   })
 
   test('counts cards by workspace and by board, for the backoffice', async () => {
