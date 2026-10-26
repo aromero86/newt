@@ -79,6 +79,16 @@ describe('HttpRouter, further', () => {
     expect(await response.json()).toMatchObject({ code: 'route_not_found' })
   })
 
+  test('the prefix itself takes a route registered at \'\'', async () => {
+    const router = new HttpRouter()
+    router.get('', own('GET'), { public: true })
+    const server = serve(router)
+
+    expect(await (await fetch(new URL('/api', server.url))).json()).toEqual({ method: 'GET' })
+    expect((await fetch(new URL('/api', server.url), { method: 'POST' })).status).toBe(405)
+    expect((await fetch(new URL('/api/other', server.url))).status).toBe(404)
+  })
+
   test('is case-sensitive: a prefix written in other letters is not the API', async () => {
     const router = new HttpRouter()
     router.get('/things', own('GET'), { public: true })
@@ -117,7 +127,7 @@ describe('a body', () => {
     const good = await fetch(new URL('/api/things', server.url), { method: 'POST', headers: JSON_TYPE, body: '{"a":1}' })
 
     expect(bad.status).toBe(400)
-    expect(await bad.json()).toEqual({ error: 'The body of the request is not valid JSON', code: 'malformed_body' })
+    expect(await bad.json()).toEqual({ error: 'The body of the request cannot be read', code: 'malformed_body' })
     expect(await good.json()).toEqual({ a: 1 })
   })
 
@@ -161,6 +171,35 @@ describe('a body', () => {
     expect(bad.status).toBe(400)
     expect(await bad.json()).toMatchObject({ code: 'malformed_body' })
     expect(await good.json()).toEqual({ a: '1' })
+  })
+
+  test('a broken multipart form is the client\'s fault too, whatever Bun throws for it', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json(Object.fromEntries(await request.formData())), { public: true })
+    const server = serve(router)
+    const post = (body: string) =>
+      fetch(new URL('/api/things', server.url), { method: 'POST', headers: { 'content-type': 'multipart/form-data; boundary=x' }, body })
+
+    for (const body of ['garbage', '--x\r\nContent-Disposition: form-data; name="a"\r\n\r\n1\r\n', '--x\r\nbad header\r\n\r\n1\r\n--x--\r\n']) {
+      const response = await post(body)
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ code: 'malformed_body' })
+    }
+  })
+
+  test('a form read twice is the route\'s mistake: a 500', async () => {
+    const router = new HttpRouter()
+    router.post('/things', async request => Response.json([await request.formData(), await request.formData()]), { public: true })
+    const server = serve(router)
+    const original = console.error
+    console.error = () => {}
+
+    try {
+      const response = await fetch(new URL('/api/things', server.url), { method: 'POST', body: new URLSearchParams({ a: '1' }) })
+      expect(response.status).toBe(500)
+    } finally {
+      console.error = original
+    }
   })
 })
 

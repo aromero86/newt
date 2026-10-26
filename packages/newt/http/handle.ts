@@ -24,7 +24,8 @@ export function handle(route: HttpRoute) {
     Object.defineProperty(request, 'formData', {
       value: async () => {
         if (request.bodyUsed) return formData()
-        return formData().catch(error => { throw error instanceof TypeError ? new MalformedBody(error) : error })
+        // Bun rejects a broken form with a TypeError or a plain Error, by what is broken.
+        return formData().catch(error => { throw new MalformedBody(error) })
       },
     })
     try {

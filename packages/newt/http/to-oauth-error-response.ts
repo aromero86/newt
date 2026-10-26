@@ -12,8 +12,8 @@ export function toOauthErrorResponse(error: unknown, fallback: string, codes: Re
   const answer = (status: number, code: string, description: string) =>
     Response.json({ error: code, error_description: description }, { status, headers: { 'cache-control': 'no-store' } })
 
-  // A body that is not JSON (read raw, or inside `handle`) or not a form (read inside `handle`).
-  // Any other TypeError is a bug of the server's own, a 500 like the rest.
+  // A body that is not JSON (read raw, or inside `handle`) or not a form (read inside `handle`,
+  // whatever Bun throws for it). Any other TypeError is a bug of the server's own, a 500 like the rest.
   if (error instanceof SyntaxError || error instanceof MalformedBody) return answer(400, fallback, message('validation'))
   if (error instanceof DomainError) return answer(error.status, codes[error.code] ?? fallback, error.message)
   if (error instanceof ZodError) return answer(400, fallback, error.issues[0]?.message ?? message('validation'))

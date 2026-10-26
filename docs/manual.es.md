@@ -820,7 +820,7 @@ export function registerProductRoutes(
   `x-user`, responde 401.
 - No hay `try/catch`. Si el caso de uso lanza un `ProductNotFound`, el router
   responde 404 con `{ error, code }`. Un dato de entrada mal formado es un 400: un
-  cuerpo que no es JSON (`malformed_body`), o uno que no pasa el esquema del caso de
+  cuerpo que no se puede leer (`malformed_body`), o uno que no pasa el esquema del caso de
   uso (`validation`, con sus `issues`). Un cuerpo JSON llega como
   `application/json` (o `…+json`); con otro `Content-Type` es un 415
   (`unsupported_media_type`). Cualquier otro error, un 500 que no cuenta nada de
@@ -1369,7 +1369,7 @@ Por eso en el catálogo hay tres defensas, y cada una tiene su papel:
   valor exacto;
 - `persistWithNameFree` cubre el resto: `Arroz` y `ARROZ` a la vez pasarían las dos
   por el `unique`. Vuelve a contar el nombre sin mirar mayúsculas **dentro del
-  guardado** (`after`), y guarda el nombre en minúsculas (`guard`) para que ningún
+  guardado** (`after`), y toma como `guard` el nombre en minúsculas para que ningún
   otro guardado de ese nombre se cuele en medio: lo veremos en el capítulo 10;
 - `assertNameFree` comprueba antes de guardar y da un **error claro**
   (`product.name_taken`). Como el caso de uso se repite tras el choque, también la
@@ -1469,8 +1469,8 @@ Recuerda el reparto:
 - **el `guard` protege una regla entre varias filas**: nadie se cuela entre tu
   escritura y tu comprobación.
 
-Fuera de eso, cada store usa su aislamiento normal (`READ COMMITTED` en Postgres y
-MySQL); no hace falta pedir nada más estricto.
+Fuera de eso, Postgres y MySQL corren en `READ COMMITTED` (en MySQL lo fija el store
+en cada transacción); no hace falta pedir nada más estricto.
 
 Ahora la historia acaba bien:
 
@@ -2825,7 +2825,7 @@ setMessages({
   method_not_allowed: ({ method, path }) =>
     `${method} no está permitido en ${path}`,
   validation: () => 'La petición no es válida',
-  malformed_body: () => 'El cuerpo de la petición no es JSON válido',
+  malformed_body: () => 'El cuerpo de la petición no se puede leer',
   unsupported_media_type: () =>
     'El cuerpo de la petición tiene que enviarse como application/json',
   filter_too_deep: ({ max }) => `Un filtro anida como mucho ${max} grupos`,
@@ -2987,8 +2987,6 @@ Reglas:
   migraciones corren con las claves ajenas apagadas, así que rehacer una tabla
   (crear la nueva, copiar, borrar la vieja, renombrar) no borra las filas que
   apuntan a ella; si alguna queda apuntando a nada, la migración falla.
-- **Dos migraciones con el mismo número** (dos ramas que se juntan) no arrancan:
-  renumera una.
 - `down` deshace exactamente lo que hizo `up`.
 
 Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
@@ -2998,7 +2996,8 @@ Postgres y MySQL usan los mismos pares de ficheros, cada uno en su dialecto
 Un fichero puede tener varias sentencias, y también triggers y funciones con sus
 propios `;` dentro: SQLite lo ejecuta sentencia a sentencia, con el trigger de una
 pieza, y en Postgres un cuerpo entre
-`$$ … $$` va de una pieza. En MySQL cada `;` cierra una sentencia, así que un trigger
+`$$ … $$` va de una pieza. En MySQL cada `;` fuera de textos, nombres entre comillas y
+comentarios cierra una sentencia, así que un trigger
 de MySQL tiene que ser de una sola (`FOR EACH ROW SET NEW.x = …`), sin `BEGIN … END`.
 
 Las pendientes se aplican en una transacción. En SQLite y Postgres es todo o nada. En

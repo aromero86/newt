@@ -10,6 +10,9 @@ const QUEUE = /^([a-z][A-Za-z0-9]*)\.([a-z][A-Za-z0-9]*)\.on\.[^.\s]+\.([^.\s]+)
 
 const property = (object, name) => object.properties.find(each => each.type === 'Property' && !each.computed && ((each.key.type === 'Identifier' && each.key.name === name) || each.key.value === name))
 
+/** A value without what only TypeScript sees around it: `'handler' as const` is `'handler'`. */
+const unwrap = (node) => node?.type === 'TSAsExpression' || node?.type === 'TSSatisfiesExpression' ? unwrap(node.expression) : node
+
 /** The variable a name is, from the scope it is read in. */
 function variableOf(scope, name) {
   for (let each = scope; each; each = each.upper) {
@@ -55,13 +58,22 @@ export const queueName = {
     const module = camelCase(place.module)
     const type = `${module[0].toUpperCase()}${module.slice(1)}_Module`
 
-    /** That `object` is the module: `this` in its own file, or a name of its type (`orders: Order_Module`), or named after it when it has no type. */
+    /** The names a module goes by without a type: its own, and its English plurals (`order`, `orders`; `category`, `categories`; `box`, `boxes`). */
+    const names = new Set([module, `${module}s`])
+    if (/[^aeiou]y$/.test(module)) names.add(`${module.slice(0, -1)}ies`)
+    if (/(s|x|z|ch|sh)$/.test(module)) names.add(`${module}es`)
+
+    /** That `object` is the module: `this` in its own file, or a name of its type (`orders: Order_Module`, `m.Order_Module`), or named after it when it has no type (`orders`, `this.orders`). */
     const isModule = (object) => {
       if (object.type === 'ThisExpression') return true
+      if (object.type === 'MemberExpression') return !object.computed && object.property.type === 'Identifier' && names.has(object.property.name)
       if (object.type !== 'Identifier') return false
       const annotation = variableOf(context.sourceCode.getScope(object), object.name)?.defs[0]?.name.typeAnnotation?.typeAnnotation
-      if (annotation) return annotation.type === 'TSTypeReference' && annotation.typeName.type === 'Identifier' && annotation.typeName.name === type
-      return object.name === module || object.name === `${module}s`
+      if (annotation) {
+        const name = annotation.type === 'TSTypeReference' ? annotation.typeName : null
+        return (name?.type === 'Identifier' ? name.name : name?.type === 'TSQualifiedName' ? name.right.name : null) === type
+      }
+      return names.has(object.name)
     }
 
     /** What the callback runs: its body when written there or a function declared in the file, else `null` (`orders.fulfil.bind(orders)`), and nothing is guessed. */
@@ -76,8 +88,8 @@ export const queueName = {
       CallExpression(node) {
         const { callee, arguments: [callback, options] } = node
         if (callee.type !== 'MemberExpression' || callee.property.name !== 'subscribe' || options?.type !== 'ObjectExpression') return
-        const strategy = property(options, 'strategy')?.value
-        const queue = property(options, 'queue')?.value
+        const strategy = unwrap(property(options, 'strategy')?.value)
+        const queue = unwrap(property(options, 'queue')?.value)
         if (strategy?.value !== 'handler' || queue?.type !== 'Literal' || typeof queue.value !== 'string') return
         const shape = QUEUE.exec(queue.value)
         if (!shape) return context.report({ node: queue, messageId: 'shape', data: { queue: queue.value } })

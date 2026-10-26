@@ -93,6 +93,12 @@ tester.run('queue-name', queueName, {
     { code: "async function onPlaced(o) { await orders.fulfil(o.id) }\norders.events.placed.subscribe(onPlaced, { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts` },
     { code: "orders.events.placed.subscribe(orders.fulfilPlaced.bind(orders), { strategy: 'handler', queue: 'order.fulfilPlaced.on.order.placed' })", filename: `${ORDER}/order.workers.ts` },
     { code: "this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.module.ts` },
+    { code: "(orders: m.Order_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts` },
+    { code: "class W { constructor(private readonly orders: Order_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts` },
+    ...[['category', 'categories'], ['address', 'addresses'], ['box', 'boxes'], ['batch', 'batches']].map(([module, plural]) => ({
+      code: `deps.brand.events.deleted.subscribe(b => ${plural}.forget(b.id), { strategy: 'handler', queue: '${module}.forget.on.brand.deleted' })`,
+      filename: `/repo/src/contexts/shop/modules/${module}/${module}.workers.ts`,
+    })),
   ],
   invalid: [
     { code: "(changes: PriceChange_Module) => deps.product.events.updated.subscribe(({ dto }) => changes.record(dto), { strategy: 'handler', queue: 'product.record.on.product.updated' })", filename: WORKERS, errors: [{ messageId: 'module' }] },
@@ -104,5 +110,9 @@ tester.run('queue-name', queueName, {
     { code: "(orders: Order_Module, products: Product_Module) => orders.events.placed.subscribe(o => products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "(orders: Order_Module, deps: Order_Deps) => orders.events.placed.subscribe(o => deps.product.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'mail.fulfil.on.order.placed' })", filename: `${ORDER}/order.module.ts`, errors: [{ messageId: 'module' }] },
+    { code: "orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler' as const, queue: 'order.bad' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'shape' }] },
+    { code: "orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler' satisfies string, queue: 'order.bad' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'shape' }] },
+    { code: "(orders: m.Product_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
+    { code: "class W { register() { this.orders.events.placed.subscribe(o => this.products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
   ],
 })
