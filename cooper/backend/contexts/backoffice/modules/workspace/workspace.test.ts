@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { UserDTO } from '../../../auth/modules/user/user.schema'
+import { runInWorkspace } from '../../../boards/workspace-scope'
 import { openTestBackoffice, type TestBackoffice } from '../../testing/open-test-backoffice'
 
 describe('workspace', () => {
@@ -58,6 +59,21 @@ describe('workspace', () => {
     const boards = await t.as(sam, () => t.modules.workspace.boards(tenant.id, { size: 10 }))
     expect(boards.items).toContainEqual(expect.objectContaining({ id: roadmap.id, name: 'Roadmap', cards: 3 }))
     expect(boards.items).toContainEqual(expect.objectContaining({ id: empty.id, cards: 0 }))
+  })
+
+  test('shows the boards created last across every workspace, archived ones out', async () => {
+    const acmeTenant = await acme()
+    const globex = await t.as(bob, () => t.auth.modules.tenant.create({ name: 'Globex' }))
+    await t.settled()
+    const roadmap = await t.board(ana, acmeTenant.id, 'Roadmap', [])
+    const old = await t.board(bob, globex.id, 'Old', [])
+    await t.as(bob, () => runInWorkspace(globex.id, () => t.boards.modules.board.archive(old.id)))
+
+    const recent = await t.as(sam, () => t.modules.workspace.recentBoards())
+    expect(recent[0]).toMatchObject({ id: roadmap.id, name: 'Roadmap', workspaceName: 'Acme' })
+    expect(recent.map(board => [board.name, board.workspaceName])).toContainEqual(['Welcome', 'Globex'])
+    expect(recent.map(board => [board.name, board.workspaceName])).toContainEqual(['Welcome', 'Acme'])
+    expect(recent.some(board => board.id === old.id)).toBe(false)
   })
 
   test('a workspace that is not there is not found', async () => {

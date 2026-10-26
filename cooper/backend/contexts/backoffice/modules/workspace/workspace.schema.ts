@@ -35,4 +35,10 @@ export type WorkspaceBoardDTO = Pick<BoardDTO, 'id' | 'name' | 'description' | '
   cards: number
 }
 
+/** A board just created, in whatever workspace, with its workspace's name. */
+export type RecentBoardDTO = Pick<BoardDTO, 'id' | 'name' | 'workspaceId' | 'createdAt'> & {
+  /** Null only for a workspace deleted since. */
+  workspaceName: string | null
+}
+
 export type WorkspaceSearchDTO = z.input<typeof WorkspaceSearchSchema>

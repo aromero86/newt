@@ -6,12 +6,16 @@ import type { Workspace_Deps } from './workspace.deps'
 import { registerWorkspaceRoutes } from './workspace.routes'
 import {
   WorkspaceSearchSchema,
+  type RecentBoardDTO,
   type WorkspaceBoardDTO,
   type WorkspaceDetailDTO,
   type WorkspaceMemberDTO,
   type WorkspaceSearchDTO,
   type WorkspaceSummaryDTO,
 } from './workspace.schema'
+
+/** How many boards the overview shows as the latest. */
+const RECENT_BOARDS = 8
 
 /**
  * cooper's workspaces, as the staff look at them: auth keeps who they are and who
@@ -81,6 +85,14 @@ export class Workspace_Module extends Module {
       hasMore: boards.hasMore,
       total: boards.total,
     }
+  }
+
+  /** The boards created last across every workspace, each with its workspace's name: two calls. */
+  @UseCase()
+  async recentBoards(): Promise<RecentBoardDTO[]> {
+    const boards = await this.deps.board.recentInEveryWorkspace(RECENT_BOARDS)
+    const tenants = new Map((await this.deps.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
+    return boards.map(board => ({ id: board.id, name: board.name, workspaceId: board.workspaceId, createdAt: board.createdAt, workspaceName: tenants.get(board.workspaceId) ?? null }))
   }
 
   /** Workspaces as the list shows them: two calls for the whole page, its admins and its cards. */

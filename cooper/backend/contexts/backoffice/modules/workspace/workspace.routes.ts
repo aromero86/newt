@@ -13,6 +13,9 @@ export function registerWorkspaceRoutes(base: CooperBase, workspaces: Workspace_
     return Response.json(await workspaces.list({ name }, pageRequestFrom(request)))
   })
 
+  // The latest boards of every workspace: a path of its own, before any workspace's id.
+  routes.get('/workspaces/recent-boards', async () => Response.json(await workspaces.recentBoards()))
+
   routes.get('/workspaces/:workspaceId', async request => Response.json(await workspaces.get(request.params.workspaceId)))
 
   routes.get('/workspaces/:workspaceId/members', async request =>

@@ -1,4 +1,4 @@
-import type { WorkspaceBoardDTO, WorkspaceDetailDTO, WorkspaceMemberDTO, WorkspaceSummaryDTO } from '../../../backend/contexts/backoffice/modules/workspace/workspace.schema'
+import type { RecentBoardDTO, WorkspaceBoardDTO, WorkspaceDetailDTO, WorkspaceMemberDTO, WorkspaceSummaryDTO } from '../../../backend/contexts/backoffice/modules/workspace/workspace.schema'
 import type { Page } from '../core/page'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
@@ -10,6 +10,11 @@ export class BackofficeWorkspaceApi extends Requester {
   /** The newest first; with a name, those with it (whole, whatever its case). */
   list(name: string | undefined, page?: PageRequest) {
     return this.get<Page<WorkspaceSummaryDTO>>('', { name, ...page })
+  }
+
+  /** The boards created last, across every workspace. */
+  recentBoards() {
+    return this.get<RecentBoardDTO[]>('/recent-boards')
   }
 
   getWorkspace(workspaceId: string) {

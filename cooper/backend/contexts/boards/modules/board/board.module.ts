@@ -56,6 +56,18 @@ export class Board_Module extends Module {
     return runInWorkspace(workspaceId, () => this.list(page))
   }
 
+  /**
+   * For the staff's backoffice: the boards created last, whatever their workspace. It
+   * reads every workspace on purpose, so it does not run in one: no person of a
+   * workspace reaches it (no route of boards calls it), and its repository says so by
+   * name (`findInEveryScope`), where a review sees it.
+   */
+  @UseCase()
+  async recentInEveryWorkspace(limit: number): Promise<BoardDTO[]> {
+    const boards = await this.repo.recentInEveryScope(Math.min(Math.max(limit, 1), 50))
+    return boards.map(board => board.toDTO())
+  }
+
   @UseCase()
   async get(id: string): Promise<BoardDTO> {
     return (await this.load(id)).toDTO()

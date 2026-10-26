@@ -11,6 +11,7 @@ import { Stat } from '@cooper/ui/components/stat'
 import { Provide } from '@cooper/core/injector/provide'
 import { useService } from '@cooper/core/injector/use-service'
 import { useValue } from '@cooper/core/store/use-value'
+import { OverviewRecentBoards } from './overview-recent-boards'
 import { OverviewService } from './overview.service'
 
 /** A day as the chart labels it: `Oct 26`. */
@@ -59,6 +60,7 @@ function OverviewWrapped() {
               <BarChart label="Sign ups per day" data={series(metrics.signUpsPerDay)} formatValue={plural('sign up')} />
             </Card>
           </Grid>
+          <OverviewRecentBoards />
         </>
       )}
     </Stack>
