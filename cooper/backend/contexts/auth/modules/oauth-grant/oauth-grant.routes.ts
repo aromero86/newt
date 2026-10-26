@@ -1,9 +1,11 @@
-import { DomainError } from 'newt/core'
+import { DomainError, runAsActor } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
+import { SessionCookie } from '../session/session.schema'
+import type { OauthGrant_Deps } from './oauth-grant.deps'
 import type { OauthGrant_Module } from './oauth-grant.module'
 import type { OauthGrant_Options } from './oauth-grant-options'
 
-export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Module, options: OauthGrant_Options): void {
+export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Module, deps: OauthGrant_Deps, options: OauthGrant_Options): void {
   // The authorization endpoint (RFC 6749 §3.1), where a client sends the browser. The
   // request is kept, and the browser goes on to auth's UI, which signs the person in
   // and asks them. A request auth cannot answer is shown there, never sent back to
@@ -29,7 +31,12 @@ export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Modu
   }, { public: true })
 
   // For auth's UI: what is asked, to anyone with its address; the answer, signed in.
-  base.http.get('/authorizations/:id', async request => Response.json(await grants.review(request.params.id)), { public: true })
+  // Whoever is signed in to auth already is told upfront if the product refuses them.
+  base.http.get('/authorizations/:id', async request => {
+    const actor = await deps.session.authenticate(request.cookies.get(SessionCookie) ?? undefined)
+    const review = () => grants.review(request.params.id)
+    return Response.json(await (actor ? runAsActor(actor, review) : review()))
+  }, { public: true })
 
   base.http.post('/authorizations/:id/approve', async request => Response.json(await grants.approve(request.params.id)))
 

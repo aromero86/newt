@@ -16,3 +16,6 @@ export function webSessionCookies(context: string) {
     signIn: `cooper_${context}_sign_in`,
   }
 }
+
+/** What signing out answers: where the browser goes next, auth's sign-out, which brings it back. */
+export type WebSessionSignOutDTO = { next: string }

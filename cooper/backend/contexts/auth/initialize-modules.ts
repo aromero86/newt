@@ -60,7 +60,7 @@ export function initializeModules(base: AuthBase, config: Auth_Config, deps: Aut
     acceptUrl: token => `${config.boardsPublicUrl}/invitations/${token}`,
   })
   const oauthClient = OauthClient_Module.initialize(base, { product }, { secrets: config.clientSecrets })
-  const oauthGrant = OauthGrant_Module.initialize(base, { oauthClient, product, access }, { publicUrl: config.publicUrl })
+  const oauthGrant = OauthGrant_Module.initialize(base, { oauthClient, product, access, session }, { publicUrl: config.publicUrl })
   const token = Token_Module.initialize(base, { oauthClient, oauthGrant }, config.oauth)
   return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token }
 }
