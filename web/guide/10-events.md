@@ -55,7 +55,7 @@ it on its own, from a worker, with nobody behind it:
 /**
  * Who does something to a card, as its events tell it: their user's id (`by`) and how
  * they came in (`via`, the web or MCP). Both null for boards' own work, which a worker
- * does with no one behind it (ch. 13.5): a workspace's welcome card, the cards a
+ * does with no one behind it: a workspace's welcome card, the cards a
  * removed column or a member who left leaves behind.
  */
 export type CardAuthor = { by: string | null, via: ActorVia | null }

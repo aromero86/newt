@@ -210,11 +210,14 @@ the address of auth's `/oauth/logout`, and the browser goes there:
 // cooper/backend/shared/web-session/web-session.routes.ts
 // Public: signing out with a session already gone still clears the cookie. The
 // browser goes on to auth, to sign out there too and come back: otherwise signing
-// in again would sign the same person in, with no way to switch accounts.
+// in again would sign the same person in, with no way to switch accounts. It comes
+// back to `?returnTo=` (a path of this context: an invitation, say) or to the start.
 base.http.post('/session/sign-out', async request => {
   await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
   request.cookies.delete({ name: cookies.session, path: '/' })
-  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+  const returnTo = new URL(request.url).searchParams.get('returnTo')
+  const back = returnTo ? new URL(ownPath(returnTo), options.publicUrl).toString() : options.publicUrl
+  const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: back })}`
   return Response.json({ next } satisfies WebSessionSignOutDTO)
 }, { public: true })
 ```
@@ -283,7 +286,7 @@ with access to it). `boards` asks through a **port**, a type in its own words:
 ```ts
 // cooper/backend/contexts/boards/modules/member/member.deps.ts
 export type Workspaces = {
-  /** Whether someone belongs to a workspace now: asked each time, so who leaves counts at once. */
+  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
   isMember(workspaceId: string, userId: string): Promise<boolean>
   /** Someone of a workspace, or null if they do not belong to it. */
   member(workspaceId: string, userId: string): Promise<MemberDTO | null>
@@ -296,15 +299,21 @@ Whoever opens the contexts wires it to auth's use cases:
 
 ```ts
 // cooper/backend/open-contexts.ts
-workspaces: {
-  isMember: async (workspaceId, userId) => (await access.check(userId, WORKSPACES_PRODUCT, workspaceId)) !== null,
-  // …
-  // A deleted tenant is not among them.
-  exists: async workspaceId => (await tenant.getMany([workspaceId])).length > 0,
-},
+// A deleted tenant is not among them.
+const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
+// An access and a tenant still there: a deleted workspace's accesses go a moment
+// after it (or, should that fail, from its worker), and nobody enters it meanwhile.
+const isMember = async (workspaceId: string, userId: string) => {
+  const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
+  return granted !== null && alive
+}
 ```
 
-`isMember` answers for a person. `exists` answers for a worker, which acts for nobody
+`isMember` answers for a person, and asks two things: an access, and a tenant still
+there. Deleting a workspace takes its accesses away a moment after the tenant goes
+(chapter [12](./12-eventual-consistency)); asking for the tenant too means nobody
+enters a deleted workspace in between. `member` asks the same, then reads the person's
+name. `exists` answers for a worker, which acts for nobody
 and only needs to know whether the workspace is still there before it writes in it
 (chapter [13](./13-repeatable-workers)).
 

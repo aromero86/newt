@@ -214,12 +214,14 @@ not yet. Whoever builds a client on it has to count on that intermediate state:
 
 Deletion has its own short window. The workspace and its accesses are two saves, one
 after the other. Between them, or if the second fails and its worker has not run yet,
-an access still points at a workspace that is gone. So the use case that lists
-someone's workspaces leaves those out:
+an access still points at a workspace that is gone. Nobody gets in through it: being
+a member asks for the access *and* for the tenant (chapter
+[5](./05-who-and-where)). And the use case that lists someone's workspaces leaves
+those out:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.module.ts
-// A workspace deleted a moment ago, whose accesses auth's worker has not taken away yet, is left out.
+// A workspace deleted while this read, or whose accesses its deletion failed to take away (its worker will), is left out.
 return accesses.flatMap(access => {
   const tenant = tenants.get(access.tenantId ?? '')
   return tenant ? [workspaceOf(tenant, userId)] : []

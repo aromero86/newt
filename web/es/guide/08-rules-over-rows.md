@@ -314,10 +314,15 @@ administrador de cada espacio, que su `after` cuenta:
 // cooper/backend/contexts/auth/modules/access/access.repository.ts
 /**
  * Saves new accesses, each one once, keeping every tenant they touch with one admin
- * at most. Each is guarded by its key, and the store's unique index refuses a second
- * row for it (`ConcurrencyConflict`). The admins are checked after the writes, in
- * their transaction, guarding each tenant's admin, so two saves giving a tenant an
- * admin at once cannot both succeed.
+ * at most. Each is guarded by its key, which only makes two saves of it wait for
+ * each other: what refuses the second row (`ConcurrencyConflict`) is the unique
+ * index `access_once` of auth's SQLite migrations, on (user, product, tenant) with a
+ * null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
+ * stores ignore it (their indexes say it), and the files store, the only one that
+ * keeps it, lets a row with a null field share its value, so the staff's accesses
+ * would go unguarded there. Another SQL store needs that index in its migrations.
+ * The admins are checked after the writes, in their transaction, guarding each
+ * tenant's admin, so two saves giving a tenant an admin at once cannot both succeed.
  */
 async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
   const tenants = [...new Set(accesses.map(access => access.tenantId).filter(tenantId => tenantId !== null))]
@@ -341,7 +346,10 @@ null): tiene su clave de acceso, y ningún administrador que contar.
 
 "Se da una vez" no tiene `after`: aquí la comprobación es el índice único. Con la clave
 del acceso protegida, el segundo guardado espera al primero, escribe su fila, y el
-índice la rechaza.
+índice la rechaza. La clave sola solo hace que se turnen; quien dice que no es el
+índice. Por eso el comentario de arriba nombra el índice, y por eso la tabla no declara
+ningún `unique`: el store de ficheros dejaría pasar dos accesos de staff, porque su
+tenant es null. Otro store SQL necesita el mismo índice en sus migraciones.
 
 ```sql
 -- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql

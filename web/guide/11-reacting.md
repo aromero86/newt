@@ -31,7 +31,7 @@ server's log each time a card moves, so you can watch a board live while tracing
 // A line in the server's log as each card moves, to watch a board live while
 // tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
 // or the server stops before it runs, the line is lost, and nothing is wrong: no
-// one needs it later, and the log above keeps the move for good (ch. 13.1).
+// one needs it later, and the log above keeps the move for good.
 events.moved.subscribe(({ dto, previous, by, via }) => {
   options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
 }, { strategy: 'fire-and-forget' })
@@ -210,7 +210,8 @@ them. cooper says so where it wires the two:
 // cooper/backend/open-contexts.ts
 /**
  * What `boards` asks of auth, wired to auth's use cases and events. A workspace is a
- * tenant of the product `cooper`, and its members are those with access to it.
+ * tenant of the product `cooper`, and its members are those with access to it while
+ * it is there.
  * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
  * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
  */

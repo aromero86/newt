@@ -310,10 +310,15 @@ admin, which its `after` counts:
 // cooper/backend/contexts/auth/modules/access/access.repository.ts
 /**
  * Saves new accesses, each one once, keeping every tenant they touch with one admin
- * at most. Each is guarded by its key, and the store's unique index refuses a second
- * row for it (`ConcurrencyConflict`). The admins are checked after the writes, in
- * their transaction, guarding each tenant's admin, so two saves giving a tenant an
- * admin at once cannot both succeed.
+ * at most. Each is guarded by its key, which only makes two saves of it wait for
+ * each other: what refuses the second row (`ConcurrencyConflict`) is the unique
+ * index `access_once` of auth's SQLite migrations, on (user, product, tenant) with a
+ * null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
+ * stores ignore it (their indexes say it), and the files store, the only one that
+ * keeps it, lets a row with a null field share its value, so the staff's accesses
+ * would go unguarded there. Another SQL store needs that index in its migrations.
+ * The admins are checked after the writes, in their transaction, guarding each
+ * tenant's admin, so two saves giving a tenant an admin at once cannot both succeed.
  */
 async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
   const tenants = [...new Set(accesses.map(access => access.tenantId).filter(tenantId => tenantId !== null))]
@@ -337,7 +342,10 @@ has its access key, and no admin to count.
 
 "Given once" has no `after`: here the unique index is the check. With the access key
 guarded, the second save waits for the first, writes its row, and the index refuses
-it.
+it. The guard alone only makes them take turns; the index is what says no. That is why
+the comment above names the index, and why the table declares no `unique`: the files
+store would let two staff accesses through, since their tenant is null. Another SQL
+store needs the same index in its migrations.
 
 ```sql
 -- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql

@@ -122,6 +122,7 @@ context: delete the folder to start again.
 ::: tip
 Every port and URL can be changed with an environment variable (`COOPER_BOARDS_PORT`,
 `COOPER_BOARDS_PUBLIC_URL`…). Chapter [2](./02-a-context) shows where they are read.
+Each Vite server reads the same `COOPER_<NAME>_PORT`, so it keeps finding its API.
 :::
 
 ## The map of the repository
@@ -215,7 +216,7 @@ chapter, and it is worth coming back to this list now and then.
 9. **Dependencies between modules never make a circle.**
 10. **A module points at another's things only by their id**, never by the entity or
     its table.
-11. **No list is returned whole**: it is paged.
+11. **No list is returned whole** unless a rule of the domain bounds it (at most 10 columns, 500 cards); every other list goes by pages.
 
 ## In short
 
