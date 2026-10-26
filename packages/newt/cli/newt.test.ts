@@ -1,13 +1,24 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { moduleNames } from './module-names'
 import { run } from './newt'
 
 // The command line, run as an application would: in a scratch application of its own,
-// whose node_modules are the repository's (newt, zod, newt-eslint, eslint, typescript).
+// whose node_modules are the repository's (newt, newt-eslint, eslint, typescript), and
+// zod where newt has it (a checkout of the tutorial before chapter 2 has no zod at its root).
 const NODE_MODULES = join(import.meta.dir, '../../../node_modules')
+const NEWT_ZOD = join(import.meta.dir, '../node_modules/zod')
+
+/** A node_modules for an application in `folder`: the repository's, with zod surely in it. */
+async function linkModules(folder: string): Promise<void> {
+  const modules = join(folder, 'node_modules')
+  await mkdir(modules, { recursive: true })
+  const names = await readdir(NODE_MODULES)
+  for (const name of names) await symlink(join(NODE_MODULES, name), join(modules, name))
+  if (!names.includes('zod')) await symlink(NEWT_ZOD, join(modules, 'zod'), 'dir')
+}
 const CLI = join(import.meta.dir, 'newt.ts')
 
 let app: string
@@ -21,7 +32,7 @@ async function bun(...args: string[]): Promise<{ code: number, output: string }>
 
 beforeAll(async () => {
   app = await mkdtemp(join(tmpdir(), 'newt-cli-'))
-  await symlink(NODE_MODULES, join(app, 'node_modules'), 'dir')
+  await linkModules(app)
   await Bun.write(join(app, 'package.json'), JSON.stringify({ name: 'scratch', private: true, type: 'module' }))
   await Bun.write(join(app, 'tsconfig.json'), JSON.stringify({
     compilerOptions: { target: 'ES2023', lib: ['ES2023'], module: 'ESNext', moduleResolution: 'bundler', types: ['bun'], noEmit: true, skipLibCheck: true, strict: true },
@@ -58,7 +69,7 @@ describe('newt init', () => {
   test('in an application inside a monorepo, points at the root\'s node_modules and keeps the root\'s lint', async () => {
     const root = join(app, 'monorepo')
     await Bun.write(join(root, 'eslint.config.js'), 'export default []\n')
-    await symlink(NODE_MODULES, join(root, 'node_modules'), 'dir')
+    await linkModules(root)
     const web = join(root, 'apps/web')
     await mkdir(web, { recursive: true })
 
