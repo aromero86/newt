@@ -29,6 +29,10 @@ export async function openTestBoards() {
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
       return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))
     },
+    /** Until the background work is done: what boards' events made it do. */
+    async settled(): Promise<void> {
+      await boards.base.jobs.idle()
+    },
     async close(): Promise<void> {
       await boards.stop()
     },

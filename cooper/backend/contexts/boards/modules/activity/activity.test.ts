@@ -19,6 +19,56 @@ describe('activity', () => {
   afterEach(() => t.close())
 
   const inAcme = <T>(fn: () => Promise<T>, via: 'web' | 'mcp' = 'web') => t.as('ana', 'acme', fn, via)
+  const activityOf = (cardId: string, size = 20) => inAcme(() => t.modules.activity.listForCard(cardId, { size }))
+
+  test('records what happens to a card, who did it and how they came in, the newest first', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await inAcme(() => t.modules.card.edit(card.id, { title: 'Plan it' }))
+    await inAcme(() => t.modules.card.move(card.id, { columnId: doing }), 'mcp')
+    await inAcme(() => t.modules.card.assign(card.id, { assigneeId: 'bea' }))
+    await inAcme(() => t.modules.card.unassign(card.id))
+    await inAcme(() => t.modules.card.delete(card.id))
+    await t.settled()
+
+    const { items, total } = await activityOf(card.id)
+    expect(total).toBe(6)
+    expect(items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+      ['deleted', 'ana', 'web'],
+      ['unassigned', 'ana', 'web'],
+      ['assigned', 'ana', 'web'],
+      ['moved', 'ana', 'mcp'],
+      ['edited', 'ana', 'web'],
+      ['created', 'ana', 'web'],
+    ])
+    expect(items.find(entry => entry.kind === 'moved')!.detail).toEqual({ fromColumnId: todo, toColumnId: doing })
+    expect(items.find(entry => entry.kind === 'edited')!.detail).toMatchObject({ changed: 'title', title: 'Plan it' })
+    expect(items.find(entry => entry.kind === 'assigned')!.detail).toEqual({ assigneeId: 'bea', previousAssigneeId: null })
+
+    // Page after page, by the cursor.
+    const first = await activityOf(card.id, 4)
+    const rest = await inAcme(() => t.modules.activity.listForCard(card.id, { size: 4, cursor: first.items.at(-1)!.id }))
+    expect([...first.items, ...rest.items].map(entry => entry.kind)).toEqual(items.map(entry => entry.kind))
+    expect(rest.hasMore).toBe(false)
+  })
+
+  test('records each event once, however many times its job runs', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await t.settled()
+    const told = { ...card, by: 'ana', via: 'web' as const }
+    const event = { id: Bun.randomUUIDv7(), name: 'card.created', occurredAt: new Date().toISOString() }
+
+    await t.modules.activity.recordCreated(told, event)
+    await t.modules.activity.recordCreated(told, event)
+
+    expect((await activityOf(card.id)).total).toBe(2)
+  })
+
+  test('shows a workspace\'s activity only in it', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await t.settled()
+
+    expect((await t.as('carl', 'globex', () => t.modules.activity.listForCard(card.id, { size: 20 }))).total).toBe(0)
+  })
 
   test('writes a line as a card moves, at once, with no job to wait for', async () => {
     const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))

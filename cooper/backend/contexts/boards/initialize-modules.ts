@@ -23,7 +23,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member })
-  const activity = Activity_Module.initialize(base, { card }, { log: deps.log ?? (() => {}) })
+  const activity = Activity_Module.initialize(base, { card, member }, { log: deps.log ?? (() => {}) })
   return { member, board, column, card, activity }
 }
 

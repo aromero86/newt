@@ -2,14 +2,24 @@ import type { Activity_Deps } from './activity.deps'
 import type { Activity_Module } from './activity.module'
 import type { Activity_Options } from './activity-options'
 
-/** What the activity does when something happens to a card. */
+/**
+ * What the activity does when something happens to a card: each event a `handler`,
+ * a job saved with the change, so no entry is ever missing, run until it succeeds
+ * and safe to run again (keyed on the event's id).
+ */
 export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
   const { events } = deps.card
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  events.edited.subscribe((edit, event) => activity.recordEdited(edit, event), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
+  events.moved.subscribe((move, event) => activity.recordMoved(move, event), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
+  events.assigned.subscribe((assignment, event) => activity.recordAssigned(assignment, event), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
+  events.unassigned.subscribe((unassignment, event) => activity.recordUnassigned(unassignment, event), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
+  events.deleted.subscribe((card, event) => activity.recordDeleted(card, event), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
 
   // A line in the server's log as each card moves, to watch a board live while
   // tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
   // or the server stops before it runs, the line is lost, and nothing is wrong: no
-  // one needs it later.
+  // one needs it later, and the log above keeps the move for good.
   events.moved.subscribe(({ dto, previous, by, via }) => {
     options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
   }, { strategy: 'fire-and-forget' })
