@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { MailXIcon } from 'lucide-react'
 import { Alert } from '@cooper/ui/components/alert'
@@ -33,7 +33,9 @@ function InvitationWrapped() {
   const failure = useValue(service.failure)
   const accepting = useValue(service.accepting)
   const acceptFailure = useValue(service.acceptFailure)
-  const user = useValue(useService(SessionService).user)
+  const session = useService(SessionService)
+  const user = useValue(session.user)
+  const [switching, setSwitching] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -43,6 +45,12 @@ function InvitationWrapped() {
   async function accept() {
     const workspaceId = await service.accept()
     if (workspaceId) navigate(`/w/${workspaceId}`)
+  }
+
+  // Signed out through auth too, the browser comes back to this link, to sign in as the invited person.
+  function switchAccount() {
+    setSwitching(true)
+    void session.signOut(`/invitations/${token}`)
   }
 
   const otherEmail = preview && user && preview.email.toLowerCase() !== user.email.toLowerCase()
@@ -64,7 +72,9 @@ function InvitationWrapped() {
             description={`${preview.invitedBy} invited ${preview.email} to this workspace.`}
             footer={(
               <>
-                <Button loading={accepting} disabled={Boolean(otherEmail)} onClick={() => void accept()}>Join {preview.workspaceName}</Button>
+                {otherEmail
+                  ? <Button loading={switching} onClick={switchAccount}>Sign out and switch account</Button>
+                  : <Button loading={accepting} onClick={() => void accept()}>Join {preview.workspaceName}</Button>}
                 <Button variant="ghost" href="/">Not now</Button>
               </>
             )}
@@ -73,7 +83,7 @@ function InvitationWrapped() {
               <Text size="sm" tone="muted">As a member you see its boards, and cards can be assigned to you.</Text>
               {otherEmail && (
                 <Alert tone="warn" title="This invitation is for another email">
-                  You are signed in as <Strong>{user.email}</Strong>. Sign out and sign in as <Strong>{preview.email}</Strong> to join.
+                  You are signed in as <Strong>{user.email}</Strong>. To join, sign out, then sign in or create an account with <Strong>{preview.email}</Strong>: this link brings you back here.
                 </Alert>
               )}
               {acceptFailure && <Alert tone="bad" title="Could not join">{acceptFailure}</Alert>}
