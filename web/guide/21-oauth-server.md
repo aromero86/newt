@@ -81,12 +81,19 @@ const publicUrls = {
 /**
  * `COOPER_<APP>_CLIENT_SECRET`: the secret each web app proves itself with at auth's
  * token endpoint, as an OAuth confidential client. `auth` knows both; each app its own.
+ * Each is kept under the id of the product it signs people in to, its client_id, as
+ * auth looks it up; its variable is named after the app, as the people deploying it
+ * know it: boards' is `COOPER_BOARDS_CLIENT_SECRET`, for the product `cooper`.
  */
 const clientSecrets = {
   cooper: env.COOPER_BOARDS_CLIENT_SECRET ?? 'cooper-dev-boards-client-secret',
   backoffice: env.COOPER_BACKOFFICE_CLIENT_SECRET ?? 'cooper-dev-backoffice-client-secret',
 }
 ```
+
+Its keys are the products' ids, each product's `client_id`, which is how auth looks a
+secret up. Its variables are named after the apps, as whoever deploys them knows them:
+boards' secret is `COOPER_BOARDS_CLIENT_SECRET`, kept under `cooper`.
 
 and auth's part becomes:
 
@@ -304,6 +311,7 @@ export const ProductSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/),
 // …
   signUp: z.boolean(),
+  /** Who may enter it: anyone with an account (boards), or only those given access to it (the backoffice's staff). */
   access: ProductAccessSchema,
   /** Its MCP server, if it has one: the resource (RFC 8707) the tokens of MCP clients are for. */
   mcpResource: z.url().nullable(),
@@ -574,9 +582,18 @@ is no good is `invalid_grant`. Whatever else is the request's fault is
 `application/x-www-form-urlencoded`, and the client's credentials may come in the
 `Authorization` header.
 
-`onError` decides the body of every error a route throws. It does not decide a 405:
-a method a path does not have is answered by the router's own default, so `GET
-/oauth/token` gets newt's `{ error, code: 'method_not_allowed' }`.
+`onError` decides the body of every error a route throws, and of the path's 405 too. A
+method a path does not have is the path's error, so newt answers it through the
+`onError` of the first route registered on that path, whatever its method. Every
+route on `/oauth/token` is the oauth router's, so `GET /oauth/token` gets a 405 in
+OAuth's format, with `Allow: POST` and `Cache-Control: no-store`:
+
+```json
+{"error":"invalid_request","error_description":"GET is not allowed on /oauth/token"}
+```
+
+A path whose first route is the API's would answer it in the API's format. One path,
+one format.
 
 ### A browser, not a client: the authorization endpoint
 
@@ -734,14 +751,14 @@ The entity tells what happened with an event:
 
 ```ts
 // cooper/backend/contexts/auth/modules/oauth-grant/events/oauth-grant-replayed.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { OauthGrantDTO } from '../oauth-grant.schema'
 
 /** A code was brought again after it was traded: the tokens it gave are to be revoked. */
 export class OauthGrant_Replayed implements DomainEvent<OauthGrantDTO> {
   static readonly eventName = 'oauthGrant.replayed'
   readonly name = OauthGrant_Replayed.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: OauthGrantDTO) {}
 }
 ```
@@ -986,22 +1003,24 @@ sign in, then look at where auth sends it. Chapter 22 uses them for boards' web
 session and says more. The test's `publicUrl` is the server itself, so the addresses
 in the metadata and the redirects point at it.
 
-Its eight tests cover the metadata; a full round (register, authorize, review before
+Its nine tests cover the metadata; a full round (register, authorize, review before
 signing in, sign up, approve, trade, verify, refresh, revoke); a replayed refresh
 token; a replayed code, whose tokens are revoked after `auth.base.jobs.idle()` runs the
 worker; a wrong PKCE verifier, an unknown grant type, an unknown client and a plain
 challenge, which go to the error page; a person who says no; signing out on the way
 back to a product and to no other address; and the backoffice's confidential client,
-which lets in only staff given access and refuses a wrong secret.
+which lets in only staff given access and refuses a wrong secret. One more asks the
+token endpoint with `GET`, and the register endpoint with `DELETE`: a 405, in OAuth's
+format.
 
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 98 pass
+ 111 pass
  0 fail
 ```
 
@@ -1012,10 +1031,10 @@ bun test cooper/backend/contexts/auth/oauth.test.ts
 ```
 
 ```text
- 8 pass
+ 9 pass
  0 fail
- 60 expect() calls
-Ran 8 tests across 1 file.
+ 65 expect() calls
+Ran 9 tests across 1 file.
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`). auth applies its three

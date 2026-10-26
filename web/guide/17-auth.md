@@ -382,14 +382,14 @@ Its event and its errors:
 
 ```ts
 // cooper/backend/contexts/auth/modules/user/events/user-signed-up.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { UserDTO } from '../user.schema'
 
 /** Someone made an account: who they are, never their password. */
 export class User_SignedUp implements DomainEvent<UserDTO> {
   static readonly eventName = 'user.signedUp'
   readonly name = User_SignedUp.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: UserDTO) {}
 }
 ```
@@ -418,6 +418,10 @@ export class UserNotFound extends NotFoundError {
   }
 }
 ```
+
+Its `occurredAt` is `now()`, as in boards' events since [chapter 10](./10-events): the
+time by the context's clock. auth has no clock of its own yet, so it is the real time;
+[chapter 19](./19-invitations-and-time) gives it one, and its events follow it.
 
 `EmailTaken` is a `ConflictError`, a 409, like `BoardNameTaken`.
 
@@ -1291,7 +1295,7 @@ import { expect, test } from 'bun:test'
 import { runContexts } from 'newt/application'
 import { config, type Config } from './config'
 import { openContexts } from './open-contexts'
-import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
@@ -1303,8 +1307,9 @@ function testConfig(): Config {
 }
 
 test('opens the two contexts, serves each on its own port, and stops them', async () => {
-  const mails: Mail[] = []
-  const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  const mails = mailer.mails
+  const contexts = await openContexts(testConfig(), { mailer })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards'])
 
   const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
@@ -1329,17 +1334,18 @@ test('opens the two contexts, serves each on its own port, and stops them', asyn
 The test opens both contexts on databases in memory and free ports, and runs them with
 `{ signals: false }`: a test must not take over the test runner's Ctrl+C, nor end the
 process. Each context answers its health on its own port, and an `/api` address no
-route has is a 404. `app.stop()` in `finally` stops them as a signal would. No mail is
+route has is a 404. `app.stop()` in `finally` stops them as a signal would. The
+`RecordingMailer` of [chapter 12](./12-failures) keeps what would be sent: no mail is
 sent by opening and stopping.
 
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 68 pass
+ 79 pass
  0 fail
 ```
 
@@ -1351,7 +1357,7 @@ bun test cooper -t 'accounts|two contexts'
 
 ```text
  5 pass
- 63 filtered out
+ 74 filtered out
  0 fail
  27 expect() calls
 Ran 5 tests across 10 files.

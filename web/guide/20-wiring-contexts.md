@@ -27,10 +27,12 @@ boards gets two kinds of things from auth, and they are different on purpose.
   `invitation`). These are not ports. Those routes take and answer auth's own shapes;
   a port would only repeat auth's API one to one.
 
-`Boards_Auth` says which of auth's modules boards may call: a `Pick` of
-`Auth_Modules`. Never auth's context, its base or its store: with only modules in
-hand, boards reaches auth through its use cases and nothing else. If boards one day
-needs another of auth's modules, the change shows in this type.
+`Boards_Auth` says which of auth's modules boards may call. Today they are the four its
+workspace module asks of auth, its `WorkspaceAuth` (in its deps, below), so
+`Boards_Auth` is that type, named once, and the module is handed `deps.auth` whole.
+Never auth's context, its base or its store: with only modules in hand, boards reaches
+auth through its use cases and nothing else. If boards one day needs another of auth's
+modules, the change shows in this type ([chapter 22](./22-web-session) adds one).
 
 Replace `contexts/boards/initialize-modules.ts`:
 
@@ -38,7 +40,6 @@ Replace `contexts/boards/initialize-modules.ts`:
 // cooper/backend/contexts/boards/initialize-modules.ts
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
-import type { Auth_Modules } from '../auth/initialize-modules'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
@@ -48,15 +49,16 @@ import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
 import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
-import type { TenantEvents } from './modules/workspace/workspace.deps'
+import type { TenantEvents, WorkspaceAuth } from './modules/workspace/workspace.deps'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
- * auth's use cases `boards` calls besides its ports: who someone is, and what boards'
- * routes for workspaces, members and invitations manage in auth.
+ * auth's use cases `boards` calls besides its ports: what its workspace module asks
+ * of auth (who someone is, and what boards' routes for workspaces, members and
+ * invitations manage in auth).
  */
-export type Boards_Auth = Pick<Auth_Modules, 'user' | 'tenant' | 'access' | 'invitation'>
+export type Boards_Auth = WorkspaceAuth
 
 /**
  * What `boards`' modules are given besides its base: what they need of auth, as ports
@@ -81,8 +83,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
-  const { tenant, access, invitation, user } = deps.auth
-  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: deps.auth })
   const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
@@ -255,15 +256,18 @@ the product `'cooper'` by hand, waiting for auth's constant. Use it now. In
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
-import type { Card_Deps, RevokedAccess } from './card.deps'
+import type { CardAuthor, CardDTO } from './card.schema'
 ```
 
-and replace the last subscription, dropping the comment that said "for now":
+and replace the subscription on `access.revoked`, dropping the comment line that said
+"For now":
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
   // auth took someone's access to a workspace: their cards there are left unassigned.
   // auth tells every access it takes away, to any product: only a workspace's is boards'.
+  // A card checks its assignee before its save, so they may leave in between: a card
+  // created for someone, or given to them, looks again once saved, the same way.
   deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',
@@ -332,9 +336,8 @@ export interface Workspace_Deps {
 }
 ```
 
-`WorkspaceAuth` names the four modules by their classes. It is the same as
-`Boards_Auth`, written in the module's own deps, as every module writes what it is
-given.
+`WorkspaceAuth` names the four modules by their classes, in the module's own deps, as
+every module writes what it is given. `Boards_Auth` above is this type.
 
 ### The shapes boards answers with
 
@@ -642,7 +645,7 @@ Any `auth.<module>.<useCase>` is a function that rejects with that message. In
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
     access: auth.access,
     auth: auth.modules,
-    mailer: { send: async mail => { mails.push(mail) } },
+    mailer,
 ```
 
 FakeAuth is now only in `testing/`, and only `openTestBoards` opens it.
@@ -848,9 +851,9 @@ import type { Server } from 'bun'
 import { serve } from 'newt/http'
 import { browser, freePort, type Browser } from 'newt/testing'
 import { config, type Config } from './config'
-import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /**
  * cooper end to end: auth and boards open as the server opens them, on SQLite in
@@ -871,8 +874,9 @@ let servers: Server<undefined>[]
 let mails: Mail[]
 
 beforeEach(async () => {
-  mails = []
-  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
   // For now boards is told who sends a request by an `x-user` header (chapter 22 signs them in through auth).
   contexts.boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
@@ -1016,7 +1020,8 @@ describe('workspaces, through boards', () => {
 - `testConfig` puts both databases in memory, and the servers on free ports.
   `freePort` and `browser` come from `newt/testing`: a port nobody listens on, and a
   `fetch` that sends `json` as the body and keeps cookies (chapter 22 needs them).
-  (`inWorkspace` is imported for a test a later chapter adds.)
+  The emails go to a `RecordingMailer` ([chapter 12](./12-failures)), whose `mails`
+  the tests read.
 - boards is told who sends each request by an `x-user` header, as the dev server
   does until [chapter 22](./22-web-session). `signUp` makes the account through
   auth's user module and gives a browser that sends the header.
@@ -1079,7 +1084,12 @@ boards lets him in nowhere anyway: the tenant is gone.
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
+```
+
+```text
+ 102 pass
+ 0 fail
 ```
 
 The two new test files on their own:
@@ -1218,7 +1228,7 @@ curl -s localhost:3002/api/workspaces/$ACME/members -H 'x-user: someone'
 
 - A context gets two kinds of things from another: **ports** in its own words, for
   its own rules (another context's emitters fit an event port as they are), and a
-  **`Pick` of the other's modules**, for what it calls as is. Never its context, its
+  **type naming the other's modules** it calls as they are. Never its context, its
   base or its store.
 - A subscription on another context's emitter is a **job of that context's outbox**,
   run by its worker. Wait for its jobs first, then your own.

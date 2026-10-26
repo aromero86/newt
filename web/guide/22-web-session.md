@@ -669,7 +669,8 @@ callback: it is a top-level navigation from auth's site, which `lax` allows and
 ## boards signs in through it
 
 boards initializes the module first in `initializeModules`, and hands it auth's
-`token` through `Boards_Auth`. Add the two imports:
+`token` through `Boards_Auth`. Add the three imports (`Auth_Modules` comes back, for
+`token`):
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
@@ -681,17 +682,19 @@ import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 // …
 ```
 
-give `Boards_Auth` the `token` module:
+make `Boards_Auth` what the workspace module asks of auth, `WorkspaceAuth`, and auth's
+`token` module besides:
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
 // …
 /**
  * auth's use cases `boards` calls besides its ports: who an access token is for (the
- * web session, the MCP server), who someone is, and what boards' routes for
- * workspaces, members and invitations manage in auth.
+ * web session, the MCP server), and what its workspace module asks of auth (who
+ * someone is, and what boards' routes for workspaces, members and invitations manage
+ * in auth).
  */
-export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
+export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
 // …
 ```
 
@@ -833,9 +836,9 @@ replaces it: the last one set wins. Only its comment changes:
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
 // …
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth behind
- * its ports, its emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
- * authenticator, the web session's, is replaced).
+ * `boards` for a test: its database and its cards' search in memory, a fake auth
+ * behind its ports, its emails and its log's lines in lists, and who sends a request
+ * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
 // …
 ```
@@ -883,8 +886,7 @@ signs people in as boards' UI will.
 
 ### cooper's test signs in through boards
 
-Remove the import of `inWorkspace` from `cooper.test.ts`: nothing uses it until
-chapter 24. Then each context names the other's public URL:
+In `cooper.test.ts`, each context now names the other's public URL:
 
 ```ts
 // cooper/backend/cooper.test.ts
@@ -908,8 +910,9 @@ authenticator on boards; boards has the web session's:
 // cooper/backend/cooper.test.ts
 // …
 beforeEach(async () => {
-  mails = []
-  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
   servers = [serve(contexts.auth.serving()), serve(contexts.boards.serving())]
 })
 // …
@@ -1063,7 +1066,8 @@ describe('the web session of a context', () => {
     // It keeps no token: it gave them back once it knew who signed in.
     expect(await auth.base.store.table('token').count()).toBe(0)
 
-    // The code was spent: the same callback again opens nothing.
+    // The same callback again opens nothing: the sign-in it answered (its cookie) is over, so it
+    // is told expired before its code goes to auth (which refuses a spent one: oauth.test.ts).
     expect(new URL((await as(redirectTo)).headers.get('location')!, clientUrl('/')).searchParams.get('signInError')).toBe('session.sign_in_expired')
 
     // Signing out goes on to auth, which ends its own session too and sends the browser back.
@@ -1118,8 +1122,10 @@ describe('the web session of a context', () => {
   own client (`firstParty`), the code comes back, the browser goes to `returnTo`, and
   `/api/whoami` runs as the person, `via: 'web'`. auth's `token` table is empty
   afterwards: the client gave its tokens back. The same callback a second time opens
-  nothing. Signing out ends both sessions, and `returnTo` on the way out stays a path
-  of the client.
+  nothing: the sign-in it answered, its cookie, is over, so the client says
+  `session.sign_in_expired` before the code goes to auth. That auth refuses a spent
+  code is `oauth.test.ts`'s to show ([chapter 21](./21-oauth-server)). Signing out
+  ends both sessions, and `returnTo` on the way out stays a path of the client.
 - **The second** brings the callback from another browser, then with a forged
   `state`: both are `session.sign_in_expired`.
 - **The third** says no at auth (`/deny`), and starts the sign-in with
@@ -1127,14 +1133,14 @@ describe('the web session of a context', () => {
 
 ## Check it
 
-Run the gate:
+Run the check:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 101 pass
+ 114 pass
  0 fail
 ```
 

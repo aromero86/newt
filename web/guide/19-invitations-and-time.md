@@ -373,45 +373,49 @@ Three events, in `modules/invitation/events/`:
 
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/events/invitation-created.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { InvitationDTO } from '../invitation.schema'
 
 /** Someone was invited to a workspace: its email leaves from a worker, after this. */
 export class Invitation_Created implements DomainEvent<InvitationDTO> {
   static readonly eventName = 'invitation.created'
   readonly name = Invitation_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: InvitationDTO) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/events/invitation-accepted.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { InvitationDTO } from '../invitation.schema'
 
 /** Someone accepted an invitation: they are a member of its workspace (`access.granted` says so too). */
 export class Invitation_Accepted implements DomainEvent<InvitationDTO> {
   static readonly eventName = 'invitation.accepted'
   readonly name = Invitation_Accepted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: InvitationDTO) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/events/invitation-revoked.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { InvitationDTO } from '../invitation.schema'
 
 /** An invitation no longer opens its workspace: its admin took it back, or the workspace is gone. */
 export class Invitation_Revoked implements DomainEvent<InvitationDTO> {
   static readonly eventName = 'invitation.revoked'
   readonly name = Invitation_Revoked.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: InvitationDTO) {}
 }
 ```
+
+Their `occurredAt` is `now()`, like every event of auth since
+[chapter 17](./17-auth). An event is made inside the use case that records it, so
+`now()` there is auth's clock: with a clock of its own, auth's events tell its time.
 
 ### Its options, deps and repository
 
@@ -953,13 +957,14 @@ reacts, `.on.`, and the event, which here is the schedule's name.
 
 ## Tests
 
-auth's tests give auth a clock of their own and a mailer that keeps what it sends. At
-the top of `auth.test.ts`, import `Mail`, add the two variables, and open auth with
-both:
+auth's tests give auth a clock of their own and a mailer that keeps what it sends, the
+`RecordingMailer` of [chapter 12](./12-failures). At the top of `auth.test.ts`, import
+`Mail` and `RecordingMailer`, add the two variables, and open auth with both:
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
 import type { Mail } from '../../shared/mail/mailer'
+import { RecordingMailer } from '../../shared/mail/recording-mailer'
 import { Auth_Context } from './auth.context'
 import type { UserDTO } from './modules/user/user.schema'
 
@@ -969,12 +974,18 @@ let mails: Mail[]
 let time: number
 
 beforeEach(async () => {
-  mails = []
-  time = Date.now()
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer: { send: async mail => { mails.push(mail) } } }, { now: () => new Date(time) })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  // Set before auth opens: its schedules' first look, as it starts, is at noon of this day.
+  time = Date.parse('2027-03-15T12:00:00Z')
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port: 0 }, { mailer }, { now: () => new Date(time) })
   auth.start()
 })
 ```
+
+The clock is set before auth opens, at noon of a fixed day. `auth.start()` starts its
+schedules, and their first look is as they start: at that time, then. A test that
+counts nights knows where the schedule stands from the start.
 
 Two helpers, after `page`: a day in milliseconds, and the token in the link of the
 last email:
@@ -987,7 +998,24 @@ const DAY_MS = 24 * 60 * 60_000
 const linkToken = () => mails.at(-1)!.text.match(/invitations\/([A-Za-z0-9_-]{43})/)![1]!
 ```
 
-In `accounts`, after the test that opens a session at sign-up: a session that ends
+In `accounts`, after the first test, one that the events follow the clock: a
+`fire-and-forget` subscriber keeps the `occurredAt` of `user.signedUp`, and it is the
+time the test set, not the real one:
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+  test('tells someone signed up at the time by auth\'s clock', async () => {
+    const told: string[] = []
+    modules().user.events.signedUp.subscribe((_, event) => { told.push(event.occurredAt) }, { strategy: 'fire-and-forget' })
+    time = Date.parse('2027-04-01T08:30:00Z')
+
+    await signUp('Ana')
+
+    expect(told).toEqual(['2027-04-01T08:30:00.000Z'])
+  })
+```
+
+After the test that opens a session at sign-up: a session that ends
 by the clock, and the nightly purge:
 
 ```ts
@@ -1003,9 +1031,9 @@ by the clock, and the nightly purge:
 
   test('removes the expired sessions every night at three, by auth\'s clock', async () => {
     const sessions = () => auth.base.store.table('session').count({})
-    time = Date.parse('2027-03-15T12:00:00Z')
-    // The first look at a schedule tells nothing of before: its next tick is tonight's.
-    await auth.base.schedules.tick()
+    // Its own loop stopped, once its first look, as auth started, is done: the test ticks
+    // by hand. That first look told nothing of before: the next tick is tonight's.
+    await auth.base.schedules.stop()
     await modules().session.signUp({ email: 'ana@cooper.test', name: 'Ana', password: 'a long password' })
     time += config.auth.sessionDays * DAY_MS
     await modules().session.signIn({ email: 'ana@cooper.test', password: 'a long password' })
@@ -1021,10 +1049,12 @@ by the clock, and the nightly purge:
 The first test moves the clock a day short of the session's days, then one more day.
 No waiting.
 
-The second puts the clock at noon on a fixed day and ticks once, so the schedule has
-been seen before anything else happens. Then Ana signs up (a session that expires 30
-days later, at noon), the clock moves those 30 days, and she signs in again (a second
-session). Thirty nights at three went by with no tick told; the next `tick()` tells
+The second starts at noon on the fixed day of `beforeEach`, where the schedule's first
+look already was. It stops auth's own schedule loop with `base.schedules.stop()`: the
+loop wakes at least once a minute and would see the clock moved, and a tick it told
+while the test ticks too would race with the test's. From then on, only the test ticks.
+Then Ana signs up (a session that expires 30 days later, at noon), the clock moves
+those 30 days, and she signs in again (a second session). Thirty nights at three went by with no tick told; the next `tick()` tells
 one, the last. Its job runs on `settled()`, and of the two sessions the expired one
 is gone.
 
@@ -1140,7 +1170,12 @@ describe('invitations', () => {
 ## Check it
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
+```
+
+```text
+ 97 pass
+ 0 fail
 ```
 
 The tests of this chapter on their own:
@@ -1150,11 +1185,11 @@ bun test cooper/backend/contexts/auth -t 'clock|invitations'
 ```
 
 ```text
- 7 pass
+ 8 pass
  14 filtered out
  0 fail
- 25 expect() calls
-Ran 7 tests across 1 file.
+ 26 expect() calls
+Ran 8 tests across 1 file.
 ```
 
 Then the schedule, by hand. Start the backend (`bun cooper/backend/index.ts`), stop
@@ -1180,7 +1215,8 @@ morning, UTC; your date differs) and told nothing. The next one is tonight's.
   `subscribe`. A `handler` makes each tick a job, tried until it succeeds.
 - Each tick is told once, by whichever process records it first; missed ticks are
   told as one; a new schedule waits for its next tick. A test calls
-  `base.schedules.tick()` after moving its clock.
+  `base.schedules.tick()` after moving its clock, once it has stopped the context's
+  own loop (`base.schedules.stop()`).
 - A secret is made where it leaves, never kept in a job: the store holds only its
   hash. Sent twice, the second link is the one that works.
 - A use case that checks something a saga will change, as `accept` checks the

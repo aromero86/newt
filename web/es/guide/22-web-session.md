@@ -676,7 +676,7 @@ y `strict` no.
 ## boards inicia sesión a través de él
 
 boards inicializa el módulo primero en `initializeModules`, y le entrega el `token` de auth
-a través de `Boards_Auth`. Añade los dos imports:
+a través de `Boards_Auth`. Añade los tres imports (`Auth_Modules` vuelve, para `token`):
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
@@ -688,17 +688,19 @@ import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 // …
 ```
 
-dale a `Boards_Auth` el módulo `token`:
+haz que `Boards_Auth` sea lo que el módulo de workspaces pide a auth, `WorkspaceAuth`, y
+además el módulo `token` de auth:
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
 // …
 /**
  * auth's use cases `boards` calls besides its ports: who an access token is for (the
- * web session, the MCP server), who someone is, and what boards' routes for
- * workspaces, members and invitations manage in auth.
+ * web session, the MCP server), and what its workspace module asks of auth (who
+ * someone is, and what boards' routes for workspaces, members and invitations manage
+ * in auth).
  */
-export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
+export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
 // …
 ```
 
@@ -840,9 +842,9 @@ después y lo reemplaza: gana la última que se puso. Solo cambia su comentario:
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
 // …
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth behind
- * its ports, its emails and its log's lines in lists, and who sends a request told by an `x-user` header (the real
- * authenticator, the web session's, is replaced).
+ * `boards` for a test: its database and its cards' search in memory, a fake auth
+ * behind its ports, its emails and its log's lines in lists, and who sends a request
+ * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
 // …
 ```
@@ -892,8 +894,7 @@ inicia la sesión de la gente como lo hará la UI de boards.
 
 ### El test de cooper inicia sesión a través de boards
 
-Quita de `cooper.test.ts` el import de `inWorkspace`: nada lo usa hasta el capítulo 24.
-Después, cada contexto nombra la URL pública del otro:
+En `cooper.test.ts`, cada contexto nombra ahora la URL pública del otro:
 
 ```ts
 // cooper/backend/cooper.test.ts
@@ -917,8 +918,9 @@ boards; boards tiene el de la sesión web:
 // cooper/backend/cooper.test.ts
 // …
 beforeEach(async () => {
-  mails = []
-  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
   servers = [serve(contexts.auth.serving()), serve(contexts.boards.serving())]
 })
 // …
@@ -1072,7 +1074,8 @@ describe('the web session of a context', () => {
     // It keeps no token: it gave them back once it knew who signed in.
     expect(await auth.base.store.table('token').count()).toBe(0)
 
-    // The code was spent: the same callback again opens nothing.
+    // The same callback again opens nothing: the sign-in it answered (its cookie) is over, so it
+    // is told expired before its code goes to auth (which refuses a spent one: oauth.test.ts).
     expect(new URL((await as(redirectTo)).headers.get('location')!, clientUrl('/')).searchParams.get('signInError')).toBe('session.sign_in_expired')
 
     // Signing out goes on to auth, which ends its own session too and sends the browser back.
@@ -1127,8 +1130,11 @@ describe('the web session of a context', () => {
   cliente propio del producto (`firstParty`), el código vuelve, el navegador va a
   `returnTo`, y `/api/whoami` se ejecuta como la persona, `via: 'web'`. La tabla `token` de
   auth queda vacía después: el cliente devolvió sus tokens. El mismo callback una segunda
-  vez no abre nada. Cerrar sesión termina las dos sesiones, y `returnTo` a la salida sigue
-  siendo una ruta del cliente.
+  vez no abre nada: el inicio de sesión al que respondía, su cookie, ya terminó, así que el
+  cliente dice `session.sign_in_expired` antes de que el código llegue a auth. Que auth
+  rechaza un código ya gastado lo muestra `oauth.test.ts` ([capítulo 21](./21-oauth-server)).
+  Cerrar sesión termina las dos sesiones, y `returnTo` a la salida sigue siendo una ruta
+  del cliente.
 - **El segundo** trae el callback desde otro navegador, y luego con un `state` falsificado:
   ambos son `session.sign_in_expired`.
 - **El tercero** dice que no en auth (`/deny`), e inicia el inicio de sesión con
@@ -1137,14 +1143,14 @@ describe('the web session of a context', () => {
 
 ## Compruébalo
 
-Ejecuta la puerta:
+Ejecuta la comprobación:
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 101 pass
+ 114 pass
  0 fail
 ```
 

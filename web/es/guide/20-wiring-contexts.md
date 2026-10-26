@@ -28,10 +28,12 @@ boards recibe de auth dos tipos de cosas, y son distintas a propósito.
   `invitation`). Esto no son puertos. Esas rutas toman y responden con las formas propias
   de auth; un puerto solo repetiría la API de auth uno a uno.
 
-`Boards_Auth` dice a qué módulos de auth puede llamar boards: un `Pick` de `Auth_Modules`.
+`Boards_Auth` dice a qué módulos de auth puede llamar boards. Hoy son los cuatro que su
+módulo de workspaces pide a auth, su `WorkspaceAuth` (en sus deps, más abajo), así que
+`Boards_Auth` es ese tipo, nombrado una sola vez, y el módulo recibe `deps.auth` entero.
 Nunca el contexto de auth, su base ni su store: con solo módulos en la mano, boards llega a
 auth por sus casos de uso y por nada más. Si boards necesita algún día otro módulo de auth,
-el cambio se ve en este tipo.
+el cambio se ve en este tipo (el [capítulo 22](./22-web-session) añade uno).
 
 Reemplaza `contexts/boards/initialize-modules.ts`:
 
@@ -39,7 +41,6 @@ Reemplaza `contexts/boards/initialize-modules.ts`:
 // cooper/backend/contexts/boards/initialize-modules.ts
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
-import type { Auth_Modules } from '../auth/initialize-modules'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
@@ -49,15 +50,16 @@ import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
 import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
-import type { TenantEvents } from './modules/workspace/workspace.deps'
+import type { TenantEvents, WorkspaceAuth } from './modules/workspace/workspace.deps'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
- * auth's use cases `boards` calls besides its ports: who someone is, and what boards'
- * routes for workspaces, members and invitations manage in auth.
+ * auth's use cases `boards` calls besides its ports: what its workspace module asks
+ * of auth (who someone is, and what boards' routes for workspaces, members and
+ * invitations manage in auth).
  */
-export type Boards_Auth = Pick<Auth_Modules, 'user' | 'tenant' | 'access' | 'invitation'>
+export type Boards_Auth = WorkspaceAuth
 
 /**
  * What `boards`' modules are given besides its base: what they need of auth, as ports
@@ -82,8 +84,7 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
-  const { tenant, access, invitation, user } = deps.auth
-  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: { tenant, access, invitation, user } })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: deps.auth })
   const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
@@ -259,15 +260,18 @@ En `card.workers.ts`, impórtala:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
-import type { Card_Deps, RevokedAccess } from './card.deps'
+import type { CardAuthor, CardDTO } from './card.schema'
 ```
 
-y reemplaza la última suscripción, quitando el comentario que decía "de momento":
+y reemplaza la suscripción a `access.revoked`, quitando la línea del comentario que decía
+"For now":
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
   // auth took someone's access to a workspace: their cards there are left unassigned.
   // auth tells every access it takes away, to any product: only a workspace's is boards'.
+  // A card checks its assignee before its save, so they may leave in between: a card
+  // created for someone, or given to them, looks again once saved, the same way.
   deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
     strategy: 'handler',
     queue: 'card.unassignMember.on.access.revoked',
@@ -336,8 +340,8 @@ export interface Workspace_Deps {
 }
 ```
 
-`WorkspaceAuth` nombra los cuatro módulos por sus clases. Es lo mismo que `Boards_Auth`,
-escrito en las deps del propio módulo, como cada módulo escribe lo que recibe.
+`WorkspaceAuth` nombra los cuatro módulos por sus clases, en las deps del propio módulo,
+como cada módulo escribe lo que recibe. El `Boards_Auth` de antes es este tipo.
 
 ### Las formas con las que responde boards
 
@@ -648,7 +652,7 @@ Cualquier `auth.<módulo>.<casoDeUso>` es una función que rechaza con ese mensa
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
     access: auth.access,
     auth: auth.modules,
-    mailer: { send: async mail => { mails.push(mail) } },
+    mailer,
 ```
 
 FakeAuth está ahora solo en `testing/`, y solo `openTestBoards` lo abre.
@@ -855,9 +859,9 @@ import type { Server } from 'bun'
 import { serve } from 'newt/http'
 import { browser, freePort, type Browser } from 'newt/testing'
 import { config, type Config } from './config'
-import { inWorkspace } from './contexts/boards/workspace-scope'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /**
  * cooper end to end: auth and boards open as the server opens them, on SQLite in
@@ -878,8 +882,9 @@ let servers: Server<undefined>[]
 let mails: Mail[]
 
 beforeEach(async () => {
-  mails = []
-  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  mails = mailer.mails
+  contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
   // For now boards is told who sends a request by an `x-user` header (chapter 22 signs them in through auth).
   contexts.boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
@@ -1023,7 +1028,8 @@ describe('workspaces, through boards', () => {
 - `testConfig` pone las dos bases de datos en memoria, y los servidores en puertos libres.
   `freePort` y `browser` vienen de `newt/testing`: un puerto en el que nadie escucha, y un
   `fetch` que envía `json` como cuerpo y guarda las cookies (el capítulo 22 las necesita).
-  (`inWorkspace` se importa para un test que añade un capítulo posterior.)
+  Los emails van a un `RecordingMailer` ([capítulo 12](./12-failures)), cuyos `mails`
+  leen los tests.
 - A boards se le dice quién envía cada petición con una cabecera `x-user`, como hace el
   servidor de desarrollo hasta el [capítulo 22](./22-web-session). `signUp` crea la cuenta
   por el módulo user de auth y da un navegador que envía la cabecera.
@@ -1086,7 +1092,12 @@ sigue ahí. boards no lo deja entrar en ningún sitio de todos modos: el tenant 
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
+```
+
+```text
+ 102 pass
+ 0 fail
 ```
 
 Los dos archivos de test nuevos por separado:
@@ -1227,8 +1238,8 @@ curl -s localhost:3002/api/workspaces/$ACME/members -H 'x-user: someone'
 
 - Un contexto recibe de otro dos tipos de cosas: **puertos** en sus propias palabras, para
   sus propias reglas (los emisores de otro contexto encajan tal cual en un puerto de
-  eventos), y un **`Pick` de los módulos del otro**, para lo que llama tal cual. Nunca su
-  contexto, su base ni su store.
+  eventos), y un **tipo que nombra los módulos del otro** a los que llama tal cual. Nunca
+  su contexto, su base ni su store.
 - Una suscripción al emisor de otro contexto es un **job del outbox de ese contexto**,
   ejecutado por su worker. Espera primero a sus jobs, y luego a los tuyos.
 - **Las escrituras en otro contexto empiezan en una ruta**, un punto de entrada. Ningún caso

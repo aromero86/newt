@@ -219,28 +219,28 @@ Sus dos eventos, en `events/`:
 
 ```ts
 // cooper/backend/contexts/auth/modules/access/events/access-granted.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { AccessDTO } from '../access.schema'
 
 /** Someone may now enter a product, for a tenant or for all of it. */
 export class Access_Granted implements DomainEvent<AccessDTO> {
   static readonly eventName = 'access.granted'
   readonly name = Access_Granted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: AccessDTO) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/access/events/access-revoked.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { AccessDTO } from '../access.schema'
 
 /** Someone may no longer enter a product (or one of its tenants): the access as it was. */
 export class Access_Revoked implements DomainEvent<AccessDTO> {
   static readonly eventName = 'access.revoked'
   readonly name = Access_Revoked.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: AccessDTO) {}
 }
 ```
@@ -357,10 +357,11 @@ export class Access_Repository extends TableRepository<Access, AccessRow, AuthBa
    * at most. Each is guarded by its key, which only makes two saves of it wait for
    * each other: what refuses the second row (`DuplicateValue`) is the unique index
    * `access_once` of auth's migrations (SQLite's and Postgres'), on (user, product,
-   * tenant) with a null tenant, the staff's, counted as a value. The table declares no `unique`: SQL
-   * stores ignore it (their indexes say it), and the files store, the only one that
-   * keeps it, lets a row with a null field share its value, so the staff's accesses
-   * would go unguarded there. Any other SQL store needs that index in its migrations.
+   * tenant) with a null tenant, the staff's, counted as a value. The table declares
+   * no `unique`: SQL stores ignore it (their indexes say it), and the files store, the
+   * only one that keeps it, lets a row with a null field share its value, so the
+   * staff's accesses would go unguarded there. Any other SQL store needs that index
+   * in its migrations.
    * The admins are checked after the writes, in their transaction, guarding each
    * tenant's admin, so two saves giving a tenant an admin at once cannot both succeed.
    */
@@ -732,21 +733,21 @@ las sagas de boards del [capítulo 14](./14-sagas): su tablero de bienvenida con
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-created.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { TenantDTO } from '../tenant.schema'
 
 /** A new workspace: boards gives it a first board from this. */
 export class Tenant_Created implements DomainEvent<TenantDTO> {
   static readonly eventName = 'tenant.created'
   readonly name = Tenant_Created.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: TenantDTO) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-renamed.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { TenantDTO } from '../tenant.schema'
 
 /** The whole workspace as it is now, the fields that changed (`changes`) and what they were (`previous`). */
@@ -755,14 +756,14 @@ type TenantChange = { dto: TenantDTO, changes: Partial<TenantDTO>, previous: Par
 export class Tenant_Renamed implements DomainEvent<TenantChange> {
   static readonly eventName = 'tenant.renamed'
   readonly name = Tenant_Renamed.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: TenantChange) {}
 }
 ```
 
 ```ts
 // cooper/backend/contexts/auth/modules/tenant/events/tenant-deleted.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { TenantDTO } from '../tenant.schema'
 
 /**
@@ -773,7 +774,7 @@ import type { TenantDTO } from '../tenant.schema'
 export class Tenant_Deleted implements DomainEvent<TenantDTO> {
   static readonly eventName = 'tenant.deleted'
   readonly name = Tenant_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: TenantDTO) {}
 }
 ```
@@ -1229,7 +1230,8 @@ const page = { size: 20 }
 
 En `accounts`, después de *opens a session at sign-up, unless the product takes no new
 accounts* (antes del test sobre HTTP), uno para `user.list`. Un filtro sobre un campo que
-`UserFilter` no declara no se puede validar:
+`UserFilter` no declara no se puede validar: la promesa del caso de uso se rechaza con
+un `ZodError`, así que el test la espera con `await`.
 
 ```ts
 // cooper/backend/contexts/auth/auth.test.ts
@@ -1240,7 +1242,7 @@ accounts* (antes del test sobre HTTP), uno para `user.list`. Un filtro sobre un 
     expect(all.items.map(user => user.name)).toEqual(['Bob', 'Ana'])
     const found = await modules().user.list({ field: 'email', op: 'ieq', value: 'BOB@cooper.test' }, page)
     expect(found.items.map(user => user.name)).toEqual(['Bob'])
-    expect(() => modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).toThrow()
+    await expect(modules().user.list({ field: 'passwordHash', op: 'eq', value: 'x' }, page)).rejects.toMatchObject({ name: 'ZodError' })
   })
 ```
 
@@ -1396,11 +1398,11 @@ el worker no encontró nada que revocar. El admin nunca lo revoca `revoke`, pero
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 78 pass
+ 89 pass
  0 fail
 ```
 

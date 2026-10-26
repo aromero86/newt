@@ -385,14 +385,14 @@ Su evento y sus errores:
 
 ```ts
 // cooper/backend/contexts/auth/modules/user/events/user-signed-up.ts
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { UserDTO } from '../user.schema'
 
 /** Someone made an account: who they are, never their password. */
 export class User_SignedUp implements DomainEvent<UserDTO> {
   static readonly eventName = 'user.signedUp'
   readonly name = User_SignedUp.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: UserDTO) {}
 }
 ```
@@ -421,6 +421,10 @@ export class UserNotFound extends NotFoundError {
   }
 }
 ```
+
+Su `occurredAt` es `now()`, como en los eventos de boards desde el [capítulo 10](./10-events):
+la hora según el reloj del contexto. auth aún no tiene reloj propio, así que es la hora
+real; el [capítulo 19](./19-invitations-and-time) le da uno, y sus eventos lo siguen.
 
 `EmailTaken` es un `ConflictError`, un 409, como `BoardNameTaken`.
 
@@ -1302,7 +1306,7 @@ import { expect, test } from 'bun:test'
 import { runContexts } from 'newt/application'
 import { config, type Config } from './config'
 import { openContexts } from './open-contexts'
-import type { Mail } from './shared/mail/mailer'
+import { RecordingMailer } from './shared/mail/recording-mailer'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
@@ -1314,8 +1318,9 @@ function testConfig(): Config {
 }
 
 test('opens the two contexts, serves each on its own port, and stops them', async () => {
-  const mails: Mail[] = []
-  const contexts = await openContexts(testConfig(), { mailer: { send: async mail => { mails.push(mail) } } })
+  const mailer = new RecordingMailer()
+  const mails = mailer.mails
+  const contexts = await openContexts(testConfig(), { mailer })
   expect(contexts.all.map(context => context.name)).toEqual(['auth', 'boards'])
 
   const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { signals: false })
@@ -1341,16 +1346,17 @@ El test abre los dos contextos sobre bases de datos en memoria y puertos libres,
 ejecuta con `{ signals: false }`: un test no debe quedarse con el Ctrl+C del ejecutor de
 tests, ni terminar el proceso. Cada contexto responde a su health en su propio puerto, y
 una dirección `/api` que ninguna ruta tiene es un 404. `app.stop()` en `finally` los
-detiene como lo haría una señal. Abrir y detener no envía ningún correo.
+detiene como lo haría una señal. El `RecordingMailer` del [capítulo 12](./12-failures)
+guarda lo que se enviaría: abrir y detener no envía ningún correo.
 
 ## Compruébalo
 
 ```sh
-bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
+bun install && bun check && bun test cooper && bun run lint
 ```
 
 ```text
- 68 pass
+ 79 pass
  0 fail
 ```
 
@@ -1362,7 +1368,7 @@ bun test cooper -t 'accounts|two contexts'
 
 ```text
  5 pass
- 63 filtered out
+ 74 filtered out
  0 fail
  27 expect() calls
 Ran 5 tests across 10 files.
