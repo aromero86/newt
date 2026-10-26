@@ -1,5 +1,5 @@
 import type { Entity, EntitySchema } from '../core'
-import { markPersisted, takeEvents } from '../core/internal'
+import { markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 
@@ -25,7 +25,8 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * written, keeps its version, and tells nothing (a change undone is no change: an
    * event always comes with a change). Every stored one changed or deleted must still
    * be the version it was read as, and a new one must not collide with a key or
-   * unique value: `ConcurrencyConflict` otherwise.
+   * unique value: `ConcurrencyConflict` otherwise. Each is marked saved once written
+   * (in `after` it already is), and put back as it was if the transaction rolls back.
    *
    * `before` writes what must go first (the rows they replace); `after` writes what
    * follows from them, or checks a rule over several rows (a workspace keeps an
@@ -37,22 +38,28 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    */
   protected async save<T extends E>(entities: T[], write: (entity: T) => void | Promise<void>, hooks: SaveHooks = {}): Promise<void> {
     this.base.invocations?.checkWrite()
-    const changed = entities.filter(entity => entity.hasPendingChanges)
+    const changed = new Set(entities.filter(entity => entity.hasPendingChanges))
     await this.store.transaction(async () => {
+      // Each is saved as it is written, so saving it again in the same transaction
+      // writes what changed since; if the transaction rolls back, even one it joined
+      // later, each is put back as it was, with what it had to tell.
+      const saved = entities.map(entity => ({ entity, state: entity[savedState]() }))
+      this.store.afterRollback(() => {
+        for (const { entity, state } of saved) entity[restoreSaved](state)
+      })
       if (hooks.guard?.length) await this.store.guard(hooks.guard)
       await hooks.before?.()
-      for (const entity of changed) await write(entity)
+      for (const entity of changed) {
+        await write(entity)
+        entity[markPersisted]()
+      }
       await hooks.after?.()
       for (const entity of entities) {
         const events = entity[takeEvents]()
         // One that ends as it was read has nothing to tell: a change undone is no change.
-        if (!entity.hasPendingChanges) continue
+        if (!changed.has(entity)) continue
         for (const event of events) await this.base.publisher.publish(event)
       }
-      // Saved once it commits, which may be later: inside another transaction, when that one does.
-      this.store.afterCommit(() => {
-        for (const entity of changed) entity[markPersisted]()
-      })
     })
   }
 

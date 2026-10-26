@@ -118,7 +118,7 @@ super(base, base.store.table<BrandRow>('brand'), {
 ```
 
 `find`, `first`, `count` and `page` see only the current workspace's rows; saving an
-entity of another one throws; outside a scope `current()` throws, so a worker enters
+entity of another one, or one stored in another, throws; outside a scope `current()` throws, so a worker enters
 it first. What looks across workspaces on purpose uses the protected
 `findInEveryScope`. What a subclass reads or writes on its own (`this.table`, Kysely,
 `saveRows`, a save's `after`) adds the filter itself.
@@ -273,8 +273,11 @@ export class Note extends Entity<typeof NoteSchema> {
   once: the input schema is derived from the entity's (`NoteSchema.pick(...)`).
 - **It has a `version`**: 0 until it is saved, then the one it is stored with.
   `fromDTO` gets it from the row (the constructor throws without it, since saving
-  it could overwrite someone), and the repository moves it on once the save
-  commits.
+  it could overwrite someone), and the repository moves it on as it writes it,
+  and back if the save rolls back.
+- **A field that may have no value is `.nullable()`** (or `.nullish()`): a store
+  keeps "none" as `null`, and that is what is read back. One cleared to `undefined`
+  is written as `null` too.
 - Outside its module an entity does not exist: use cases return `toDTO()`.
 
 ## Repositories

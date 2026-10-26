@@ -1,4 +1,5 @@
 import { allOf, toPage, type Criteria, type Entity, type EntitySchema, type Page, type PageRequest } from '../core'
+import { savedState } from '../core/internal'
 import type { FindOptions, NewRow, StoredRow, Table } from '../port-store'
 import { Repository } from './repository'
 import type { RepositoryBase } from './repository-base'
@@ -41,9 +42,10 @@ export abstract class TableRepository<
     return (this.options.softDelete ? { ...row, deletedAt: null } : row) as NewRow<Row>
   }
 
-  /** What changed of a stored entity, as its row's fields. */
+  /** What changed of a stored entity, as its row's fields: a field cleared is written as null. */
   protected toChanges(entity: E): Partial<NewRow<Row>> {
-    return { ...entity.getChanges(), updatedAt: entity.toDTO().updatedAt } as unknown as Partial<NewRow<Row>>
+    const changes = Object.entries(entity.getChanges() ?? {}).map(([field, value]) => [field, value === undefined ? null : value])
+    return { ...Object.fromEntries(changes), updatedAt: entity.toDTO().updatedAt } as unknown as Partial<NewRow<Row>>
   }
 
   /** The ones that meet the criteria, by id unless told otherwise. */
@@ -107,10 +109,14 @@ export abstract class TableRepository<
     return softDelete ? allOf(scoped, { deletedAt: null } as unknown as Criteria<Row>) : scoped
   }
 
+  /** One of its scope, stored there too: a row of another scope is never written, even through an entity moved out of it. */
   private assertInScope(entity: E): void {
     const { scope } = this.options
     if (!scope) return
     const value = (entity.toDTO() as Record<string, unknown>)[scope.field]
-    if (value !== scope.current()) throw new Error(`${entity.constructor.name} ${entity.id} belongs to ${scope.field} '${String(value)}', not to the current one: a repository saves only its scope's`)
+    const stored = entity.isNew ? value : (entity[savedState]().initial as Record<string, unknown>)[scope.field]
+    for (const each of [value, stored]) {
+      if (each !== scope.current()) throw new Error(`${entity.constructor.name} ${entity.id} belongs to ${scope.field} '${String(each)}', not to the current one: a repository saves only its scope's`)
+    }
   }
 }

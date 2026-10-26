@@ -7,6 +7,7 @@ import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
 import { UnknownEntityField } from './errors/unknown-entity-field'
 import type { EntityInput } from './entity-input'
 import { markPersisted } from './mark-persisted'
+import { restoreSaved, savedState, type SavedState } from './saved-state'
 import { takeEvents } from './take-events'
 import type { EntitySchema } from './entity-schema'
 
@@ -73,6 +74,24 @@ export class Entity<TSchema extends EntitySchema> {
     this._version++
     this._isNew = false
     this.initial = structuredClone(this.current)
+  }
+
+  /** What it is as saved, and what it has to tell: its repository puts it back if the save rolls back. */
+  [savedState](): SavedState {
+    return { version: this._version, isNew: this._isNew, initial: this.initial, events: this.domainEvents }
+  }
+
+  /**
+   * The save that marked it saved rolled back: it is again as it was saved before,
+   * with what it had to tell. What changed since stays changed, and an event noted
+   * since replaces the one of its name given back.
+   */
+  [restoreSaved](state: SavedState): void {
+    this._version = state.version
+    this._isNew = state.isNew
+    this.initial = state.initial as z.infer<TSchema> | null
+    const since = this.domainEvents
+    this.domainEvents = [...state.events.filter(event => !since.some(each => each.name === event.name)), ...since]
   }
 
   get id(): string {
