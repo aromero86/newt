@@ -7,7 +7,7 @@ and domain events with a transactional outbox, kept in stores you can swap or wr
 |---|---|
 | [`packages/newt`](packages/newt) | The framework, published as `newt`, one subpath per piece (`newt/core`…) |
 | [`packages/newt-eslint`](packages/newt-eslint) | The lint of an application built with newt |
-| [`docs`](docs) | [The guide](docs/guide.md), [stores](docs/stores.md) and [the manual, in Spanish](docs/manual.es.md) |
+| [`web`](web) | The documentation site, in English and Spanish: [the guide](web/guide/00-introduction.md), which builds cooper step by step, and [the reference](web/reference/rules.md) (`bun run docs:dev`) |
 | [`cooper`](cooper) | The example application built on it as any would be: a small Trello-like SaaS, its staff's backoffice and the OAuth server they sign in with |
 
 ```bash

@@ -58,12 +58,14 @@ three contexts on SQLite. The guide builds it step by step.
 
 ## Documentation
 
-- [**The guide**](../../docs/guide.md): how an application is built: contexts, modules,
-  entities, use cases, repositories, events, errors, HTTP.
-- [**Stores**](../../docs/stores.md): what a store promises, the four that come with the
-  framework, and how to write another.
-- [**Manual (en castellano)**](../../docs/manual.es.md): building a backend step by step, as
-  a book: transactions, events, workers and eventual consistency, with diagrams.
+The documentation is a site in [`web/`](../../web) (`bun run docs:dev`), in English
+and Spanish:
+
+- [**The guide**](../../web/guide/00-introduction.md): building a backend step by step,
+  cooper's: contexts, modules, entities, use cases, transactions, events, workers,
+  eventual consistency, several contexts, an OAuth server and an MCP server.
+- [**The reference**](../../web/reference/rules.md): the framework's rules, its
+  [stores](../../web/reference/stores.md) and its [lint](../../web/reference/lint.md).
 
 ## Pieces
 

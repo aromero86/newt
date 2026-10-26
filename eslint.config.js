@@ -48,7 +48,7 @@ const API_BACKEND_IMPORTS = {
 }
 
 export default [
-  { ignores: ['packages/**', 'docs/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
   ...within(['cooper/backend', 'cooper/scripts'], BACKEND),
   {
     files: FRONTEND,
