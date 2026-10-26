@@ -50,7 +50,11 @@ export class Outbox_Module extends Module {
     return { items: after.slice(0, page.size).map(toDTO), hasMore: after.length > page.size, total: dead.length }
   }
 
-  /** Puts a dead job back to wait, as new: its worker runs it again at once, with all its attempts. */
+  /**
+   * Puts a dead job back to wait, as new: its worker runs it again at once, with all its
+   * attempts. A plain use case: it writes no module's rows through a repository, which
+   * is what the write rule watches, but the store's outbox, in one step.
+   */
   @UseCase()
   async retry(id: string): Promise<void> {
     if (await this.base.store.outbox.retry(id)) return

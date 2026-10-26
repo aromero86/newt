@@ -49,6 +49,8 @@ describe('job', () => {
 
   test('a job that is not there, or a context that is not one, is refused', async () => {
     await expect(t.as(sam, () => t.modules.job.retry('auth', '0190a0a0-0000-7000-8000-000000000000'))).rejects.toMatchObject({ code: 'outbox.job_not_found', status: 404 })
+    // The backoffice's own outbox, in the same context, is reached the same way.
+    await expect(t.as(sam, () => t.modules.job.retry('backoffice', '0190a0a0-0000-7000-8000-000000000000'))).rejects.toMatchObject({ code: 'outbox.job_not_found', status: 404 })
     await expect(t.as(sam, () => t.modules.job.dead('nowhere' as 'auth', { size: 10 }))).rejects.toThrow()
   })
 })

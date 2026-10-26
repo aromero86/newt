@@ -33,9 +33,11 @@ export class Job_Module extends Module {
   /**
    * A dead job of a context runs again: what a person of the staff asks for, at once,
    * once they fixed what killed it. The context's own use case puts it back; its
-   * worker runs it.
+   * worker runs it. No `writesTo`, not even for the backoffice's own outbox: the
+   * write rule watches what repositories save, and a job put back is the store's
+   * outbox, written by `outbox.retry` in one step.
    */
-  @UseCase({ writesTo: ['outbox'] })
+  @UseCase()
   async retry(context: JobContext, id: string): Promise<void> {
     await this.deps.outboxes[JobContextSchema.parse(context)].retry(id)
   }
