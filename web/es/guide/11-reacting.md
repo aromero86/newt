@@ -1,420 +1,653 @@
-# Reaccionar a un evento
+# Reaccionar: handlers y el outbox
 
-El módulo de tarjetas cuenta `card.assigned`. Ahora alguien tiene que escribirle un
-email a la persona asignada. Este capítulo muestra cómo reacciona un módulo a un
-evento: las dos formas de suscribirse, el job que newt guarda con el cambio, el nombre
-de su cola y el worker que llama a un caso de uso.
+La línea en el log se puede perder, y no pasa nada. El **historial** de una tarjeta, no.
+cooper muestra, para cada tarjeta, qué le pasó, quién lo hizo y cómo entró: creada por
+ana, movida por ana a través de MCP, asignada a bea. Un historial con un hueco es un
+bug, y con `fire-and-forget` un hueco está a un fallo de distancia: el movimiento se
+guarda, el proceso se detiene antes de que se ejecute el callback, y el historial nunca
+se entera.
 
-## Siempre igual: suscribirse
+Escribir el historial dentro de `card.move` tampoco ayudaría. La actividad es otro
+módulo, con su propia tabla y su propio guardado: un caso de uso que guardara la tarjeta
+y luego la entrada podría fallar entre los dos, y esa es la escritura en otro módulo que
+el capítulo [8](./08-two-people-one-card) dijo que solo puede hacer un worker.
 
-Un módulo reacciona a un evento, suyo o de otro módulo, suscribiéndose a él:
-
-```ts
-<módulo>.events.<evento>.subscribe(callback, opciones)
-```
-
-Las opciones dicen la estrategia. No hay valor por defecto: eliges cada vez, a
-propósito.
-
-| | `'fire-and-forget'` | `'handler'` |
-|---|---|---|
-| Cuándo se ejecuta | Justo después del commit. | Justo después del commit. |
-| Si falla | Se pierde. | Se vuelve a ejecutar más tarde, esperando más cada vez. |
-| Si el servidor se para antes | Se pierde. | Se ejecuta cuando vuelve. |
-| Dónde vive | En memoria. | Un job, guardado en el store. |
-| Para qué | Lo que puedes perder: limpiar una caché, una métrica. | Todo lo que importa: un email, un cambio en otro módulo. |
-
-`'fire-and-forget'` es tan sencilla como suena. cooper la usa una vez, para escribir
-una línea en el log del servidor cada vez que se mueve una tarjeta, y así ver un
-tablero en directo mientras trazas:
-
-```ts
-// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
-// A line in the server's log as each card moves, to watch a board live while
-// tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
-// or the server stops before it runs, the line is lost, and nothing is wrong: no
-// one needs it later, and the log above keeps the move for good.
-events.moved.subscribe(({ dto, previous, by, via }) => {
-  options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
-}, { strategy: 'fire-and-forget' })
-```
-
-`options.log` escribe en la consola cuando `COOPER_TRACE=1`, y en ningún sitio si no.
-Perder una línea no pasa nada: está para mirarla, no para guardarla. El movimiento en
-sí lo guarda para siempre un `'handler'` del mismo fichero, que verás más abajo.
-
-Sus tests también la usan, para contar eventos (lo viste en el [capítulo
-anterior](./10-events)):
-
-```ts
-// cooper/backend/contexts/auth/auth.test.ts
-modules().access.events.revoked.subscribe(access => { told.push(access.userId) }, { strategy: 'fire-and-forget' })
-```
-
-`'handler'` es la que usarás casi siempre. Si dudas, úsala: casi todo lo que hace un
-backend importa.
-
-Cada estrategia tiene sus propias opciones, y TypeScript solo te deja escribir esas:
-`'fire-and-forget'` no lleva nada más; `'handler'` lleva su `queue` y, si hace falta,
-`attempts`.
-
-## Las reacciones de un módulo: `<módulo>.workers.ts`
-
-Las reacciones de un módulo viven en su `<módulo>.workers.ts`, una función a la que
-llama su `initialize`. Estas son las del módulo de tarjetas:
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.workers.ts
-export function registerCardWorkers(cards: Card_Module, deps: Card_Deps): void {
-  // An assignee hears of it once it is saved: a card created for someone, or given to them, by someone else.
-  cards.events.created.subscribe(async ({ by, ...card }) => {
-    if (card.assigneeId !== null) await cards.notifyAssignee(card, by)
-  }, {
-    strategy: 'handler',
-    queue: 'card.notifyAssignee.on.card.created',
-  })
-  cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
-    strategy: 'handler',
-    queue: 'card.notifyAssignee.on.card.assigned',
-  })
-
-  // A card points at its column: when a column goes, no card is left in it.
-  deps.column.events.removed.subscribe(column => cards.leaveRemovedColumn(column), {
-    strategy: 'handler',
-    queue: 'card.leaveRemovedColumn.on.column.removed',
-  })
-
-  // auth took someone's access to a workspace: their cards there are left unassigned.
-  // auth tells every access it takes away, to any product: only a workspace's is boards'.
-  deps.access.revoked.subscribe(async access => {
-    if (access.productId === WORKSPACES_PRODUCT && access.tenantId !== null) await cards.unassignMember(access.tenantId, access.userId)
-  }, {
-    strategy: 'handler',
-    queue: 'card.unassignMember.on.access.revoked',
-  })
-}
-```
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.module.ts
-static initialize(base: BoardsBase, deps: Card_Deps, options: Card_Options): Card_Module {
-  const module = new Card_Module(base, new Card_Repository(base), deps, options)
-  registerCardRoutes(base, module, deps)
-  registerCardWorkers(module, deps)
-  return module
-}
-```
-
-Léelo en voz alta: "cuando se asigna una tarjeta, el módulo de tarjetas avisa a la
-persona asignada"; "cuando se quita una columna, las tarjetas salen de ella"; "cuando
-auth retira un acceso, las tarjetas se quedan sin ese miembro". Cuatro reacciones,
-tres orígenes: los eventos del propio módulo, los de otro módulo (`column`) y los de
-otro contexto (`access`, en auth).
-
-- El callback recibe el payload del evento y llama a un caso de uso del módulo que
-  reacciona, con lo que ese caso de uso necesita: aquí la tarjeta y `by`, quién lo
-  hizo, no el payload entero.
-- El callback puede decidir si el evento le concierne. Una tarjeta creada sin nadie
-  asignado no necesita email. auth retira accesos a todos sus productos, y aquí solo
-  importa el de un workspace. Es una condición sobre el evento, nunca lógica de
-  negocio: esa va en el caso de uso.
-
-El módulo de tarjetas no recibe `access` como el módulo de auth. Recibe un puerto con
-sus propias palabras, que solo dice que se puede suscribir a él:
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.deps.ts
-export type AccessEvents = {
-  /**
-   * Someone lost their access to a product of auth's: to a workspace of `cooper`
-   * (`tenantId`), or to a product with none (null, the backoffice's staff).
-   */
-  revoked: Pick<DomainEventEmitter<{ userId: string, productId: string, tenantId: string | null }>, 'subscribe'>
-}
-```
-
-El `access.events` de auth encaja en él, y un test pasa el suyo. [Varios
-contextos](./19-several-contexts) vuelve sobre esto.
-
-### Un módulo hecho de reacciones: el registro de actividad
-
-Hay módulos que solo existen para reaccionar. boards guarda la historia de cada
-tarjeta, su actividad: quién la creó, la editó, la movió, la asignó, y cómo entró. El
-módulo de tarjetas no sabe nada de ella. El módulo de actividad escucha los seis
-eventos de una tarjeta y apunta cada uno:
-
-```ts
-// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
-export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
-  const { events } = deps.card
-  events.created.subscribe(card => activity.recordCreated(card), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
-  events.edited.subscribe(edit => activity.recordEdited(edit), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
-  events.moved.subscribe(move => activity.recordMoved(move), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
-  events.assigned.subscribe(assignment => activity.recordAssigned(assignment), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
-  events.unassigned.subscribe(unassignment => activity.recordUnassigned(unassignment), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
-  events.deleted.subscribe(card => activity.recordDeleted(card), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
-
-  // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
-  deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
-    strategy: 'handler',
-    queue: 'activity.purgeWorkspace.on.tenant.deleted',
-  })
-  // …
-}
-```
-
-Cada registro es un `'handler'`: que falte una entrada en una historia es un fallo,
-así que no se puede perder ninguna. Y cada una se escribe solo con el payload, sin
-leer nada: la tarjeta, quién lo hizo (`by`, `via`) y cuándo (`at`) venían en el
-evento, y por eso los puso ahí el [capítulo anterior](./10-events). La entrada toma
-como id el `eventId` del evento; [workers repetibles](./13-repeatable-workers) cuenta
-por qué.
+Este capítulo añade la estrategia que no pierde nada, **`handler`**. newt escribe un
+**job** en la misma transacción que el cambio, y un worker lo ejecuta tras la
+confirmación, otra vez si falla, también tras un reinicio. El módulo de actividad
+registra cada evento de tarjeta con uno, y verás lo que cuesta: un job puede ejecutarse
+más de una vez, así que lo que hace debe poder hacerse dos veces sin problema.
 
 ## Un job, guardado con el cambio
 
-Cada reacción `'handler'` es un job. newt lo escribe en la misma transacción que el
-cambio que cuenta el evento: viste `this.jobs.enqueue(event)` dentro de `publish` en
-el capítulo anterior. Esto es todo:
-
-```ts
-// packages/newt/runtime/jobs/job-queue.ts
-/** One job for each handler the event concerns, in the transaction of the save that publishes it. */
-async enqueue(event: DomainEvent): Promise<void> {
-  const now = new Date().toISOString()
-  const jobs: Job[] = [...this.registrations]
-    .filter(([, registration]) => eventNameMatches(registration.pattern, event.name))
-    .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(event), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
-  if (jobs.length > 0) await this.store.add(jobs)
-}
-```
-
-Así que la asignación y el job "avisar a la persona asignada" se guardan juntos, o
-ninguno de los dos. La tabla donde van es el outbox: una tabla de jobs en el mismo
-store que los datos. Tras el commit, el worker se despierta, reclama el job y ejecuta
-el callback:
+Una suscripción con `strategy: 'handler'` es una **cola**. Cada vez que se cuenta su
+evento, newt añade un job a esa cola, en la transacción del guardado que lo contó:
 
 ```text
-una transacción                         después del commit
-┌─────────────────────────────────┐
-│ card: assigneeId = bea          │ ──▶ el worker reclama el job
-│ job: card.notifyAssignee.on.    │     y ejecuta card.notifyAssignee(dto)
-│      card.assigned (pending)    │     ¿falla? se repite más tarde
-└─────────────────────────────────┘
+una transacción                          tras la confirmación
+┌──────────────────────────────────┐
+│ card: columnId = Doing           │ ──▶ el worker de boards reclama el job,
+│ job:  activity.recordMoved.on.   │     ejecuta activity.recordMoved(move, event),
+│       card.moved      (pending)  │     y lo marca como hecho; si lanza un error,
+└──────────────────────────────────┘     se ejecuta otra vez más tarde
 ```
 
-El job guarda el evento como JSON, tal como se publicó. Eso importa para [lo que
-pones en un payload](./14-irreversible).
+Así el movimiento y el job que lo registra se guardan juntos, o ninguno. No hay un
+momento en que la tarjeta se movió y el job no existe. La tabla a la que van es el
+**outbox** del contexto: una tabla de jobs en el mismo store que sus datos, `job`, que
+`SqliteStore.open` creó con las migraciones propias de newt en el capítulo
+[5](./05-sqlite). El job guarda el evento como JSON, tal como se contó, con su payload y
+todo.
 
-### Qué worker lo ejecuta
+Tras la confirmación, el **worker** del contexto lo ejecuta. Lo arrancaste en el capítulo
+[1](./01-project-and-context): `boards.start()` en `index.ts`. La confirmación lo
+despierta, así que un job suele ejecutarse un momento después de su guardado; además
+mira cada pocos segundos, y al arrancar, de modo que los jobs que quedaron de antes de un
+reinicio también se ejecutan. Un job que lanza un error vuelve a esperar y se ejecuta
+otra vez más tarde (el [capítulo siguiente](./12-failures) dice cada cuánto, y cuándo
+deja de intentarlo).
 
-El job va al outbox del contexto cuyo emisor escuchas. boards se suscribe a
-`tenant.created` y `access.revoked` en los emisores de auth, así que esos jobs se
-guardan en la base de datos de auth, con el cambio de auth, y los ejecuta el worker
-de auth. cooper lo dice donde conecta los dos:
+El worker ejecuta cada job **desacoplado**: sin actor, sin scope, sin nada de quien
+guardó el cambio. Un job lee lo que necesita del evento, como hizo la línea de log.
+
+### Al menos una vez
+
+Un job se ejecuta hasta que tiene éxito. Esa es la garantía, y tiene un precio: puede
+ejecutarse **más de una vez**. Entre hacer su trabajo y marcar el job como hecho siempre
+hay un momento, y el proceso puede detenerse en él. Cuando el worker vuelve, el job sigue
+pendiente, y se ejecuta otra vez. Un job que falló a medias se ejecuta otra vez desde el
+principio. Un worker que se quedó congelado más allá de su lease (un minuto, renovado
+mientras se ejecuta) pierde el job a favor de otro, y aún puede terminar su propia
+ejecución.
+
+Así que lo que haga un handler debe dar el mismo resultado ejecutado dos veces que
+ejecutado una: debe ser **idempotente**. Ten esto presente para la actividad: cada
+evento de tarjeta debe dar una entrada, se ejecute su job las veces que se ejecute.
+
+## La tabla
+
+Una entrada de la actividad de una tarjeta es una fila, y las filas solo se añaden. El id
+de cada fila es el id del evento que registra:
+
+```sql
+-- cooper/backend/contexts/boards/migrations/sqlite/00005_activity_up.sql
+-- Each card's activity: one row for each thing that happened to it, by the id of the
+-- event that told it. Rows are only ever added, never changed; a card deleted keeps
+-- its history. Who did it is a user of auth's, by id; null when boards did it itself.
+CREATE TABLE activity (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  board_id TEXT NOT NULL,
+  card_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  actor_id TEXT,
+  via TEXT,
+  at TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL
+);
+-- A card's activity, the newest first (ids are v7: in the order they were told).
+CREATE INDEX activity_card ON activity (workspace_id, card_id, id);
+```
+
+```sql
+-- cooper/backend/contexts/boards/migrations/sqlite/00005_activity_down.sql
+DROP TABLE activity;
+```
+
+- `actor_id` y `via` son null cuando boards lo hizo por su cuenta (las tarjetas de una
+  columna quitada, más adelante).
+- `detail` es JSON: qué cambió, según el tipo.
+- No hay clave foránea a `card`: una tarjeta borrada conserva su historial.
+- El índice lee la actividad de una tarjeta de la más nueva a la más antigua. Los ids son
+  UUID v7, ordenados por tiempo, así que ordenar por id es ordenar por cuándo se contó
+  cada evento.
+
+## La entrada
+
+Su esquema dice qué es una entrada, y los seis tipos:
 
 ```ts
-// cooper/backend/open-contexts.ts
+// cooper/backend/contexts/boards/modules/activity/activity.schema.ts
+import { z } from 'zod'
+
+/** What can happen to a card: one entry of its activity each. */
+export const ACTIVITY_KINDS = ['created', 'edited', 'moved', 'assigned', 'unassigned', 'deleted'] as const
+
 /**
- * What `boards` asks of auth, wired to auth's use cases and events. A workspace is a
- * tenant of the product `cooper`, and its members are those with access to it while
- * it is there.
- * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
- * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
+ * Something that happened to a card, once: who did it (`actorId`, null when cooper
+ * did it on its own) and how they came in (`via`), and what changed (`detail`). Its
+ * id is the id of the event it records, so the same event is recorded once.
  */
+export const ActivitySchema = z.object({
+  id: z.uuidv7(),
+  workspaceId: z.string(),
+  boardId: z.string(),
+  cardId: z.string(),
+  kind: z.enum(ACTIVITY_KINDS),
+  actorId: z.string().nullable(),
+  via: z.enum(['web', 'mcp']).nullable(),
+  /** When it happened: when its event was told. */
+  at: z.string(),
+  /**
+   * What changed, by kind: `number` and `title` (created, deleted), `changed` and
+   * `title` (edited), `fromColumnId` and `toColumnId` (moved), `assigneeId` and
+   * `previousAssigneeId` (assigned, unassigned).
+   */
+  detail: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+  createdAt: z.string().default(''),
+  updatedAt: z.string().default(''),
+})
+
+export type ActivityDTO = z.infer<typeof ActivitySchema>
+export type ActivityKind = ActivityDTO['kind']
 ```
 
-Eso es lo que hace segura una reacción entre contextos: el workspace y el job que le
-da su tablero están en la misma transacción, en el store de auth. Un job en el store
-de boards no podría estarlo.
+La entidad es la más pequeña de cooper. Se registra una vez, nunca cambia y no cuenta
+nada: ella misma es lo que contaron los eventos de una tarjeta.
 
-## El nombre de su cola
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.ts
+import { Entity, type EntityInput } from 'newt/core'
+import { ActivitySchema, type ActivityDTO } from './activity.schema'
 
-Los jobs de cada reacción esperan en una cola, y la cola tiene un nombre que la
-encuentra otra vez tras un reinicio. Lo escribes tú, entero, siempre con la misma
-forma: el módulo que reacciona, su caso de uso y el evento.
+export * from './activity.schema'
+
+/**
+ * An entry of a card's activity. Recorded once and never changed: a log only grows,
+ * so two entries written at once never collide. It tells nothing: it is
+ * itself what a card's events told.
+ */
+export class Activity extends Entity<typeof ActivitySchema> {
+
+  private constructor(input: EntityInput<ActivityDTO>, isNew: boolean) {
+    super(ActivitySchema, input, isNew)
+  }
+
+  static fromDTO(dto: ActivityDTO & { version: number }): Activity {
+    return new Activity(dto, false)
+  }
+
+  /** A new entry, by the id of the event it records. */
+  static record(input: EntityInput<ActivityDTO> & { id: string }): Activity {
+    return new Activity(input, true)
+  }
+}
+```
+
+`record` toma el id de fuera, el del evento, en lugar de uno nuevo. Eso es lo que lo hace
+idempotente, más abajo.
+
+El repositorio tiene scope de workspace como todo repositorio de boards (capítulo
+[4](./04-who-and-where)), y dice que `detail` se guarda como JSON:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.repository.ts
+import { TableRepository } from 'newt/repository'
+import type { BoardsBase } from '../../boards-base'
+import { currentWorkspaceId } from '../../workspace-scope'
+import { Activity, type ActivityDTO } from './activity'
+
+export type ActivityRow = ActivityDTO & { version: number }
+
+export class Activity_Repository extends TableRepository<Activity, ActivityRow, BoardsBase> {
+
+  constructor(base: BoardsBase) {
+    super(base, base.store.table<ActivityRow>('activity', { types: { detail: 'json' } }), {
+      scope: { field: 'workspaceId', current: currentWorkspaceId },
+    })
+  }
+
+  protected toEntity(row: ActivityRow): Activity {
+    return Activity.fromDTO(row)
+  }
+}
+```
+
+## Los casos de uso
+
+El módulo recibe un repositorio, sus rutas, un caso de uso que lee, y seis que
+registran. Este es el `activity.module.ts` entero ahora:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.module.ts
+import { mapPage, Module, UseCase, type EventMeta, type Page, type PageRequest } from 'newt/core'
+import type { BoardsBase } from '../../boards-base'
+import { runInWorkspace } from '../../workspace-scope'
+import type { CardAuthor, CardDTO } from '../card/card.schema'
+import type { Card_Assigned } from '../card/events/card-assigned'
+import type { Card_Created } from '../card/events/card-created'
+import type { Card_Deleted } from '../card/events/card-deleted'
+import type { Card_Edited } from '../card/events/card-edited'
+import type { Card_Moved } from '../card/events/card-moved'
+import type { Card_Unassigned } from '../card/events/card-unassigned'
+import { Activity, type ActivityDTO, type ActivityKind } from './activity'
+import type { Activity_Deps } from './activity.deps'
+import type { Activity_Options } from './activity-options'
+import { Activity_Repository } from './activity.repository'
+import { registerActivityRoutes } from './activity.routes'
+import { registerActivityWorkers } from './activity.workers'
+
+/**
+ * What happened to each card, and who did it: a log that only grows, one
+ * entry per event a card tells, written by a worker reacting to it. An entry
+ * is never changed: a card edited twice has two entries, and none of them collides
+ * with another, nor with the card. Each one takes its event's id, so a job that runs
+ * twice records it once.
+ */
+export class Activity_Module extends Module {
+
+  static initialize(base: BoardsBase, deps: Activity_Deps, options: Activity_Options): Activity_Module {
+    const module = new Activity_Module(base, new Activity_Repository(base))
+    registerActivityRoutes(base, module, deps)
+    registerActivityWorkers(module, deps, options)
+    return module
+  }
+
+  private constructor(base: BoardsBase, private readonly repo: Activity_Repository) {
+    super('activity', base.invocations)
+  }
+
+  /** A page of a card's activity, the newest first. Its card may be gone: its history stays. */
+  @UseCase()
+  async listForCard(cardId: string, page: PageRequest): Promise<Page<ActivityDTO>> {
+    const found = await this.repo.page({ cardId }, page, { newestFirst: true })
+    return mapPage(found, entry => entry.toDTO())
+  }
+
+  @UseCase()
+  async recordCreated(card: Card_Created['payload'], event: EventMeta): Promise<void> {
+    await this.append(card, card, event, 'created', { number: card.number, title: card.title, columnId: card.columnId })
+  }
+
+  @UseCase()
+  async recordEdited({ dto, changes, ...origin }: Card_Edited['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'edited', { changed: Object.keys(changes).filter(field => field !== 'updatedAt').join(', '), title: dto.title })
+  }
+
+  @UseCase()
+  async recordMoved({ dto, previous, ...origin }: Card_Moved['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'moved', { fromColumnId: previous.columnId ?? dto.columnId, toColumnId: dto.columnId })
+  }
+
+  @UseCase()
+  async recordAssigned({ dto, previousAssigneeId, ...origin }: Card_Assigned['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'assigned', { assigneeId: dto.assigneeId, previousAssigneeId })
+  }
+
+  @UseCase()
+  async recordUnassigned({ dto, previousAssigneeId, ...origin }: Card_Unassigned['payload'], event: EventMeta): Promise<void> {
+    await this.append(dto, origin, event, 'unassigned', { previousAssigneeId })
+  }
+
+  @UseCase()
+  async recordDeleted(card: Card_Deleted['payload'], event: EventMeta): Promise<void> {
+    await this.append(card, card, event, 'deleted', { number: card.number, title: card.title })
+  }
+
+  /**
+   * Records an event of a card, in its workspace (a worker is in none), by the event's
+   * id: the second time, the entry is there already.
+   */
+  private async append(card: CardDTO, { by, via }: CardAuthor, event: EventMeta, kind: ActivityKind, detail: ActivityDTO['detail']): Promise<void> {
+    await runInWorkspace(card.workspaceId, async () => {
+      if (await this.repo.first({ id: event.id })) return
+      await this.repo.persist(Activity.record({
+        id: event.id,
+        workspaceId: card.workspaceId,
+        boardId: card.boardId,
+        cardId: card.id,
+        kind,
+        actorId: by,
+        via,
+        at: event.occurredAt,
+        detail,
+      }))
+    })
+  }
+}
+```
+
+### El id del evento: `EventMeta`
+
+Cada caso de uso `record…` recibe dos cosas: el payload del evento, tipado por la clase
+del evento (`Card_Moved['payload']`), y **`EventMeta`**, de `newt/core`: lo demás que se
+sabe del evento, su `id`, su `name` y cuándo ocurrió, `occurredAt`.
+
+El id es del publicador: newt da uno a cada evento cuando se cuenta. Es **el mismo para
+todos los handlers del evento y para todas las ejecuciones de su job**. Dos ejecuciones
+de `activity.recordMoved` para un movimiento ven un mismo id; el job del historial y el
+del email (capítulo siguiente) ven también el mismo id. Un movimiento hecho de nuevo más
+tarde es otro evento, con otro id.
+
+Eso lo convierte en la **clave de idempotencia** natural: todo lo que un handler deba
+hacer una vez por evento, lo hace con clave en el id del evento. La actividad lo toma
+como id propio de cada entrada, y `append` comprueba antes de escribir:
+
+- `this.repo.first({ id: event.id })`: si la entrada está ahí, una ejecución anterior la
+  registró, y no hay nada que hacer.
+- Si no está, escribe la entrada con ese id. Si dos ejecuciones pasaran la comprobación a
+  la vez (un worker que perdió su lease, y el que lo relevó), la segunda inserción choca
+  con la primera en la clave primaria: el guardado lanza `DuplicateValue`, el caso de uso
+  se ejecuta otra vez, encuentra la entrada y vuelve. La tabla nunca tiene dos.
+
+Un handler que usara como clave el payload (el id de la tarjeta y el tipo, por ejemplo)
+fundiría dos movimientos reales en uno. El id del evento distingue una vez que se contó
+un evento de otra, y nada más lo hace.
+
+`at` es el `occurredAt` del evento, no la hora en que se ejecutó el job: un job que se
+ejecuta un minuto tarde registra igualmente cuándo ocurrió.
+
+### Un worker no tiene scope
+
+`append` se ejecuta en `runInWorkspace(card.workspaceId, …)`. El repositorio de
+actividad tiene scope de workspace y se negaría a leer o escribir fuera de uno, y un job
+no se ejecuta en ninguno. El payload dice el workspace; `runInWorkspace` entra en él sin
+comprobar a nadie, tal como lo hizo el capítulo [4](./04-who-and-where) para los workers
+y scripts que ya lo saben.
+
+Quién lo hizo también sale del payload, `by` y `via`, por lo que el capítulo
+[10](./10-events) los puso ahí.
+
+### Los tipos del payload
+
+El módulo importa las clases de los eventos de tarjeta con `import type`, solo por los
+tipos de sus payloads, y `CardAuthor` y `CardDTO` del esquema de la tarjeta. Un módulo
+puede llegar a los eventos y al esquema de otro (`newt/module-boundaries` lo permite);
+nunca llega a su repositorio ni a su entidad.
+
+### Leer
+
+`listForCard` es una página normal (capítulo [3](./03-pages-and-errors)), de la más
+nueva a la más antigua. Lee solo por el id de la tarjeta, nunca a través del módulo de
+tarjetas: la tarjeta puede estar borrada, y su historial se queda.
+
+## Suscribirse: `handler`
+
+Cada evento de tarjeta recibe su handler, junto a la línea de log del capítulo
+[10](./10-events). El `activity.workers.ts` entero:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+import type { Activity_Deps } from './activity.deps'
+import type { Activity_Module } from './activity.module'
+import type { Activity_Options } from './activity-options'
+
+/**
+ * What the activity does when something happens to a card: each event a `handler`,
+ * a job saved with the change, so no entry is ever missing, run until it succeeds
+ * and safe to run again (keyed on the event's id).
+ */
+export function registerActivityWorkers(activity: Activity_Module, deps: Activity_Deps, options: Activity_Options): void {
+  const { events } = deps.card
+  events.created.subscribe((card, event) => activity.recordCreated(card, event), { strategy: 'handler', queue: 'activity.recordCreated.on.card.created' })
+  events.edited.subscribe((edit, event) => activity.recordEdited(edit, event), { strategy: 'handler', queue: 'activity.recordEdited.on.card.edited' })
+  events.moved.subscribe((move, event) => activity.recordMoved(move, event), { strategy: 'handler', queue: 'activity.recordMoved.on.card.moved' })
+  events.assigned.subscribe((assignment, event) => activity.recordAssigned(assignment, event), { strategy: 'handler', queue: 'activity.recordAssigned.on.card.assigned' })
+  events.unassigned.subscribe((unassignment, event) => activity.recordUnassigned(unassignment, event), { strategy: 'handler', queue: 'activity.recordUnassigned.on.card.unassigned' })
+  events.deleted.subscribe((card, event) => activity.recordDeleted(card, event), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
+
+  // A line in the server's log as each card moves, to watch a board live while
+  // tracing. `fire-and-forget`: in memory, after the commit, with no job. If it fails,
+  // or the server stops before it runs, the line is lost, and nothing is wrong: no
+  // one needs it later, and the log above keeps the move for good.
+  events.moved.subscribe(({ dto, previous, by, via }) => {
+    options.log(`[boards] #${dto.number} "${dto.title}" moved from column ${previous.columnId} to ${dto.columnId} by ${by ?? 'cooper'}${via ? ` (${via})` : ''}`)
+  }, { strategy: 'fire-and-forget' })
+}
+```
+
+El callback recibe ahora un segundo argumento, el `EventMeta`, y llama a un caso de uso
+del módulo que reacciona con lo que necesita. No hace nada más: la lógica vive en el caso
+de uso, donde se puede probar y trazar.
+
+`strategy: 'handler'` recibe el nombre de la cola, `queue`, y no hace falta nada más. El
+comentario del principio del archivo, escrito en el capítulo [10](./10-events), lo
+describe ahora.
+
+### El nombre de la cola
+
+Los jobs de cada handler esperan en su cola, y el nombre de la cola es como el worker
+vuelve a encontrar el handler tras un reinicio: un job escrito ayer nombra su cola, y el
+proceso de hoy ejecuta el handler que se suscribió con ese nombre. Por eso lo escribes
+entero, siempre con la misma forma:
 
 ```text
-<módulo que reacciona>.<caso de uso>.on.<evento>
+<módulo que reacciona>.<caso de uso al que llama>.on.<módulo que cuenta>.<evento>
 
-card.notifyAssignee.on.card.assigned
-card.unassignMember.on.access.revoked
-workspace.prepare.on.tenant.created
+activity.recordMoved.on.card.moved
 ```
 
-Leído en voz alta, dice lo que hace. Un evento puede tener varias reacciones en un
-módulo (dos casos de uso), y cada una tiene su cola:
-`card.notifyAssignee.on.card.created` y `card.notifyAssignee.on.card.assigned` son
-dos colas del mismo caso de uso.
+Leído en voz alta, dice lo que hace: "la actividad registra el movimiento con
+`card.moved`". Dos reacciones del mismo módulo al mismo evento llaman a dos casos de uso,
+así que son dos colas; un caso de uso que reacciona a dos eventos son también dos colas.
 
-newt comprueba la forma al suscribirte. Si la cola no termina en el evento al que te
-suscribes, el contexto falla al abrirse, no en producción a medianoche:
+newt comprueba el final cuando se abre el contexto: una cola que no acaba con el evento
+al que está suscrita lanza un error, y el contexto no arranca. Suscribe `events.deleted`
+con `activity.recordDeleted.on.card.removed`, y todos los tests fallan con:
+
+```text
+A handler's queue is '<module>.<use case>.on.card.deleted': 'activity.recordDeleted.on.card.removed' is not
+```
+
+El lint comprueba el resto, antes de que se ejecute nada. **`newt/queue-name`** lee cada
+`subscribe` en los archivos de un módulo: la cola empieza por el módulo del archivo en
+que está, nombra el caso de uso al que llama su callback en ese módulo, y acaba con el
+evento bajo el que está suscrita. Llama a la cola del movimiento
+`activity.recordMove.on.card.moved` (una letra de menos), y `bun run lint` dice:
+
+```text
+error  This queue says the handler calls activity's 'recordMove', but its callback calls no 'recordMove' of activity: name the use case it calls  newt/queue-name
+```
+
+y para el evento equivocado:
+
+```text
+error  This queue ends with '.on.….deleted', the event it subscribes to  newt/queue-name
+```
+
+**Renombrar una cola** no es gratis. Sus jobs pendientes se quedan con el nombre
+antiguo, que ya no sirve ningún handler. newt no deja que eso pase en silencio: el worker
+anota las colas que sirve, y avisa una vez de una cola con jobs esperando que ningún
+worker ha servido en cinco minutos. Renombra un handler, su caso de uso o su módulo
+cuando su cola esté vacía, o mueve sus jobs pendientes con una migración.
+
+## La ruta
+
+La actividad de una tarjeta se lee bajo el workspace, como todo en boards:
+`GET /workspaces/:workspaceId/cards/:cardId/activity`. Sus rutas necesitan el módulo de
+miembros, como las de cualquier módulo. Añádelo a las deps:
 
 ```ts
-// packages/newt/core/events/domain-event-emitter.ts
-const { queue, attempts } = subscription
-if (!QUEUE.test(queue) || !queue.endsWith(`.on.${this.name}`)) {
-  throw new Error(`A handler's queue is '<module>.<use case>.on.${this.name}': '${queue}' is not`)
+// cooper/backend/contexts/boards/modules/activity/activity.deps.ts
+import type { Card_Module } from '../card/card.module'
+import type { Member_Module } from '../member/member.module'
+
+export interface Activity_Deps {
+  /** What happens to the cards: what the log records. */
+  card: Card_Module
+  /** That who reads a card's activity belongs to its workspace (its routes). */
+  member: Member_Module
 }
 ```
 
-Hay una consecuencia. Renombrar una cola (porque renombraste el caso de uso o el
-módulo) deja sus jobs pendientes con el nombre viejo, que no atiende ningún worker.
-newt no deja que pase en silencio: el worker lo comprueba al arrancar y después cada
-minuto, y avisa una vez de cada cola con jobs que ningún worker ha atendido en cinco
-minutos:
-
 ```ts
-// packages/newt/runtime/jobs/job-queue.ts
-console.warn(`[JobQueue] ${jobs} job(s) of '${queue}' wait, and no worker serves that queue: was its handler renamed or removed?`)
-```
+// cooper/backend/contexts/boards/modules/activity/activity.routes.ts
+import { pageRequestFrom } from 'newt/http'
+import type { BoardsBase } from '../../boards-base'
+import { workspaceRoutes } from '../../workspace-routes'
+import type { Activity_Deps } from './activity.deps'
+import type { Activity_Module } from './activity.module'
 
-Si renombras una, hazlo cuando su cola esté vacía, o mueve sus jobs pendientes con
-una migración.
+export function registerActivityRoutes(base: BoardsBase, activity: Activity_Module, deps: Activity_Deps): void {
+  const workspace = workspaceRoutes(base, deps.member)
 
-## Un worker llama a un caso de uso
-
-Un worker nunca escribe por su cuenta: llama a un caso de uso de su módulo. La lógica
-vive en un solo sitio, y el caso de uso se puede probar, trazar y llamar desde donde
-haga falta. El callback no hace nada más.
-
-Este es el caso de uso que hay detrás de `card.assigned`:
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.module.ts
-/**
- * Tells the assignee of a card they have it, by email: from a worker, once the
- * assignment is saved, since an email cannot be taken back. Run late, it
- * reads the card again: if it is gone, or has another assignee by then, there is
- * nothing to tell (that assignment tells its own). Nor is anyone told of a card
- * they gave themselves (`by`, who created or assigned it).
- */
-@UseCase()
-async notifyAssignee(card: CardDTO, by: string | null): Promise<void> {
-  if (card.assigneeId === null || card.assigneeId === by) return
-  const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
-  if (current?.assigneeId !== card.assigneeId) return
-  const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
-  if (!member) return
-  // Where boards' UI opens the card: on its board's screen, by its id.
-  const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
-  await this.options.mailer.send({
-    to: member.email,
-    subject: `#${card.number} ${card.title} is yours`,
-    text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
-  })
+  workspace.get('/cards/:cardId/activity', async request =>
+    Response.json(await activity.listForCard(request.params.cardId, pageRequestFrom(request))))
 }
 ```
 
-Un worker se ejecuta sin nada alrededor: sin actor y sin scope. Ni la persona que
-asignó la tarjeta ni nadie más. newt ejecuta cada job desligado de quien hizo el
-commit, arrancó el worker o lo espera:
+y pásalo en `initialize-modules.ts`:
 
 ```ts
-// packages/newt/runtime/jobs/job-queue.ts
-/**
- * No context at all: this module's, taken as it loads, before any request or script
- * enters a scope. Jobs run in it, never in that of whoever made the queue (a context
- * opened lazily, inside a request), started the worker or waits for it (`idle`), so
- * a handler has no actor nor scope but the ones it sets itself.
- */
-const detached = AsyncLocalStorage.snapshot()
+// cooper/backend/contexts/boards/initialize-modules.ts
+  const activity = Activity_Module.initialize(base, { card, member }, { log: deps.log ?? (() => {}) })
 ```
 
-Así que el caso de uso pone él mismo lo que necesita, a partir del evento:
+## Esperar al worker en un test
 
-- El workspace: `runInWorkspace(card.workspaceId, …)` entra en el [scope del
-  workspace](./05-who-and-where) sin comprobar a nadie, porque un worker ya lo sabe. El
-  repositorio de tarjetas está acotado a un workspace y se negaría a leer fuera de uno.
-- El miembro: `member.find(workspaceId, userId)` recibe el workspace como argumento,
-  mientras que `member.isMember(userId)` lo lee del scope. Uno es para peticiones; el
-  otro, para workers.
-- Quién actuó: `currentActor()` lanzaría aquí un error, y el job fallaría en cada
-  intento hasta morir. Lo trae el evento: el callback pasa `by`, y el caso de uso no
-  le manda email a quien se asignó la tarjeta a sí mismo.
+Un job se ejecuta tras la confirmación, en el tiempo del worker. Un test que crea una
+tarjeta y lee su actividad enseguida no leería nada. Debe esperar a que el worker acabe.
 
-El mailer es una opción del módulo, que le da el contexto: la consola en desarrollo,
-una lista en los tests, un servicio de email en producción. El módulo no sabe cuál.
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card-options.ts
-/** What the context configures the cards with. */
-export type Card_Options = {
-  /** What tells an assignee: the console in development, a list in a test. */
-  mailer: Mailer
-  /** Where people open boards: the links of its emails start there. */
-  publicUrl: string
-}
-```
-
-## Compruébalo
-
-El worker solo se ejecuta tras el commit, así que un test tiene que esperarlo.
-`jobs.idle()` se resuelve cuando no queda ningún job listo ni en marcha. Los tests de
-boards esperan primero al worker de auth (ahí se ejecutan las reacciones de boards a
-auth) y después al de boards:
+`base.jobs.idle()` se resuelve cuando no hay ningún job listo ni en ejecución: ejecuta lo
+que toca, espera a lo que está en curso, y lo repite hasta que no queda nada. Da al
+helper de tests un método para ello, `settled`, después de `as`:
 
 ```ts
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
-/** Until the background work is done: auth's events heard, and what they made boards tell. */
-async settled(): Promise<void> {
-  await auth.idle()
-  await boards.base.jobs.idle()
-},
+    /** Until the background work is done: what boards' events made it do. */
+    async settled(): Promise<void> {
+      await boards.base.jobs.idle()
+    },
 ```
 
-Después el test asigna una tarjeta, comprueba que aún no hay email, espera, y ve uno:
+Un test llama a `await t.settled()` después de hacer cosas y antes de mirar lo que
+hicieron sus reacciones. Un job que espera para ejecutarse más tarde (el backoff del
+capítulo siguiente) no toca todavía, y `idle` no lo espera.
+
+## Tests
+
+Añade tres tests a `activity.test.ts`, antes del del capítulo [10](./10-events), con un
+helper que lee la actividad de una tarjeta:
 
 ```ts
-// cooper/backend/contexts/boards/modules/card/card.test.ts
-test('assigns a card only to a member of its workspace, and tells them by email once saved', async () => {
-  const plan = await create('Plan')
+// cooper/backend/contexts/boards/modules/activity/activity.test.ts
+  const inAcme = <T>(fn: () => Promise<T>, via: 'web' | 'mcp' = 'web') => t.as('ana', 'acme', fn, via)
+  const activityOf = (cardId: string, size = 20) => inAcme(() => t.modules.activity.listForCard(cardId, { size }))
 
-  await expect(inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'carl' }))).rejects.toMatchObject({ code: 'card.assignee_not_member' })
+  test('records what happens to a card, who did it and how they came in, the newest first', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await inAcme(() => t.modules.card.edit(card.id, { title: 'Plan it' }))
+    await inAcme(() => t.modules.card.move(card.id, { columnId: doing }), 'mcp')
+    await inAcme(() => t.modules.card.assign(card.id, { assigneeId: 'bea' }))
+    await inAcme(() => t.modules.card.unassign(card.id))
+    await inAcme(() => t.modules.card.delete(card.id))
+    await t.settled()
 
-  await inAcme(() => t.modules.card.assign(plan.id, { assigneeId: 'bea' }))
-  expect(t.mails).toEqual([])
-  await t.settled()
-  expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#1 Plan is yours']])
-  // The link opens the card on its board, in boards' UI.
-  expect(t.mails[0]!.text).toBe(['Hi bea,', '', 'Card #1, "Plan", is assigned to you.', '', new URL(`/w/acme/boards/${boardId}?card=${plan.id}`, t.boards.config.publicUrl).toString()].join('\n'))
-  // …
-})
+    const { items, total } = await activityOf(card.id)
+    expect(total).toBe(6)
+    expect(items.map(entry => [entry.kind, entry.actorId, entry.via])).toEqual([
+      ['deleted', 'ana', 'web'],
+      ['unassigned', 'ana', 'web'],
+      ['assigned', 'ana', 'web'],
+      ['moved', 'ana', 'mcp'],
+      ['edited', 'ana', 'web'],
+      ['created', 'ana', 'web'],
+    ])
+    expect(items.find(entry => entry.kind === 'moved')!.detail).toEqual({ fromColumnId: todo, toColumnId: doing })
+    expect(items.find(entry => entry.kind === 'edited')!.detail).toMatchObject({ changed: 'title', title: 'Plan it' })
+    expect(items.find(entry => entry.kind === 'assigned')!.detail).toEqual({ assigneeId: 'bea', previousAssigneeId: null })
+
+    // Page after page, by the cursor.
+    const first = await activityOf(card.id, 4)
+    const rest = await inAcme(() => t.modules.activity.listForCard(card.id, { size: 4, cursor: first.items.at(-1)!.id }))
+    expect([...first.items, ...rest.items].map(entry => entry.kind)).toEqual(items.map(entry => entry.kind))
+    expect(rest.hasMore).toBe(false)
+  })
+
+  test('records each event once, however many times its job runs', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await t.settled()
+    const told = { ...card, by: 'ana', via: 'web' as const }
+    const event = { id: Bun.randomUUIDv7(), name: 'card.created', occurredAt: new Date().toISOString() }
+
+    await t.modules.activity.recordCreated(told, event)
+    await t.modules.activity.recordCreated(told, event)
+
+    expect((await activityOf(card.id)).total).toBe(2)
+  })
+
+  test('shows a workspace\'s activity only in it', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await t.settled()
+
+    expect((await t.as('carl', 'globex', () => t.modules.activity.listForCard(card.id, { size: 20 }))).total).toBe(0)
+  })
 ```
 
-Y nadie se entera de una tarjeta que se dio a sí mismo:
+- El primero hace todo por lo que pasa una tarjeta, espera al worker, y lee las seis
+  entradas, de la más nueva a la más antigua, también por páginas. La tarjeta ya está
+  borrada entonces: su historial se queda.
+- El segundo es un job que se ejecuta dos veces. Llama a `recordCreated` dos veces con el
+  mismo evento, como haría el worker en una segunda ejecución, y la tarjeta tiene dos
+  entradas: el `card.created` que registró el worker, y el de este evento, una vez.
+  Llamar directamente al caso de uso, fuera de cualquier actor y de cualquier workspace,
+  es como lo llama un worker.
+- El tercero lee la actividad de la tarjeta desde globex, y no encuentra ninguna: el scope
+  del repositorio.
 
-```ts
-// cooper/backend/contexts/boards/modules/card/card.test.ts
-test('tells nobody of a card they created for themselves, or took', async () => {
-  await create('Plan', { assigneeId: 'ana' })
-  const design = await create('Design')
-  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'ana' }))
-  // Given to someone else, they hear of it.
-  await inAcme(() => t.modules.card.assign(design.id, { assigneeId: 'bea' }))
+El primer test también muestra `settled()` en acción: sin él, el test leería la
+actividad mientras el worker aún puede estar escribiéndola.
 
-  await t.settled()
+## Compruébalo
 
-  expect(t.mails.map(mail => [mail.to, mail.subject])).toEqual([['bea@cooper.test', '#2 Design is yours']])
-})
+```sh
+bun install && bunx tsc -b --noEmit && bun test cooper && bun run lint
 ```
 
-Ejecútalo con `bun test cooper/backend/contexts/boards/modules/card`. En desarrollo,
-asígnale una tarjeta a otra persona en la aplicación y mira la consola del servidor:
-el email aparece ahí un instante después. Arranca el servidor con `COOPER_TRACE=1` y
-mueve una tarjeta: la línea fire-and-forget sale en cuanto el movimiento se confirma.
+Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`): ejecuta la migración
+00005 al abrirse. Crea una tarjeta y muévela, como en el capítulo [10](./10-events), y
+lee después su actividad:
+
+```sh
+API=http://localhost:3002/api/workspaces/acme
+H='content-type: application/json'
+post() { curl -s -X POST "$API$1" -H "$H" -H 'x-user: ana' -d "$2"; }
+BOARD=$(post /boards "{\"name\":\"History $RANDOM\"}" | jq -r .id)
+TODO=$(post /boards/$BOARD/columns '{"name":"To do"}' | jq -r .id)
+DOING=$(post /boards/$BOARD/columns '{"name":"Doing"}' | jq -r .id)
+CARD=$(post /boards/$BOARD/cards "{\"columnId\":\"$TODO\",\"title\":\"Plan\"}" | jq -r .id)
+post /cards/$CARD/move "{\"columnId\":\"$DOING\"}" > /dev/null
+curl -s $API/cards/$CARD/activity -H 'x-user: ana' | jq -c '.items[] | {kind, actorId, via, detail}'
+```
+
+```text
+{"kind":"moved","actorId":"ana","via":"web","detail":{"fromColumnId":"01a17957-8995-71de-978e-f65c646f7700","toColumnId":"01a17957-899d-741b-b50a-c2dafd47c482"}}
+{"kind":"created","actorId":"ana","via":"web","detail":{"number":1,"title":"Plan","columnId":"01a17957-8995-71de-978e-f65c646f7700"}}
+```
+
+La consola sigue mostrando la línea del movimiento, como antes. Y el outbox guarda los
+jobs que escribieron las entradas. Míralos en la base de datos:
+
+```sh
+sqlite3 data/cooper-boards.db "SELECT queue, status, attempts FROM job ORDER BY created_at, queue"
+```
+
+```text
+activity.recordCreated.on.card.created|done|1
+activity.recordMoved.on.card.moved|done|1
+```
+
+Cada uno hecho en su primer intento, uno por evento. (Las tarjetas cambiadas antes de este
+capítulo no dejaron jobs: entonces nada se suscribía como handler. Las que cambies ahora
+añaden los suyos.) Los jobs hechos son historia: newt los purga pasada una semana.
 
 ## En resumen
 
-- Un módulo reacciona suscribiéndose a un evento, siempre con una estrategia:
-  `'fire-and-forget'` para lo que puedes perder, `'handler'` para todo lo demás.
-- Las reacciones de un módulo viven en `<módulo>.workers.ts`, al que llama su
-  `initialize`.
-- Un `'handler'` es un job guardado en la misma transacción que el cambio, y lo
-  ejecuta un worker tras el commit. Vive en el outbox del contexto dueño del evento.
-- Su cola es `<módulo que reacciona>.<caso de uso>.on.<evento>`. Renómbrala solo
-  cuando esté vacía.
-- El callback solo decide si el evento le concierne y llama a un caso de uso.
-- `'fire-and-forget'` solo para lo que nadie necesita después: una línea de log para
-  mirar, un test que cuenta eventos.
-- Un worker no tiene actor ni scope: el caso de uso pone lo que necesita a partir del
-  evento, también quién actuó.
+- `strategy: 'handler'` escribe un job en el outbox, en la transacción del cambio que
+  cuenta el evento: se guardan los dos o ninguno. El worker del contexto lo ejecuta tras
+  la confirmación, y otra vez hasta que tiene éxito.
+- Su `queue` es `<módulo>.<caso de uso>.on.<módulo>.<evento>`. newt rechaza una que no
+  acabe con su evento; `newt/queue-name` comprueba el resto. Renombrarla deja atrás sus
+  jobs pendientes.
+- Un job se ejecuta al menos una vez, así que quizá más: lo que hace debe ser idempotente.
+  El segundo argumento del handler, `EventMeta`, da el `id` del evento, el mismo en cada
+  ejecución: usa ese id como clave.
+- Un job se ejecuta sin actor y sin scope: lee quién lo hizo del payload, y entra él
+  mismo en el workspace (`runInWorkspace`).
+- Un test espera al worker con `base.jobs.idle()` antes de mirar lo que hicieron las
+  reacciones.
+
+Siguiente: [Lo que no se puede deshacer, y los fallos](./12-failures).
