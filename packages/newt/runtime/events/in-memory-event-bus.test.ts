@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { currentActor, NoActor, runAsActor, type Actor } from '../../core'
+import { currentActor, defineScope, NoActor, runAsActor, type Actor } from '../../core'
 import { InMemoryEventBus } from './in-memory-event-bus'
 
 const event = { name: 'test.happened', payload: {}, occurredAt: '' }
@@ -38,6 +38,25 @@ describe('a handler', () => {
     })
 
     expect(seen).toEqual(['nobody'])
+  })
+
+  test('inherits no actor nor scope of whatever made the bus, as a context opened inside a request', async () => {
+    const workspace = defineScope<string>('workspace')
+    const bus = await runAsActor({ userId: 'ana' }, () => workspace.run('w1', async () => new InMemoryEventBus()))
+    const seen: unknown[] = []
+    bus.subscribe('test.happened', () => {
+      try {
+        seen.push(currentActor())
+      } catch (error) {
+        seen.push(error instanceof NoActor ? 'nobody' : error)
+      }
+      seen.push(workspace.find() ?? 'no workspace')
+    })
+
+    bus.publish(event)
+    await settle()
+
+    expect(seen).toEqual(['nobody', 'no workspace'])
   })
 
   test('runs after publish returns, not during it', () => {

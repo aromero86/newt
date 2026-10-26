@@ -105,8 +105,8 @@ export class SqliteOutbox implements Outbox {
   private onClaim(claimed: Job, set: string, params: SQLQueryBindings[]): Promise<void> {
     return this.store.transaction(() => {
       this.store.connection
-        .prepare(`UPDATE job SET ${set} WHERE id = ? AND status = 'running' AND attempts = ?`)
-        .run(...params, claimed.id, claimed.attempts)
+        .prepare(`UPDATE job SET ${set} WHERE id = ? AND status = 'running' AND locked_by = ? AND attempts = ?`)
+        .run(...params, claimed.id, claimed.lockedBy, claimed.attempts)
     })
   }
 }

@@ -80,7 +80,7 @@ export class SqlOutbox implements Outbox {
     const sets = [...columns, 'updated_at'].map((column, i) => `${column} = ${this.dialect.param(i + 1)}`).join(', ')
     const n = columns.length + 1
     return this.transaction(async run => {
-      await run(`UPDATE job SET ${sets} WHERE id = ${this.dialect.param(n + 1)} AND status = 'running' AND attempts = ${this.dialect.param(n + 2)}`, [...values, new Date().toISOString(), claimed.id, claimed.attempts])
+      await run(`UPDATE job SET ${sets} WHERE id = ${this.dialect.param(n + 1)} AND status = 'running' AND locked_by = ${this.dialect.param(n + 2)} AND attempts = ${this.dialect.param(n + 3)}`, [...values, new Date().toISOString(), claimed.id, claimed.lockedBy, claimed.attempts])
     })
   }
 }

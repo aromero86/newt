@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { currentActor, runAsActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
+import { currentActor, defineScope, runAsActor, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
 import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
 import type { JobQueueOptions } from './job-queue-options'
 
-/** An outbox in memory that keeps the port's promises: claims by lease, fenced by attempts. */
+/** An outbox in memory that keeps the port's promises: claims by lease, fenced by the claim's lock and attempts. */
 class MemoryOutbox implements Outbox {
   jobs: Job[] = []
   registered: JobQueueRegistration[][] = []
@@ -14,6 +14,8 @@ class MemoryOutbox implements Outbox {
   renewals = 0
   /** Runs right after a claim: for a test to change the world in between. */
   onClaim: () => void = () => {}
+  /** How long a claim that took jobs takes to come back with them, as a database's would. */
+  claimMs = 0
   failRenew = false
   failQueues = false
 
@@ -28,7 +30,9 @@ class MemoryOutbox implements Outbox {
     )).slice(0, limit)
     for (const job of ready) Object.assign(job, { status: 'running', attempts: job.attempts + 1, lockedBy: worker, lockedUntil: leaseUntil })
     this.onClaim()
-    return ready.map(job => ({ ...job }))
+    const claimed = ready.map(job => ({ ...job }))
+    if (claimed.length > 0 && this.claimMs > 0) await Bun.sleep(this.claimMs)
+    return claimed
   }
 
   async renew(claimed: Job, leaseUntil: string) {
@@ -109,6 +113,13 @@ describe('register', () => {
     expect(() => queue.register('mail.sendWelcome.on.user.updated', 'user.created', () => {})).toThrow("'<handler's module>.<use case it calls>.on.user.created'")
     expect(() => queue.register('Mail.sendWelcome.on.user.created', 'user.created', () => {})).toThrow()
     queue.register(QUEUE, 'user.created', () => {})
+  })
+
+  test('refuses attempts that are not a whole number from 1', () => {
+    const { queue } = setup()
+
+    for (const attempts of [0, -1, 1.5]) expect(() => queue.register(QUEUE, 'user.created', () => {}, attempts)).toThrow('attempts are a whole number from 1')
+    queue.register(QUEUE, 'user.created', () => {}, 1)
   })
 
   test('refuses a name twice, and takes it again once unregistered', () => {
@@ -266,6 +277,61 @@ describe('the worker', () => {
     expect(outbox.jobs.every(job => job.status === 'done')).toBe(true)
   })
 
+  test('and an `idle` beside it keep to `concurrency` together', async () => {
+    const { outbox, queue } = setup({ concurrency: 2, pollMs: 60_000 })
+    outbox.claimMs = 10
+    let running = 0
+    let most = 0
+    queue.register(QUEUE, 'user.created', async () => {
+      most = Math.max(most, ++running)
+      await Bun.sleep(5)
+      running--
+    })
+    for (const id of ['u1', 'u2', 'u3', 'u4', 'u5', 'u6']) await queue.enqueue(created(id))
+
+    queue.start()
+    await Bun.sleep(5)
+    await queue.idle()
+    await queue.stop()
+
+    expect(most).toBe(2)
+    expect(outbox.jobs.every(job => job.status === 'done')).toBe(true)
+  })
+
+  test('idle waits for the jobs of a claim the worker has on its way', async () => {
+    const { outbox, queue } = setup({ pollMs: 60_000 })
+    outbox.claimMs = 20
+    let done = false
+    queue.register(QUEUE, 'user.created', async () => {
+      await Bun.sleep(5)
+      done = true
+    })
+    await queue.enqueue(created())
+
+    queue.start()
+    await Bun.sleep(5)
+    await queue.idle()
+    const doneAtIdle = done
+    await queue.stop()
+
+    expect(doneAtIdle).toBe(true)
+  })
+
+  test('locks each claim with a name of its own, so none before a retry closes one after it', async () => {
+    const { outbox, queue } = setup()
+    const locks: (string | null)[] = []
+    outbox.onClaim = () => locks.push(...outbox.jobs.filter(job => job.status === 'running').map(job => job.lockedBy))
+    queue.register(QUEUE, 'user.created', () => { throw new Error('smtp down') }, 1)
+    await queue.enqueue(created())
+
+    await queue.idle()
+    Object.assign(outbox.job(QUEUE), { status: 'pending', attempts: 0, runAfter: new Date(0).toISOString() })
+    await queue.idle()
+
+    expect(locks).toHaveLength(2)
+    expect(locks[0]).not.toBe(locks[1])
+  })
+
   test('woken, it looks at once instead of waiting for its poll; stopped, it waits for what runs', async () => {
     const { outbox, queue } = setup({ pollMs: 60_000 })
     queue.register(QUEUE, 'user.created', () => Bun.sleep(20))
@@ -379,6 +445,23 @@ describe('the worker', () => {
     await runAsActor({ userId: 'ana' }, () => queue.idle())
 
     expect(seen).toBe('none')
+  })
+
+  test('runs a job with no actor nor scope, even when the queue was made inside them', async () => {
+    const workspace = defineScope<string>('workspace')
+    const outbox = new MemoryOutbox()
+    // A context opened lazily, the first time a request about it comes in.
+    const queue = await runAsActor({ userId: 'ana' }, () => workspace.run('w1', async () => new JobQueue(outbox, new Invocations())))
+    let seen: unknown[] = []
+    queue.register(QUEUE, 'user.created', async () => {
+      try { seen = [currentActor().userId] } catch { seen = ['nobody'] }
+      seen.push(workspace.find() ?? 'no workspace')
+    })
+    await queue.enqueue(created())
+
+    await queue.idle()
+
+    expect(seen).toEqual(['nobody', 'no workspace'])
   })
 
   test('a failure of its own is logged, and it goes on at its next poll', async () => {
