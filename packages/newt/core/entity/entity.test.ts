@@ -104,8 +104,57 @@ describe('change', () => {
     expect(() => thing.apply({ name: 42 } as never)).toThrow(`Thing ${thing.id} does not pass its schema: name:`)
   })
 
+  test('a strict schema reads a stored row: its version and deletedAt are not its data', () => {
+    const Strict = z.strictObject({ id: z.string(), name: z.string(), createdAt: z.string(), updatedAt: z.string() })
+    class Tight extends Entity<typeof Strict> {
+      static of(row: z.infer<typeof Strict> & { version: number, deletedAt: null }) {
+        return new Tight(Strict, row, false)
+      }
+    }
+    const tight = Tight.of({ id: 't', name: 'x', createdAt: 'c', updatedAt: 'u', version: 2, deletedAt: null })
+
+    expect(tight.toDTO()).toEqual({ id: 't', name: 'x', createdAt: 'c', updatedAt: 'u' })
+    expect(tight.version).toBe(2)
+  })
+
   test('a stored row the schema rejects is one too', () => {
     expect(() => Thing.fromDTO({ ...existing().toDTO(), name: 42, version: 1 } as never)).toThrow(InvalidEntity)
+  })
+
+  test('the schema has the last word: a field changed takes the value it parses to', () => {
+    const Trimmed = z.object({ id: z.string(), name: z.string().trim(), tags: z.array(z.string()).default([]), createdAt: z.string().default(''), updatedAt: z.string().default('') })
+    class Tidy extends Entity<typeof Trimmed> {
+      static of() {
+        return new Tidy(Trimmed, { id: 't', name: 'x', tags: ['a'], version: 1 }, false)
+      }
+      apply(changes: Partial<z.input<typeof Trimmed>>) {
+        this.change(changes as never)
+      }
+    }
+    const tidy = Tidy.of()
+    tidy.apply({ name: '  Bea  ', tags: undefined })
+
+    expect(tidy.toDTO()).toMatchObject({ name: 'Bea', tags: [] })
+    expect(tidy.getChanges()).toEqual({ name: 'Bea', tags: [] })
+  })
+
+  test('a change the schema refuses as a whole, across fields, is refused, and changes nothing', () => {
+    const Span = z.object({ id: z.string(), start: z.number(), end: z.number(), createdAt: z.string().default(''), updatedAt: z.string().default('') })
+      .refine(span => span.start <= span.end, 'start after end')
+    class Range extends Entity<typeof Span> {
+      static of() {
+        return new Range(Span, { id: 'r', start: 1, end: 2, version: 1 }, false)
+      }
+      apply(changes: Partial<z.infer<typeof Span>>) {
+        this.change(changes)
+      }
+    }
+    const range = Range.of()
+
+    expect(() => range.apply({ start: 10 })).toThrow('Range r does not pass its schema: (root): start after end')
+    expect(range.hasPendingChanges).toBe(false)
+    range.apply({ start: 2 })
+    expect(range.getChanges()).toEqual({ start: 2 })
   })
 
   test('a deleted entity cannot change', () => {
@@ -295,6 +344,17 @@ describe('hasPendingChanges', () => {
     const deleted = existing()
     deleted.remove()
     expect(deleted.hasPendingChanges).toBe(true)
+  })
+
+  test('once its deletion is saved there is nothing left to save: it stays deleted, and unchangeable', () => {
+    const thing = existing()
+    thing.remove()
+    thing[markPersisted]()
+
+    expect(thing.hasPendingChanges).toBe(false)
+    expect(thing.isDeleted).toBe(true)
+    expect(() => thing.remove()).toThrow(EntityAlreadyDeleted)
+    expect(() => thing.apply({ name: 'other' })).toThrow(/deleted/)
   })
 })
 

@@ -248,8 +248,9 @@ export class Note extends Entity<typeof NoteSchema> {
   which one is called, never by whether an id is present.
 - **Only the entity changes itself**: `change()` is protected, so a use case calls
   the entity's methods (`update`, `archive`…), which say what happened with
-  `trackEvent`. `change()` checks each field against the schema and ignores values
-  that did not actually change.
+  `trackEvent`. `change()` checks the whole entity against the schema (its
+  refinements too), keeps the values it parses to (trimmed, defaulted…) and ignores
+  values that did not actually change.
 - Rules about the entity's own data live in its methods; rules that need other data
   live in the use case.
 - **Its methods take domain data, not the input DTO.** The DTO is the API's contract

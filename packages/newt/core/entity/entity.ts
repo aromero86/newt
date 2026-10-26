@@ -12,6 +12,9 @@ import type { EntitySchema } from './entity-schema'
 
 type Fields = Record<string, unknown>
 
+/** What a store keeps with a row besides the entity's data: its version, and when it was soft deleted. */
+const FRAMEWORK_FIELDS = ['version', 'deletedAt']
+
 export class Entity<TSchema extends EntitySchema> {
   private initial: z.infer<TSchema> | null
   private current: z.infer<TSchema>
@@ -19,7 +22,8 @@ export class Entity<TSchema extends EntitySchema> {
   private _version: number
 
   private domainEvents: DomainEvent[] = []
-  private _deleted = false
+  /** Deleted, and whether its repository already saved that. */
+  private deletion: 'none' | 'pending' | 'saved' = 'none'
 
   protected constructor(
     protected readonly schema: TSchema,
@@ -29,7 +33,10 @@ export class Entity<TSchema extends EntitySchema> {
     const id = input.id ?? Bun.randomUUIDv7()
     if (!isNew && input.version === undefined) throw new Error(`${new.target.name} read from storage comes with its version`)
 
-    this.current = this.checked(() => schema.parse({ ...input, id }), new.target.name, id) as z.infer<TSchema>
+    // What the framework adds to a stored row is not the entity's data, unless its schema says so.
+    const data: Fields = { ...input, id }
+    for (const key of FRAMEWORK_FIELDS) if (!Object.hasOwn(schema.shape, key)) delete data[key]
+    this.current = this.checked(() => schema.parse(data), new.target.name, id) as z.infer<TSchema>
 
     if (isNew) {
       const now = new Date().toISOString()
@@ -43,11 +50,11 @@ export class Entity<TSchema extends EntitySchema> {
   }
 
   /** Runs a check of its schema: what fails is a programming error, `InvalidEntity`. */
-  private checked<T>(parse: () => T, entity: string, id: string, field?: string): T {
+  private checked<T>(parse: () => T, entity: string, id: string): T {
     try {
       return parse()
     } catch (error) {
-      throw error instanceof ZodError ? new InvalidEntity(entity, id, error, field) : error
+      throw error instanceof ZodError ? new InvalidEntity(entity, id, error) : error
     }
   }
 
@@ -63,9 +70,12 @@ export class Entity<TSchema extends EntitySchema> {
     return this._version
   }
 
-  /** Whether saving it would write anything: new, deleted or changed. */
+  /**
+   * Whether saving it would write anything: new, deleted or changed. Once its deletion
+   * is saved there is nothing left to write: saving it again does nothing.
+   */
   get hasPendingChanges(): boolean {
-    return this._isNew || this._deleted || this.getChanges() !== null
+    return this._isNew || this.deletion === 'pending' || this.getChanges() !== null
   }
 
   /** Its repository saved it: it is now what is stored, one version on. */
@@ -73,6 +83,7 @@ export class Entity<TSchema extends EntitySchema> {
     this._version++
     this._isNew = false
     this.initial = structuredClone(this.current)
+    if (this.deletion === 'pending') this.deletion = 'saved'
   }
 
   get id(): string {
@@ -86,17 +97,22 @@ export class Entity<TSchema extends EntitySchema> {
   /**
    * Changes some of its fields, checked against its schema. Protected: the entity's
    * own methods change it, and say what happened (its events).
+   *
+   * The schema has the last word, as when it is built: it parses the whole entity as it
+   * would be, so its refinements across fields hold, and the fields changed take the
+   * values it gives (trimmed, defaulted, coerced). Nothing changes if it fails.
    */
   protected change(partial: Partial<Omit<z.infer<TSchema>, 'id'>>): void {
-    if (this._deleted) throw new DeletedEntityNotChangeable()
+    if (this.deletion !== 'none') throw new DeletedEntityNotChangeable()
+    const keys = Object.keys(partial).filter(key => key !== 'id')
+    for (const key of keys) if (!Object.hasOwn(this.schema.shape, key)) throw new UnknownEntityField(key)
+    const next = { ...(this.current as Fields), ...Object.fromEntries(keys.map(key => [key, (partial as Fields)[key]])) }
+    const parsed = this.checked(() => this.schema.parse(next), this.constructor.name, this.id) as Fields
+
     let mutated = false
-    for (const [key, value] of Object.entries(partial)) {
-      if (key === 'id') continue
-      const fieldSchema = this.schema.shape[key]
-      if (!fieldSchema) throw new UnknownEntityField(key)
-      this.checked(() => (fieldSchema as z.ZodType).parse(value), this.constructor.name, this.id, key)
-      if (!Bun.deepEquals((this.current as Fields)[key], value, true)) {
-        ;(this.current as Fields)[key] = value
+    for (const key of keys) {
+      if (!Bun.deepEquals((this.current as Fields)[key], parsed[key], true)) {
+        ;(this.current as Fields)[key] = parsed[key]
         mutated = true
       }
     }
@@ -106,7 +122,7 @@ export class Entity<TSchema extends EntitySchema> {
   }
 
   getChanges(): Partial<z.infer<TSchema>> | null {
-    if (this.isNew || this._deleted || !this.initial) return null
+    if (this.isNew || this.deletion !== 'none' || !this.initial) return null
 
     const changes: Partial<z.infer<TSchema>> = {}
     for (const key of Object.keys(this.current as object)) {
@@ -141,13 +157,13 @@ export class Entity<TSchema extends EntitySchema> {
   }
 
   get isDeleted(): boolean {
-    return this._deleted
+    return this.deletion !== 'none'
   }
 
   protected markAsDeleted(): void {
     if (!this.initial) throw new NewEntityNotDeletable()
-    if (this._deleted) throw new EntityAlreadyDeleted()
-    this._deleted = true
+    if (this.deletion !== 'none') throw new EntityAlreadyDeleted()
+    this.deletion = 'pending'
   }
 
   /**
