@@ -27,8 +27,9 @@ board/
 Un tablero todavía no tiene workspace: todos ven todos los tableros. El capítulo
 [4](./04-who-and-where) pone cada tablero en un workspace.
 
-Aquí escribes cada fichero. En un proyecto tuyo, `bunx newt add module
-<carpeta-del-contexto> <nombre>` escribe un esqueleto de estos ficheros para empezar
+Aquí escribes cada fichero. En un proyecto tuyo,
+`bunx newt add module <carpeta-del-contexto> <nombre>` escribe un esqueleto de estos
+ficheros para empezar
 ([apéndice G](./g-command-line)).
 
 ## zod

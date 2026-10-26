@@ -27,8 +27,9 @@ board/
 A board has no workspace yet: everyone sees every board. Chapter
 [4](./04-who-and-where) puts each board in a workspace.
 
-You type every file here. In a project of your own, `bunx newt add module
-<context-folder> <name>` writes a skeleton of these files to start from
+You type every file here. In a project of your own,
+`bunx newt add module <context-folder> <name>` writes a skeleton of these files to
+start from
 ([appendix G](./g-command-line)).
 
 ## zod
