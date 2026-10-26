@@ -222,15 +222,21 @@ export class Card_Module extends Module {
   }
 
   /**
-   * A column was removed: any card still in it goes to the bottom of the board's
-   * first column. What a worker calls; the second time, there are none.
+   * A column may be gone: any card still in it goes to the bottom of the board's first
+   * column. What a worker calls when a column is removed, and when a card is created
+   * in one or moved to one: the card checked its column before its save, and the
+   * column may have gone in between, its own worker finding no card yet. Each runs after
+   * its own save and looks at the other's, so whichever runs last finds the card.
+   * Safe to run again: a column still there, or with no card in it, is left as it is.
    */
   @UseCase()
-  async leaveRemovedColumn(column: ColumnDTO): Promise<void> {
+  async leaveRemovedColumn(column: Pick<ColumnDTO, 'id' | 'boardId' | 'workspaceId'>): Promise<void> {
     await runInWorkspace(column.workspaceId, async () => {
       const left = await this.repo.inColumn(column.id)
       if (left.length === 0) return
-      const [first] = await this.deps.column.list(column.boardId)
+      const columns = await this.deps.column.list(column.boardId)
+      if (columns.some(each => each.id === column.id)) return
+      const [first] = columns
       // Never none: a board keeps one column at least (`column.remove`).
       if (!first) return
       const bottom = await this.repo.count({ columnId: first.id })
@@ -263,11 +269,17 @@ export class Card_Module extends Module {
   }
 
   /**
-   * Someone lost their access to a workspace: its cards they had are left without an
-   * assignee. What a worker calls, reacting to auth; the second time, they have none.
+   * Someone may have lost their access to a workspace: if they do not belong to it,
+   * its cards they had are left without an assignee. What a worker calls when auth
+   * takes their access away, and when a card is given to someone (created for them,
+   * or assigned): they were checked before its save, and may have left in between,
+   * auth's worker finding no card of theirs yet. Each runs after its own save and
+   * looks at the other's, so whichever runs last finds the card. Asked again here,
+   * someone let in again since keeps their cards. Safe to run again.
    */
   @UseCase()
   async unassignMember(workspaceId: string, userId: string): Promise<void> {
+    if (await this.deps.member.find(workspaceId, userId)) return
     await runInWorkspace(workspaceId, async () => {
       const cards = await this.repo.find({ assigneeId: userId })
       for (const card of cards) card.unassign(BOARDS)

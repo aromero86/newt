@@ -732,6 +732,14 @@ su tabla.
   desde un worker: un `handler` de `column.removed` que llama a
   `card.leaveRemovedColumn`, que busca las tarjetas que siguen en ella cuando se
   ejecuta.
+- La comprobación se hizo antes del guardado, así que lo referenciado puede
+  desaparecer entre medias, y su worker ejecutarse antes del guardado y no encontrar
+  nada. El módulo que apunta sigue también sus propios eventos: `card.created` y
+  `card.moved` llaman a `card.leaveRemovedColumn` con la columna de la tarjeta, que
+  mira si sigue ahí. Cada worker se ejecuta tras su propio guardado y mira el del
+  otro, así que el que se ejecute el último encuentra la tarjeta, en cualquier orden
+  (el asignado de cooper se sigue igual: `card.unassignMember` en `access.revoked`,
+  `card.created` y `card.assigned`, preguntando si sigue perteneciendo).
 - Mostrar nombres, y no ids, es composición del cliente (pregunta a los dos módulos), o
   un modelo de lectura que un worker mantiene a partir de los eventos.
 - Una referencia puede apuntar un momento a algo borrado, entre la comprobación y el

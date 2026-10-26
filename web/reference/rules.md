@@ -702,6 +702,13 @@ Vernon's aggregates: never the other entity, never a join to its table.
 - When the referenced thing goes, the module that points at it follows its event, from
   a worker: a `handler` on `column.removed` calling `card.leaveRemovedColumn`, which
   finds the cards still in it when it runs.
+- The check ran before the save, so the thing may go in between, and its worker may run
+  before the save and find nothing. The module that points follows its own events too:
+  `card.created` and `card.moved` call `card.leaveRemovedColumn` with the card's
+  column, which looks whether it is still there. Each worker runs after its own save
+  and looks at the other's, so whichever runs last finds the card, in any order
+  (cooper's assignee is followed the same way: `card.unassignMember` on
+  `access.revoked`, `card.created` and `card.assigned`, asking whether they still belong).
 - Showing names, not ids, is the client's composition (it asks both modules), or a
   read model a worker keeps from the events.
 - A reference may point at something deleted for a moment, between the check and the
