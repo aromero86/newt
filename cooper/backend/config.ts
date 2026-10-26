@@ -106,6 +106,11 @@ export const config = {
    * those it calls, in its context or another, and how long each took.
    */
   trace: env.COOPER_TRACE === '1',
+  /**
+   * `COOPER_OTLP_URL`: an OpenTelemetry collector (OTLP over HTTP,
+   * `http://localhost:4318`) the traces go to instead, as service `cooper`.
+   */
+  otlpUrl: env.COOPER_OTLP_URL,
 }
 
 export type Config = typeof config

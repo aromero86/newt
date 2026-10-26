@@ -3,7 +3,7 @@ import { runContexts } from 'newt/application'
 import { NoopTracer, runAsActor, setTracer } from 'newt/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
-import { openContexts, stopContexts } from './open-contexts'
+import { cooperTracer, openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 
@@ -87,4 +87,26 @@ test('traces a use case across contexts: auth\'s calls inside the backoffice\'s 
     setTracer(new NoopTracer())
     await stopContexts(contexts)
   }
+})
+
+test('traces to OpenTelemetry\'s collector when COOPER_OTLP_URL says where, to the console under COOPER_TRACE, or nowhere', async () => {
+  const exported: string[] = []
+  const collector = Bun.serve({ port: 0, fetch: async request => { exported.push(`${new URL(request.url).pathname} ${await request.text()}`); return new Response('{}') } })
+  try {
+    const tracer = cooperTracer({ ...testConfig(), otlpUrl: collector.url.origin, trace: true })!
+    await tracer.startActiveSpan('user.get', {}, async span => span.end())
+    await tracer.startActiveSpan('job.claim', {}, async span => span.end())
+    await tracer.flush!()
+
+    expect(exported).toHaveLength(1)
+    expect(exported[0]).toStartWith('/v1/traces ')
+    expect(exported[0]).toContain('"user.get"')
+    expect(exported[0]).toContain('"cooper"')
+    expect(exported[0]).not.toContain('job.claim')
+  } finally {
+    await collector.stop()
+  }
+
+  expect(cooperTracer({ ...testConfig(), otlpUrl: undefined, trace: true })).toBeDefined()
+  expect(cooperTracer({ ...testConfig(), otlpUrl: undefined, trace: false })).toBeUndefined()
 })

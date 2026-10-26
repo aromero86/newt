@@ -1,4 +1,5 @@
 import { filterSpans, type Clock, type Tracer } from 'newt/core'
+import { OtlpTracer } from 'newt/otel'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
@@ -17,12 +18,15 @@ export type OpenContextsOptions = {
 }
 
 /**
- * The console tracer, if `COOPER_TRACE` asks for one: the application's, for every
- * context. The worker's own spans (`job.claim` every few seconds, `job.close`…) are
- * left out: what a job does is a use case, and that one is written.
+ * The application's tracer, for every context: OpenTelemetry's collector if
+ * `COOPER_OTLP_URL` says where it is, else the console if `COOPER_TRACE` asks for it,
+ * else none. The worker's own spans (`job.claim` every few seconds, `job.close`…) are
+ * left out: what a job does is a use case, and that one is traced.
  */
 export function cooperTracer(config: Config): Tracer | undefined {
-  return config.trace ? filterSpans(new ConsoleTracer(), name => !name.startsWith('job.')) : undefined
+  const tracer = config.otlpUrl ? new OtlpTracer({ endpoint: config.otlpUrl, service: 'cooper' })
+    : config.trace ? new ConsoleTracer() : undefined
+  return tracer && filterSpans(tracer, name => !name.startsWith('job.'))
 }
 
 /**
