@@ -35,8 +35,8 @@ const clientSecrets = {
 
 /**
  * cooper's settings, from environment variables, with what development needs by
- * default. Each context has its own: where it listens, where its database lives and
- * where people open it.
+ * default. Each context has its own: where it listens, where its database lives,
+ * where people open it and the built frontend it serves.
  */
 export const config = {
   /** `COOPER_MAIL_FROM`: who the emails come from, whichever context sends them. */
@@ -64,6 +64,8 @@ export const config = {
       /** `COOPER_OAUTH_REFRESH_DAYS`: how long a refresh token lasts unused. */
       refreshDays: Number(env.COOPER_OAUTH_REFRESH_DAYS ?? 30),
     },
+    /** `COOPER_AUTH_FRONTEND`: its built frontend (`bun run cooper:build`). */
+    frontendFolder: fromRoot(env.COOPER_AUTH_FRONTEND ?? 'dist/cooper/auth'),
   },
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {
@@ -77,6 +79,8 @@ export const config = {
     /** Its OAuth client's secret: boards is the product `cooper` in auth. */
     clientSecret: clientSecrets.cooper,
     sessionDays,
+    /** `COOPER_BOARDS_FRONTEND`: its built frontend. */
+    frontendFolder: fromRoot(env.COOPER_BOARDS_FRONTEND ?? 'dist/cooper/boards'),
   },
 }
 

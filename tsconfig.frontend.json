@@ -1,0 +1,28 @@
+{
+  // What runs in the browser: cooper's frontends, their UI library and their API
+  // clients, with the backend's contracts (its modules' *.schema.ts) they share.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client", "bun"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "paths": {
+      "@cooper/ui/*": ["./cooper/libs/ui/*"],
+      "@cooper/api/*": ["./cooper/libs/api/*"],
+      "@cooper/core/*": ["./cooper/libs/core/*"]
+    }
+  },
+  "include": [
+    "cooper/frontend/**/*.ts",
+    "cooper/frontend/**/*.tsx",
+    "cooper/libs/**/*.ts",
+    "cooper/libs/**/*.tsx",
+    "cooper/backend/contexts/*/modules/*/*.schema.ts"
+  ],
+  "exclude": ["**/node_modules", "cooper/frontend/*/vite.config.ts"]
+}

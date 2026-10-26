@@ -19,7 +19,7 @@ import { WebSession_Module } from './web-session.module'
 class Client_Context extends ServedContext {
 
   private constructor(base: CooperBase, readonly session: WebSession_Module, port: number) {
-    super('client', base, { port })
+    super('client', base, { port, frontendFolder: config.boards.frontendFolder })
   }
 
   static async open(port: number, auth: Auth_Context): Promise<Client_Context> {

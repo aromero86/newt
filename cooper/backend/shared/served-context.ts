@@ -5,6 +5,8 @@ import type { CooperBase } from './cooper-base'
 export type ServedContextConfig = {
   /** Where its server listens: 0 for any free port (tests). */
   port: number
+  /** The built frontend it hands out for every address its routes do not take. */
+  frontendFolder: string
 }
 
 /**
@@ -23,8 +25,8 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
     return {}
   }
 
-  /** How it is served (`runContexts`, `serve`): its modules' API, what it adds and its health. */
+  /** How it is served (`runContexts`, `serve`): its modules' API, what it adds, its health, and its frontend for any other address. */
   serving(): ServeOptions {
-    return { port: this.served.port, router: this.base.http, routes: this.routes(), health: true }
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true }
   }
 }
