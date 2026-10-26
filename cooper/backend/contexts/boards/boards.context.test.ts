@@ -47,10 +47,11 @@ describe('boards, through its API', () => {
     expect(board.status).toBe(201)
     const id = board.body.id
     const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
-    await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })
+    const done = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })).body.id
     const card = await call<{ id: string, number: number }>('POST', `/acme/boards/${id}/cards`, { columnId: todo, title: 'Plan' })
     expect(card).toMatchObject({ status: 201, body: { number: 1 } })
 
+    expect((await call('POST', `/acme/cards/${card.body.id}/move`, { columnId: done })).body).toMatchObject({ columnId: done, position: 0 })
     expect((await call('POST', `/acme/cards/${card.body.id}/assign`, { assigneeId: 'bea' })).body).toMatchObject({ code: 'card.assignee_not_member' })
     expect((await call('PATCH', `/acme/boards/${id}`, { name: 'Plans' })).body).toMatchObject({ name: 'Plans' })
 
@@ -59,6 +60,19 @@ describe('boards, through its API', () => {
 
     // Another workspace sees none of it.
     expect((await call('GET', `/globex/boards/${id}`, undefined, 'bea')).status).toBe(404)
+  })
+
+  test('removes a column only when it is empty, and never the board\'s last', async () => {
+    const id = (await call<{ id: string }>('POST', '/acme/boards', { name: 'Roadmap' })).body.id
+    const todo = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'To do' })).body.id
+    const done = (await call<{ id: string }>('POST', `/acme/boards/${id}/columns`, { name: 'Done' })).body.id
+    const card = (await call<{ id: string }>('POST', `/acme/boards/${id}/cards`, { columnId: todo, title: 'Plan' })).body.id
+
+    expect(await call('DELETE', `/acme/columns/${todo}`)).toMatchObject({ status: 409, body: { code: 'card.column_not_empty' } })
+    expect((await call('DELETE', `/acme/cards/${card}`)).status).toBe(204)
+    expect((await call('DELETE', `/acme/columns/${todo}`)).status).toBe(204)
+    expect((await call<{ id: string }[]>('GET', `/acme/boards/${id}/columns`)).body.map(column => column.id)).toEqual([done])
+    expect(await call('DELETE', `/acme/columns/${done}`)).toMatchObject({ status: 409, body: { code: 'column.last' } })
   })
 
   test('renames a board, archives it, and gives its name once', async () => {

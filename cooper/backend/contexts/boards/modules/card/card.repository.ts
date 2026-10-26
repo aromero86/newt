@@ -24,6 +24,11 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
     return Card.fromDTO(row)
   }
 
+  /** A column's cards, from the top. */
+  inColumn(columnId: string): Promise<Card[]> {
+    return this.find({ columnId }, { orderBy: [{ field: 'position' }] })
+  }
+
   /** The number the next card of a board gets: one more than the last one it gave. */
   async nextNumber(boardId: string): Promise<number> {
     const [counter] = await this.counters.find({ id: boardId })
@@ -52,6 +57,27 @@ export class Card_Repository extends TableRepository<Card, CardRow, BoardsBase> 
       after: async () => {
         const count = await this.count({ boardId })
         if (count > MAX_CARDS) throw new TooManyCards(boardId)
+      },
+    })
+  }
+
+  /**
+   * Saves cards in their new order, all of them or none: the one moved or
+   * deleted, and the ones that took the places left, in each column it touches. Each
+   * was read at a version, so a card someone else moved meanwhile makes it a
+   * conflict, and the use case runs again with the columns as they are then.
+   * One created meanwhile has no version here: the order of each column is checked
+   * whole after writing, guarding those columns, so it is a conflict too.
+   */
+  async persistOrder(cards: Card[], columnIds: string[]): Promise<void> {
+    const columns = [...new Set(columnIds)]
+    await this.save(cards, each => this.write(each), {
+      guard: columns.map(columnId => `cards:${columnId}`),
+      after: async () => {
+        for (const columnId of columns) {
+          const positions = (await this.inColumn(columnId)).map(card => card.position)
+          if (positions.some((position, index) => position !== index)) this.conflict()
+        }
       },
     })
   }

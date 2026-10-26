@@ -5,6 +5,7 @@ import {
   CardAssignSchema,
   CardCreateSchema,
   CardEditSchema,
+  CardMoveSchema,
   MAX_CARDS,
   type CardDTO,
 } from './card'
@@ -13,6 +14,7 @@ import { Card_Repository } from './card.repository'
 import { registerCardRoutes } from './card.routes'
 import { AssigneeNotMember } from './errors/assignee-not-member'
 import { CardNotFound } from './errors/card-not-found'
+import { ColumnNotEmpty } from './errors/column-not-empty'
 import { ColumnNotInBoard } from './errors/column-not-in-board'
 import { TooManyCards } from './errors/too-many-cards'
 
@@ -80,6 +82,29 @@ export class Card_Module extends Module {
     return card.toDTO()
   }
 
+  /**
+   * Moves a card to a column of its board (the same one, too) at a position, and the
+   * cards around take the places left and made: several cards saved at once, all or
+   * none. Whoever moved one of them meanwhile, this card too, makes it run again from
+   * the start, with the columns as they are then: two people dragging the same card
+   * at once both get their move, one after the other.
+   */
+  @UseCase()
+  async move(id: string, input: unknown): Promise<CardDTO> {
+    const { columnId, position } = CardMoveSchema.parse(input)
+    const card = await this.load(id)
+    const from = card.columnId
+    if (columnId !== from) await this.assertColumnOf(card.boardId, columnId)
+    const left = (await this.repo.inColumn(from)).filter(each => each.id !== id)
+    const target = columnId === from ? left : await this.repo.inColumn(columnId)
+    const at = Math.min(position ?? target.length, target.length)
+    target.splice(at, 0, card)
+    if (target !== left) left.forEach((each, index) => each.reposition(index))
+    target.forEach((each, index) => each === card ? card.moveTo(columnId, index) : each.reposition(index))
+    await this.repo.persistOrder(target === left ? target : [...left, ...target], [from, columnId])
+    return card.toDTO()
+  }
+
   /** Assigns it to a member of its workspace: anyone else is a mistake of the request (400). */
   @UseCase()
   async assign(id: string, input: unknown): Promise<CardDTO> {
@@ -97,6 +122,32 @@ export class Card_Module extends Module {
     card.unassign()
     await this.repo.persist(card)
     return card.toDTO()
+  }
+
+  /** Deletes it, and the cards under it move one place up. Its number is not given again. */
+  @UseCase()
+  async delete(id: string): Promise<void> {
+    const card = await this.load(id)
+    const others = (await this.repo.inColumn(card.columnId)).filter(each => each.id !== id)
+    others.forEach((each, index) => each.reposition(index))
+    card.delete()
+    await this.repo.persistOrder([card, ...others], [card.columnId])
+  }
+
+  /**
+   * Removes a column of a board, only if no card is in it. The cards answer, since a
+   * card points at its column and a column knows nothing of the cards: the column
+   * module cannot ask them without the two needing each other. So this use
+   * case asks, and has the column module remove it: a write to another module outside
+   * a worker, said where it is seen. It is the only write it makes, so a failure leaves
+   * nothing halfway.
+   */
+  @UseCase({ writesTo: ['column'] })
+  async removeColumn(columnId: string): Promise<void> {
+    const column = await this.deps.column.get(columnId)
+    const cards = await this.repo.count({ columnId })
+    if (cards > 0) throw new ColumnNotEmpty(columnId, cards)
+    await this.deps.column.remove(column.id)
   }
 
   /** A new card of a board, checked: its column is the board's, its assignee a member. */

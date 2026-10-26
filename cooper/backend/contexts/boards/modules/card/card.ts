@@ -67,6 +67,16 @@ export class Card extends Entity<typeof CardSchema> {
     this.change(changes)
   }
 
+  /** Someone moved it: to this column, at this position. */
+  moveTo(columnId: string, position: number): void {
+    this.change({ columnId, position })
+  }
+
+  /** Another one moved, or left: this one takes the place left to it in its column, and tells nothing. */
+  reposition(position: number): void {
+    this.change({ position })
+  }
+
   /** To a member of its workspace: the module checked they are. */
   assign(assigneeId: string): void {
     this.change({ assigneeId })
@@ -74,5 +84,9 @@ export class Card extends Entity<typeof CardSchema> {
 
   unassign(): void {
     this.change({ assigneeId: null })
+  }
+
+  delete(): void {
+    this.markAsDeleted()
   }
 }

@@ -29,9 +29,15 @@ export const CardCreateSchema = CardSchema.pick({ columnId: true, title: true })
   assigneeId: CardSchema.shape.assigneeId.default(null),
 })
 export const CardEditSchema = z.object({ title: CardSchema.shape.title, description }).partial()
+/** Where it goes: a column of its board and, in it, a position; at the bottom when none is given, or one past it. */
+export const CardMoveSchema = z.object({
+  columnId: CardSchema.shape.columnId,
+  position: CardSchema.shape.position.optional(),
+})
 export const CardAssignSchema = z.object({ assigneeId: z.string() })
 
 export type CardDTO = z.infer<typeof CardSchema>
 export type CardCreateDTO = z.input<typeof CardCreateSchema>
 export type CardEditDTO = z.input<typeof CardEditSchema>
+export type CardMoveDTO = z.input<typeof CardMoveSchema>
 export type CardAssignDTO = z.input<typeof CardAssignSchema>

@@ -14,7 +14,20 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   workspace.patch('/cards/:cardId', async request => Response.json(await cards.edit(request.params.cardId, await request.json())))
 
+  workspace.post('/cards/:cardId/move', async request => Response.json(await cards.move(request.params.cardId, await request.json())))
+
   workspace.post('/cards/:cardId/assign', async request => Response.json(await cards.assign(request.params.cardId, await request.json())))
 
   workspace.post('/cards/:cardId/unassign', async request => Response.json(await cards.unassign(request.params.cardId)))
+
+  workspace.delete('/cards/:cardId', async request => {
+    await cards.delete(request.params.cardId)
+    return new Response(null, { status: 204 })
+  })
+
+  // A column is removed by the cards, which know whether it is empty.
+  workspace.delete('/columns/:columnId', async request => {
+    await cards.removeColumn(request.params.columnId)
+    return new Response(null, { status: 204 })
+  })
 }

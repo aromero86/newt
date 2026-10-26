@@ -40,4 +40,18 @@ export class Column extends Entity<typeof ColumnSchema> {
   rename(name: string): void {
     this.change({ name })
   }
+
+  /** Someone moved it: where it goes. */
+  moveTo(position: number): void {
+    this.change({ position })
+  }
+
+  /** Another one moved, or left: this one takes the place left to it, and tells nothing. */
+  reposition(position: number): void {
+    this.change({ position })
+  }
+
+  remove(): void {
+    this.markAsDeleted()
+  }
 }

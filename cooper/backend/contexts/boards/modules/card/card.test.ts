@@ -44,6 +44,29 @@ describe('card', () => {
     const sorted = (values: number[]) => values.toSorted((a, b) => a - b)
     expect(sorted(created.map(card => card.number))).toEqual(Array.from({ length: 20 }, (_, i) => i + 1))
     expect(sorted(created.map(card => card.position))).toEqual(Array.from({ length: 20 }, (_, i) => i))
+
+    // The last one deleted, its number stays taken: five more at once get #21 to #25.
+    await inAcme(() => t.modules.card.delete(created.find(card => card.number === 20)!.id))
+    const more = await Promise.all(Array.from({ length: 5 }, (_, i) => create(`More ${i}`)))
+    expect(sorted(more.map(card => card.number))).toEqual([21, 22, 23, 24, 25])
+  })
+
+  test('never gives a deleted card\'s number again, and closes the gap it leaves', async () => {
+    const [, second] = [await create('Plan'), await create('Design'), await create('Build')]
+
+    await inAcme(() => t.modules.card.delete(second.id))
+    await create('Ship')
+
+    expect(await columns()).toEqual({ todo: ['#1@0', '#3@1', '#4@2'], doing: [], done: [] })
+  })
+
+  test('never gives the number of the last card again, once it is deleted', async () => {
+    const [, , build] = [await create('Plan'), await create('Design'), await create('Build')]
+
+    await inAcme(() => t.modules.card.delete(build.id))
+    await create('Ship')
+
+    expect(await columns()).toEqual({ todo: ['#1@0', '#2@1', '#4@2'], doing: [], done: [] })
   })
 
   test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
@@ -56,10 +79,38 @@ describe('card', () => {
     expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
   })
 
-  test('creates a card only in a column of its board', async () => {
+  test('moves a card to another column, or within its own, and the others make room', async () => {
+    const [plan, design, build] = [await create('Plan'), await create('Design'), await create('Build')]
+
+    await inAcme(() => t.modules.card.move(design.id, { columnId: doing }))
+    await inAcme(() => t.modules.card.move(build.id, { columnId: doing, position: 0 }))
+    await inAcme(() => t.modules.card.move(plan.id, { columnId: doing, position: 1 }))
+    expect(await columns()).toEqual({ todo: [], doing: ['#3@0', '#1@1', '#2@2'], done: [] })
+
+    await inAcme(() => t.modules.card.move(design.id, { columnId: doing, position: 0 }))
+    expect(await columns()).toEqual({ todo: [], doing: ['#2@0', '#3@1', '#1@2'], done: [] })
+  })
+
+  test('gives each of two moves of the same card at once its turn, and leaves no gap', async () => {
+    const [plan] = [await create('Plan'), await create('Design'), await create('Build')]
+
+    const moved = await Promise.all([
+      inAcme(() => t.modules.card.move(plan.id, { columnId: doing })),
+      inAcme(() => t.modules.card.move(plan.id, { columnId: done })),
+    ])
+
+    expect(moved.map(card => card.columnId).sort()).toEqual([doing, done].sort())
+    const after = await columns()
+    expect(after.todo).toEqual(['#2@0', '#3@1'])
+    expect([...after.doing, ...after.done]).toEqual(['#1@0'])
+  })
+
+  test('moves a card only to a column of its board', async () => {
+    const plan = await create('Plan')
     const other = await inAcme(() => t.modules.board.create({ name: 'Other' }))
     const elsewhere = await inAcme(() => t.modules.column.add(other.id, { name: 'To do' }))
 
+    await expect(inAcme(() => t.modules.card.move(plan.id, { columnId: elsewhere.id }))).rejects.toMatchObject({ code: 'card.column_not_in_board' })
     await expect(create('Lost', { columnId: elsewhere.id })).rejects.toMatchObject({ code: 'card.column_not_in_board' })
   })
 
