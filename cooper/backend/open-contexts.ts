@@ -1,3 +1,4 @@
+import type { Tracer } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
@@ -8,9 +9,13 @@ import { ConsoleMailer } from './shared/mail/console-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 import type { Mailer } from './shared/mail/mailer'
 
-/** What the contexts are given from outside: the console mailer unless another is. */
+/**
+ * What the contexts are given from outside: the console mailer unless another is,
+ * and the console tracer if `COOPER_TRACE` asks for one, unless another is given.
+ */
 export type OpenContextsOptions = {
   mailer?: Mailer
+  tracer?: Tracer
 }
 
 /**
@@ -22,7 +27,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const mailer = options.mailer ?? new ConsoleMailer(config.mail.from)
   // One tracer for every context: a use case that calls another context's shows that
   // call inside it, since they run in one process.
-  const tracer = config.trace ? new ConsoleTracer() : undefined
+  const tracer = options.tracer ?? (config.trace ? new ConsoleTracer() : undefined)
   const auth = await Auth_Context.open(config.auth, { mailer }, tracer)
   const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, log: tracer && (line => console.log(line)) }, tracer)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, tracer)

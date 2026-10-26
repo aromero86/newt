@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test'
 import { runAsActor } from 'newt/core'
 import { config, type Config } from './config'
+import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { openContexts, stopContexts } from './open-contexts'
 import type { Mail } from './shared/mail/mailer'
+import { ConsoleTracer } from './shared/observability/console-tracer'
 
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
@@ -57,6 +59,28 @@ test('lets no member into a deleted workspace whose accesses are not taken away 
     const { member } = contexts.boards.modules
     await expect(runAsActor({ userId: bob.id, via: 'web' }, () => member.enter(acme.id))).rejects.toMatchObject({ code: 'workspace.not_found' })
     expect(await member.find(acme.id, bob.id)).toBeNull()
+  } finally {
+    await stopContexts(contexts)
+  }
+})
+
+test('traces a use case across contexts: auth\'s calls inside the backoffice\'s that made them', async () => {
+  const lines: string[] = []
+  const contexts = await openContexts(testConfig(), { tracer: new ConsoleTracer(line => lines.push(line)) })
+  try {
+    const { access, user } = contexts.auth.modules
+    const sam = await user.signUp({ email: 'sam@cooper.test', name: 'Sam', password: 'a long password' })
+    await access.admit({ userId: sam.id, productId: PRODUCTS.backoffice, tenantId: null, role: 'member' })
+    lines.length = 0
+
+    await runAsActor({ userId: sam.id, via: 'web' }, () => contexts.backoffice.modules.staff.me())
+    expect(lines.map(line => line.replace(/ \d+\.\d ms$/, ''))).toEqual([
+      '[trace] backoffice staff.me',
+      '[trace]   backoffice staff.enter',
+      '[trace]     backoffice staff.isStaff',
+      '[trace]       auth access.check',
+      '[trace]   auth user.get',
+    ])
   } finally {
     await stopContexts(contexts)
   }
