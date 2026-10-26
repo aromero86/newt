@@ -7,7 +7,7 @@ import { Invitation_Module } from './modules/invitation/invitation.module'
 import { OauthClient_Module } from './modules/oauth-client/oauth-client.module'
 import { OauthGrant_Module } from './modules/oauth-grant/oauth-grant.module'
 import { Product_Module } from './modules/product/product.module'
-import type { ProductDTO } from './modules/product/product.schema'
+import { PRODUCTS, WORKSPACES_PRODUCT, type ProductDTO } from './modules/product/product.schema'
 import { Session_Module } from './modules/session/session.module'
 import { Tenant_Module } from './modules/tenant/tenant.module'
 import { Token_Module } from './modules/token/token.module'
@@ -17,9 +17,6 @@ import { User_Module } from './modules/user/user.module'
 export type Auth_ModuleDeps = {
   mailer: Mailer
 }
-
-/** The product whose workspaces the tenants are: boards, the SaaS. */
-export const WORKSPACES_PRODUCT = 'cooper'
 
 /**
  * cooper's products, declared here: the apps that sign people in through auth, each
@@ -37,7 +34,7 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
       redirectUri: `${config.boardsPublicUrl}${WEB_SESSION_CALLBACK}`,
     },
     {
-      id: 'backoffice',
+      id: PRODUCTS.backoffice,
       name: 'Cooper backoffice',
       publicUrl: config.backofficePublicUrl,
       signUp: false,

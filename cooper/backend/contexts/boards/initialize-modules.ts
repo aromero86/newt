@@ -1,6 +1,7 @@
 import type { Mailer } from '../../shared/mail/mailer'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
-import { WORKSPACES_PRODUCT, type Auth_Modules } from '../auth/initialize-modules'
+import type { Auth_Modules } from '../auth/initialize-modules'
+import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Board_Module } from './modules/board/board.module'

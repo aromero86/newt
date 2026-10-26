@@ -1,5 +1,14 @@
 import { z } from 'zod'
 
+/**
+ * The ids of cooper's products, which other contexts name when they ask auth about
+ * them: `cooper` (the boards) and `backoffice` (the staff's console).
+ */
+export const PRODUCTS = { cooper: 'cooper', backoffice: 'backoffice' } as const
+
+/** The product whose workspaces the tenants are: boards, the SaaS. */
+export const WORKSPACES_PRODUCT = PRODUCTS.cooper
+
 /** Who may enter a product: anyone with an account, or only those given access to it. */
 export const ProductAccessSchema = z.enum(['anyone', 'granted'])
 
