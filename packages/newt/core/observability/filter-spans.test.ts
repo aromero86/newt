@@ -19,4 +19,11 @@ describe('filterSpans', () => {
     })).toBe('made')
     expect(started).toEqual(['card.create'])
   })
+
+  test('has the tracer send what it keeps, if it keeps any', async () => {
+    let flushed = 0
+    await filterSpans({ startActiveSpan: (_name, _attributes, fn) => fn({ setError() {}, addEvent() {}, end() {} }), flush: async () => void flushed++ }, () => true).flush!()
+    await filterSpans({ startActiveSpan: (_name, _attributes, fn) => fn({ setError() {}, addEvent() {}, end() {} }) }, () => true).flush!()
+    expect(flushed).toBe(1)
+  })
 })

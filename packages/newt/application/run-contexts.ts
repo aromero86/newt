@@ -12,7 +12,8 @@ const SIGNALS = ['SIGINT', 'SIGTERM'] as const
  * those it uses): serves each one that is served, then starts the worker of each.
  * Stopping is the other way round: every server stops taking requests and finishes
  * those in progress, then each context stops, the last one first, so none stops
- * before one that uses it. On SIGINT or SIGTERM it stops them and ends the process.
+ * before one that uses it, and the tracer sends what it still keeps. On SIGINT or
+ * SIGTERM it stops them and ends the process.
  *
  * ```ts
  * const app = runContexts([
@@ -44,6 +45,7 @@ export function runContexts(contexts: ContextToRun[], options: RunContextsOption
       if (options.signals !== false) for (const signal of SIGNALS) process.off(signal, onSignal)
       await Promise.all(Object.values(servers).map(server => server.stop()))
       for (const { context } of contexts.toReversed()) await context.stop()
+      await options.tracer?.flush?.()
     })(),
   }
   if (options.signals !== false) for (const signal of SIGNALS) process.on(signal, onSignal)

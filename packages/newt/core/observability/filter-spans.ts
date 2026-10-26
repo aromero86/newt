@@ -11,5 +11,6 @@ const NO_SPAN: Span = { setError() {}, addEvent() {}, end() {} }
 export function filterSpans(tracer: Tracer, keep: (name: string) => boolean): Tracer {
   return {
     startActiveSpan: (name, attributes, fn) => keep(name) ? tracer.startActiveSpan(name, attributes, fn) : fn(NO_SPAN),
+    flush: async () => tracer.flush?.(),
   }
 }

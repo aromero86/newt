@@ -1132,7 +1132,10 @@ antes que el de la aplicación para sus casos de uso.
 
 `filterSpans(tracer, keep)` pasa a un tracer solo los spans cuyo nombre se queda.
 cooper fija un `ConsoleTracer` (`shared/observability`) cuando `COOPER_TRACE=1`, sin
-los spans `job.…` del worker; escribe cada traza cuando termina.
+los spans `job.…` del worker; escribe cada traza cuando termina. Para enviarlos a
+OpenTelemetry, `new OtlpTracer({ endpoint, service })`, de `newt/otel`, los exporta a
+un colector por OTLP/HTTP, sin su SDK: cada pocos segundos, y el resto cuando
+`runContexts` para (el `flush` de un tracer).
 
 ```ts
 // cooper/backend/open-contexts.ts

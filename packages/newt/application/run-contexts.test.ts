@@ -45,18 +45,19 @@ describe('runContexts', () => {
     await expect(fetch(new URL('/api/who', url))).rejects.toThrow()
   })
 
-  test('sets the application\'s tracer, which every request is a span of', async () => {
-    const names: string[] = []
+  test('sets the application\'s tracer, which every request is a span of, and has it send what it keeps once stopped', async () => {
+    const log: string[] = []
     const tracer: Tracer = {
       startActiveSpan: (name, _attributes, fn) => {
-        names.push(name)
+        log.push(name)
         return fn({ setError() {}, addEvent() {}, end() {} })
       },
+      flush: async () => void log.push('flushed'),
     }
-    const app = runContexts([{ context: context('shop', []), serve: { port: 0, router: router('shop') } }], { tracer, signals: false })
+    const app = runContexts([{ context: context('shop', log), serve: { port: 0, router: router('shop') } }], { tracer, signals: false })
     await fetch(new URL('/api/who', app.servers.shop!.url))
     await app.stop()
-    expect(names).toEqual(['GET /api/who'])
+    expect(log).toEqual(['shop started', 'GET /api/who', 'shop stopped', 'flushed'])
   })
 
   test('on SIGTERM it stops them, then ends the process', async () => {
