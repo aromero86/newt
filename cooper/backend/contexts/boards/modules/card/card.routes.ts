@@ -1,4 +1,4 @@
-import { pageRequestFrom } from 'newt/http'
+import { pageRequestFrom, type KeptAnswer } from 'newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { CardAssignDTO, CardCreateDTO, CardEditDTO, CardMoveDTO, CardSearchDTO } from './card'
@@ -10,10 +10,12 @@ export function registerCardRoutes(base: BoardsBase, cards: Card_Module, deps: C
 
   workspace.get('/boards/:boardId/cards', async request => Response.json(await cards.listInBoard(request.params.boardId)))
 
+  // A client may send it again with the same `Idempotency-Key` (its answer lost on the
+  // way): it gets the card made the first time, kept in the store, not a second one.
   workspace.post('/boards/:boardId/cards', async request => {
     const input = await request.json() as CardCreateDTO
     return Response.json(await cards.create(request.params.boardId, input), { status: 201 })
-  })
+  }, { idempotency: { table: base.store.table<KeptAnswer>('idempotency_key') } })
 
   // A search sends its filter in the body: groups of conditions do not fit in a URL.
   workspace.post('/cards/search', async request => {

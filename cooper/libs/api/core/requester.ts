@@ -21,8 +21,9 @@ export abstract class Requester {
     return this.call<T>('GET', path, undefined, params)
   }
 
-  protected post<T>(path: string, body?: unknown): Promise<T> {
-    return this.call<T>('POST', path, body)
+  /** With `headers` of its own, such as an `Idempotency-Key`. */
+  protected post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+    return this.call<T>('POST', path, body, undefined, headers)
   }
 
   protected put<T>(path: string, body?: unknown): Promise<T> {
@@ -37,12 +38,12 @@ export abstract class Requester {
     return this.call<T>('DELETE', path)
   }
 
-  private async call<T>(method: string, path: string, body?: unknown, params?: QueryParams): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, params?: QueryParams, headers?: Record<string, string>): Promise<T> {
     let response: Response
     try {
       response = await fetch(this.url(path, params), {
         method,
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
         body: body === undefined ? undefined : JSON.stringify(body),
         credentials: 'include',
       })
