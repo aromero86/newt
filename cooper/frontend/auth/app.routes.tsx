@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router'
+import { Spinner } from '@cooper/ui/components/spinner'
 import { NotFound } from './pages/not-found/not-found'
 import { RouteError } from './pages/route-error/route-error'
 import { Shell } from './pages/shell/shell'
@@ -16,12 +17,18 @@ export const router = createBrowserRouter([
     ErrorBoundary: RouteError,
     // The shell is only a narrow column: a failing page replaces it, with its own.
     children: [
-      { index: true, lazy: () => import('./pages/home/home').then(page => ({ Component: page.Home })) },
-      { path: 'sign-in', lazy: () => import('./pages/sign-in/sign-in').then(page => ({ Component: page.SignIn })) },
-      { path: 'sign-up', lazy: () => import('./pages/sign-up/sign-up').then(page => ({ Component: page.SignUp })) },
-      { path: 'authorize/:id', lazy: () => import('./pages/authorize/authorize').then(page => ({ Component: page.Authorize })) },
-      { path: 'error', lazy: () => import('./pages/oauth-error/oauth-error').then(page => ({ Component: page.OauthError })) },
-      { path: '*', Component: NotFound },
+      {
+        // The first page's code is still downloading: the shell shows, with a spinner in the page's place.
+        HydrateFallback: () => <Spinner label="Loading" />,
+        children: [
+          { index: true, lazy: () => import('./pages/home/home').then(page => ({ Component: page.Home })) },
+          { path: 'sign-in', lazy: () => import('./pages/sign-in/sign-in').then(page => ({ Component: page.SignIn })) },
+          { path: 'sign-up', lazy: () => import('./pages/sign-up/sign-up').then(page => ({ Component: page.SignUp })) },
+          { path: 'authorize/:id', lazy: () => import('./pages/authorize/authorize').then(page => ({ Component: page.Authorize })) },
+          { path: 'error', lazy: () => import('./pages/oauth-error/oauth-error').then(page => ({ Component: page.OauthError })) },
+          { path: '*', Component: NotFound },
+        ],
+      },
     ],
   },
 ])

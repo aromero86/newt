@@ -63,7 +63,7 @@ function SignUpWrapped() {
 
   return (
     <>
-      <PageHeader title="Create your account" description={review ? `to continue to ${review.product.name}` : 'One account for every Cooper app.'} />
+      <PageHeader title="Create your Cooper account" description={review ? `One account for every Cooper app. Then you go on to ${review.product.name}.` : 'One account for every Cooper app.'} />
       <form onSubmit={onSubmit} noValidate>
         <Card footer={<Button type="submit" block loading={submitting}>Create account</Button>}>
           <Stack gap={4}>

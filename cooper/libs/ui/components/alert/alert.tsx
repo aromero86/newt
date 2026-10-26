@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { CircleCheckIcon, InfoIcon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react'
-import { Alert as ShadcnAlert, AlertDescription as ShadcnAlertDescription, AlertTitle as ShadcnAlertTitle } from '../../shadcn/alert'
+import { Alert as ShadcnAlert, AlertTitle as ShadcnAlertTitle } from '../../shadcn/alert'
 import type { IconComponent } from '../icon'
 
 type Tone = 'info' | 'ok' | 'warn' | 'bad'
@@ -30,7 +30,11 @@ export function Alert({ tone = 'info', title, children }: AlertProps) {
     <ShadcnAlert role={role} className={cn(className)}>
       <Glyph aria-hidden />
       <ShadcnAlertTitle>{title}</ShadcnAlertTitle>
-      {children !== undefined && <ShadcnAlertDescription className="text-foreground/80">{children}</ShadcnAlertDescription>}
+      {/*
+        The body is running text: words, marks (`Strong`) and links flow on one line.
+        shadcn's AlertDescription is a grid, which would put each piece on its own row.
+      */}
+      {children !== undefined && <div data-slot="alert-description" className="col-start-2 text-sm leading-relaxed text-foreground/80">{children}</div>}
     </ShadcnAlert>
   )
 }

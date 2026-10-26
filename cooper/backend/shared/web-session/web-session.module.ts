@@ -13,7 +13,7 @@ import { WEB_SESSION_CALLBACK } from './web-session.schema'
 type PendingSignIn = { state: string, verifier: string, returnTo: string }
 
 /** Only a path of the context itself: never another host (`//evil.example`). */
-const ownPath = (path: string | undefined) => (path && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : '/')
+export const ownPath = (path: string | undefined) => (path && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : '/')
 
 /**
  * The web session of a context that signs its people in through auth: boards and
@@ -27,7 +27,8 @@ const ownPath = (path: string | undefined) => (path && path.startsWith('/') && !
  *   server trades it at auth's `/oauth/token` (over HTTP, with its secret), asks auth
  *   who the access token is for, gives the tokens back (`/oauth/revoke`: the context
  *   keeps none), and opens its own session.
- * - `GET /api/session` is the signed-in person; `POST /api/session/sign-out` ends it.
+ * - `GET /api/session` is the signed-in person; `POST /api/session/sign-out?returnTo=/path`
+ *   ends it, and answers where the browser goes next: auth, to end its session too.
  * - Every other route of the context runs as that person: it sets the router's
  *   authenticator.
  *

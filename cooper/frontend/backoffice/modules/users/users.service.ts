@@ -1,4 +1,4 @@
-import { BackofficeUserApi, type UserDTO } from '@cooper/api/backoffice-user'
+import { BackofficeUserApi, type UserSummaryDTO } from '@cooper/api/backoffice-user'
 import { inject } from '@cooper/core/injector/inject'
 import { ListStore } from '@cooper/core/list/list-store'
 import { Store } from '@cooper/core/store/store'
@@ -15,7 +15,7 @@ export class UsersService {
   private readonly store = new Store<UsersState>({ text: '' })
 
   readonly text = this.store.select('text')
-  readonly list = new ListStore<UserDTO>(page => this.api.list(this.store.value.text || undefined, page))
+  readonly list = new ListStore<UserSummaryDTO>(page => this.api.list(this.store.value.text || undefined, page))
 
   load(): Promise<void> {
     return this.list.loadFirstPage()

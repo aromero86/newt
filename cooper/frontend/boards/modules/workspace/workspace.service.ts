@@ -3,6 +3,8 @@ import { WorkspaceMemberApi, type WorkspaceMemberDTO } from '@cooper/api/workspa
 import { inject } from '@cooper/core/injector/inject'
 import { Store } from '@cooper/core/store/store'
 import { toast } from '@cooper/ui/components/toast'
+import { SessionService } from '../../services/session/session.service'
+import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 
 type WorkspaceState = {
   workspaceId: string
@@ -19,6 +21,8 @@ type WorkspaceState = {
 export class WorkspaceService {
 
   private readonly api = inject(WorkspaceMemberApi)
+  private readonly session = inject(SessionService)
+  private readonly workspaces = inject(WorkspacesService)
   private readonly store = new Store<WorkspaceState>({ workspaceId: '', members: [], loaded: false, failure: null })
 
   readonly members = this.store.select('members')
@@ -51,5 +55,27 @@ export class WorkspaceService {
     } catch (error) {
       toast.error((error as Error).message)
     }
+  }
+
+  /**
+   * The signed-in member leaves the workspace (its admin cannot). Resolves to whether
+   * they are out; then `forgetLeft` takes it off their workspaces, once the page left it.
+   */
+  async leave(): Promise<boolean> {
+    const me = this.session.user.value
+    if (!me) return false
+    try {
+      await this.api.leave(this.workspaceId, me.id)
+      toast.success('You left the workspace')
+      return true
+    } catch (error) {
+      toast.error((error as Error).message)
+      return false
+    }
+  }
+
+  /** The workspace just left is no longer among the person's. */
+  forgetLeft(): void {
+    this.workspaces.forget(this.workspaceId)
   }
 }

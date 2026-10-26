@@ -4,7 +4,7 @@ import type { CooperBase } from '../../../../shared/cooper-base'
 import type { User_Deps } from './user.deps'
 import type { User_Options } from './user-options'
 import { registerUserRoutes } from './user.routes'
-import { UserSearchSchema, type UserDetailDTO, type UserDTO, type UserSearchDTO, type UserWorkspaceDTO } from './user.schema'
+import { UserSearchSchema, type UserDetailDTO, type UserSearchDTO, type UserSummaryDTO, type UserWorkspaceDTO } from './user.schema'
 
 /**
  * cooper's accounts, as the staff look them up. auth keeps them; this module only
@@ -23,14 +23,17 @@ export class User_Module extends Module {
     super('user', base.invocations)
   }
 
-  /** Every account, the newest first; with a text, those whose email or name it is. */
+  /** Every account, the newest first, each saying whether it is staff; with a text, those whose email or name it is. */
   @UseCase()
-  async list(input: UserSearchDTO, page: PageRequest): Promise<Page<UserDTO>> {
+  async list(input: UserSearchDTO, page: PageRequest): Promise<Page<UserSummaryDTO>> {
     const { text } = UserSearchSchema.parse(input)
     const filter: UserFilterDTO | undefined = text
       ? { or: [{ field: 'email', op: 'ieq', value: text }, { field: 'name', op: 'ieq', value: text }] }
       : undefined
-    return this.deps.user.list(filter, page)
+    const users = await this.deps.user.list(filter, page)
+    // One question to auth per account of the page: a page is short, and auth says it fresh.
+    const items = await Promise.all(users.items.map(async user => ({ ...user, staff: await this.deps.staff.isStaff(user.id) })))
+    return { ...users, items }
   }
 
   @UseCase()

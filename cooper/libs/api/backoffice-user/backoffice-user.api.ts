@@ -1,4 +1,4 @@
-import type { UserDetailDTO, UserDTO, UserWorkspaceDTO } from '../../../backend/contexts/backoffice/modules/user/user.schema'
+import type { UserDetailDTO, UserSummaryDTO, UserWorkspaceDTO } from '../../../backend/contexts/backoffice/modules/user/user.schema'
 import type { Page } from '../core/page'
 import type { PageRequest } from '../core/page-request'
 import { Requester } from '../core/requester'
@@ -7,9 +7,9 @@ import { Requester } from '../core/requester'
 export class BackofficeUserApi extends Requester {
   protected readonly path = '/users'
 
-  /** The newest first; with a text, the accounts whose email or name it is. */
+  /** The newest first, each saying whether it is staff; with a text, the accounts whose email or name it is. */
   list(text: string | undefined, page?: PageRequest) {
-    return this.get<Page<UserDTO>>('', { text, ...page })
+    return this.get<Page<UserSummaryDTO>>('', { text, ...page })
   }
 
   getUser(userId: string) {

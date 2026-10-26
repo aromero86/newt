@@ -135,7 +135,7 @@ export function BoardCard({ title, reference, meta, assignee, href, onOpen, acti
         {actions !== undefined && <div className="-mt-0.5 -mr-1.5 shrink-0">{actions}</div>}
       </div>
       {(reference !== undefined || meta !== undefined || assignee !== undefined) && (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex min-h-5 flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {reference !== undefined && <span className="font-mono">{reference}</span>}
           {meta}
           {assignee !== undefined && (

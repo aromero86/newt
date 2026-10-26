@@ -14,6 +14,8 @@ type FormState<TValues> = {
 type FormOptions<TValues> = {
   /** Backend error codes that belong to a field: `{ 'user.nick_taken': 'nick' }`. */
   errorFields?: Record<string, keyof TValues>
+  /** The form's own words for backend error codes that belong to no field: `{ 'card.too_many': 'This board is full' }`. */
+  messages?: Record<string, string>
 }
 
 /**
@@ -84,8 +86,9 @@ export class FormStore<TValues extends Record<string, string>, TOutput> {
       return true
     } catch (error) {
       const field = error instanceof ApiError && error.code ? this.options.errorFields?.[error.code] : undefined
+      const message = error instanceof ApiError && error.code ? this.options.messages?.[error.code] : undefined
       if (field !== undefined) this.store.update(state => ({ errors: { ...state.errors, [field]: (error as ApiError).message } }))
-      else this.store.patch({ failure: error instanceof Error ? error.message : 'Something went wrong' })
+      else this.store.patch({ failure: message ?? (error instanceof Error ? error.message : 'Something went wrong') })
       return false
     } finally {
       this.store.patch({ submitting: false })

@@ -10,6 +10,11 @@ export const UserSearchSchema = z.object({
 /** Who someone is, beside what the staff look at: a workspace's admin, a member. */
 export type PersonDTO = Pick<UserDTO, 'id' | 'name' | 'email'>
 
+/** An account in the staff's list: whether it is of the staff too. */
+export type UserSummaryDTO = UserDTO & {
+  staff: boolean
+}
+
 /** An account, as the staff see it: whether it is of the staff, and how many workspaces it is in. */
 export type UserDetailDTO = UserDTO & {
   staff: boolean

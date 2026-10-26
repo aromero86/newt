@@ -101,7 +101,7 @@ export function registerMcpTools(server: McpServer, modules: Boards_Modules): vo
       text: z.string().max(100).optional().describe('Words the title or the description has'),
       boardId: z.string().optional(),
       columnId: z.string().optional(),
-      assigneeId: z.string().optional().describe('A member\'s id, from get_board'),
+      assigneeId: z.string().optional().describe('A member\'s id, from list_members'),
       ...pageArgs,
     },
     annotations: READ_ONLY,
@@ -118,14 +118,14 @@ export function registerMcpTools(server: McpServer, modules: Boards_Modules): vo
 
   server.registerTool('create_card', {
     title: 'Create a card',
-    description: 'Adds a card at the bottom of a column of a board.',
+    description: 'Adds a card at the bottom of a column of a board, assigned to a member of the workspace if given (list_members says who they are).',
     inputSchema: {
       workspaceId,
       boardId: z.string(),
       columnId: z.string().describe('A column of the board, from get_board'),
       title: z.string().describe('Up to 200 characters'),
       description: z.string().optional(),
-      assigneeId: z.string().optional().describe('A member\'s id, from get_board'),
+      assigneeId: z.string().optional().describe('A member\'s id, from list_members'),
     },
     annotations: WRITE,
   }, async ({ workspaceId: id, boardId, ...input }) => within(id, async () =>

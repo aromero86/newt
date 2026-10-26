@@ -10,13 +10,14 @@ describe('user', () => {
 
   afterEach(() => t.close())
 
-  test('lists the accounts, the newest first; by email or name too', async () => {
+  test('lists the accounts, the newest first, marking the staff; by email or name too', async () => {
     const sam = await t.staffMember('Sam')
     await t.signUp('Ana')
     await t.signUp('Bob')
 
     const all = await t.as(sam, () => t.modules.user.list({}, { size: 10 }))
     expect(all.items.map(user => user.name)).toEqual(['Bob', 'Ana', 'Sam'])
+    expect(all.items.map(user => user.staff)).toEqual([false, false, true])
     expect((await t.as(sam, () => t.modules.user.list({ text: 'ANA@cooper.test' }, { size: 10 }))).items.map(user => user.name)).toEqual(['Ana'])
     expect((await t.as(sam, () => t.modules.user.list({ text: 'bob' }, { size: 10 }))).items.map(user => user.name)).toEqual(['Bob'])
   })

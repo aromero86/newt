@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { UsersIcon } from 'lucide-react'
 import { Alert } from '@cooper/ui/components/alert'
 import { Avatar } from '@cooper/ui/components/avatar'
+import { Badge } from '@cooper/ui/components/badge'
 import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
 import { Button } from '@cooper/ui/components/button'
 import { Counter } from '@cooper/ui/components/counter'
@@ -41,7 +42,7 @@ function UsersWrapped() {
 
   return (
     <Stack gap={4}>
-      <PageHeader title="Users" description="Every account of Cooper, the newest first." />
+      <PageHeader title="Users" description="Every account of Cooper, the newest first. Staff are marked." />
       <SearchField label="Search users" placeholder="An email or a whole name" defaultValue={text} onSearch={query => void users.search(query)} />
       {failure && <Alert tone="bad" title="Could not load the users">{failure}</Alert>}
       <Box label="Users">
@@ -51,7 +52,7 @@ function UsersWrapped() {
         {loading && !loaded && [0, 1, 2].map(row => <BoxRow key={row}><Skeleton lines={2} /></BoxRow>)}
         {loaded && items.length === 0 && <BoxEmpty icon={UsersIcon} title="No users" description={text ? 'No account has that email or name. They are matched whole.' : undefined} />}
         {items.map(user => (
-          <BoxRow key={user.id} leading={<Avatar name={user.name} size={8} />}>
+          <BoxRow key={user.id} leading={<Avatar name={user.name} size={8} />} trailing={user.staff ? <Badge tone="brand">staff</Badge> : undefined}>
             <BoxRowTitle href={`/users/${user.id}`}>{user.name}</BoxRowTitle>
             <BoxRowMeta>
               <span>{user.email}</span>

@@ -1,7 +1,7 @@
 import type { BunRequest } from 'bun'
 import { DomainError } from 'newt/core'
 import type { CooperBase } from '../cooper-base'
-import type { WebSession_Module } from './web-session.module'
+import { ownPath, type WebSession_Module } from './web-session.module'
 import type { WebSession_Options } from './web-session-options'
 import { webSessionCookies, type WebSessionSignOutDTO } from './web-session.schema'
 
@@ -51,11 +51,14 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
 
   // Public: signing out with a session already gone still clears the cookie. The
   // browser goes on to auth, to sign out there too and come back: otherwise signing
-  // in again would sign the same person in, with no way to switch accounts.
+  // in again would sign the same person in, with no way to switch accounts. It comes
+  // back to `?returnTo=` (a path of this context: an invitation, say) or to the start.
   base.http.post('/session/sign-out', async request => {
     await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
     request.cookies.delete({ name: cookies.session, path: '/' })
-    const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: options.publicUrl })}`
+    const returnTo = new URL(request.url).searchParams.get('returnTo')
+    const back = returnTo ? new URL(ownPath(returnTo), options.publicUrl).toString() : options.publicUrl
+    const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: back })}`
     return Response.json({ next } satisfies WebSessionSignOutDTO)
   }, { public: true })
 

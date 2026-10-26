@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { PageBody } from '@cooper/ui/components/page-body'
+import { Spinner } from '@cooper/ui/components/spinner'
 import { SessionGuard } from './guards/session.guard'
 import { NotFound } from './pages/not-found/not-found'
 import { RouteError } from './pages/route-error/route-error'
@@ -22,6 +23,8 @@ export const router = createBrowserRouter([
           {
             // A failing page keeps the shell around it: the navigation still works.
             ErrorBoundary: RouteError,
+            // The first page's code is still downloading: the shell shows, with a spinner in the page's place.
+            HydrateFallback: () => <Spinner label="Loading page" />,
             children: [
               { index: true, lazy: () => import('./modules/overview/overview').then(zone => ({ Component: zone.Overview })) },
               { path: 'workspaces/*', lazy: () => import('./modules/workspaces/workspaces.routes').then(zone => ({ Component: zone.WorkspacesRoutes })) },

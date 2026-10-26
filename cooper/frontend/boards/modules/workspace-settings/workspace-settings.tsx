@@ -11,30 +11,44 @@ import { WorkspaceSettingsInvitations } from './workspace-settings-invitations/w
 import { WorkspaceSettingsMembers } from './workspace-settings-members/workspace-settings-members'
 
 /**
- * A workspace's settings, like a repository's: a menu of sections beside the one
- * shown. Its admin renames, deletes and invites; everyone else sees who is in it.
+ * A workspace's settings, like a repository's: its admin gets a menu of sections
+ * beside the one shown, to rename, delete, invite and remove. Everyone else only has
+ * the members (who is in it, and leaving), with no menu to admin-only pages.
  */
 export function WorkspaceSettings() {
   const workspaceId = useParams().workspaceId!
   const workspace = useValue(useService(WorkspacesService).workspace(workspaceId))
   const { pathname } = useLocation()
-  const admin = workspace?.isAdmin === true
   const base = `/w/${workspaceId}/settings`
+
+  if (workspace?.isAdmin !== true) {
+    return (
+      <Routes>
+        <Route index element={<Navigate to="members" replace />} />
+        <Route path="members" element={<WorkspaceSettingsMembers admin={false} />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    )
+  }
+
+  const sections = [
+    { href: base, label: 'General', icon: SettingsIcon, active: pathname === base },
+    { href: `${base}/members`, label: 'Members', icon: UsersIcon, active: pathname.startsWith(`${base}/members`) },
+    { href: `${base}/invitations`, label: 'Invitations', icon: MailIcon, active: pathname.startsWith(`${base}/invitations`) },
+  ]
 
   const menu = (
     <SideNav label="Workspace settings">
-      {admin && <SideNavItem href={base} active={pathname === base} icon={SettingsIcon}>General</SideNavItem>}
-      <SideNavItem href={`${base}/members`} active={pathname.startsWith(`${base}/members`)} icon={UsersIcon}>Members</SideNavItem>
-      {admin && <SideNavItem href={`${base}/invitations`} active={pathname.startsWith(`${base}/invitations`)} icon={MailIcon}>Invitations</SideNavItem>}
+      {sections.map(({ href, label, icon, active }) => <SideNavItem key={href} href={href} active={active} icon={icon}>{label}</SideNavItem>)}
     </SideNav>
   )
 
   return (
-    <SidebarLayout aside={menu}>
+    <SidebarLayout aside={menu} menuLabel={sections.find(section => section.active)?.label ?? 'Settings'}>
       <Routes>
-        <Route index element={admin ? <WorkspaceSettingsGeneral /> : <Navigate to="members" replace />} />
-        <Route path="members" element={<WorkspaceSettingsMembers admin={admin} />} />
-        {admin && <Route path="invitations" element={<WorkspaceSettingsInvitations />} />}
+        <Route index element={<WorkspaceSettingsGeneral />} />
+        <Route path="members" element={<WorkspaceSettingsMembers admin />} />
+        <Route path="invitations" element={<WorkspaceSettingsInvitations />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </SidebarLayout>

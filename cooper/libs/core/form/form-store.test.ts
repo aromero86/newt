@@ -5,7 +5,10 @@ import { FormStore } from './form-store'
 
 const schema = z.object({ nick: z.string().min(2, 'Too short'), email: z.email('Not an email') })
 
-const form = () => new FormStore(schema, { nick: '', email: '' }, { errorFields: { 'user.nick_taken': 'nick' } })
+const form = () => new FormStore(schema, { nick: '', email: '' }, {
+  errorFields: { 'user.nick_taken': 'nick' },
+  messages: { 'user.too_many': 'No more accounts today' },
+})
 
 describe('FormStore', () => {
   test('a field follows what is typed into it', () => {
@@ -69,5 +72,15 @@ describe('FormStore', () => {
 
     expect(signup.failure.value).toBe('Something went wrong')
     expect(signup.submitting.value).toBe(false)
+  })
+
+  test('a failure the form has its own words for says them', async () => {
+    const signup = form()
+    signup.set('nick', 'lucia')
+    signup.set('email', 'lucia@acme.dev')
+
+    await signup.submit(async () => { throw new ApiError(409, 'Instance 42 holds 1000 accounts already', 'user.too_many') })
+
+    expect(signup.failure.value).toBe('No more accounts today')
   })
 })

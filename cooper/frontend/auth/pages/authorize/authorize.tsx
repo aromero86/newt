@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { Navigate, useParams } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router'
 import { Alert } from '@cooper/ui/components/alert'
 import { Button } from '@cooper/ui/components/button'
 import { Card } from '@cooper/ui/components/card'
@@ -33,6 +33,8 @@ function AuthorizeWrapped() {
   const review = useValue(useService(AuthorizationService).review)
   const user = useValue(useService(SessionService).user)
   const id = useParams().id ?? ''
+  const navigate = useNavigate()
+  const [switching, setSwitching] = useState(false)
 
   useEffect(() => {
     void service.load(id)
@@ -52,6 +54,33 @@ function AuthorizeWrapped() {
       <>
         <PageHeader title="This request is over" />
         <Alert tone="warn" title="Answered or expired">It was answered already, or waited too long. Go back to the application and try again.</Alert>
+      </>
+    )
+  }
+  if (status === 'refused' && review?.refused) {
+    // Signed out of auth, the person signs in with another account, and comes back to this request.
+    const switchAccount = async () => {
+      setSwitching(true)
+      await service.switchAccount().finally(() => setSwitching(false))
+      navigate(keepingAuthorization('/sign-in', id), { replace: true })
+    }
+    return (
+      <>
+        <PageHeader title={`This account cannot use ${review.product.name}`} description={user ? `Signed in as ${user.email}.` : undefined} />
+        <Card
+          footer={(
+            <Inline justify="end">
+              <Button variant="ghost" loading={deciding === 'deny'} disabled={deciding !== null || switching} onClick={() => void service.deny()}>Back</Button>
+              <Button loading={switching} disabled={deciding !== null} onClick={() => void switchAccount()}>Use another account</Button>
+            </Inline>
+          )}
+        >
+          <Stack gap={4}>
+            <Alert tone="bad" title="No access">{review.refused.message}</Alert>
+            {failure && <Alert tone="bad" title="Could not go back">{failure}</Alert>}
+            <Text size="sm" tone="muted">{`Back returns to ${review.redirectHost} without signing in.`}</Text>
+          </Stack>
+        </Card>
       </>
     )
   }

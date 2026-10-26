@@ -24,7 +24,7 @@ export function ShellUserMenu() {
       items={[
         { label: `Signed in as ${user.email}`, disabled: true, onSelect: () => {} },
         { separator: true },
-        // Signing out leaves the session guard showing the way back in.
+        // Signing out goes through auth, which ends its session too, and comes back to the start.
         { label: 'Sign out', icon: LogOutIcon, onSelect: () => void session.signOut() },
       ]}
     />
