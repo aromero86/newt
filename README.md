@@ -20,3 +20,5 @@ bun examples/notes/main.ts   # the notes application, on port 3000
 
 The examples serve their routes under `/api`, and take who is asking from an `x-user`
 header: `curl -H 'x-user: ana' localhost:3000/api/notes`. What they keep goes to `data/`.
+They import newt by its name (`newt/runtime`), which the root `tsconfig.json` points at
+`packages/newt`.

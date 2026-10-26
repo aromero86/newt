@@ -10,12 +10,6 @@
         "newt-eslint": "workspace:*",
         "typescript": "npm:@typescript/typescript6@6.0.2",
         "typescript-eslint": "8.71.1",
-      },
-    },
-    "examples": {
-      "name": "newt-examples",
-      "dependencies": {
-        "newt": "workspace:*",
         "zod": "4.3.6",
       },
     },
@@ -204,8 +198,6 @@
     "newt": ["newt@workspace:packages/newt"],
 
     "newt-eslint": ["newt-eslint@workspace:packages/newt-eslint"],
-
-    "newt-examples": ["newt-examples@workspace:examples"],
 
     "optionator": ["optionator@0.9.4", "", { "dependencies": { "deep-is": "^0.1.3", "fast-levenshtein": "^2.0.6", "levn": "^0.4.1", "prelude-ls": "^1.2.1", "type-check": "^0.4.0", "word-wrap": "^1.2.5" } }, "sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g=="],
 
