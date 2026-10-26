@@ -18,7 +18,7 @@ export default newt({
 ```
 
 A module is a folder in a `modules/` folder, and its context is the folder that holds
-`modules/`. That is how `src/contexts/shop/modules/order/` and `examples/despensa/modules/order/` are both found.
+`modules/`. That is how `src/contexts/shop/modules/order/` and `app/modules/order/` are both found.
 A `modules/` at the project's root has the project itself as its context.
 
 | Rule | What it says |
