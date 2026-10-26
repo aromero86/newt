@@ -4,7 +4,8 @@ Una versión protege **una fila** (capítulo [7](./07-concurrency)). Algunas reg
 hablan de **varias**:
 
 - El nombre de un tablero es único en su espacio de trabajo, sin mirar mayúsculas.
-- Un tablero tiene como mucho 10 columnas.
+- Un tablero tiene como mucho 10 columnas, y 500 tarjetas.
+- Un acceso se da una sola vez.
 - Un espacio de trabajo tiene un administrador, y solo uno.
 - Un email es de una sola cuenta.
 
@@ -49,7 +50,7 @@ Así se añade una columna:
 // cooper/backend/contexts/boards/modules/column/column.repository.ts
 /**
  * Saves a new column at the end of its board, only if the board is left with no more
- * than `MAX_COLUMNS`: a rule over several rows, which no version covers (ch. 10). The
+ * than `MAX_COLUMNS`: a rule over several rows, which no version covers. The
  * save guards its board's columns: its place is read before writing it, and the
  * columns counted after, with no other column of the board added, moved or removed
  * in between, in any store. Ten added at once to a board of five: five get in.
@@ -141,6 +142,46 @@ test('lets in only the columns that fit, when many are added at once', async () 
 Ocho columnas a la vez en un tablero de cinco: entran cinco, se rechazan tres, y las
 posiciones van de 0 a 9 sin huecos.
 
+### La misma regla, en las tarjetas
+
+Un tablero tiene como mucho 500 tarjetas: se lee entero, como una pantalla. Es la
+misma regla que la de las columnas, en el guardado de las tarjetas. El `after` cuenta
+las tarjetas del tablero bajo la clave del tablero, `boardCards:<id del tablero>`:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.repository.ts
+async persistNew(card: Card, options: { first?: boolean } = {}): Promise<void> {
+  const { boardId, columnId } = card
+  await this.save([card], each => this.write(each), {
+    guard: [`boardCards:${boardId}`, `cards:${columnId}`],
+    // …
+    after: async () => {
+      const count = await this.count({ boardId })
+      if (count > MAX_CARDS) throw new TooManyCards(boardId)
+      // …
+    },
+  })
+}
+```
+
+La clave es por tablero, no por columna, porque la regla habla del tablero: dos
+tarjetas creadas a la vez en dos columnas de un tablero lleno también tienen que
+turnarse. La misma clave protege los números de tarjeta del tablero, que es de lo que
+trata el capítulo [9](./09-shared-counters).
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.test.ts
+test('holds up to MAX_CARDS cards in a board, however many are created at once', async () => {
+  await Promise.all(Array.from({ length: MAX_CARDS - 3 }, (_, i) => create(`Task ${i}`)))
+
+  const created = await Promise.allSettled(Array.from({ length: 6 }, (_, i) => create(`More ${i}`)))
+
+  expect(created.filter(each => each.status === 'fulfilled')).toHaveLength(3)
+  for (const each of created.filter(each => each.status === 'rejected')) expect(each.reason).toMatchObject({ code: 'card.too_many' })
+  expect(await inAcme(() => t.modules.card.listInBoard(boardId))).toHaveLength(MAX_CARDS)
+})
+```
+
 ## Por qué decirlo, si SQLite ya va por turnos
 
 Porque **no todos los stores son iguales**, y tus módulos no deberían saber en cuál
@@ -174,12 +215,13 @@ el `after` cuenta con `ieq`, que no mira mayúsculas:
  * Saves a board only if no other one of its workspace has its name, whatever the
  * case: counted again after writing it, in its transaction, guarding the name in
  * lower case, so no other save of that name slips in between. `Roadmap` and
- * `ROADMAP` created at once cannot both have it (ch. 10).
+ * `ROADMAP` created at once cannot both have it. Only A to Z are folded, as `ieq`
+ * and the table's unique index compare: `Ärger` and `ärger` are two names.
  */
 async persistWithNameFree(board: Board): Promise<void> {
   const { workspaceId, name } = board
   await this.save([board], each => this.write(each), {
-    guard: [`boardName:${workspaceId}:${name.toLowerCase()}`],
+    guard: [`boardName:${workspaceId}:${name.replace(/[A-Z]/g, letter => letter.toLowerCase())}`],
     after: async () => {
       if (await this.count({ name: { ieq: name } }) > 1) throw new BoardNameTaken(name)
     },
@@ -191,6 +233,16 @@ async persistWithNameFree(board: Board): Promise<void> {
 [5](./05-who-and-where)) y solo los tableros sin archivar (`softDelete`), así que el
 nombre de un tablero archivado vuelve a quedar libre. `create` y `update` guardan los
 dos con él, así que un cambio de nombre tampoco puede quitarle el nombre a otro.
+
+Fíjate en cómo se pasa la clave a minúsculas: solo de la A a la Z, no con
+`toLowerCase()`. La clave tiene que decir exactamente lo que compara la regla. `ieq` y
+el índice único (`lower(name)` en SQLite) solo pasan a minúsculas de la A a la Z, así
+que para la regla *Ärger* y *ärger* son dos nombres, y sus guardados no tienen por qué
+esperarse. Una clave con `toLowerCase()` seguiría siendo segura, porque los nombres
+que la regla ve iguales siempre la comparten, pero haría esperar a guardados de
+nombres distintos. Lo contrario es el fallo que hay que evitar: una clave que pliega
+**menos** que la comparación da dos claves distintas a nombres que la regla ve como
+uno, y entran los dos.
 
 ```ts
 // cooper/backend/contexts/boards/modules/board/board.test.ts
@@ -242,23 +294,38 @@ const atOnce = await Promise.allSettled([signUp('Bob', 'bob@cooper.test'), signU
 expect(atOnce.map(each => each.status).sort()).toEqual(['fulfilled', 'rejected'])
 ```
 
-## Un administrador por espacio
+## Accesos: cada uno una vez, un administrador por espacio
 
-En auth, un espacio de trabajo tiene un único administrador: quien lo creó. Los accesos
-son filas de `access`, una por miembro, con un `role`. "Como mucho un administrador" es
-un recuento sobre las filas del espacio:
+En auth, los accesos son filas de `access`: una por persona, producto y espacio de
+trabajo, con un `role`. Dos reglas hablan de ellos:
+
+- **Un acceso se da una vez.** El acceso de Ana a Acme es una fila, por muchas veces
+  que se dé. Y se da dos veces bastante a menudo: cuando Ana crea Acme, la petición le
+  da el acceso de administradora, y el worker de `tenant.created` se lo vuelve a dar
+  por si la petición se quedó a medias (capítulo [6](./06-transactions)). Los dos
+  pueden correr en el mismo instante.
+- **Un espacio tiene como mucho un administrador**: quien lo creó.
+
+Un solo guardado mantiene las dos. Protege una clave por acceso (quién, qué producto,
+qué espacio), así que dos guardados del mismo acceso se turnan, y una clave por el
+administrador de cada espacio, que su `after` cuenta:
 
 ```ts
 // cooper/backend/contexts/auth/modules/access/access.repository.ts
 /**
- * Saves accesses keeping every tenant they touch with one admin at most: checked
- * after the writes, in their transaction, guarding each tenant's admin, so two
- * saves giving a tenant an admin at once cannot both succeed.
+ * Saves new accesses, each one once, keeping every tenant they touch with one admin
+ * at most. Each is guarded by its key, and the store's unique index refuses a second
+ * row for it (`ConcurrencyConflict`). The admins are checked after the writes, in
+ * their transaction, guarding each tenant's admin, so two saves giving a tenant an
+ * admin at once cannot both succeed.
  */
 async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
   const tenants = [...new Set(accesses.map(access => access.tenantId).filter(tenantId => tenantId !== null))]
   await this.save(accesses, access => this.write(access), {
-    guard: tenants.map(tenantId => `tenantAdmin:${tenantId}`),
+    guard: [
+      ...accesses.map(access => `access:${access.userId}:${access.productId}:${access.tenantId ?? ''}`),
+      ...tenants.map(tenantId => `tenantAdmin:${tenantId}`),
+    ],
     after: async () => {
       for (const tenantId of tenants) {
         if (await this.count({ tenantId, role: 'admin' }) > 1) throw new TenantHasAdmin(tenantId)
@@ -270,7 +337,61 @@ async persistKeepingOneAdmin(...accesses: Access[]): Promise<void> {
 
 Un guardado puede tocar varios espacios, así que protege una clave por espacio, y
 comprueba cada uno. Un acceso del staff al backoffice no tiene espacio (`tenantId` es
-null), y no protege nada.
+null): tiene su clave de acceso, y ningún administrador que contar.
+
+"Se da una vez" no tiene `after`: aquí la comprobación es el índice único. Con la clave
+del acceso protegida, el segundo guardado espera al primero, escribe su fila, y el
+índice la rechaza.
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql
+-- One access per person, product and tenant: two saves giving the same one at once
+-- cannot both succeed. A null tenant (the whole product) counts as a value, so the
+-- staff's access is kept once too.
+CREATE UNIQUE INDEX access_once ON access (user_id, product_id, ifnull(tenant_id, ''));
+```
+
+Una fila rechazada por un índice único es un `ConcurrencyConflict`. Aquí no significa
+"vuelve a intentarlo": significa "alguien lo acaba de dar". Así que el caso de uso que
+da un acceso lo captura, lee el acceso que ganó, y responde con él. Dado dos veces, se
+da una, y el segundo que lo pide no lo nota:
+
+```ts
+// cooper/backend/contexts/auth/modules/access/access.module.ts
+private async give(input: { userId: string, productId: string, tenantId: string | null, role: 'admin' | 'member' }): Promise<AccessDTO> {
+  const { userId, productId, tenantId } = input
+  const existing = await this.repo.first({ userId, productId, tenantId })
+  if (existing) return existing.toDTO()
+  const access = Access.grant(input)
+  try {
+    await this.repo.persistKeepingOneAdmin(access)
+  } catch (error) {
+    // Given by another save at the same time (a tenant's admin, by the request that
+    // made it and by its worker): given once, and this one gives what is there.
+    const given = error instanceof ConcurrencyConflict ? await this.repo.first({ userId, productId, tenantId }) : undefined
+    if (!given) throw error
+    return given.toDTO()
+  }
+  return access.toDTO()
+}
+```
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+test('gives an access once, however many give it at the same time', async () => {
+  // …
+  const bobIn = { userId: bob.id, productId: 'cooper', tenantId: acme.id }
+  await Promise.all([as(ana, () => modules().access.grant(bobIn)), as(ana, () => modules().access.grant(bobIn)), modules().access.admit({ ...bobIn, role: 'member' })])
+  expect((await modules().access.listForTenant(acme.id, page)).total).toBe(2)
+
+  const staffIn = { userId: staff.id, productId: 'backoffice', tenantId: null, role: 'member' as const }
+  await Promise.all([modules().access.admit(staffIn), modules().access.admit(staffIn)])
+  expect((await modules().access.listForProduct('backoffice', page)).total).toBe(1)
+})
+```
+
+Acme acaba con dos accesos (el de Ana y el de Bob), no cuatro; la persona del staff,
+con uno.
 
 "Nunca menos de uno" es la otra mitad, y no necesita guard: el acceso de un
 administrador no se revoca nunca, así que nada puede dejar el recuento a cero.
@@ -313,8 +434,11 @@ el caso normal, y **vuelve a comprobar en el `after`**, que es la garantía.
   puede colarse en medio.
 - Compruébala en el `after` del guardado, que lo deshace todo lanzando un error.
 - Di qué protege en `guard`, con una clave tan estrecha como la regla (por tablero, por
-  espacio, por nombre). Dos guardados con la misma clave nunca se entrelazan, en
-  ningún store.
+  espacio, por nombre, por acceso). Dos guardados con la misma clave nunca se
+  entrelazan, en ningún store. Pasa la clave a minúsculas igual que compara la regla.
+- Cuando un índice único puede decir la regla, él es la comprobación: una segunda fila
+  es un `ConcurrencyConflict`. Si significa "ya estaba dado", lee lo que hay y responde
+  con ello.
 - Un guardado con `after` tiene que decir su `guard`; `guard: []` si no comprueba
   ninguna regla.
 - `before` lee lo que necesita la fila nueva (su sitio al final) donde nadie se cuela.

@@ -26,7 +26,7 @@ transacción:
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.module.ts
 const cards = await this.repo.find({ assigneeId: userId })
-for (const card of cards) card.unassign()
+for (const card of cards) card.unassign(BOARDS)
 await this.repo.persist(...cards)
 ```
 
@@ -110,7 +110,7 @@ async move(id: string, input: CardMoveDTO): Promise<CardDTO> {
   const at = Math.min(position ?? target.length, target.length)
   target.splice(at, 0, card)
   if (target !== left) left.forEach((each, index) => each.reposition(index))
-  target.forEach((each, index) => each === card ? card.moveTo(columnId, index) : each.reposition(index))
+  target.forEach((each, index) => each === card ? card.moveTo(columnId, index, actingAuthor()) : each.reposition(index))
   await this.repo.persistOrder(target === left ? target : [...left, ...target], [from, columnId])
   return card.toDTO()
 }
@@ -127,7 +127,7 @@ async delete(id: string): Promise<void> {
   const card = await this.load(id)
   const others = (await this.repo.inColumn(card.columnId)).filter(each => each.id !== id)
   others.forEach((each, index) => each.reposition(index))
-  card.delete()
+  card.delete(actingAuthor())
   await this.repo.persistOrder([card, ...others], [card.columnId])
 }
 ```
@@ -225,7 +225,8 @@ administrador, un guardado de otro módulo.
  * A new workspace, made by the signed-in person, who is its admin. It writes to
  * `access` without being a worker, on purpose: whoever makes a workspace enters it
  * the moment it answers. The workspace is saved first and its admin after; should
- * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it.
+ * that second save fail, the worker of `tenant.created` (`ensureAdmin`) gives it;
+ * whichever of the two gives it second finds it given.
  * It never runs again on a conflict: it would make a second workspace.
  */
 @UseCase({ writesTo: ['access'], retryOnConflict: false })
@@ -239,9 +240,52 @@ async create(input: TenantCreateDTO): Promise<TenantDTO> {
 ```
 
 Si falla el segundo guardado, el primero ya escribió en su transacción el trabajo de
-`tenant.created`, y el worker da el acceso de administrador. `access.admit` se puede
-ejecutar dos veces sin daño: dado dos veces, se da una. El capítulo
+`tenant.created`, y el worker da el acceso de administrador. Lo normal es que corran
+los dos: la petición lo da, y el worker lo vuelve a dar. `access.admit` se puede
+ejecutar dos veces sin daño, incluso en el mismo instante: dado dos veces, se da una,
+y la segunda responde con el acceso que ya está. El capítulo
+[8](./08-rules-over-rows) enseña cómo se asegura el guardado, y el
 [13](./13-repeatable-workers) trata de ese tipo de pasos.
+
+Borrar un espacio de trabajo tiene la misma forma, al revés. Primero se guarda el
+espacio como borrado. Sus accesos se van justo después, en un segundo guardado, para
+que nadie entre en él desde el momento en que la petición responde:
+
+```ts
+// cooper/backend/contexts/auth/modules/tenant/tenant.module.ts
+/**
+ * Only its admin deletes it. The rest follows from `tenant.deleted`, each part from
+ * a worker: its invitations here, its boards in boards, its accesses once more.
+ * Its accesses also go at once, after it: it writes to `access` without being a
+ * worker, on purpose, so that nobody enters it from the moment it answers. Should
+ * that second save fail, its worker takes them away. It never runs again on a
+ * conflict: it would find the workspace deleted already.
+ */
+@UseCase({ writesTo: ['access'], retryOnConflict: false })
+async delete(tenantId: string): Promise<void> {
+  await this.assertAdmin(tenantId)
+  const tenant = await this.load(tenantId)
+  tenant.delete()
+  await this.repo.persist(tenant)
+  await this.deps.access.revokeTenant(tenantId)
+}
+```
+
+`revokeTenant` quita los accesos que queden, así que su worker puede ejecutarlo otra
+vez después de la petición, y no encuentra nada más que hacer:
+
+```ts
+// cooper/backend/contexts/auth/auth.test.ts
+test('lets nobody in once deleted, before its workers run', async () => {
+  // …
+  await auth.base.jobs.stop()
+
+  await as(ana, () => modules().tenant.delete(acme.id))
+  expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+  expect(await modules().access.check(ana.id, 'cooper', acme.id)).toBeNull()
+  // …
+})
+```
 
 ## En resumen
 
