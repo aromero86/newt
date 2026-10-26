@@ -1,4 +1,4 @@
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { TenantDTO } from '../tenant.schema'
 
 /**
@@ -9,6 +9,6 @@ import type { TenantDTO } from '../tenant.schema'
 export class Tenant_Deleted implements DomainEvent<TenantDTO> {
   static readonly eventName = 'tenant.deleted'
   readonly name = Tenant_Deleted.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: TenantDTO) {}
 }

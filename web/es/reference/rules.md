@@ -954,10 +954,12 @@ entero.
   export class Board_Updated implements DomainEvent<BoardChange> {
     static readonly eventName = 'board.updated'
     readonly name = Board_Updated.eventName
-    readonly occurredAt = new Date().toISOString()
+    readonly occurredAt = now().toISOString()
     constructor(readonly payload: BoardChange) {}
   }
   ```
+  `occurredAt` es `now()`, la hora del reloj del contexto en curso, así que un test
+  que mueve el reloj ve sus eventos a esa hora.
 - Contenido: `created` y `deleted` llevan el DTO; `updated` lleva `{ dto, changes,
   previous }`: el DTO entero, los campos que cambiaron y lo que valían antes. La
   transición de cada campo es `previous[campo]` → `changes[campo]`. Un evento de un

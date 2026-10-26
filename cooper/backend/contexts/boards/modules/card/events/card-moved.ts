@@ -1,4 +1,4 @@
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /**
@@ -11,6 +11,6 @@ type CardMove = { dto: CardDTO, changes: Partial<CardDTO>, previous: Partial<Car
 export class Card_Moved implements DomainEvent<CardMove> {
   static readonly eventName = 'card.moved'
   readonly name = Card_Moved.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: CardMove) {}
 }

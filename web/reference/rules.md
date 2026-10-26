@@ -915,10 +915,12 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   export class Board_Updated implements DomainEvent<BoardChange> {
     static readonly eventName = 'board.updated'
     readonly name = Board_Updated.eventName
-    readonly occurredAt = new Date().toISOString()
+    readonly occurredAt = now().toISOString()
     constructor(readonly payload: BoardChange) {}
   }
   ```
+  `occurredAt` is `now()`, the time by the clock of the context at work, so a test
+  that moves the clock sees its events at that time.
 - Payloads: `created` and `deleted` carry the DTO; `updated` carries `{ dto, changes,
   previous }`: the whole DTO, the fields that changed, and what they were before. Each
   field's transition is `previous[field]` → `changes[field]`. An event of its own kind

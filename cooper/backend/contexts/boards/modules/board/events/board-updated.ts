@@ -1,4 +1,4 @@
-import type { DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt/core'
 import type { BoardDTO } from '../board.schema'
 
 /** The whole board as it is now, the fields that changed (`changes`) and what they were (`previous`). */
@@ -7,6 +7,6 @@ type BoardChange = { dto: BoardDTO, changes: Partial<BoardDTO>, previous: Partia
 export class Board_Updated implements DomainEvent<BoardChange> {
   static readonly eventName = 'board.updated'
   readonly name = Board_Updated.eventName
-  readonly occurredAt = new Date().toISOString()
+  readonly occurredAt = now().toISOString()
   constructor(readonly payload: BoardChange) {}
 }

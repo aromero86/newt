@@ -43,6 +43,16 @@ describe('accounts', () => {
     expect(atOnce.map(each => each.status).sort()).toEqual(['fulfilled', 'rejected'])
   })
 
+  test('tells someone signed up at the time by auth\'s clock', async () => {
+    const told: string[] = []
+    modules().user.events.signedUp.subscribe((_, event) => { told.push(event.occurredAt) }, { strategy: 'fire-and-forget' })
+    time = Date.parse('2027-03-15T12:00:00Z')
+
+    await signUp('Ana')
+
+    expect(told).toEqual(['2027-03-15T12:00:00.000Z'])
+  })
+
   test('checks a password, and says nothing about which emails have an account', async () => {
     await signUp('Ana')
     expect(await modules().user.verifyPassword('ANA@cooper.test', 'a long password')).toMatchObject({ name: 'Ana' })
