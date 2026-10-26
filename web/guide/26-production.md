@@ -12,6 +12,7 @@ They are in the root `package.json`:
 ```json
 "cooper": "bun run cooper/scripts/dev.ts --watch",
 "cooper:seed": "bun run cooper/scripts/seed.ts",
+"cooper:migrations": "bun run cooper/scripts/migrations.ts",
 "cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice"
 ```
 
@@ -51,13 +52,30 @@ try {
 Three habits of a good script are in it:
 
 - **It acts as someone.** A use case that needs an actor runs inside `runAsActor`
-  (`asAna(() => tenant.create({ name: 'Acme' }))`), and boards' use cases run inside
-  the workspace too, with `inWorkspace`.
+  (`asAna(() => tenant.create({ name: 'Acme' }))`, where `asAna` is
+  `runAsActor({ userId: ana.id, via: 'web' }, fn)`: the seed does what Ana would do in
+  the web app), and boards' use cases run inside the workspace too, with `inWorkspace`.
 - **It waits for its workers before it closes**, with `jobs.idle()`, in the order the
   work flows ([chapter 25](./25-tests)). Bob's invitation email is sent by a worker,
   and the seed reads the link from it.
 - **It can run again.** It looks before it creates (`findByEmail`, `findByName`), so a
   second run leaves what is there.
+
+### `cooper:migrations`: migrating by hand
+
+The backend migrates each context as it opens it. `cooper:migrations` does it apart,
+with the backend stopped: `status` shows what each context has applied and what is
+pending, `up` applies it, and `down --context <name>` reverts that context's last
+one ([chapter 24](./24-migrations) shows the script).
+
+```bash
+bun run cooper:migrations status
+```
+
+Before a deploy, `status` against the production databases tells you which migrations
+the new version will apply when it starts. Running `up` first, on its own, makes a
+failing migration fail there, in a command you are watching, and not in the start of
+a server.
 
 ### `cooper`: development
 
@@ -89,6 +107,8 @@ The backend is one process with the three contexts, each served on its own port:
 
 ```ts
 // cooper/backend/index.ts
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
 const contexts = await openContexts(config)
 
 const servers = contexts.all.map(context => {
@@ -107,8 +127,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 }
 ```
 
-- **Starting**: open the contexts in order (auth, boards, backoffice), each applying
-  its migrations; serve them; start each one's worker with `context.start()`.
+- **Starting**: set newt's messages (below); open the contexts in order (auth,
+  boards, backoffice), each applying its migrations; serve them; start each one's
+  worker with `context.start()`.
 - **Stopping**: stop accepting requests first (`server.stop()`, which lets the ones in
   progress finish), then stop the contexts, the last opened first:
 
@@ -126,6 +147,40 @@ the backend comes back.
 
 Each context answers `GET /api/health` without a session, for whatever watches that it
 is up.
+
+### newt's messages, in cooper's words
+
+Some errors are newt's, not a module's: a conflict, a reference to nothing, no session,
+an invalid body, a path with no route, a failure inside. newt words them plainly and
+correctly ("Someone changed it in the meantime. Try again."), for a developer. cooper
+replaces them with words for the person using the app, once, for the whole process:
+
+```ts
+// cooper/backend/shared/messages.ts
+export const cooperMessages: Partial<Messages> = {
+  concurrency_conflict: () => 'Someone else changed this a moment ago. Reload it and try again.',
+  reference_not_found: ({ resource, id }) => `That ${resource} is not there any more (${id})`,
+  not_signed_in: () => 'Your session has ended: sign in again to go on',
+  validation: () => 'Some of what was sent is not right: check the fields and try again',
+  route_not_found: ({ method, path }) => `Cooper has nothing at ${method} ${path}`,
+  internal: () => 'Something went wrong on our side. Try again in a moment.',
+}
+
+/**
+ * Sets cooper's messages for the whole process: once, as the server starts
+ * (`index.ts`), before any request. Every context answers with them.
+ */
+export function setCooperMessages(): void {
+  setMessages(cooperMessages)
+}
+```
+
+Only the message changes. The `code` (`concurrency_conflict`) and the status stay,
+so a client that acts on the code does not notice. A message left out keeps newt's.
+An application in another language does the same with its own words. `index.ts`
+calls it before opening anything, so no answer goes out in newt's words first. The
+tests, which do not go through `index.ts`, read newt's own; the one that checks
+cooper's runs in a process of its own ([chapter 25](./25-tests)).
 
 ::: tip
 After a deploy, watch the logs for `[JobQueue] N job(s) of '…' wait, and no worker
@@ -160,7 +215,7 @@ with defaults for development. Bun loads a `.env` file on its own.
 | `COOPER_AUTH_FRONTEND` | `dist/cooper/auth` | auth's built frontend. |
 | `COOPER_BOARDS_FRONTEND` | `dist/cooper/boards` | boards' built frontend. |
 | `COOPER_BACKOFFICE_FRONTEND` | `dist/cooper/backoffice` | The backoffice's built frontend. |
-| `COOPER_TRACE` | off | `1` writes each use case of the backoffice to the console ([chapter 22](./22-backoffice)). |
+| `COOPER_TRACE` | off | `1` writes each use case of every context to the console, with those it calls, in one trace, and a line as each card moves ([chapter 22](./22-backoffice)). |
 
 Relative paths are relative to the repository's root. In development the public URLs
 are the Vite servers; in production, each context's own domain, in front of its port.
@@ -223,10 +278,11 @@ The modules would not change. Here is what would, in cooper (the
   `VARCHAR(36)`, text columns `utf8mb4_0900_bin`, and a unique value among the rows
   not deleted is a functional index on `IF(deleted_at IS NULL, …, NULL)`.
 - **Transactions run side by side.** This is where the `guard` keys of cooper's saves
-  earn their keep: a board's card numbers (`cardNumbers:<board>`), a column's cards
-  (`cards:<column>`), a board's columns (`columns:<board>`), a board's name
-  (`boardName:<workspace>:<name>`), a workspace's admin (`tenantAdmin:<tenant>`), an
-  email's account (`userEmail:<email>`). On SQLite every save takes its turn anyway,
+  earn their keep: a board's cards and its counter (`boardCards:<board>`), a column's
+  cards (`cards:<column>`), a board's columns (`columns:<board>`), a board's name
+  (`boardName:<workspace>:<name>`), a person's access (`access:<user>:<product>:<tenant>`),
+  a workspace's admin (`tenantAdmin:<tenant>`), an email's account
+  (`userEmail:<email>`). On SQLite every save takes its turn anyway,
   so a missing guard goes unnoticed. On Postgres and MySQL each guard is a lock in
   the database, and a save without one breaks its rule without a sound. A deadlock
   becomes a
@@ -246,8 +302,13 @@ differ on SQLite, Postgres and MySQL alike.
 
 - Scripts open the contexts as the server does, act through use cases with
   `runAsActor`, and wait for their workers with `jobs.idle()` before closing.
-- Start: open the contexts in order, serve, start the workers. Stop: stop serving,
-  then stop the contexts, the last opened first. Pending jobs wait for the next start.
+- Migrations can be looked at and applied apart, before a deploy:
+  `bun run cooper:migrations status|up|down`.
+- Start: set newt's messages, open the contexts in order, serve, start the workers.
+  Stop: stop serving, then stop the contexts, the last opened first. Pending jobs
+  wait for the next start.
+- newt's messages are replaced once, for the whole process, with `setMessages`; the
+  codes stay.
 - Settings come from the environment, with development defaults. Set the secrets in
   production.
 - Several processes share the database and its outbox. Keep a script's transactions

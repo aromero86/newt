@@ -41,7 +41,7 @@ interface Store {
 - **A stored row keeps its version**: a write that finds another, or a new row
   whose id or unique value is taken, throws `ConcurrencyConflict`.
 - `afterCommit` runs a function once the transaction in progress commits; at once
-  outside one; never if it rolls back. It is how events reach their `fireAndForget`
+  outside one; never if it rolls back. It is how events reach their `fire-and-forget`
   handlers only for what was saved. `afterRollback` runs one if it rolls back, the
   latest first; never on a commit, nor outside one: it is how a save puts its
   entities back as they were when what it wrote is undone.
@@ -106,7 +106,9 @@ each adapter exposes one.
 `outbox` keeps the jobs of `handler` subscriptions: written in the transaction of
 the change that publishes them, then claimed, renewed and closed by the job worker,
 each claim fenced by its attempt so a worker whose lease ran out cannot close a job
-another one took. `retry(id)` puts a dead job back to wait, as new. `list()` and
+another one took. `retry(id)` puts a dead job back to wait, as new (cooper offers it,
+with the list of dead jobs, as use cases of a small `Outbox_Module` in each context,
+for its backoffice). `list()` and
 `queues()` show what it holds; `waiting()` counts the jobs still to run of each
 queue, which the worker reads every minute to warn about a queue nobody serves, so
 it should not read the jobs done nor their payloads (the files store, which reads
@@ -119,7 +121,17 @@ them: `up()`, `down()`, `status()`. Each adapter decides what a migration is.
 Opening a store with `open` applies the pending ones; `connect` opens it as it is,
 for the scripts that migrate it by hand, whose `up()` applies the store's own and
 then the framework's (its outbox), as `open` does. A migrations folder that cannot
-be read is an error, never "no migrations".
+be read is an error, never "no migrations". cooper's is `cooper/scripts/migrations.ts`
+(`bun run cooper:migrations status|up|down [--context <name>]`):
+
+```ts
+// cooper/scripts/migrations.ts
+// `connect` opens the database as it is: `open` would migrate it first.
+const store = await SqliteStore.connect({
+  path: config[context].dbPath,
+  migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
+})
+```
 
 ## SQLite: `newt/adapter-sqlite`
 
@@ -377,5 +389,7 @@ For analytics the framework has a port of its own, `Analytics`: `append(dataset,
 rows)`, only ever adding, each row with an id of its own so a repeated job never
 duplicates it; reading is each adapter's own language. No adapter comes yet:
 `MemoryAnalytics` is for tests and as the plainest example, and
-`describeAnalyticsContract` checks one written for ClickHouse or DuckDB. DuckDB can
+`describeAnalyticsContract` checks one written for ClickHouse or DuckDB. cooper
+writes a small one on SQLite, `shared/analytics/sqlite-analytics.ts`, its SQL kept in
+that one file and marked as SQLite's. DuckDB can
 also read a context's SQLite file as it is, for reports, without copying it.

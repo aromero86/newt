@@ -82,10 +82,24 @@ emitter is `events.assigned`, so the queue must be
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
-cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
   strategy: 'handler',
   queue: 'card.notifyAssignee.on.card.assigned',
 })
+```
+
+A subscription that is no module's, such as a test's own reaction, has no use case to
+name. It says so where it is read, with the rule turned off for that line:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.test.ts
+// A reaction to boards' cards that fails while the "mail server" is down, at its only attempt.
+// It is the test's own, of no module: its queue names none.
+let down = true
+t.boards.modules.card.events.created.subscribe(() => {
+  if (down) throw new Error('the mail server is down')
+// eslint-disable-next-line newt/queue-name
+}, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
 ```
 
 Both boundaries read where an import lands, however it is written: `import`,
@@ -100,7 +114,9 @@ The preset also refuses `transaction` inside a module, called or taken
 (`store.transaction(…)`, `store['transaction']`, `const { transaction } = store`): a
 module writes through its repository's `save` or `saveRows`. And a promise left
 unawaited (`@typescript-eslint/no-floating-promises`, which needs a `tsconfig.json`
-that includes every file it lints).
+that includes every file it lints, or references a project that does: cooper's root
+`tsconfig.json` has no files of its own and references one project per part,
+`tsconfig.backend.json` for the backend, `tsconfig.newt.json` for the framework).
 
 The rules alone are `plugin`, for a configuration of your own.
 

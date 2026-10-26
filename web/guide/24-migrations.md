@@ -13,9 +13,9 @@ opens it:
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store })
+  const base = new BoardsBase({ name: 'boards', store, tracer })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -35,16 +35,21 @@ cooper/backend/contexts/auth/migrations/
   00006_tenant_up.sql         00006_tenant_down.sql
   00007_access_up.sql         00007_access_down.sql
   00008_invitation_up.sql     00008_invitation_down.sql
+  00009_access-once_up.sql    00009_access-once_down.sql
 cooper/backend/contexts/boards/migrations/
   00001_boards_up.sql         00001_boards_down.sql
   00002_session_up.sql        00002_session_down.sql
+  00003_card_counter_up.sql   00003_card_counter_down.sql
+  00004_activity_up.sql       00004_activity_down.sql
 cooper/backend/contexts/backoffice/migrations/
   00001_session_up.sql        00001_session_down.sql
   00002_analytics_up.sql      00002_analytics_down.sql
 ```
 
-auth grew one module at a time, and has a migration for each. boards made its three
-tables at once. Either is fine: a migration is a change, not a module.
+auth grew one module at a time, and has a migration for each, plus one that came
+later to fix a rule (`00009`). boards made its three first tables at once, then added
+a table for each change after them. Either is fine: a migration is a change, not a
+module.
 
 ## Names
 
@@ -176,6 +181,85 @@ newt's SQLite store is careful with migrations, and it helps to know how:
 - **Two processes opening the database at once take turns.** The second waits for
   the first, then finds its migrations applied.
 
+## Changes that came later
+
+A database in use already has rows. A migration written after the first ones must
+take them as they are. cooper has three such migrations, each a different kind of
+change.
+
+**A new table, filled from the rows there are.** Card numbers used to be the highest
+number of the board plus one. Delete the last card, and its number came back for the
+next one. So boards keeps, for each board, the last number it gave, in a table of its
+own ([chapter 9](./09-shared-counters)). A database that already has cards cannot
+start that table empty: the next card would be #1 again. The migration fills it from
+the cards there are, in the same file:
+
+```sql
+-- cooper/backend/contexts/boards/migrations/00003_card_counter_up.sql
+-- The last number each board gave a card, so a deleted card's number is never given
+-- again: cards are deleted for good, and the highest one left is not the last one
+-- given. Its id is the board's. A board that has cards starts from its highest number.
+CREATE TABLE card_counter (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  last_number INTEGER NOT NULL,
+  version INTEGER NOT NULL
+);
+CREATE INDEX card_counter_workspace ON card_counter (workspace_id);
+
+INSERT INTO card_counter (id, workspace_id, last_number, version)
+SELECT board_id, workspace_id, max(number), 1 FROM card GROUP BY board_id, workspace_id;
+```
+
+The comment says what the table is and why it starts from the highest number. Both
+statements run in the transaction of the migration: if the `INSERT` failed, the table
+would not stay half made.
+
+**A table for a new module.** The activity of each card is a module of its own, with
+a table that only grows:
+
+```sql
+-- cooper/backend/contexts/boards/migrations/00004_activity_up.sql
+-- Each card's activity: one row for each thing that happened to it, by the id of the
+-- event that told it. Rows are only ever added, never changed; a card deleted keeps
+-- its history. Who did it is a user of auth's, by id; null when boards did it itself.
+CREATE TABLE activity (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  board_id TEXT NOT NULL,
+  card_id TEXT NOT NULL,
+  -- …
+);
+-- A card's activity, the newest first (ids are v7: in the order they were told).
+CREATE INDEX activity_card ON activity (workspace_id, card_id, id);
+```
+
+Nothing to fill: the activity starts the day the module does. No foreign key to
+`card` either: a card deleted keeps its history, and the `card_id` keeps pointing at a
+row that is gone, on purpose.
+
+**A rule the database keeps too.** auth gives each person one access per product and
+tenant. Its code checked it, but two saves at once could both pass the check. The fix
+was a guard in the save and, as the last word, a unique index:
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql
+-- One access per person, product and tenant: two saves giving the same one at once
+-- cannot both succeed. A null tenant (the whole product) counts as a value, so the
+-- staff's access is kept once too.
+CREATE UNIQUE INDEX access_once ON access (user_id, product_id, ifnull(tenant_id, ''));
+```
+
+In a unique index, two `NULL`s are never equal, so `(ana, backoffice, NULL)` could be
+there twice. `ifnull(tenant_id, '')` makes the staff's access, which has no tenant,
+count once like any other. An index like this one fails to build if the table already
+breaks it: if a database might have duplicates, the migration removes them first.
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_down.sql
+DROP INDEX access_once;
+```
+
 ## Never rewrite one that was applied
 
 The store remembers a migration by its number and name, not by its content. Edit a
@@ -185,18 +269,20 @@ version. Now two databases that both say "00002 applied" have different tables, 
 nothing warns you.
 
 So a change is a new migration. To add a column to cards, write
-`00003_card-priority_up.sql` with an `ALTER TABLE`, and a `down` that removes it.
+`00005_card-priority_up.sql` with an `ALTER TABLE`, and a `down` that removes it.
 
 ::: warning
 `bun run cooper` runs the backend with `--watch`. It restarts as you save, and every
 restart opens the stores, which apply whatever migration is pending. A migration you
 are still writing gets applied the moment the backend restarts. From then on it is
-applied: fix it with a new one, or undo it with `down` (below) before you edit it.
+applied: fix it with a new one, or undo it with `bun run cooper:migrations down`
+(below) before you edit it.
 :::
 
 **Data survives every migration.** A new column on a table with rows needs a default
-(`ALTER TABLE card ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`), and a table that
-changes shape copies its rows into the new one.
+(`ALTER TABLE card ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`), a table that
+changes shape copies its rows into the new one, and a new table that depends on the
+rows there are is filled from them, as `card_counter` is.
 
 ## Looking, and going back
 
@@ -218,6 +304,50 @@ export interface Migrations {
 `down` file, in a transaction like `up`. `up()` applies yours, then newt's, as `open`
 does.
 
+cooper has that script: `bun run cooper:migrations`, with a command and, optionally,
+the context.
+
+```ts
+// cooper/scripts/migrations.ts
+for (const context of contexts) {
+  // `connect` opens the database as it is: `open` would migrate it first.
+  const store = await SqliteStore.connect({
+    path: config[context].dbPath,
+    migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
+  })
+  try {
+    if (command === 'status') {
+      const { applied, pending } = await store.migrations.status()
+      console.log(`${context}: ${applied.length} applied${applied.length ? ` (last ${applied.at(-1)})` : ''}, ${pending.length} pending${pending.length ? `: ${pending.join(', ')}` : ''}`)
+    } else if (command === 'up') {
+      const applied = await store.migrations.up()
+      console.log(`${context}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}`)
+    } else {
+      const reverted = await store.migrations.down()
+      console.log(`${context}: ${reverted ? `reverted ${reverted}` : 'nothing to revert'}`)
+    }
+  } finally {
+    await store.close()
+  }
+}
+```
+
+```bash
+bun run cooper:migrations status                     # every context: applied and pending
+bun run cooper:migrations up --context boards        # apply boards' pending ones
+bun run cooper:migrations down --context boards      # revert boards' last one
+```
+
+`status` and `up` go through every context unless you name one. `down` needs a
+context: undoing the last migration of all three at once is never what you mean. It
+reads each context's database path from `config.ts`, so the same `COOPER_*_DB_PATH`
+variables point it at another database.
+
+Use it to see what a deploy will apply before it does, to apply it ahead of the
+deploy, or to undo the migration you are writing before you edit it again. Stop the
+backend first when you run `down`: with `--watch` it would apply the migration again
+on its next restart.
+
 ## Other stores
 
 Postgres and MySQL use the same pairs of files and the same rules, in their own
@@ -236,4 +366,8 @@ change in cooper's.
   that context's next number.
 - On SQLite: all pending ones in one transaction, statement by statement, foreign keys
   off and checked at the end, duplicate numbers refused.
+- A migration written later takes the rows there are: a default for a new column, a
+  new table filled from them, duplicates removed before a unique index.
 - An applied migration is never edited: a change is a new migration.
+- `connect` opens a store without migrating; `bun run cooper:migrations
+  status|up|down` looks, applies and reverts by hand.

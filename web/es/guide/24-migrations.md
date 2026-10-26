@@ -13,9 +13,9 @@ contexto lo abre:
 
 ```ts
 // cooper/backend/contexts/boards/boards.context.ts
-static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Boards_Context> {
+static async open(config: Boards_Config, deps: Boards_ModuleDeps, tracer?: Tracer): Promise<Boards_Context> {
   const store = await SqliteStore.open({ path: config.dbPath, migrations: join(import.meta.dir, 'migrations') })
-  const base = new BoardsBase({ name: 'boards', store })
+  const base = new BoardsBase({ name: 'boards', store, tracer })
   return new Boards_Context(base, initializeModules(base, config, deps), config, deps.auth)
 }
 ```
@@ -35,16 +35,21 @@ cooper/backend/contexts/auth/migrations/
   00006_tenant_up.sql         00006_tenant_down.sql
   00007_access_up.sql         00007_access_down.sql
   00008_invitation_up.sql     00008_invitation_down.sql
+  00009_access-once_up.sql    00009_access-once_down.sql
 cooper/backend/contexts/boards/migrations/
   00001_boards_up.sql         00001_boards_down.sql
   00002_session_up.sql        00002_session_down.sql
+  00003_card_counter_up.sql   00003_card_counter_down.sql
+  00004_activity_up.sql       00004_activity_down.sql
 cooper/backend/contexts/backoffice/migrations/
   00001_session_up.sql        00001_session_down.sql
   00002_analytics_up.sql      00002_analytics_down.sql
 ```
 
-auth creció módulo a módulo, y tiene una migración por cada uno. boards creó sus tres
-tablas de una vez. Las dos cosas valen: una migración es un cambio, no un módulo.
+auth creció módulo a módulo, y tiene una migración por cada uno, más una que llegó
+después para arreglar una regla (`00009`). boards creó sus tres primeras tablas de una
+vez, y después añadió una tabla por cada cambio. Las dos cosas valen: una migración es
+un cambio, no un módulo.
 
 ## Nombres
 
@@ -178,6 +183,87 @@ El store de SQLite de newt trata las migraciones con cuidado, y conviene saber c
 - **Dos procesos que abren la base de datos a la vez se turnan.** El segundo espera al
   primero y encuentra sus migraciones aplicadas.
 
+## Cambios que llegaron después
+
+Una base de datos en uso ya tiene filas. Una migración escrita después de las primeras
+tiene que tomarlas como están. cooper tiene tres migraciones así, cada una un tipo de
+cambio distinto.
+
+**Una tabla nueva, rellenada con las filas que hay.** Antes, el número de una card era
+el más alto del tablero más uno. Borrabas la última card, y su número volvía para la
+siguiente. Así que boards guarda, para cada tablero, el último número que dio, en una
+tabla propia ([capítulo 9](./09-shared-counters)). Una base de datos que ya tiene cards
+no puede empezar esa tabla vacía: la siguiente card volvería a ser la #1. La migración
+la rellena con las cards que hay, en el mismo fichero:
+
+```sql
+-- cooper/backend/contexts/boards/migrations/00003_card_counter_up.sql
+-- The last number each board gave a card, so a deleted card's number is never given
+-- again: cards are deleted for good, and the highest one left is not the last one
+-- given. Its id is the board's. A board that has cards starts from its highest number.
+CREATE TABLE card_counter (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  last_number INTEGER NOT NULL,
+  version INTEGER NOT NULL
+);
+CREATE INDEX card_counter_workspace ON card_counter (workspace_id);
+
+INSERT INTO card_counter (id, workspace_id, last_number, version)
+SELECT board_id, workspace_id, max(number), 1 FROM card GROUP BY board_id, workspace_id;
+```
+
+El comentario dice qué es la tabla y por qué empieza por el número más alto. Las dos
+sentencias se ejecutan en la transacción de la migración: si fallara el `INSERT`, la
+tabla no se quedaría a medio hacer.
+
+**Una tabla para un módulo nuevo.** La actividad de cada card es un módulo propio, con
+una tabla que solo crece:
+
+```sql
+-- cooper/backend/contexts/boards/migrations/00004_activity_up.sql
+-- Each card's activity: one row for each thing that happened to it, by the id of the
+-- event that told it. Rows are only ever added, never changed; a card deleted keeps
+-- its history. Who did it is a user of auth's, by id; null when boards did it itself.
+CREATE TABLE activity (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  board_id TEXT NOT NULL,
+  card_id TEXT NOT NULL,
+  -- …
+);
+-- A card's activity, the newest first (ids are v7: in the order they were told).
+CREATE INDEX activity_card ON activity (workspace_id, card_id, id);
+```
+
+No hay nada que rellenar: la actividad empieza el día que empieza el módulo. Tampoco
+hay clave ajena a `card`: una card borrada conserva su historia, y `card_id` sigue
+apuntando a una fila que ya no está, a propósito.
+
+**Una regla que también guarda la base de datos.** auth da a cada persona un acceso por
+producto y tenant. Su código lo comprobaba, pero dos guardados a la vez podían pasar los
+dos la comprobación. El arreglo fue un guard en el guardado y, como última palabra, un
+índice único:
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_up.sql
+-- One access per person, product and tenant: two saves giving the same one at once
+-- cannot both succeed. A null tenant (the whole product) counts as a value, so the
+-- staff's access is kept once too.
+CREATE UNIQUE INDEX access_once ON access (user_id, product_id, ifnull(tenant_id, ''));
+```
+
+En un índice único, dos `NULL` nunca son iguales, así que `(ana, backoffice, NULL)`
+podría estar dos veces. `ifnull(tenant_id, '')` hace que el acceso del staff, que no
+tiene tenant, cuente una vez como cualquier otro. Un índice así no se crea si la tabla
+ya lo incumple: si una base de datos puede tener duplicados, la migración los quita
+antes.
+
+```sql
+-- cooper/backend/contexts/auth/migrations/00009_access-once_down.sql
+DROP INDEX access_once;
+```
+
 ## Nunca reescribas una que ya se aplicó
 
 El store recuerda una migración por su número y su nombre, no por su contenido. Si editas
@@ -187,19 +273,21 @@ versión nueva. Ahora dos bases de datos que dicen "00002 aplicada" tienen tabla
 distintas, y nada te avisa.
 
 Así que un cambio es una migración nueva. Para añadir una columna a las cards, escribe
-`00003_card-priority_up.sql` con un `ALTER TABLE`, y un `down` que la quite.
+`00005_card-priority_up.sql` con un `ALTER TABLE`, y un `down` que la quite.
 
 ::: warning Cuidado
 `bun run cooper` arranca el backend con `--watch`. Se reinicia al guardar, y cada
 reinicio abre los stores, que aplican cualquier migración pendiente. Una migración que
 aún estás escribiendo se aplica en cuanto el backend se reinicia. Desde ese momento está
-aplicada: corrígela con otra nueva, o deshazla con `down` (más abajo) antes de editarla.
+aplicada: corrígela con otra nueva, o deshazla con `bun run cooper:migrations down`
+(más abajo) antes de editarla.
 :::
 
 **Los datos sobreviven a todas las migraciones.** Una columna nueva en una tabla con
 filas necesita un valor por defecto
-(`ALTER TABLE card ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`), y una tabla que
-cambia de forma copia sus filas a la nueva.
+(`ALTER TABLE card ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`), una tabla que
+cambia de forma copia sus filas a la nueva, y una tabla nueva que depende de las filas
+que hay se rellena con ellas, como `card_counter`.
 
 ## Mirar, y volver atrás
 
@@ -221,6 +309,50 @@ export interface Migrations {
 de la última aplicada, en una transacción como `up`. `up()` aplica las tuyas y después
 las de newt, como `open`.
 
+cooper tiene ese script: `bun run cooper:migrations`, con una orden y, si quieres, el
+contexto.
+
+```ts
+// cooper/scripts/migrations.ts
+for (const context of contexts) {
+  // `connect` opens the database as it is: `open` would migrate it first.
+  const store = await SqliteStore.connect({
+    path: config[context].dbPath,
+    migrations: join(import.meta.dir, `../backend/contexts/${context}/migrations`),
+  })
+  try {
+    if (command === 'status') {
+      const { applied, pending } = await store.migrations.status()
+      console.log(`${context}: ${applied.length} applied${applied.length ? ` (last ${applied.at(-1)})` : ''}, ${pending.length} pending${pending.length ? `: ${pending.join(', ')}` : ''}`)
+    } else if (command === 'up') {
+      const applied = await store.migrations.up()
+      console.log(`${context}: ${applied.length ? `applied ${applied.join(', ')}` : 'up to date'}`)
+    } else {
+      const reverted = await store.migrations.down()
+      console.log(`${context}: ${reverted ? `reverted ${reverted}` : 'nothing to revert'}`)
+    }
+  } finally {
+    await store.close()
+  }
+}
+```
+
+```bash
+bun run cooper:migrations status                     # todos los contextos: aplicadas y pendientes
+bun run cooper:migrations up --context boards        # aplica las pendientes de boards
+bun run cooper:migrations down --context boards      # revierte la última de boards
+```
+
+`status` y `up` recorren todos los contextos si no nombras uno. `down` necesita un
+contexto: deshacer a la vez la última migración de los tres nunca es lo que quieres.
+Lee la ruta de la base de datos de cada contexto de `config.ts`, así que las mismas
+variables `COOPER_*_DB_PATH` lo llevan a otra base de datos.
+
+Úsalo para ver qué va a aplicar un despliegue antes de que lo haga, para aplicarlo antes
+del despliegue, o para deshacer la migración que estás escribiendo antes de volver a
+editarla. Para el backend antes de un `down`: con `--watch`, volvería a aplicar la
+migración en el siguiente reinicio.
+
 ## Otros stores
 
 Postgres y MySQL usan los mismos pares de ficheros y las mismas reglas, en su dialecto, en
@@ -239,4 +371,9 @@ cooper.
   con el siguiente número de ese contexto.
 - En SQLite: todas las pendientes en una transacción, sentencia a sentencia, claves
   ajenas apagadas y comprobadas al final, números repetidos rechazados.
+- Una migración escrita después toma las filas que hay: un valor por defecto para una
+  columna nueva, una tabla nueva rellenada con ellas, los duplicados fuera antes de un
+  índice único.
 - Una migración aplicada no se edita nunca: un cambio es una migración nueva.
+- `connect` abre un store sin migrarlo; `bun run cooper:migrations status|up|down`
+  mira, aplica y revierte a mano.

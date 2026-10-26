@@ -29,8 +29,9 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
 - A module knows the modules in its `<m>.deps.ts`, and never who depends on it.
   ([17](./17-modules-talk))
 - A context reaches another only through its use cases and events, never its
-  repositories or its store. Each context is opened after the ones it uses.
-  ([19](./19-several-contexts))
+  repositories or its store. Each context is opened after the ones it uses, and
+  receives the other's modules as a `Pick` of the ones it needs.
+  ([19](./19-several-contexts), [22](./22-backoffice))
 - No foreign key, `JOIN` or entity across modules: an id. ([18](./18-references))
 
 ## Use cases
@@ -59,22 +60,26 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
   A module never opens a transaction of its own. ([6](./06-transactions))
 - A rule over several rows is checked in the save's `after`, and names what it
   guards with `guard`. It does not compile without it. ([8](./08-rules-over-rows))
-- A value everyone changes at once is not a field updated in place: it is computed
-  from rows only ever added. ([9](./09-shared-counters))
+- A value everyone changes at once (a counter, a stock) collides with itself if each
+  change reads and saves it freely. Derive it from rows only ever added, or take it in
+  the save's `before`, under a `guard`, so the changes take turns.
+  ([9](./09-shared-counters))
 
 ## Events and workers
 
 - An event exists only if its transaction committed. ([10](./10-events))
 - One event of each kind per entity and save: two changes before a save make one
   `updated`. ([10](./10-events))
-- What matters goes with `strategy: 'handler'`; what may be lost, with
-  `'fire-and-forget'`. ([11](./11-reacting))
+- What matters goes with `strategy: 'handler'`; what may be lost (a log line, a
+  cache), with `'fire-and-forget'`. ([11](./11-reacting))
 - A handler's queue is `<module>.<use case>.on.<module>.<event>`, and its callback
   calls that one use case. ([11](./11-reacting))
 - A worker calls a use case, without an actor (what it needs comes from the event),
   and may run again. ([11](./11-reacting), [13](./13-repeatable-workers))
 - What fails halfway is fixed forward: retries, or a compensation.
   ([15](./15-failures), [16](./16-sagas))
+- A dead job is someone's to look at: each context offers its dead jobs through use
+  cases; fix the cause, then retry. ([22](./22-backoffice))
 - An event's shape only grows. ([10](./10-events))
 
 ## In and out
@@ -88,6 +93,8 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
   status. ([3](./03-first-module))
 - 404 when a 403 would reveal that something exists. ([5](./05-who-and-where),
   [22](./22-backoffice))
+- newt's own messages are replaced once, at startup, with `setMessages`. Codes never
+  change. ([26](./26-production))
 
 ## Data
 
@@ -95,12 +102,26 @@ explains it. Come back to it now and then: it is shorter than the code it keeps 
   only when there is no other way, kept in one place and marked.
   ([22](./22-backoffice))
 - Kysely does not apply a repository's scope: write it yourself.
+  ([22](./22-backoffice), [23](./23-search))
+- A read across every scope goes through `findInEveryScope`, behind a method whose
+  name says it, bounded, and reached by no route of the scope's own people.
   ([22](./22-backoffice))
+- Never fetch ids to send them back in an `in`: one query does it.
+  ([23](./23-search))
 - Analytics only appends, and every row has its id. ([22](./22-backoffice))
-- An applied migration is never edited. ([24](./24-migrations))
+- An applied migration is never edited. A later one takes the rows there are.
+  ([24](./24-migrations))
 
 ## Tests
 
 - Wait for workers with `jobs.idle()`, never a sleep, in the order the work flows
   across contexts. ([25](./25-tests))
-- Test the hard cases: at once, twice, refused. ([25](./25-tests))
+- Test the hard cases: at once, twice, refused, and limits crossed.
+  ([25](./25-tests))
+- What is set for the whole process is tested in a process of its own.
+  ([25](./25-tests))
+
+## Running it
+
+- One tracer for every context of a process: a call across contexts shows inside
+  its caller. Without one, nothing is recorded. ([22](./22-backoffice))

@@ -83,10 +83,24 @@ callback llama a `cards.notifyAssignee` sobre un `Card_Module`, y el emisor es
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/card.workers.ts
-cards.events.assigned.subscribe(({ dto }) => cards.notifyAssignee(dto), {
+cards.events.assigned.subscribe(({ dto, by }) => cards.notifyAssignee(dto, by), {
   strategy: 'handler',
   queue: 'card.notifyAssignee.on.card.assigned',
 })
+```
+
+Una suscripción que no es de ningún módulo, como una reacción propia de un test, no
+tiene caso de uso que nombrar. Lo dice donde se lee, apagando la regla para esa línea:
+
+```ts
+// cooper/backend/contexts/backoffice/modules/job/job.test.ts
+// A reaction to boards' cards that fails while the "mail server" is down, at its only attempt.
+// It is the test's own, of no module: its queue names none.
+let down = true
+t.boards.modules.card.events.created.subscribe(() => {
+  if (down) throw new Error('the mail server is down')
+// eslint-disable-next-line newt/queue-name
+}, { strategy: 'handler', queue: 'test.tellSomeone.on.card.created', attempts: 1 })
 ```
 
 Las dos reglas de fronteras miran adónde llega un import, se escriba como se escriba:
@@ -101,7 +115,10 @@ El preset también rechaza `transaction` dentro de un módulo, llamado o cogido
 (`store.transaction(…)`, `store['transaction']`, `const { transaction } = store`): un
 módulo escribe con `save` o `saveRows` de su repositorio. Y una promesa que se queda
 sin `await` (`@typescript-eslint/no-floating-promises`, que necesita un
-`tsconfig.json` que incluya todos los ficheros que revisa).
+`tsconfig.json` que incluya todos los ficheros que revisa, o que haga referencia a un
+proyecto que los incluya: el `tsconfig.json` raíz de cooper no tiene ficheros propios y
+hace referencia a un proyecto por parte, `tsconfig.backend.json` para el backend,
+`tsconfig.newt.json` para el framework).
 
 Las reglas solas son `plugin`, para una configuración propia.
 

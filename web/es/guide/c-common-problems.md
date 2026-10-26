@@ -1,11 +1,14 @@
 # C. Problemas frecuentes
 
 Lo que ves, lo que suele significar y qué hacer. Los mensajes están citados tal como los
-escriben newt y cooper, en inglés.
+escriben newt y cooper, en inglés. cooper cambia algunos de los de newt al arrancar
+([capítulo 26](./26-production)): donde difieren, van los dos. El de cooper es el que ve
+una persona de la aplicación; el de newt, el que ve un test o un script, que no pasan
+por `index.ts`. El `code` es el mismo en los dos.
 
 ## Guardar
 
-**"Someone changed it in the meantime. Try again." (`ConcurrencyConflict`, 409)**
+**"Someone else changed this a moment ago. Reload it and try again." / "Someone changed it in the meantime. Try again." (`concurrency_conflict`, 409)**
 Dos guardados de lo mismo a la vez, y el caso de uso ya lo intentó cuatro veces (o dice
 `retryOnConflict: false`). Si es una fila nueva que choca con un valor único (dos
 tableros llamados "Roadmap"), es la protección funcionando: cooper convierte ese caso en
@@ -13,7 +16,7 @@ tableros llamados "Roadmap"), es la protección funcionando: cooper convierte es
 
 **Dos guardados rompen una regla sobre varias filas: dos admins, dos cards con el #7.**
 El guardado que comprueba la regla en su `after` no protege lo que vigila. Añade su
-clave: `guard: ['cardNumbers:<board>']`. En SQLite parece funcionar sin ella, porque los
+clave: `guard: ['boardCards:<board>']`. En SQLite parece funcionar sin ella, porque los
 guardados se turnan de todos modos; en Postgres y MySQL, no.
 ([capítulo 8](./08-rules-over-rows))
 
@@ -66,9 +69,17 @@ antiguo. Vuelve a poner el nombre, o escribe un script que haga lo que debían h
 jobs.
 
 **Un job está `dead`.**
-Agotó sus intentos. Mira su `lastError` en `store.outbox.list()`, corrige la causa y
-devuélvelo a la cola con `store.outbox.retry(id)`. Un job muerto es un flujo atascado a
-mitad: el [capítulo 16](./16-sagas) cuenta cómo pensarlo.
+Agotó sus intentos. La página de Jobs del backoffice lista los jobs muertos de cada
+contexto con su `lastError` (`GET /api/jobs/<context>`). Corrige antes la causa, y
+después reinténtalo ahí (`POST /api/jobs/<context>/<id>/retry`): el worker de su
+contexto lo vuelve a ejecutar, con todos sus intentos. Sin el backoffice, un script hace
+lo mismo con los casos de uso `outbox.dead` y `outbox.retry` del contexto. Un job muerto
+es un flujo atascado a mitad: el [capítulo 16](./16-sagas) cuenta cómo pensarlo, y el
+[capítulo 22](./22-backoffice), la página.
+
+**"Job … is done, not dead: only a dead job is retried" (`outbox.job_not_dead`, 409)**
+Alguien ya lo reintentó, o nunca estuvo muerto: uno que espera o se está ejecutando ya va
+de camino. Recarga la lista.
 
 ## Cosas que aparecen un momento después
 
@@ -78,16 +89,21 @@ después. Diseña la pantalla para ese momento. ([capítulo 12](./12-eventual-co
 
 **Alguien a quien sacaron de un espacio sigue asignado a una card.**
 Durante un momento es normal: un worker desasigna la card tras `access.revoked`. Si dura,
-busca un job `card.unassignMember.on.access.revoked` muerto en el outbox de auth.
+busca un job `card.unassignMember.on.access.revoked` muerto entre los de auth, en la
+página de Jobs del backoffice.
 
 **Los números del backoffice van por detrás.**
 Son una proyección, escrita por workers tras los eventos de auth y boards. Si siguen por
-detrás, busca jobs `metric.*` muertos en los outbox de auth y de boards.
-([capítulo 22](./22-backoffice))
+detrás, busca jobs `metric.*` muertos entre los de auth y de boards, en la página de
+Jobs. ([capítulo 22](./22-backoffice))
+
+**A la actividad de una card le falta una entrada.**
+Cada entrada la escribe un worker tras el evento de la card, un momento después. Si una
+no llega nunca, busca un job `activity.*` muerto entre los de boards.
 
 ## Quién y dónde
 
-**"Sign in to continue" (`not_signed_in`, 401)**
+**"Your session has ended: sign in again to go on" / "Sign in to continue" (`not_signed_in`, 401)**
 Se llamó a una ruta que no es `public` sin sesión, o un caso de uso que lee
 `currentActor()` se ejecutó sin actor: un script o un test que lo llama fuera de
 `runAsActor`.
@@ -100,6 +116,16 @@ con `runInWorkspace`. ([capítulo 5](./05-who-and-where))
 **Un miembro recibe un 404 de un espacio que existe (`workspace.not_found`).**
 No pertenece a él: boards responde 404 para que un extraño no sepa que existe. Revisa su
 acceso en auth.
+
+**`Property 'via' is missing` donde se da un actor.**
+cooper añade `via` (`'web'` o `'mcp'`) al `Actor` de newt, y es obligatorio. Cada
+`runAsActor` y cada autenticador dice cómo entró la persona:
+`runAsActor({ userId, via: 'web' }, fn)`. Un script actúa como lo haría la aplicación
+web. ([capítulo 5](./05-who-and-where))
+
+**"Board … has 500 cards already: that is the most a board holds" (`card.too_many`, 409)**
+Un tablero tiene como mucho 500 cards. Pasa algunas a otro tablero, o borra las que ya
+están hechas. El límite mantiene pequeña la vista de un tablero, que llega entera.
 
 **Alguien del staff recibe un 403 en el backoffice (`staff.not_staff`).**
 Le quitaron el acceso al producto `backoffice`, quizá después de entrar. El backoffice lo
