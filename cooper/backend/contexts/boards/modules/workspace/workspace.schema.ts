@@ -17,7 +17,7 @@ export const WELCOME_BOARD = {
   description: 'A first board to find your way around: move the card, add your own.',
   columns: ['To do', 'Doing', 'Done'],
   card: {
-    title: 'Welcome to cooper',
+    title: 'Welcome to Cooper',
     description: 'Drag this card to Doing, then to Done. Add columns and cards of your own, and assign them to the people of your workspace.',
   },
 } as const
