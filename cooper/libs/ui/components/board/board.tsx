@@ -1,5 +1,6 @@
 import { useContext, useState, type DragEvent, type ReactNode } from 'react'
 import { cn } from 'cn'
+import { Skeleton } from '../../shadcn/skeleton'
 import { Avatar } from '../avatar'
 import { LinkComponentContext } from '../link/link-component'
 
@@ -146,5 +147,22 @@ export function BoardCard({ title, reference, meta, assignee, href, onOpen, acti
         </div>
       )}
     </article>
+  )
+}
+
+/**
+ * What a board shows while it loads: grey columns with a few grey cards. Hidden from
+ * screen readers: say that it is loading elsewhere, for example with a `Spinner`.
+ */
+export function BoardSkeleton({ columns = 3 }: { columns?: number }) {
+  return (
+    <div aria-hidden className="flex min-h-0 flex-1 items-start gap-3 overflow-hidden pb-2">
+      {Array.from({ length: columns }, (_, column) => (
+        <div key={column} className="flex w-72 shrink-0 flex-col gap-2 rounded-lg border bg-subtle p-2">
+          <Skeleton className="m-1 h-4 w-1/3 motion-reduce:animate-none" />
+          {Array.from({ length: 3 - (column % 2) }, (_, card) => <Skeleton key={card} className="h-16 w-full motion-reduce:animate-none" />)}
+        </div>
+      ))}
+    </div>
   )
 }
