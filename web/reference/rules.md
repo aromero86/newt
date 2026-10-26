@@ -140,6 +140,13 @@ static async open(config: Boards_Config, deps: Boards_ModuleDeps): Promise<Board
   and may answer instead or go on with `next()`, typically inside a scope of its own
   (see [Who and where](#who-and-where-the-actor-and-other-scopes) below). A route's
   params are its group's and its own.
+- **A POST a client may send again** without doing it twice takes `{ idempotency: {
+  table, ttlMs } }` (a route's, a group's or a router's option): a request with an
+  `Idempotency-Key` header gets the first answer to that key, from the same actor at
+  the same address, while it is remembered (a day unless told). The answers are kept
+  in a table of the context's store, `store.table<KeptAnswer>('idempotency_key')`,
+  with its migration. The same key while the first is still running is a 409
+  (`idempotency_key_in_use`); what fails is not kept, so the key may try again.
 - **Addresses outside `/api`** (OAuth's endpoints, an MCP entry, a `/.well-known`
   document) are a router of their own at the root, `new HttpRouter({ prefix: '' })`,
   which takes only its paths and leaves the rest to the frontend. A router, a group or
@@ -975,7 +982,7 @@ every other test in that process reads.
 
 Its codes are `concurrency_conflict`, `reference_not_found`, `not_signed_in`,
 `invalid_email`, `invalid_secret_token`, `route_not_found`, `method_not_allowed`,
-`validation`, `malformed_body`, `unsupported_media_type`, `filter_too_deep`,
+`validation`, `malformed_body`, `unsupported_media_type`, `idempotency_key_in_use`, `filter_too_deep`,
 `filter_too_many_conditions` and `internal`.
 
 An OAuth endpoint answers in OAuth's format instead, `{ error, error_description }`:

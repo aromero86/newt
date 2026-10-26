@@ -90,7 +90,7 @@ adapter-postgres/  an adapter; knows sql
 adapter-mysql/     an adapter; knows sql
 adapter-files/     an adapter; knows core, port-store, port-outbox
 kysely/            Kysely on the SQL stores; knows them
-http/              the HTTP entry; knows core
+http/              the HTTP entry; knows core, and port-store's Table (idempotency keys)
 application/       an application's contexts, run; knows core, runtime and http
 otel/              a tracer for OpenTelemetry's collectors; knows core
 testing/           helpers for a test over HTTP; knows nothing else

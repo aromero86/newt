@@ -9,6 +9,7 @@ import { MethodNotAllowed } from './errors/method-not-allowed'
 import { NotSignedIn } from './errors/not-signed-in'
 import { handle } from './handle'
 import { HttpGroup } from './http-group'
+import { idempotent } from './idempotent'
 import type { HttpMethod } from './http-method'
 import type { HttpRoute } from './http-route'
 import type { RouteOptions } from './route-options'
@@ -143,7 +144,8 @@ export class HttpRouter {
     if (entry.byMethod.has(method)) throw new Error(`Route ${method} ${fullPath} is registered twice`)
     const options = { ...this.defaults, ...own }
     const any = route as unknown as HttpRoute
-    const guarded = options.public ? any : this.signedIn(any)
+    const once = options.idempotency && method === 'POST' ? idempotent(any, options.idempotency) : any
+    const guarded = options.public ? once : this.signedIn(once)
     entry.byMethod.set(method, { route: entry.path === fullPath ? guarded : renamingParams(entry.path, fullPath, guarded), options })
     this.table.set(shapeOf(fullPath), entry)
   }

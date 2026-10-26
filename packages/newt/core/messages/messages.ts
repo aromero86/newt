@@ -17,6 +17,8 @@ export type Messages = {
   malformed_body: () => string
   /** A request whose body is read as JSON but whose `Content-Type` does not say it is. */
   unsupported_media_type: () => string
+  /** A request whose `Idempotency-Key` another one, still in progress, sent first. */
+  idempotency_key_in_use: () => string
   /** A client's filter that nests more groups than its `defineFilter` allows. */
   filter_too_deep: (params: { max: number }) => string
   /** A client's filter with more conditions than its `defineFilter` allows. */
