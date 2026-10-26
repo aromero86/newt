@@ -22,7 +22,11 @@ interface Store {
 ```
 
 - **A transaction is all or nothing.** What `transaction` writes, its outbox jobs
-  included, is stored together or not at all. A call inside one joins it.
+  included, is stored together or not at all, and one that resolves has committed. A
+  call inside one joins it; writes side by side in it (a `Promise.all`) are each on
+  their own, as one after another. A call of it that comes once it has committed or
+  rolled back (left unawaited, or a branch of a `Promise.all` still running when
+  another threw) fails, and runs nowhere: await every call inside a transaction.
 - **The current transaction follows the code.** Whatever runs inside `fn`, however
   deep and across `await`s, reads and writes in it without being handed it. (The
   adapters keep it in an `AsyncLocalStorage`.)
@@ -85,8 +89,11 @@ same in every store:
 - an operator left `undefined`, or a condition with none in it (`{}`), is no condition;
 - `ieq` ignores the case of A to Z only, on every store: `Ñ` and `ñ` differ.
   Keep a lower-cased column for a search that must fold every letter;
-- text compares and sorts by code point (UTF-8 byte order: `B` before `a`, `z`
-  before `é`), as `compare` does in memory.
+- text sorts and compares (`gt`, `lt`…) by code point (UTF-8 byte order: `Bob`
+  before `bea`, `z` before `é`), as `compare` does in memory, and a trailing space
+  makes another value; null sorts first going up, last going down;
+- a value with NUL (`\u0000`) matches only what holds it: nothing on Postgres, whose
+  text cannot hold one (writing one there is a `ValidationError`, a 400).
 
 A table is the common ground every store can offer. What a table cannot say (a
 join, an aggregate, a full-text search) a repository asks its store's own API:
@@ -162,16 +169,22 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
 - **On `Bun.SQL`**: no driver to install. A pool of connections (`connections`, 10 by
   default); each transaction reserves one until it ends, and reads outside one take
   any, seeing only what is committed.
-- **Transactions run side by side**, as the database runs them. A key guarded is a
-  lock in the database for the transaction (`pg_advisory_xact_lock`, `GET_LOCK`), so
-  only transactions guarding the same key take turns. A transaction the database gives
+- **Transactions run side by side**, as the database runs them, both at `READ
+  COMMITTED` (MySQL's own is `REPEATABLE READ`: the store sets it for each
+  transaction), so a read sees what was committed before it, and a rule read after its
+  guard sees what the guard's last holder wrote. A key guarded is a lock in the
+  database for the transaction (`pg_advisory_xact_lock`, `GET_LOCK`, named after the
+  database and the key), so only transactions guarding the same key take turns; a
+  guard waits `waitTimeoutMs` at most, and only the guard. The statements of one
+  transaction take turns on its connection. A transaction the database gives
   up (a deadlock, a serialization failure) is a `ConcurrencyConflict`, which the use case
   runs again (unless it says `retryOnConflict: false`).
 - **The same SQL tables as SQLite's**, written for each one: `store.table(name, { types })`
   translates criteria into the database's dialect, and `ieq` folds A to Z only here
   too. `store.query(sql, params)` runs a statement of one's own in the transaction in
   progress; Kysely runs on it as on SQLite. Unlike SQLite, a write outside a
-  transaction is not refused: it runs at once, on its own.
+  transaction is not refused: it runs at once, on its own. A `BIGINT` comes back as a
+  number while it is exact (as text beyond 2^53), a `DECIMAL`/`NUMERIC` as text.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
   A batch runs in one transaction. Postgres applies it all or none. MySQL commits
   each change of structure (`CREATE`, `ALTER`, `DROP`…) at once, together with all
@@ -188,11 +201,16 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
   …`), with no `BEGIN … END`.
 - **Postgres**: an entity table has `id TEXT PRIMARY KEY` and `version INTEGER NOT
   NULL`; booleans are `BOOLEAN`, JSON is `JSONB`; a unique value among the rows not
-  deleted is a partial unique index. A statement that fails inside a transaction
-  spoils it in Postgres, so a write that may collide runs under a savepoint: a
-  collision is a `ConcurrencyConflict` and the transaction goes on.
+  deleted is a partial unique index. Text of the database's own collation is compared
+  and sorted `COLLATE "C"`, by code point, as in the other stores (a column given a
+  collation of its own in its migration keeps it), and null sorts as in theirs. A
+  statement that fails inside a transaction spoils it in Postgres, so a write that
+  may collide runs under a savepoint: a collision is a `ConcurrencyConflict` and the
+  transaction goes on; a transaction spoiled by a statement of one's own that failed
+  is rolled back, and fails, when it would commit.
 - **MySQL** (8.4): `id VARCHAR(36) PRIMARY KEY`; text columns are best
-  `utf8mb4_bin`, so `=` and sorting treat case as the other stores do; booleans are
+  `utf8mb4_0900_bin`, so `=`, unique indexes and sorting treat case and a trailing
+  space as the other stores do (`utf8mb4_bin` pads: `'ana' = 'ana '`); booleans are
   0 and 1, JSON is `JSON`; a unique value among the rows not deleted is a functional
   unique index on `(IF(deleted_at IS NULL, col, NULL))`. MySQL 8.4 signs in over TLS
   only: a URL without `?sslmode=require` fails with
@@ -271,10 +289,10 @@ an `Outbox` and `Migrations` of its own. The framework helps with the parts ever
 adapter shares:
 
 - `TransactionScope` is the machinery of transactions: the current one following
-  the code, a call inside one joining it, a late write running after it instead of
-  being lost, `afterCommit` and `afterRollback`, and, for a store whose transactions
-  take turns (`serial`, the default), the queue and the wait that gives up saying
-  why. An adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
+  the code, a call inside one joining it, a late call of one that ended failing
+  instead of running outside it, `afterCommit` and `afterRollback`, and, for a store
+  whose transactions take turns (`serial`, the default), the queue and the wait that
+  gives up saying why. An adapter gives it its steps (`begin`, `commit`, `rollback`, `end`) and builds on it,
   as every adapter here does.
 - `criteriaTree(criteria)` turns criteria into a tree (`all`, `any`, a condition on
   a field) to translate into a query; `matches(row, criteria)` and `compare(a, b)`

@@ -3,7 +3,7 @@ import { SQL } from 'bun'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConcurrencyConflict } from '../core'
+import { ConcurrencyConflict, ValidationError } from '../core'
 import { describeStoreContract } from '../port-store/contract'
 import { PostgresStore } from './postgres-store'
 
@@ -110,8 +110,92 @@ if (url) {
         })
         await Bun.sleep(20)
 
-        await expect(store.transaction(() => store.guard(['k']))).rejects.toThrow()
+        await expect(store.transaction(() => store.guard(['k']))).rejects.toThrow("the guard 'k'")
         await holding
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('a guard bounds its own wait only: a row lock after it waits as long as it takes', async () => {
+      const store = await open({ waitTimeoutMs: 100 })
+      try {
+        await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
+        const holding = store.transaction(async () => {
+          await store.query('UPDATE thing SET rank = 1 WHERE id = $1', ['a'])
+          await Bun.sleep(300)
+        })
+        await Bun.sleep(20)
+
+        await store.transaction(async () => {
+          await store.guard(['unrelated'])
+          await store.query('UPDATE thing SET rank = 2 WHERE id = $1', ['a'])
+        })
+        await holding
+        expect(await store.query('SELECT rank FROM thing')).toEqual([{ rank: 2 }])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('a transaction a failed statement spoiled is not committed: it fails', async () => {
+      const store = await open()
+      try {
+        const things = store.table<{ id: string, version: number, name: string }>('thing')
+
+        await expect(store.transaction(async () => {
+          await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
+          await store.query('SELECT 1/0').catch(() => {})
+        })).rejects.toThrow('rolled back, not committed')
+        expect(await things.count()).toBe(0)
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('refuses text with NUL as a ValidationError, and the transaction goes on', async () => {
+      const store = await open()
+      try {
+        const things = store.table<{ id: string, version: number, name: string, note: string | null }>('thing')
+        await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
+
+        await store.transaction(async () => {
+          await expect(things.patch('a', { note: 'x\u0000y' })).rejects.toBeInstanceOf(ValidationError)
+          await things.patch('a', { note: 'kept' })
+        })
+
+        expect(await store.query('SELECT note FROM thing')).toEqual([{ note: 'kept' }])
+        expect(await things.find({ id: 'a\u0000' })).toEqual([])
+        await expect(things.update('a\u0000', 1, { note: 'x' })).rejects.toBeInstanceOf(ConcurrencyConflict)
+        await expect(things.delete('a\u0000', 1)).rejects.toBeInstanceOf(ConcurrencyConflict)
+        await things.patch('a\u0000', { note: 'x' })
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('hands a BIGINT back as a number while it is exact, and a NUMERIC as text', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE amount (id TEXT PRIMARY KEY, version INTEGER NOT NULL, big BIGINT, exact NUMERIC(10, 2))')
+        const amounts = store.table<{ id: string, version: number, big: number | string, exact: string }>('amount')
+        await amounts.insert({ id: 'a', big: 5, exact: '1.5' })
+        await amounts.insert({ id: 'b', big: '9007199254740993', exact: '2' })
+
+        expect(await amounts.find()).toEqual([{ id: 'a', version: 1, big: 5, exact: '1.50' }, { id: 'b', version: 1, big: '9007199254740993', exact: '2.00' }])
+      } finally {
+        await store.close()
+      }
+    })
+
+    test('sorts by the collation a column was given, when it was given one', async () => {
+      const store = await open()
+      try {
+        await store.query('CREATE TABLE word (id TEXT PRIMARY KEY, version INTEGER NOT NULL, text TEXT COLLATE "en-US-x-icu")')
+        const words = store.table<{ id: string, version: number, text: string }>('word')
+        for (const [id, text] of [['1', 'bea'], ['2', 'Bob'], ['3', 'Ana']]) await words.insert({ id, text })
+
+        expect((await words.find({}, { orderBy: [{ field: 'text' }] })).map(word => word.text)).toEqual(['Ana', 'bea', 'Bob'])
       } finally {
         await store.close()
       }
