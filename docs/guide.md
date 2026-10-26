@@ -220,7 +220,7 @@ export class Note extends Entity<typeof NoteSchema> {
     super(NoteSchema, input, isNew)
   }
 
-  static fromDTO(dto: NoteDTO): Note {
+  static fromDTO(dto: NoteDTO & { version: number }): Note {
     return new Note(dto, false)
   }
 
@@ -346,8 +346,9 @@ so offer what the data can answer quickly. A filter tree travels in a body
 
 **Queries a table cannot say** (a sum, a join, a report) go through the store's own
 API. Kysely on the store's connection is the recommended way (`newt/kysely`):
-the same query runs on SQLite, Postgres or MySQL, field names are the rows'
-(`productId`), and it joins the transaction in progress.
+the same query runs on SQLite, Postgres or MySQL (though a write's counts are `0n`
+on the servers), field names are the rows' (`productId`), and it joins the
+transaction in progress.
 
 ```ts
 class AppBase extends Base<SqliteStore> {
@@ -517,9 +518,11 @@ A transaction is one save, `repo.persist(...entities)`, never a whole use case.
   - **`'fire-and-forget'`, in memory**: run after the commit, and lost if it fails
     or the process stops. For what may be lost: a cache, a metric, an email whose
     payload must never be stored.
-- A handler runs as the system, never as the publisher's actor. It calls a use case
-  of its own module, which is the only place it may write to another module (see
-  *How modules talk*). It may run more than once: it is idempotent.
+- A handler runs with no actor, never the publisher's: `currentActor()` throws
+  `NoActor` in it, so what it needs it reads from the event, or it sets one itself
+  with `runAsActor`. It calls a use case of its own module, which is the only place
+  it may write to another module (see *How modules talk*). It may run more than
+  once: it is idempotent.
 - **What cannot be taken back leaves from a worker, never from a use case**: an
   email is sent after the event of what it is about, so only for what was saved.
 - **An event's shape only grows.** Its jobs keep it as it was published, and may run

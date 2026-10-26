@@ -12,7 +12,7 @@ export class Product extends Entity<typeof ProductSchema> {
     super(ProductSchema, input, isNew)
   }
 
-  static fromDTO(dto: ProductDTO): Product {
+  static fromDTO(dto: ProductDTO & { version: number }): Product {
     return new Product(dto, false)
   }
 

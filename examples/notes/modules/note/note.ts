@@ -14,7 +14,7 @@ export class Note extends Entity<typeof NoteSchema> {
   }
 
   /** One that is stored: nothing happened. */
-  static fromDTO(dto: NoteDTO): Note {
+  static fromDTO(dto: NoteDTO & { version: number }): Note {
     return new Note(dto, false)
   }
 

@@ -106,8 +106,8 @@ const store = await SqliteStore.open({ path: 'data/shop.db', migrations: 'migrat
   (a statement prepared outside a transaction and run inside one reads what the
   transaction wrote), and which refuses a write outside a transaction. Put a query
   builder on it if you want one, and use the store's transactions, never the
-  builder's own: in a repository, `save` or `saveRows`; elsewhere, `store.transaction`. `kyselyFor(store)` from `newt/kysely` is
-  that, ready made:
+  builder's own: in a repository, `save` or `saveRows`; elsewhere,
+  `store.transaction`. `kyselyFor(store)` from `newt/kysely` is that, ready made:
 
   ```ts
   class AppBase extends Base<SqliteStore> {
@@ -143,7 +143,8 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/shop
 - **The same SQL tables as SQLite's**, written for each one: `store.table(name, { types })`
   translates criteria into the database's dialect, and `ieq` folds A to Z only here
   too. `store.query(sql, params)` runs a statement of one's own in the transaction in
-  progress; Kysely runs on it as on SQLite.
+  progress; Kysely runs on it as on SQLite. Unlike SQLite, a write outside a
+  transaction is not refused: it runs at once, on its own.
 - **Migrations are SQL in the database's dialect**, the same file pairs as SQLite's.
   Postgres applies a batch all or none; MySQL commits a change of structure at once,
   so a batch that fails halfway keeps what it did. A file is split into statements
@@ -173,7 +174,10 @@ MySQL): its statements run on the store's connections, in the transaction in
 progress, and field names are the rows' (`productId`), turned into the columns'
 (`product_id`) on their way. Kysely's own transactions are refused: they would not be
 the store's. On SQLite a boolean comes back as 0 or 1 and JSON as text:
-`SqliteRow<Row>` says so in the types. Kysely is an optional peer dependency.
+`SqliteRow<Row>` says so in the types. On Postgres and MySQL the store gives Kysely
+back only rows, so a write's `numUpdatedRows` and `numDeletedRows` are `0n` and there is
+no `insertId`: use `returning` (Postgres) or read again. Kysely is an optional peer
+dependency.
 
 ## Files: `newt/adapter-files`
 

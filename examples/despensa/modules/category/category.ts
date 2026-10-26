@@ -11,7 +11,7 @@ export class Category extends Entity<typeof CategorySchema> {
     super(CategorySchema, input, isNew)
   }
 
-  static fromDTO(dto: CategoryDTO): Category {
+  static fromDTO(dto: CategoryDTO & { version: number }): Category {
     return new Category(dto, false)
   }
 

@@ -23,7 +23,7 @@ export class Order extends Entity<typeof OrderSchema> {
     super(OrderSchema, input, isNew)
   }
 
-  static fromDTO(dto: OrderDTO): Order {
+  static fromDTO(dto: OrderDTO & { version: number }): Order {
     return new Order(dto, false)
   }
 

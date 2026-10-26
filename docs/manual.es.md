@@ -263,7 +263,7 @@ export class Shop_Context extends BoundedContext<ShopBase> {
 }
 ```
 
-Tres cosas que observar:
+Cuatro cosas que observar:
 
 - **`FileStore.open`** abre (y crea, si no existe) una carpeta donde cada registro
   es un fichero JSON. Es perfecto para empezar: no hay nada que instalar, y puedes
@@ -275,6 +275,9 @@ Tres cosas que observar:
   está haciendo lo que se está haciendo. Le dedicamos el capítulo 7.
 - **`initializeModules`** crea los módulos. Lo iremos rellenando según los
   escribamos.
+- **`open()` no recibe nada todavía.** Según crezca la tienda, recibirá su
+  configuración: el `mailer` de los avisos (capítulo 16) y qué store abrir (capítulo
+  24). El ejemplo completo la recibe como `ShopConfig`: `Shop_Context.open(config)`.
 
 ### 4.3 Arrancar
 
@@ -402,8 +405,8 @@ export class Product extends Entity<typeof ProductSchema> {
     super(ProductSchema, input, isNew)
   }
 
-  /** Uno que ya estaba guardado: no ha pasado nada. */
-  static fromDTO(dto: ProductDTO): Product {
+  /** Uno que ya estaba guardado, con su versión: no ha pasado nada. */
+  static fromDTO(dto: ProductDTO & { version: number }): Product {
     return new Product(dto, false)
   }
 
@@ -438,8 +441,9 @@ export class Product extends Entity<typeof ProductSchema> {
 Las ideas que hay detrás:
 
 - **Dos puertas de entrada.** `create` para algo nuevo, `fromDTO` para algo que se
-  lee del store. Si una entidad es nueva lo decide la puerta por la que entra,
-  nunca si trae `id` o no.
+  lee del store: la fila, que trae su `version`, y sin ella no se puede construir
+  (al guardarla, la versión dice si alguien la cambió entretanto). Si una entidad es nueva lo decide
+  la puerta por la que entra, nunca si trae `id` o no.
 - **Solo la entidad se cambia a sí misma.** `change()` es protegido: desde fuera no
   se puede llamar. Un caso de uso llama a `update()`, `archive()`… métodos con
   nombre de negocio. `change()` valida cada campo contra el esquema e ignora lo que
@@ -1305,7 +1309,9 @@ async update(id: string, input: ProductUpdateDTO): Promise<ProductDTO> {
 ```
 
 Ante un conflicto, el caso de uso se ejecuta de nuevo **desde el principio**, hasta
-tres veces más. Al final quedan los dos cambios.
+tres veces más. Al final quedan los dos cambios. Si llama a otro caso de uso, cada
+uno reintenta por su cuenta: el de dentro puede ejecutarse hasta cuatro veces en
+cada intento del de fuera, otra razón para que sean repetibles.
 
 Funciona porque un caso de uso **carga, cambia y guarda, y no hace nada
 irreversible antes de guardar**: lo irreversible sale de los workers. Un caso de uso
@@ -1731,9 +1737,13 @@ Un worker no escribe directamente: **llama a un caso de uso** de su módulo. As�
 lógica vive en un solo sitio, y el caso de uso se puede probar, trazar y llamar desde
 donde haga falta. El callback no hace nada más.
 
-Además, un worker se ejecuta **como el sistema**, no como el usuario que provocó el
-evento. Si `order.fulfil` necesitara saber quién hizo el pedido, lo leería del
-pedido (`customerId`), no de `currentActor()`.
+Además, un worker se ejecuta **sin actor**: ni el usuario que provocó el evento, ni
+ningún otro. `currentActor()` lanza `NoActor` dentro de él, y el trabajo se
+reintentaría hasta morir. Si `order.fulfil` necesitara saber quién hizo el pedido,
+lo leería del pedido (`customerId`). Si un caso de uso que llama necesita un actor,
+el worker lo pone él con `runAsActor({ userId: 'system' }, …)` (con los campos que
+tu `Actor` añada, capítulo 7.2). Lo de "sin actor" vale porque los workers arrancan
+fuera de cualquier petición: `context.start()` no se llama dentro de `runAsActor`.
 
 ## 14. Consistencia eventual, con un pedido de verdad
 
@@ -2707,8 +2717,10 @@ estable. La clase base decide el código HTTP:
 | `ConflictError` | 409 | El estado actual no lo permite. |
 | `ConcurrencyConflict` | 409 | Alguien lo guardó mientras tanto. |
 
-El cliente recibe siempre `{ error, code }`. Su código decide qué hacer con el `code`,
-que nunca cambia; el `error` es para leerlo una persona.
+Bajo `/api`, el cliente recibe siempre `{ error, code }` (y, si el cuerpo no pasó el
+esquema, sus `issues`). Su código decide qué hacer con el `code`, que nunca cambia; el
+`error` es para leerlo una persona. Fuera de `/api` no hay API: una dirección que no
+es de nadie la contesta el frontend, o un `404` de texto si no hay frontend.
 
 ### 22.2 Los mensajes del framework, en tu idioma
 
@@ -2753,6 +2765,7 @@ para las cuentas (`auth`), uno para la trastienda, uno para los clientes…
   store.
 
 ```ts
+// Una aplicación con dos contextos: cada uno recibe su configuración y los que usa.
 const auth = await Auth_Context.open(config.auth)
 const shop = await Shop_Context.open(config.shop, auth)      // shop usa auth
 ```
@@ -2975,7 +2988,10 @@ Tres cosas que saber:
   siempre son las del store. En un repositorio, una escritura con Kysely va dentro de
   `saveRows` (o del `save` de sus entidades); fuera, en `store.transaction`.
 - **La misma consulta vale en SQLite, Postgres y MySQL.** En SQLite, un booleano
-  vuelve como 0 o 1: `SqliteRow<Row>` lo dice en los tipos.
+  vuelve como 0 o 1: `SqliteRow<Row>` lo dice en los tipos. Lo que no es igual es
+  lo que cuenta una escritura: en Postgres y MySQL, `numUpdatedRows` y
+  `numDeletedRows` valen `0n` y no hay `insertId`. Si necesitas saber si escribió
+  algo, pídelo con `returning` (Postgres) o vuelve a leer.
 
 Con ficheros, la puerta es `store.collection(name)`: `get`, `all`, `put` y `remove`.
 
@@ -3224,14 +3240,14 @@ escribes, no en producción.
 ### 29.2 Esperar a los workers
 
 Con consistencia eventual, justo después de hacer un pedido el worker aún no lo ha
-confirmado. En un test, **espera a que no quede trabajo pendiente**:
+confirmado. En un test, **espera a que no quede trabajo listo**:
 
 ```ts
 test('takes an order at once, and confirms it in the background', async () => {
   const placed = await order(oil, 3)
   expect(placed.body).toMatchObject({ status: 'pending' })
 
-  await shop.base.jobs.idle()        // hasta que no queda nada por hacer
+  await shop.base.jobs.idle()        // hasta que no queda nada listo por hacer
 
   const read = await call('GET', `/orders/${placed.body.id}`)
   expect(read.body).toMatchObject({ status: 'confirmed' })
@@ -3239,7 +3255,10 @@ test('takes an order at once, and confirms it in the background', async () => {
 ```
 
 `jobs.idle()` es la herramienta de los tests y de los scripts. Nunca esperes con un
-`sleep`.
+`sleep`. Espera a que no quede ningún trabajo **listo** ni en marcha: uno que falló y
+espera su reintento (a los 10 s, y después más) sigue pendiente cuando `idle()`
+vuelve. Si un test provoca fallos, mira el estado de sus trabajos con
+`shop.base.store.outbox.list()`.
 
 ### 29.3 Probar lo difícil
 
@@ -3274,6 +3293,12 @@ Cada llamada a un caso de uso es un **span** de una traza, con su nombre
 (`order.place`), su contexto y su módulo. Un caso de uso llamado desde otro es un span
 dentro del suyo. Los reintentos por conflicto quedan anotados, y un error que no es
 de negocio marca el span.
+
+El worker también deja los suyos, con nombres que empiezan por `job.`: `job.claim`
+cada vez que busca trabajo (tras cada confirmación y, al menos, cada 5 s mientras
+haya algún `handler`), `job.renew`,
+`job.close`, `job.seen` y `job.purge`. Un tracer que no los quiera ver los filtra
+por el nombre.
 
 Para recogerlos, pasa un `Tracer` a la base:
 
@@ -3341,6 +3366,12 @@ stores lo permiten: con ficheros y SQLite, las transacciones de uno esperan a la
 otro; con Postgres y MySQL van a la vez, y `guard` protege lo que debe ir por turnos.
 Con ficheros, los procesos tienen que estar en la misma máquina.
 
+La espera entre procesos tiene un límite: 5 s en SQLite (`database is locked`) y
+10 s con ficheros (`The store is locked by …`). Ninguno de los dos es un
+`ConcurrencyConflict`, así que no se reintenta solo: una transacción larga de un
+script hace fallar las peticiones del servidor que esperan tras ella. Haz los
+scripts en transacciones cortas, una por fila o por lote pequeño.
+
 ### 31.4 Migrar a mano
 
 Abrir con `open` migra solo. Para hacerlo a mano (ver qué hay pendiente, deshacer la
@@ -3378,7 +3409,8 @@ temas y añade las que han ido saliendo.
 - Los métodos de la entidad reciben datos del dominio, no el DTO de entrada.
 - Lo que es de su dueño toma el actor, no un id.
 - Ninguna lista se devuelve entera; `items`, `hasMore` y `total`, escritos uno a uno.
-- `retryOnConflict: false`, con el motivo al lado, en lo que hace algo irrepetible antes de guardar.
+- `retryOnConflict: false`, con el motivo al lado, en lo que hace algo irrepetible
+  antes de guardar.
 - Un módulo lee de otros cuando quiere, pero escribe en otro solo desde un worker.
 
 **Guardar**
@@ -3392,7 +3424,7 @@ temas y añade las que han ido saliendo.
 - Un evento de cada tipo por entidad y guardado. Dos tipos en un guardado suelen ser
   un caso de uso que hace dos cosas.
 - Lo que importa, con `strategy: 'handler'`; lo prescindible, con `'fire-and-forget'`.
-- Un worker llama a un caso de uso, actúa como el sistema y puede repetirse.
+- Un worker llama a un caso de uso, sin actor (lo que necesite lo lee del evento) y puede repetirse.
 - Lo irreversible sale de un worker.
 - Lo que falla a mitad se arregla hacia delante: reintentos o una compensación.
 - Un evento solo crece.
@@ -3473,9 +3505,11 @@ vuelve a provocar el trabajo (o escribe un script que haga lo que debía hacer).
 trabajo muerto es un flujo atascado a mitad: el capítulo 18 cuenta cómo pensarlo.
 
 **"A write runs inside `store.transaction`".**
-Has intentado escribir con la conexión del store fuera de un guardado. En un
-repositorio, las escrituras van dentro de `persist`, de `save` o de `saveRows`; fuera
-de él (un script, una migración), dentro de `store.transaction(…)`.
+Has intentado escribir con la conexión de un `SqliteStore` fuera de un guardado. En
+un repositorio, las escrituras van dentro de `persist`, de `save` o de `saveRows`;
+fuera de él (un script, una migración), dentro de `store.transaction(…)`. Postgres y
+MySQL no lo comprueban: una escritura fuera de una transacción se hace al momento,
+sola. Hazlas igual dentro de una, para que el código valga para cualquier store.
 
 **"Waited 30000 ms for the store".**
 Algo esperó demasiado su turno. La causa habitual es código que se ejecuta dentro de

@@ -27,9 +27,11 @@ type Execute = (query: CompiledQuery) => Promise<QueryResult<unknown>>
 /**
  * Kysely on a store, for the queries a table cannot say: SQLite, Postgres or MySQL,
  * the same queries for any of them. Its statements run on the store's connections,
- * so inside `store.transaction` (a save, its hooks) they read and write in it, and
- * outside one they only read. Field names are the rows' (`productId`), turned into the
- * columns' (`product_id`) on their way.
+ * so inside `store.transaction` (a save, its hooks) they read and write in it.
+ * Outside one, SQLite refuses a write, while Postgres and MySQL run it at once, on
+ * its own: write only inside one. On Postgres and MySQL a write's result reports no
+ * rows (`numUpdatedRows` is `0n`, no `insertId`). Field names are the rows'
+ * (`productId`), turned into the columns' (`product_id`) on their way.
  *
  * ```ts
  * class AppBase extends Base<SqliteStore> {

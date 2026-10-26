@@ -11,7 +11,7 @@ export class Brand extends Entity<typeof BrandSchema> {
     super(BrandSchema, input, isNew)
   }
 
-  static fromDTO(dto: BrandDTO): Brand {
+  static fromDTO(dto: BrandDTO & { version: number }): Brand {
     return new Brand(dto, false)
   }
 

@@ -11,7 +11,7 @@ export class StockMovement extends Entity<typeof StockMovementSchema> {
     super(StockMovementSchema, input, isNew)
   }
 
-  static fromDTO(dto: StockMovementDTO): StockMovement {
+  static fromDTO(dto: StockMovementDTO & { version: number }): StockMovement {
     return new StockMovement(dto, false)
   }
 
