@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
+import { openRoutesToBrowsers } from '../../shared/cors'
 import { ServedContext } from '../../shared/served-context'
 import { AuthBase } from './auth-base'
 import type { Auth_Config } from './auth-config'
@@ -29,8 +30,17 @@ export class Auth_Context extends ServedContext {
     return new Auth_Context(base, modules, config)
   }
 
-  /** OAuth's own addresses, beside the API: its endpoints and the server's metadata. */
+  /**
+   * OAuth's own addresses, beside the API: its endpoints and the server's metadata.
+   * What an MCP client calls itself (the metadata, registering, the token endpoint) is
+   * open to pages of any origin: some clients, such as the MCP inspector, run in a
+   * browser. The authorization endpoint is not: the browser goes to it.
+   */
   protected override routes(): Bun.Serve.Routes<undefined, string> {
-    return { ...super.routes(), ...this.auth.oauth.routes(), ...oauthServerMetadataRoutes(this.config.publicUrl) }
+    const oauth = { ...this.auth.oauth.routes(), ...oauthServerMetadataRoutes(this.config.publicUrl) }
+    return {
+      ...super.routes(),
+      ...openRoutesToBrowsers(oauth, ['/.well-known/oauth-authorization-server', '/oauth/register', '/oauth/token', '/oauth/revoke']),
+    }
   }
 }

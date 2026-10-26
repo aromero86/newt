@@ -17,8 +17,8 @@ export function oauthServerMetadataRoutes(publicUrl: string): Bun.Serve.Routes<u
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
     revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
   }
+  // Read by clients in a browser too, such as the MCP inspector: the context opens it to them.
   return {
-    // Read by clients in a browser too, such as the MCP inspector.
-    '/.well-known/oauth-authorization-server': () => Response.json(metadata, { headers: { 'access-control-allow-origin': '*' } }),
+    '/.well-known/oauth-authorization-server': () => Response.json(metadata),
   }
 }
