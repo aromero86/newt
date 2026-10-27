@@ -13,6 +13,14 @@ export function registerMetricsRoutes(base: MonitorBase, metrics: Metrics_Module
   // `?context=boards&event=card.created&window=7d&by=actor` (or `by=scope:workspace`)
   base.http.get('/apps/:id/metrics/top', async request => Response.json(await metrics.top(request.params.id, query(request))))
 
+  // `?context=boards&event=card.created&window=7d`: the names of the scopes it was told in.
+  base.http.get('/apps/:id/metrics/scopes', async request => Response.json(await metrics.scopes(request.params.id, query(request))))
+
+  // Server-sent events, while the browser listens: the application's own, passed on.
+  base.http.get('/apps/:id/metrics/live', async request => new Response(await metrics.live(request.params.id, request.signal), {
+    headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store' },
+  }))
+
   base.http.get('/apps/:id/metrics/retention', async request => Response.json(await metrics.retention(request.params.id)))
 
   base.http.patch('/apps/:id/metrics/retention', async request => Response.json(await metrics.changeRetention(request.params.id, await request.json())))

@@ -7,6 +7,7 @@ import { Provide, useService, useValue } from 'newt-react'
 import { NotFound } from '../not-found/not-found'
 import { AppBand } from './app-band/app-band'
 import { AppContexts } from './app-contexts/app-contexts'
+import { AppEvent } from './app-event/app-event'
 import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
 import { AppSettings } from './app-settings/app-settings'
@@ -45,6 +46,7 @@ function AppWrapped() {
           <Route path="contexts/*" element={<AppContexts app={app} />} />
           <Route path="use-cases" element={<AppUseCases app={app} />} />
           <Route path="events" element={<AppEvents app={app} />} />
+          <Route path="events/:context/:event" element={<AppEvent app={app} />} />
           <Route path="versions/*" element={<AppVersions app={app} />} />
           <Route path="settings" element={<AppSettings app={app} />} />
           <Route path="*" element={<NotFound />} />

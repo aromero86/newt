@@ -74,7 +74,7 @@ async function closedCounts(metrics: EventMetrics[], since: string | null, now: 
   return { counts: each.flatMap(one => one.counts).filter(count => count.minute <= until), until }
 }
 
-/** Counts as they come, as server-sent events, with a heartbeat every 20 seconds. */
+/** Counts as they come, as server-sent events, with a heartbeat every 8 seconds: whatever relays it, with an idle timeout of 10 (Bun's), keeps it open. */
 function liveCounts(metrics: EventMetrics[], signal: AbortSignal): Response {
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
@@ -87,7 +87,7 @@ function liveCounts(metrics: EventMetrics[], signal: AbortSignal): Response {
         }
       }
       const stops = await Promise.all(metrics.map(one => one.live(counts => send(`data: ${JSON.stringify(counts)}\n\n`))))
-      const heartbeat = setInterval(() => send(': heartbeat\n\n'), 20_000)
+      const heartbeat = setInterval(() => send(': heartbeat\n\n'), 8_000)
       send(': live\n\n')
       signal.addEventListener('abort', () => {
         clearInterval(heartbeat)

@@ -71,6 +71,16 @@ export class MetricsQueries {
       GROUP BY value ORDER BY count DESC, value LIMIT 10`, params)
   }
 
+  /** The names of the scopes it was told in, in the window. */
+  async scopeNames(filter: Filter, window: MetricsWindow, now: Date): Promise<string[]> {
+    const where = whereOf(filter, 3, false)
+    const rows = await this.analytics.query<{ name: string }>(`
+      SELECT DISTINCT unnest(json_keys(scopes)) AS name FROM event_minute
+      WHERE minute >= $1 AND minute < $2 AND ${where.sql} ORDER BY name`,
+    [new Date(now.getTime() - WINDOWS[window].ms).toISOString(), now.toISOString(), ...where.params])
+    return rows.map(row => row.name)
+  }
+
   /** Every bucket from `from` to `to`, those with nothing at zero. */
   private async points(filter: Filter, from: number, to: number, size: number): Promise<SeriesPointDTO[]> {
     const seconds = size / 1000

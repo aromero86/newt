@@ -10,6 +10,7 @@ import { Text } from 'newt-react-ui/text'
 import { FormField } from 'newt-react/form-field'
 import { Provide, useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
+import { AppSettingsMetrics } from './app-settings-metrics'
 import { AppSettingsService } from './app-settings.service'
 
 /** With its own AppSettingsService. */
@@ -57,6 +58,7 @@ function AppSettingsWrapped({ app }: { app: AppDTO }) {
           </Stack>
         </form>
       </Stack>
+      <AppSettingsMetrics />
       <Stack gap={0}>
         <Subhead title="Danger zone" tone="danger" />
         <Box label="Danger zone">

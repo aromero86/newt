@@ -73,6 +73,12 @@ export const TotalsQuerySchema = z.object({
   window: z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h'),
 })
 
+export const ScopesQuerySchema = z.object({
+  context: z.string().min(1),
+  event: z.string().min(1),
+  window: z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h'),
+})
+
 export const TopQuerySchema = z.object({
   context: z.string().min(1),
   event: z.string().min(1),

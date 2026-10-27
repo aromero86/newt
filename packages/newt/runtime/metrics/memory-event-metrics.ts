@@ -25,6 +25,8 @@ export class MemoryEventMetrics implements EventMetrics {
   private timer: ReturnType<typeof setTimeout> | null = null
   private enabled = false
   private kept = 0
+  /** The minute it last forgot in: it forgets once a minute, not at every count. */
+  private forgotIn = ''
   private readonly keepMinutes: number
   private readonly maxCounts: number
   private readonly liveMs: number
@@ -47,7 +49,10 @@ export class MemoryEventMetrics implements EventMetrics {
     if (!counts) this.minutes.set(minute, counts = new Map())
     if (!counts.has(key)) this.kept++
     counts.set(key, (counts.get(key) ?? 0) + 1)
-    this.forget(event.at.getTime())
+    if (minute !== this.forgotIn || this.kept > this.maxCounts) {
+      this.forgotIn = minute
+      this.forget(event.at.getTime())
+    }
     if (this.listeners.size > 0) this.tellLive(`${minute}|${key}`)
   }
 
@@ -92,8 +97,15 @@ export class MemoryEventMetrics implements EventMetrics {
   /** Minutes too old, and the oldest ones while there are too many counts. */
   private forget(now: number): void {
     const oldest = minuteOf(now - this.keepMinutes * MINUTE_MS)
+    for (const [minute, counts] of this.minutes) {
+      if (minute >= oldest) continue
+      this.kept -= counts.size
+      this.minutes.delete(minute)
+    }
+    if (this.kept <= this.maxCounts) return
+    // Too many still: the oldest go first. Rare, so it may sort.
     for (const minute of [...this.minutes.keys()].sort()) {
-      if (minute >= oldest && this.kept <= this.maxCounts) break
+      if (this.kept <= this.maxCounts) break
       this.kept -= this.minutes.get(minute)!.size
       this.minutes.delete(minute)
     }

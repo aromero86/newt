@@ -58,6 +58,7 @@ describe('metrics', () => {
     expect(await json<TopDTO[]>(`/api/apps/${id}/metrics/top?context=boards&event=card.created&window=1h&by=actor`)).toEqual([{ value: 'ana', count: 4 }, { value: 'bea', count: 1 }])
     expect(await json<TopDTO[]>(`/api/apps/${id}/metrics/top?context=boards&event=card.created&window=1h&by=scope:workspace`)).toEqual([{ value: 'acme', count: 4 }, { value: 'globex', count: 1 }])
     expect(await json<EventTotalDTO[]>(`/api/apps/${id}/metrics/events?window=1h`)).toEqual([{ context: 'boards', event: 'card.created', total: 5, previous: 0 }])
+    expect(await json<string[]>(`/api/apps/${id}/metrics/scopes?context=boards&event=card.created&window=1h`)).toEqual(['workspace'])
   })
 
   test('compares a window with the one before it, drawn at its buckets\' times', async () => {
@@ -69,6 +70,18 @@ describe('metrics', () => {
     expect([series.total, series.comparedTotal]).toEqual([1, 2])
     expect(series.compared!.map(point => point.at)).toEqual(series.points.map(point => point.at))
     expect(await json<EventTotalDTO[]>(`/api/apps/${id}/metrics/events?window=1h`)).toEqual([{ context: 'boards', event: 'card.created', total: 1, previous: 2 }])
+  })
+
+  test('passes the application\'s counts on live, as they come', async () => {
+    const live = await as(`/api/apps/${id}/metrics/live`)
+    expect(live.headers.get('content-type')).toBe('text/event-stream')
+    const reader = live.body!.getReader()
+    const read = async () => new TextDecoder().decode((await reader.read()).value)
+
+    expect(await read()).toContain(': live')
+    app.tell('boards', 'card.created', { at: new Date(), actor: 'ana' })
+    expect(await read()).toContain('"event":"card.created","scopes":{},"actor":"ana","count":1')
+    await reader.cancel()
   })
 
   test('refuses a bucket its window is not drawn in', async () => {

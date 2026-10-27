@@ -16,4 +16,6 @@ export interface AppClient {
   structure(endpoint: Endpoint): Promise<ApplicationDescription>
   /** How many times each event was told, minute by minute, in the minutes closed after `since`. */
   metrics(endpoint: Endpoint, since: string | null): Promise<EventCounts>
+  /** Its counts as they come, as the server-sent events it sends, until `signal` aborts. */
+  live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>>
 }

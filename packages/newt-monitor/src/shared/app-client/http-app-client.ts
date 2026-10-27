@@ -46,6 +46,21 @@ export class HttpAppClient implements AppClient {
     return this.read(endpoint, since === null ? '/v1/metrics' : `/v1/metrics?since=${encodeURIComponent(since)}`, CountsSchema)
   }
 
+  async live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    const url = `${endpoint.url}/v1/metrics/live`
+    let response: Response
+    try {
+      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal })
+    } catch (error) {
+      throw new AppCallFailed('unreachable', `Nobody answered at ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    if (response.status === 401) throw new AppCallFailed('key_rejected', `${endpoint.url} refused the signature: the key is not the application's`)
+    if (!response.ok || !response.body || !response.headers.get('content-type')?.startsWith('text/event-stream')) {
+      throw new AppCallFailed('bad_answer', `${endpoint.url} has no live metrics: is its newt recent enough?`)
+    }
+    return response.body
+  }
+
   /** What `path` answers, if it is what `schema` says: anything else is no monitor endpoint's. */
   private async read<T>(endpoint: Endpoint, path: string, schema: z.ZodType<T>): Promise<T> {
     const parsed = schema.safeParse(await this.get(endpoint, path))

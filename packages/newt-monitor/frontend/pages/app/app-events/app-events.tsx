@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BlocksIcon, ClockIcon, MegaphoneIcon, SearchXIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
 import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
@@ -10,6 +10,7 @@ import { Inline } from 'newt-react-ui/inline'
 import { Stack } from 'newt-react-ui/stack'
 import { Mono } from 'newt-react-ui/text'
 import { useService, useValue } from 'newt-react'
+import { MetricsApi, type EventTotalDTO } from '../../../api/metrics'
 import type { AppDTO } from '../../../api/app'
 import { AppNotRead } from '../app-not-read/app-not-read'
 import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
@@ -22,6 +23,7 @@ export function AppEvents({ app }: { app: AppDTO }) {
   const structure = useValue(service.structure)
   const [filter, setFilter] = useState('')
   const removed = useRemoved()
+  const totals = useTotals(app)
   if (!structure) return <AppNotRead app={app} />
 
   const reactions = reactionsOf(structure.description)
@@ -57,8 +59,9 @@ export function AppEvents({ app }: { app: AppDTO }) {
                 leading={<Icon icon={event.schedule ? ClockIcon : MegaphoneIcon} tone="muted" />}
                 trailing={event.schedule ? <Badge tone="info">{event.schedule.cron}</Badge> : <Counter>{listeners.length}</Counter>}
               >
-                <BoxRowTitle href={moduleHref(app.id, event.module.id)}><Mono>{event.name}</Mono></BoxRowTitle>
+                <BoxRowTitle href={`/apps/${app.id}/events/${context.name}/${event.name}`}><Mono>{event.name}</Mono></BoxRowTitle>
                 <BoxRowMeta>
+                  {totals && <>{describeTotal(totals.get(`${context.name}|${event.name}`))}</>}
                   {event.schedule && <>a schedule</>}
                   <>{listeners.length ? `heard by ${listeners.map(listener => listener.handler ?? 'a fire-and-forget handler').join(', ')}` : 'heard by nobody'}</>
                 </BoxRowMeta>
@@ -70,4 +73,23 @@ export function AppEvents({ app }: { app: AppDTO }) {
       ))}
     </Stack>
   )
+}
+
+/** Each event's total in the last 24 hours, beside the 24 before: null until known. */
+function useTotals(app: AppDTO): Map<string, EventTotalDTO> | null {
+  const api = useService(MetricsApi)
+  const [totals, setTotals] = useState<Map<string, EventTotalDTO> | null>(null)
+  useEffect(() => {
+    api.totals(app.id, '24h')
+      .then(found => setTotals(new Map(found.map(total => [`${total.context}|${total.event}`, total]))))
+      .catch(() => setTotals(new Map()))
+  }, [api, app.id])
+  return totals
+}
+
+/** `128 in 24h, +12%`: how many, and how it changed from the day before. */
+function describeTotal(total: EventTotalDTO | undefined): string {
+  if (!total || (total.total === 0 && total.previous === 0)) return 'not told in 24h'
+  const change = total.previous === 0 ? null : Math.round(((total.total - total.previous) / total.previous) * 100)
+  return `${total.total.toLocaleString('en')} in 24h${change === null ? '' : `, ${change > 0 ? '+' : ''}${change}% from the day before`}`
 }

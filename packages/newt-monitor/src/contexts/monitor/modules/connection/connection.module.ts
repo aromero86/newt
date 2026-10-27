@@ -59,6 +59,15 @@ export class Connection_Module extends Module {
     return called
   }
 
+  /**
+   * Its counts as they come, straight from it: what it sends, passed on as it is, until
+   * `signal` aborts. Not recorded: watching live is no check of whether it answers.
+   */
+  @UseCase()
+  async live(appId: string, signal: AbortSignal): Promise<Called<ReadableStream<Uint8Array>>> {
+    return this.call(appId, endpoint => this.deps.client.live(endpoint, signal))
+  }
+
   /** Whether it answers, as last found: `unknown` until it is first asked. */
   @UseCase()
   async status(appId: string): Promise<ConnectionStatusDTO> {

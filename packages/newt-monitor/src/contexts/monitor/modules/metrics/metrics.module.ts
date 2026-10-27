@@ -1,7 +1,7 @@
 import { Module, now, UseCase } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import {
-  DEFAULT_BUCKET, MetricsFeed, MetricsRetentionSchema, SeriesQuerySchema, TopQuerySchema, TotalsQuerySchema,
+  DEFAULT_BUCKET, MetricsFeed, MetricsRetentionSchema, ScopesQuerySchema, SeriesQuerySchema, TopQuerySchema, TotalsQuerySchema,
   type CollectDTO, type EventTotalDTO, type MetricsRetentionDTO, type SeriesDTO, type TopDTO,
 } from './metrics'
 import type { Metrics_Deps } from './metrics.deps'
@@ -110,6 +110,27 @@ export class Metrics_Module extends Module {
     await this.deps.app.get(appId)
     const query = TopQuerySchema.parse(input)
     return (await this.queries(appId)).top(query, query.window, query.by, now())
+  }
+
+  /**
+   * Its counts as they come, as server-sent events, while the request lasts: what the
+   * application sends, passed on. One archived, or not answering, sends an `error` event.
+   */
+  @UseCase()
+  async live(appId: string, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    const app = await this.deps.app.get(appId)
+    const failed = (message: string) => new Response(`event: error\ndata: ${JSON.stringify({ message })}\n\n`).body!
+    if (app.archivedAt !== null) return failed('It is archived: it is not watched')
+    const stream = await this.deps.connection.live(appId, signal)
+    return stream.answered ? stream.value : failed(stream.failure.message)
+  }
+
+  /** The scopes an event was told in, by name, in a window: what its tellers can be grouped by. */
+  @UseCase()
+  async scopes(appId: string, input: unknown): Promise<string[]> {
+    await this.deps.app.get(appId)
+    const query = ScopesQuerySchema.parse(input)
+    return (await this.queries(appId)).scopeNames(query, query.window, now())
   }
 
   /** How long its metrics are kept. */
