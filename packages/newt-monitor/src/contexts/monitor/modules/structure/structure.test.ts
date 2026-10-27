@@ -15,10 +15,14 @@ beforeEach(async () => {
   as = await monitor.signedIn()
   app = serveTestApp()
   app.add('shop', { order: { useCases: ['place'], events: ['placed'] } })
-  id = (await (await as('/api/apps', { method: 'POST', json: { name: 'shop', url: app.url, key: app.key } })).json() as { id: string }).id
   changes = []
   monitor.modules.structure.events.changed.subscribe(change => void changes.push(change), { strategy: 'fire-and-forget' })
+  id = (await (await as('/api/apps', { method: 'POST', json: { name: 'shop', url: app.url, key: app.key } })).json() as { id: string }).id
+  // Registering it reads it the first time, from a worker.
+  await settled()
 })
+
+const settled = () => monitor.monitor.base.jobs.idle()
 
 afterEach(async () => {
   await app.stop()
@@ -29,12 +33,9 @@ const refresh = () => monitor.modules.structure.refresh(id)
 const versions = async () => ((await (await as(`/api/apps/${id}/structure/versions`)).json()) as { items: { id: string }[] }).items
 
 describe('structure', () => {
-  test('reads what an application is made of, and keeps it as its first version', async () => {
-    const refreshed = await refresh()
-
-    expect(refreshed.outcome).toBe('changed')
+  test('reads what an application is made of as it is registered, and keeps it as its first version', async () => {
     const latest = await (await as(`/api/apps/${id}/structure`)).json() as StructureVersionDTO
-    expect(latest.id).toBe(refreshed.version!.id)
+
     expect(latest.description.contexts[0]!.modules.map(module => module.id)).toEqual(['shop/order'])
     expect(changes).toEqual([{ appId: id, versionId: latest.id, previousVersionId: null }])
   })
@@ -42,7 +43,8 @@ describe('structure', () => {
   test('keeps no new version of the same structure, and tells nothing', async () => {
     const first = await refresh()
 
-    expect(await refresh()).toEqual({ appId: id, outcome: 'unchanged', version: first.version! })
+    expect(first.outcome).toBe('unchanged')
+    expect(await refresh()).toEqual(first)
     expect(await versions()).toHaveLength(1)
     expect(changes).toHaveLength(1)
   })
@@ -71,13 +73,17 @@ describe('structure', () => {
   })
 
   test('takes one version however many refreshes run at once', async () => {
+    app.add('billing', { invoice: { useCases: ['open'] } })
     const refreshed = await Promise.all(Array.from({ length: 5 }, refresh))
 
     expect(refreshed.filter(each => each.outcome === 'changed')).toHaveLength(1)
-    expect(await versions()).toHaveLength(1)
+    expect(await versions()).toHaveLength(2)
   })
 
   test('has nothing to show before it first reads one', async () => {
+    // Its worker stopped, registering it does not read it.
+    await monitor.monitor.base.jobs.stop()
+    const { id } = await monitor.modules.app.register({ name: 'unread', url: app.url, key: app.key })
     const response = await as(`/api/apps/${id}/structure`)
 
     expect(response.status).toBe(404)

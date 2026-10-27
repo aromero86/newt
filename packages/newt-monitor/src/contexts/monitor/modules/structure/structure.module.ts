@@ -3,10 +3,11 @@ import type { MonitorBase } from '../../../../monitor-base'
 import { StructureNotRead } from './errors/structure-not-read'
 import { StructureVersionNotFound } from './errors/structure-version-not-found'
 import { Structure_Changed } from './events/structure-changed'
-import { hashOf, StructureVersion, type RefreshDTO, type StructureVersionDTO, type StructureVersionSummaryDTO } from './structure'
+import { hashOf, StructureVersion, type RefreshAllDTO, type RefreshDTO, type StructureVersionDTO, type StructureVersionSummaryDTO } from './structure'
 import type { Structure_Deps } from './structure.deps'
 import { StructureVersion_Repository } from './structure.repository'
 import { registerStructureRoutes } from './structure.routes'
+import { registerStructureWorkers } from './structure.workers'
 
 /**
  * What each application is made of: read from it, and kept as a new version each time
@@ -17,14 +18,18 @@ export class Structure_Module extends Module {
   static initialize(base: MonitorBase, deps: Structure_Deps): Structure_Module {
     const module = new Structure_Module(base, new StructureVersion_Repository(base), deps)
     registerStructureRoutes(base, module)
+    registerStructureWorkers(module, deps)
     return module
   }
 
   readonly events
+  /** Every hour, on the hour: every application watched is refreshed. */
+  readonly hourly
 
   private constructor(base: MonitorBase, private readonly repo: StructureVersion_Repository, private readonly deps: Structure_Deps) {
     super('structure', base.invocations, deps)
     this.events = eventsOf(base.bus, { changed: Structure_Changed })
+    this.hourly = base.schedules.define('structure.hourly', '0 * * * *')
   }
 
   /**
@@ -35,8 +40,10 @@ export class Structure_Module extends Module {
   // call, which every call makes, not a change of the connection this use case decides.
   @UseCase({ writesTo: ['connection'] })
   async refresh(appId: string): Promise<RefreshDTO> {
-    const read = await this.deps.connection.fetchStructure(appId)
+    const app = await this.deps.app.get(appId)
     const previous = await this.repo.latest(appId)
+    if (app.archivedAt !== null) return { appId, outcome: 'archived', version: previous?.summary() ?? null }
+    const read = await this.deps.connection.fetchStructure(appId)
     if (!read.answered) return { appId, outcome: 'unreachable', version: previous?.summary() ?? null, failure: read.failure }
 
     const hash = hashOf(read.value)
@@ -44,6 +51,17 @@ export class Structure_Module extends Module {
     const version = StructureVersion.take(appId, read.value, hash, previous)
     await this.repo.persistAfter(version, previous)
     return { appId, outcome: 'changed', version: version.summary() }
+  }
+
+  /**
+   * Refreshes every application watched, one after another: one that does not answer
+   * is recorded so, and the others go on.
+   */
+  @UseCase({ writesTo: ['connection'] })
+  async refreshAll(): Promise<RefreshAllDTO> {
+    const refreshed: RefreshDTO[] = []
+    for (const appId of await this.deps.app.watchedIds()) refreshed.push(await this.refresh(appId))
+    return { refreshed }
   }
 
   /** Its last version, whole. */

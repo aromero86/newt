@@ -178,4 +178,4 @@ bun test packages/newt-monitor
 - A write into another module outside a worker says so, `writesTo`, and why.
 - What both sides of a wire share is a contract: `newt/contract`, for a browser too.
 
-Next: every hour, and a button.
+Next: [every hour, and a button](./09-every-hour-and-a-button).

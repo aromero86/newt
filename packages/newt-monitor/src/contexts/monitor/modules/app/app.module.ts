@@ -98,6 +98,16 @@ export class App_Module extends Module {
   }
 
   /**
+   * The ids of every application watched (not archived), for whatever goes through
+   * them all, as the hourly refresh does. Whole, not a page: the applications one
+   * monitor watches are counted in tens, by hand.
+   */
+  @UseCase()
+  async watchedIds(): Promise<string[]> {
+    return (await this.repo.find({ archivedAt: null })).map(app => app.id)
+  }
+
+  /**
    * Where an application is, and its key, opened: for the module that signs its
    * requests (`connection`). No route answers it.
    */
