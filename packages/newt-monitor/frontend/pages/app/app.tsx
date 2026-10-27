@@ -10,6 +10,8 @@ import { AppContexts } from './app-contexts/app-contexts'
 import { AppEvent } from './app-event/app-event'
 import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
+import { AppQueue } from './app-queue/app-queue'
+import { AppQueues } from './app-queues/app-queues'
 import { AppSettings } from './app-settings/app-settings'
 import { AppUseCase } from './app-use-case/app-use-case'
 import { AppUseCases } from './app-use-cases/app-use-cases'
@@ -49,6 +51,8 @@ function AppWrapped() {
           <Route path="use-cases/:context/:useCase" element={<AppUseCase app={app} />} />
           <Route path="events" element={<AppEvents app={app} />} />
           <Route path="events/:context/:event" element={<AppEvent app={app} />} />
+          <Route path="queues" element={<AppQueues app={app} />} />
+          <Route path="queues/:context/:queue" element={<AppQueue app={app} />} />
           <Route path="versions/*" element={<AppVersions app={app} />} />
           <Route path="settings" element={<AppSettings app={app} />} />
           <Route path="*" element={<NotFound />} />
