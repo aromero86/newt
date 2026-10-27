@@ -29,9 +29,9 @@ export type BaseOptions<S extends Store> = {
    */
   guardRule?: GuardRule
   /**
-   * Where it counts its events for whoever monitors it: its own memory by default (one
-   * instance); `RedisEventMetrics` when several instances share the work. Counting
-   * starts once `serveMonitor` serves it. Contexts may share one.
+   * Where it counts its events for whoever monitors it: the application's
+   * (`setEventMetrics`), else its own memory (one instance); `RedisEventMetrics` when
+   * several instances share the work. Counting starts once `serveMonitor` serves it.
    */
   metrics?: EventMetrics
 }

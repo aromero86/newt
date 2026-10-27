@@ -140,6 +140,11 @@ export const config = {
    */
   monitor: {
     key: env.COOPER_MONITOR_KEY,
+    /**
+     * `COOPER_REDIS_URL`: the Redis every instance of cooper shares, for its metrics
+     * and the monitor's nonces. None for one instance: each counts in its memory.
+     */
+    redisUrl: env.COOPER_REDIS_URL,
     /** `COOPER_MONITOR_PORT`: 3010. */
     port: Number(env.COOPER_MONITOR_PORT ?? 3010),
     /** `COOPER_MONITOR_HOSTNAME`: this machine only, unless told; the image says `0.0.0.0`, for the monitor's container. */

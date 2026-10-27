@@ -7,6 +7,7 @@ import { withId } from './events/with-id'
 import { JobQueue } from './jobs/job-queue'
 import type { EventMetrics } from './metrics/event-metrics'
 import { MemoryEventMetrics } from './metrics/memory-event-metrics'
+import { applicationMetrics } from './metrics/set-event-metrics'
 import { Schedules } from './schedules/schedules'
 
 /**
@@ -39,7 +40,7 @@ export class Base<S extends Store = Store> {
     const clock = options.clock ?? systemClock
     this.name = options.name
     this.store = options.store
-    this.metrics = options.metrics ?? new MemoryEventMetrics()
+    this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryEventMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     const memory = new InMemoryEventBus()
     const { registry } = this.invocations
@@ -76,7 +77,9 @@ export class Base<S extends Store = Store> {
     this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, clock, this.schedules)
   }
 
-  close(): Promise<void> {
-    return this.store.close()
+  /** Closes its store, and its metrics: what they had not added yet is added before. */
+  async close(): Promise<void> {
+    await this.metrics.close()
+    await this.store.close()
   }
 }

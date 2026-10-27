@@ -355,4 +355,4 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/contract` | `EventCount`, `EventCounts` |
 | `newt/core` | `DefineScopeOptions` |
 | `newt/monitor` | `MemoryNonces`, `NonceStore`, `RedisNonces` |
-| `newt/runtime` | `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |
+| `newt/runtime` | `setEventMetrics`, `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |

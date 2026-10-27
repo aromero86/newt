@@ -356,4 +356,4 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `newt/contract` | `EventCount`, `EventCounts` |
 | `newt/core` | `DefineScopeOptions` |
 | `newt/monitor` | `MemoryNonces`, `NonceStore`, `RedisNonces` |
-| `newt/runtime` | `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |
+| `newt/runtime` | `setEventMetrics`, `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |
