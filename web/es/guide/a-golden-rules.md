@@ -27,6 +27,7 @@ mantiene ordenado.
 - El `*.schema.ts` de un módulo es su contrato: los esquemas de entrada toman solo lo que envía un cliente, y reutilizan las reglas del esquema completo; de newt toma solo `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - Un objeto de valor guarda las reglas de un valor en un solo sitio: `from` perdona lo que alguien escribió, `schema` es estricto con lo que se guarda. ([2](./02-first-module))
 - Un módulo llega a otro solo a través de su módulo, su esquema, sus eventos, sus errores y sus objetos de valor (`newt/module-boundaries`). ([6](./06-rules-over-rows))
+- Un módulo pasa todas sus deps a `super`, también las que solo usan sus rutas o sus workers: así sabe la aplicación de qué depende cada módulo. ([2](./02-first-module), [4](./04-who-and-where))
 - Un módulo comprueba sus referencias llamando a los casos de uso del otro módulo, nunca a sus tablas. ([7](./07-cards-and-a-counter))
 
 ## Casos de uso
@@ -81,8 +82,9 @@ mantiene ordenado.
 
 ## Contextos
 
-- Lo que un contexto necesita de otro es un puerto en sus propias palabras, en el `.deps.ts` del módulo; un test le da un falso. ([4](./04-who-and-where), [13](./13-another-context))
-- Un contexto recibe puertos y un `Pick` de los módulos del otro, nunca su contexto, su base ni su store. ([20](./20-wiring-contexts))
+- Los módulos de otro contexto son deps igual que los del propio, agrupados bajo su nombre (`auth: { access: Access_Module }`); nunca un puerto de funciones sobre sus casos de uso, que esconde la dependencia al lint, a newt-graph y a `describeApplication`. ([20](./20-wiring-contexts))
+- Un puerto con las propias palabras del módulo es para lo que no es un módulo de la aplicación (un mailer, una búsqueda), o un sustituto, al que responde un falso, de un contexto aún no construido. ([4](./04-who-and-where), [12](./12-failures), [16](./16-search-port))
+- Un contexto recibe un `Pick` de los módulos del otro, nunca su contexto, su base ni su store; un test de él solo le da módulos falsos. ([20](./20-wiring-contexts))
 - Una suscripción al emisor de otro contexto es un job del outbox de ese contexto, ejecutado por su worker. ([20](./20-wiring-contexts))
 - Las escrituras en otro contexto empiezan en un punto de entrada (una ruta); una llamada a otro contexto es como una API externa. ([20](./20-wiring-contexts))
 - Un contexto que lee dos los lee a través de sus casos de uso, nunca de sus stores. ([25](./25-backoffice))

@@ -17,7 +17,7 @@ En este capítulo los tableros pasan a `/api/workspaces/:workspaceId/…`. Un mi
 entra; cualquier otro recibe un 404, como si el espacio no existiera. A qué espacio
 pertenece cada persona es asunto de `auth`, y todavía no hay `auth` (llega en el
 capítulo 17). Así que `boards` pregunta a través de un **puerto** propio, y por ahora
-lo responde un falso.
+lo responde un falso, hasta que haya un auth al que preguntar.
 
 Hacemos esto antes de pasar a SQLite (capítulo 5) a propósito: el tablero gana un
 campo, y con ficheros eso no necesita ninguna migración.
@@ -80,9 +80,13 @@ lo usa en el capítulo 21.
 ## Un puerto: lo que boards le pide a auth
 
 `boards` tiene que saber si alguien pertenece a un espacio de trabajo. La respuesta
-vive en otro contexto. Un módulo de `boards` no debe importar el código de `auth`, así
-que dice lo que necesita **con sus propias palabras**, como un tipo, y quien abre el
-contexto le da una implementación. Eso es un puerto.
+vive en otro contexto, `auth`, que aún no está escrito. Así que `boards` dice lo que
+necesita **con sus propias palabras**, como un tipo, y quien abre el contexto le da una
+implementación: por ahora, un falso. Eso es un puerto.
+
+Es un sustituto de un contexto que todavía no existe. Cuando se conecte auth
+([capítulo 20](./20-wiring-contexts)), `member` recibirá los módulos de auth mismos,
+como un módulo recibe los de su propio contexto, y el puerto desaparecerá.
 
 El módulo `member` es su dueño. Su fichero `.deps.ts` dice lo que recibe el módulo:
 
@@ -212,7 +216,7 @@ export class Member_Module extends Module {
   }
 
   private constructor(base: BoardsBase, private readonly deps: Member_Deps) {
-    super('member', base.invocations)
+    super('member', base.invocations, deps)
   }
 
   /**
@@ -403,11 +407,22 @@ clase dice dónde se ejecutan sus casos de uso:
 export class Board_Module extends Module {
 
   static initialize(base: BoardsBase, deps: Board_Deps): Board_Module {
-    const module = new Board_Module(base, new Board_Repository(base))
+    const module = new Board_Module(base, new Board_Repository(base), deps)
     registerBoardRoutes(base, module, deps)
     return module
   }
 // …
+```
+
+El módulo no guarda deps propias: solo sus rutas usan `member`. Aun así el constructor
+las recibe, solo para pasárselas a `super` ([capítulo 2](./02-first-module)): un
+módulo pasa todas sus deps, y así newt sabe de qué depende.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+  private constructor(base: BoardsBase, private readonly repo: Board_Repository, deps: Board_Deps) {
+    super('board', base.invocations, deps)
+  }
 ```
 
 `list`, `get`, `update` y `archive` no cambian en absoluto: el ámbito del repositorio
@@ -902,8 +917,10 @@ curl localhost:3002/api/workspaces/acme/boards
   así que ninguna consulta puede olvidar el filtro; mirar a través de los espacios de
   trabajo es `findInEveryScope`, detrás de un nombre que lo dice. Todo repositorio
   declara su ámbito (`RepositoryScope` o `'none'`): si no, no compila.
-- Lo que un contexto necesita de otro es un **puerto** con sus propias palabras, en el
-  `.deps.ts` del módulo, que se entrega al abrir el contexto. Un test le entrega un
-  falso.
+- Lo que un contexto necesita de otro que aún no está construido es un **puerto** con
+  sus propias palabras, en el `.deps.ts` del módulo, que se entrega al abrir el
+  contexto y responde un falso. Cuando el otro contexto existe, sus módulos ocupan el
+  lugar del puerto (capítulo 20).
+- Un módulo que recibe deps se las pasa a `super`, también las que solo usan sus rutas.
 
 Siguiente: [De ficheros a SQLite](./05-sqlite).

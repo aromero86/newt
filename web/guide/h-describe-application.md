@@ -151,16 +151,19 @@ The ids are newt-graph's: a module's is `boards/card`, a use case's
 A dep is one of three kinds:
 
 - **`module`**: another module, of its context or another. `card`'s `board`,
-  `column` and `member`.
-- **`events`**: the events of another module, as a worker subscribes to them. `card`'s
-  `access` is `{ kind: 'events', target: 'auth/access', events: ['access.granted',
-  'access.revoked'] }`.
-- **`port`**: anything else, an object in the module's own words. boards' `member`
-  depends on `workspaces`, a port; whose it is (auth's, wired in `open-contexts.ts`)
-  the description cannot tell, so its `target` is null.
+  `column` and `member`, and auth's access module, `{ name: 'auth.access', kind:
+  'module', target: 'auth/access' }`.
+- **`events`**: the events of a module handed alone (`orders: order.events`), as a
+  worker subscribes to them: `{ kind: 'events', target: 'shop/order', events:
+  ['order.placed'] }`. cooper hands the modules themselves, so it has none.
+- **`port`**: anything else, an object in the module's own words: a mailer, a search,
+  a payment provider. Whose it is the description cannot tell, so its `target` is
+  null. That is why another context's modules are handed as they are, never wrapped
+  in a port of functions ([chapter 20](./20-wiring-contexts)): wrapped, the
+  dependency would be a port with no target.
 
-An object of deps is looked into, its keys joined: boards' `workspace` depends on
-`auth.token`, `auth.user`…
+An object of deps is looked into, its keys joined: boards' `member` depends on
+`auth.access`, `auth.tenant` and `auth.user`.
 
 ## What it cannot tell
 

@@ -124,7 +124,7 @@ export class Workspace_Module extends Module {
   }
 
   private constructor(base: BoardsBase, private readonly deps: Workspace_Deps) {
-    super('workspace', base.invocations)
+    super('workspace', base.invocations, deps)
   }
 
   /** A board, its columns and its cards, in the current workspace: one screen. */

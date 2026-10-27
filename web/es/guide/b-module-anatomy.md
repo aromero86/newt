@@ -16,7 +16,7 @@ que da.
 | `<m>.module.ts` | `<M>_Module`: sus casos de uso (`@UseCase`: todo método público es uno, los demás son `private`), sus `events` (`eventsOf(base.bus, { … })`), y `static initialize`, que construye el repositorio y registra rutas y workers. Su constructor pasa todas sus deps a `super`, también las que solo usan sus rutas o sus workers, para que la aplicación sepa de qué depende. | [2](./02-first-module), [10](./10-events), [H](./h-describe-application) |
 | `<m>.routes.ts` | Sus rutas, si tiene alguna: leen la petición, llaman a un caso de uso con el cuerpo tal como llegó (`await request.json()`), responden. | [2](./02-first-module) |
 | `<m>.workers.ts` | Sus reacciones a eventos y programaciones (`….subscribe(…, { strategy: 'handler', queue })`), si tiene alguna. | [11](./11-reacting) |
-| `<m>.deps.ts` | `<M>_Deps`: los módulos de su contexto a los que llama, y los puertos que necesita de fuera de su contexto, importados como tipos. | [4](./04-who-and-where), [13](./13-another-context) |
+| `<m>.deps.ts` | `<M>_Deps`: los módulos que usa, de su contexto o de otro (agrupados bajo el nombre de ese contexto, `auth: { … }`), y los puertos para lo que no es un módulo de la aplicación (un mailer, una búsqueda), importados como tipos. El módulo se los pasa todos a `super`. | [4](./04-who-and-where), [13](./13-another-context), [20](./20-wiring-contexts) |
 | `<m>-options.ts` | `<M>_Options`: con qué lo configura su contexto (un mailer, una URL, un número de días, un adaptador). | [7](./07-cards-and-a-counter), [12](./12-failures) |
 | `events/<m>-<verbo>.ts` | Un evento por archivo, su clase llamada `<M>_<Verbo>`. | [10](./10-events) |
 | `errors/<error>.ts` | Un error por archivo, con un `code` estable; su clase base decide el estado. | [2](./02-first-module), [3](./03-pages-and-errors) |
@@ -35,7 +35,7 @@ cooper/backend/contexts/boards/modules/card/
   card.routes.ts       under /workspaces/:workspaceId: /boards/:boardId/cards, /cards/…
   card.workers.ts      notify the assignee, index each card, leave a removed column,
                        unassign someone whose access was revoked
-  card.deps.ts         board, column, member, and auth's access events (a port)
+  card.deps.ts         board, column, member, and auth's access module (under auth)
   card-options.ts      the mailer, boards' public URL, the card search
   card.test.ts
   events/              card-created.ts, card-edited.ts, card-moved.ts, card-assigned.ts,
@@ -295,8 +295,10 @@ import { Staff_Module } from '../../../backoffice/modules/staff/staff.module'
   3:30  error  '../../../backoffice/modules/staff/staff.module' is the context backoffice's, and boards uses auth: contexts use only the ones they say, never in a cycle  newt/context-boundaries
 ```
 
-Arreglo: lo que boards necesita del backoffice va al revés, o a través de un puerto en
-las propias palabras de boards ([capítulo 20](./20-wiring-contexts)).
+Arreglo: la dependencia va al revés. El backoffice usa boards; lo que boards tenga que
+contarle, boards lo cuenta como un evento al que se suscribe el backoffice. Un puerto de
+funciones conectado a los casos de uso del backoffice solo le escondería el ciclo al
+lint ([capítulo 20](./20-wiring-contexts)).
 
 El propio `uses` se comprueba al construir el preset, antes de pasar el lint a ningún
 archivo. Cada error lanza una excepción, y `bun run lint` se detiene con ella:

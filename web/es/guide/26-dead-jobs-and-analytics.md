@@ -169,7 +169,7 @@ export class Job_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Job_Deps) {
-    super('job', base.invocations)
+    super('job', base.invocations, deps)
   }
 
   /** A page of a context's dead jobs, the newest first. */
@@ -564,19 +564,23 @@ rutas:
 ```ts
 // cooper/backend/contexts/backoffice/modules/metric/metric.deps.ts
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
-import type { User_Module as AuthUser_Module } from '../../../auth/modules/user/user.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 import type { Card_Module } from '../../../boards/modules/card/card.module'
 import type { Staff_Module } from '../staff/staff.module'
 
 /** The modules whose events the metrics count, in auth and boards; and the staff, for the routes. */
 export interface Metric_Deps {
   staff: Staff_Module
-  /** `card.created`. */
-  card: Card_Module
-  /** `tenant.created`: a new workspace. */
-  tenant: Tenant_Module
-  /** `user.signedUp`. */
-  user: AuthUser_Module
+  auth: {
+    /** `tenant.created`: a new workspace. */
+    tenant: Tenant_Module
+    /** `user.signedUp`. */
+    user: User_Module
+  }
+  boards: {
+    /** `card.created`. */
+    card: Card_Module
+  }
 }
 ```
 
@@ -597,15 +601,15 @@ import type { Metric_Module } from './metric.module'
  * counts once.
  */
 export function registerMetricWorkers(metrics: Metric_Module, deps: Metric_Deps): void {
-  deps.card.events.created.subscribe(card => metrics.recordCard(card), {
+  deps.boards.card.events.created.subscribe(card => metrics.recordCard(card), {
     strategy: 'handler',
     queue: 'metric.recordCard.on.card.created',
   })
-  deps.tenant.events.created.subscribe(tenant => metrics.recordWorkspace(tenant), {
+  deps.auth.tenant.events.created.subscribe(tenant => metrics.recordWorkspace(tenant), {
     strategy: 'handler',
     queue: 'metric.recordWorkspace.on.tenant.created',
   })
-  deps.user.events.signedUp.subscribe(user => metrics.recordSignUp(user), {
+  deps.auth.user.events.signedUp.subscribe(user => metrics.recordSignUp(user), {
     strategy: 'handler',
     queue: 'metric.recordSignUp.on.user.signedUp',
   })
@@ -658,14 +662,14 @@ const dayOf = (iso: string) => iso.slice(0, 10)
 export class Metric_Module extends Module {
 
   static initialize(base: CooperBase, deps: Metric_Deps, options: Metric_Options): Metric_Module {
-    const module = new Metric_Module(base, options)
+    const module = new Metric_Module(base, deps, options)
     registerMetricRoutes(base, module, deps)
     registerMetricWorkers(module, deps)
     return module
   }
 
-  private constructor(base: CooperBase, private readonly options: Metric_Options) {
-    super('metric', base.invocations)
+  private constructor(base: CooperBase, deps: Metric_Deps, private readonly options: Metric_Options) {
+    super('metric', base.invocations, deps)
   }
 
   /** A card was made, in a board of a workspace. */
@@ -716,6 +720,9 @@ export class Metric_Module extends Module {
 }
 ```
 
+- **Su constructor recibe `deps` solo para pasárselas a `super`**: el módulo no guarda
+  ninguna, las usan sus rutas y sus workers, como las de board
+  ([capítulo 4](./04-who-and-where)).
 - **`recordCard`, `recordWorkspace`, `recordSignUp`** añaden una fila cada uno, cuyo id es
   el id de lo que cuenta. Un worker que se ejecuta dos veces añade el mismo id dos veces, y
   el segundo se deja fuera. La fila guarda el día en que ocurrió, del `createdAt` de la
@@ -831,7 +838,7 @@ const METRIC_DAYS = 30
 export function initializeModules(base: CooperBase, config: Backoffice_Config, deps: Backoffice_ModuleDeps) {
   const { auth, boards } = deps
 
-  const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: PRODUCTS.backoffice })
+  const staff = Staff_Module.initialize(base, { auth: { user: auth.user, access: auth.access } }, { productId: PRODUCTS.backoffice })
   const session = WebSession_Module.initialize(base, {
     context: 'backoffice',
     clientId: PRODUCTS.backoffice,
@@ -844,9 +851,9 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
     // an access taken away since signing in, gets a 403.
     profile: async () => ({ user: await staff.me() }),
   })
-  const user = User_Module.initialize(base, { staff, user: auth.user, access: auth.access, tenant: auth.tenant }, { workspacesProduct: WORKSPACES_PRODUCT })
-  const workspace = Workspace_Module.initialize(base, { staff, tenant: auth.tenant, access: auth.access, user: auth.user, board: boards.board, card: boards.card })
-  const metric = Metric_Module.initialize(base, { staff, card: boards.card, tenant: auth.tenant, user: auth.user }, {
+  const user = User_Module.initialize(base, { staff, auth: { user: auth.user, access: auth.access, tenant: auth.tenant } }, { workspacesProduct: WORKSPACES_PRODUCT })
+  const workspace = Workspace_Module.initialize(base, { staff, auth: { tenant: auth.tenant, access: auth.access, user: auth.user }, boards: { board: boards.board, card: boards.card } })
+  const metric = Metric_Module.initialize(base, { staff, auth: { tenant: auth.tenant, user: auth.user }, boards: { card: boards.card } }, {
     analytics: new SqlAnalytics(base.store),
     days: METRIC_DAYS,
   })

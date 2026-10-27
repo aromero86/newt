@@ -392,6 +392,11 @@ export class Board_Module extends Module {
   in queue names. Every public method of a module is a use case: one without
   `@UseCase()` is a lint error (`newt/use-case`), and what is not a use case is
   `private`, as `load` is.
+- **A module given deps passes them to `super` too**, as a third argument:
+  `super('board', base.invocations, deps)`. board has none yet; it gets its first in
+  [chapter 4](./04-who-and-where). newt keeps them in the context's registry, so the
+  running application can tell what each module depends on
+  ([appendix H](./h-describe-application)).
 - **The input is `unknown`.** `create` and `update` take whatever they are handed and
   parse it: `BoardCreateSchema.parse(input)` is what gives it a type. A route, a test
   or another context can pass anything; the use case is the one that checks.

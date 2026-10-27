@@ -15,7 +15,7 @@ what each holds, then every rule of `newt-eslint`, with the error each one gives
 | `<m>.module.ts` | `<M>_Module`: its use cases (`@UseCase`: every public method is one, the rest are `private`), its `events` (`eventsOf(base.bus, { … })`), and `static initialize`, which builds the repository and registers routes and workers. Its constructor passes all of its deps to `super`, those only its routes or workers use too, so the application knows what it depends on. | [2](./02-first-module), [10](./10-events), [H](./h-describe-application) |
 | `<m>.routes.ts` | Its routes, if it has any: read the request, call a use case with the body as it came (`await request.json()`), answer. | [2](./02-first-module) |
 | `<m>.workers.ts` | Its reactions to events and schedules (`….subscribe(…, { strategy: 'handler', queue })`), if it has any. | [11](./11-reacting) |
-| `<m>.deps.ts` | `<M>_Deps`: the modules of its context it calls, and the ports it needs from outside its context, imported as types. | [4](./04-who-and-where), [13](./13-another-context) |
+| `<m>.deps.ts` | `<M>_Deps`: the modules it uses, of its context or of another (grouped under that context's name, `auth: { … }`), and the ports for what is no module of the application (a mailer, a search), imported as types. The module passes them all to `super`. | [4](./04-who-and-where), [13](./13-another-context), [20](./20-wiring-contexts) |
 | `<m>-options.ts` | `<M>_Options`: what its context configures it with (a mailer, a URL, a number of days, an adapter). | [7](./07-cards-and-a-counter), [12](./12-failures) |
 | `events/<m>-<verb>.ts` | One event per file, its class named `<M>_<Verb>`. | [10](./10-events) |
 | `errors/<error>.ts` | One error per file, with a stable `code`; its base class decides the status. | [2](./02-first-module), [3](./03-pages-and-errors) |
@@ -34,7 +34,7 @@ cooper/backend/contexts/boards/modules/card/
   card.routes.ts       under /workspaces/:workspaceId: /boards/:boardId/cards, /cards/…
   card.workers.ts      notify the assignee, index each card, leave a removed column,
                        unassign someone whose access was revoked
-  card.deps.ts         board, column, member, and auth's access events (a port)
+  card.deps.ts         board, column, member, and auth's access module (under auth)
   card-options.ts      the mailer, boards' public URL, the card search
   card.test.ts
   events/              card-created.ts, card-edited.ts, card-moved.ts, card-assigned.ts,
@@ -290,8 +290,10 @@ import { Staff_Module } from '../../../backoffice/modules/staff/staff.module'
   3:30  error  '../../../backoffice/modules/staff/staff.module' is the context backoffice's, and boards uses auth: contexts use only the ones they say, never in a cycle  newt/context-boundaries
 ```
 
-Fix: what boards needs of the backoffice goes the other way round, or through a port in
-boards' own words ([chapter 20](./20-wiring-contexts)).
+Fix: the dependency goes the other way round. The backoffice uses boards; what boards
+has to tell it, boards tells as an event the backoffice subscribes to. A port of
+functions wired to the backoffice's use cases would only hide the cycle from the lint
+([chapter 20](./20-wiring-contexts)).
 
 `uses` itself is checked when the preset is built, before any file is linted. Each
 mistake throws, and `bun run lint` stops with it:

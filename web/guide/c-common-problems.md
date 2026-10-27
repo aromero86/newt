@@ -80,6 +80,20 @@ transaction while the backend runs, for example. It is not retried. Keep the scr
 transactions short; with several processes writing at once, move to Postgres
 ([chapter 27](./27-postgres)).
 
+## Depending on another context
+
+**"auth.tenant.list is not in boards' own tests: cooper.test.ts runs it on the real auth"**
+A test of boards alone reached a use case of auth that `FakeAuth`'s fake modules do
+not have. Test that path in `cooper.test.ts`, on the real auth; or, if boards' own
+rules need it, give the fake module that use case ([chapter 20](./20-wiring-contexts)).
+
+**newt-graph or `describeApplication` shows a module depending on nothing, or on a port with no target.**
+The module passed no deps to `super`, or it was given another context's use cases
+wrapped in a port of functions. Pass every dep: `super('card', base.invocations, deps)`,
+and hand the other context's modules themselves, under its name (`auth: { access }`)
+([chapter 2](./02-first-module), [chapter 20](./20-wiring-contexts),
+[appendix H](./h-describe-application)).
+
 ## The write rule
 
 **"[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo"**

@@ -180,25 +180,28 @@ export type Staff_Options = {
 }
 ```
 
-Sus deps son dos módulos de auth, por sus clases, como el módulo workspace de boards
-nombraba los de auth en el [capítulo 20](./20-wiring-contexts):
+Sus deps son dos módulos de auth, por sus clases, agrupados bajo `auth`, como los módulos
+de boards agrupan los de auth desde el [capítulo 20](./20-wiring-contexts):
 
 ```ts
 // cooper/backend/contexts/backoffice/modules/staff/staff.deps.ts
 import type { Access_Module } from '../../../auth/modules/access/access.module'
-import type { User_Module as AuthUser_Module } from '../../../auth/modules/user/user.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 
 /** auth's modules, called through their use cases: auth keeps who the staff are. */
 export interface Staff_Deps {
-  /** The accounts: who someone of the staff is, and whose an email is. */
-  user: AuthUser_Module
-  /** Who may enter the backoffice, asked every time; and giving or taking that away. */
-  access: Access_Module
+  auth: {
+    /** The accounts: who someone of the staff is, and whose an email is. */
+    user: User_Module
+    /** Who may enter the backoffice, asked every time; and giving or taking that away. */
+    access: Access_Module
+  }
 }
 ```
 
-El backoffice tiene un módulo `user` propio (más abajo), así que el de auth se importa como
-`AuthUser_Module`.
+El backoffice tiene un módulo `user` propio (más abajo). Bajo `auth` no hay duda de cuál
+es cuál: el de auth es `this.deps.auth.user`. Cada módulo del backoffice agrupa igual lo
+que usa de los otros contextos, `auth: { … }` y `boards: { … }`.
 
 ### Sus formas
 
@@ -333,7 +336,7 @@ export class Staff_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Staff_Deps, private readonly options: Staff_Options) {
-    super('staff', base.invocations)
+    super('staff', base.invocations, deps)
   }
 
   /**
@@ -349,19 +352,19 @@ export class Staff_Module extends Module {
   @UseCase()
   async me(): Promise<UserDTO> {
     await this.enter()
-    return this.deps.user.get(currentActor().userId)
+    return this.deps.auth.user.get(currentActor().userId)
   }
 
   @UseCase()
   async isStaff(userId: string): Promise<boolean> {
-    return (await this.deps.access.check(userId, this.options.productId, null)) !== null
+    return (await this.deps.auth.access.check(userId, this.options.productId, null)) !== null
   }
 
   /** The staff, the oldest first. */
   @UseCase()
   async list(page: PageRequest): Promise<Page<StaffMemberDTO>> {
-    const accesses = await this.deps.access.listForProduct(this.options.productId, page)
-    const users = new Map((await this.deps.user.getMany(accesses.items.map(access => access.userId))).map(user => [user.id, user]))
+    const accesses = await this.deps.auth.access.listForProduct(this.options.productId, page)
+    const users = new Map((await this.deps.auth.user.getMany(accesses.items.map(access => access.userId))).map(user => [user.id, user]))
     return mapPage(accesses, access => {
       const user = users.get(access.userId)
       return user && { id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }
@@ -375,9 +378,9 @@ export class Staff_Module extends Module {
   @UseCase()
   async grant(input: unknown): Promise<StaffMemberDTO> {
     const { email } = StaffGrantSchema.parse(input)
-    const user = await this.deps.user.findByEmail(email)
+    const user = await this.deps.auth.user.findByEmail(email)
     if (!user) throw new StaffAccountNotFound(email)
-    const access = await this.deps.access.grant({ userId: user.id, productId: this.options.productId, tenantId: null })
+    const access = await this.deps.auth.access.grant({ userId: user.id, productId: this.options.productId, tenantId: null })
     return { id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }
   }
 
@@ -385,7 +388,7 @@ export class Staff_Module extends Module {
   @UseCase()
   async revoke(userId: string): Promise<void> {
     if (userId === currentActor().userId) throw new OwnAccessNotRevocable()
-    await this.deps.access.revoke({ userId, productId: this.options.productId, tenantId: null })
+    await this.deps.auth.access.revoke({ userId, productId: this.options.productId, tenantId: null })
   }
 }
 ```
@@ -451,18 +454,20 @@ export type User_Options = {
 // cooper/backend/contexts/backoffice/modules/user/user.deps.ts
 import type { Access_Module } from '../../../auth/modules/access/access.module'
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
-import type { User_Module as AuthUser_Module } from '../../../auth/modules/user/user.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 import type { Staff_Module } from '../staff/staff.module'
 
 export interface User_Deps {
   /** That who asks is of the staff, before any route answers; and whether an account is. */
   staff: Staff_Module
-  /** auth's accounts, which this module shows: it keeps none. */
-  user: AuthUser_Module
-  /** The workspaces someone may enter. */
-  access: Access_Module
-  /** Those workspaces' names. */
-  tenant: Tenant_Module
+  auth: {
+    /** auth's accounts, which this module shows: it keeps none. */
+    user: User_Module
+    /** The workspaces someone may enter. */
+    access: Access_Module
+    /** Those workspaces' names. */
+    tenant: Tenant_Module
+  }
 }
 ```
 
@@ -564,7 +569,7 @@ export class User_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: User_Deps, private readonly options: User_Options) {
-    super('user', base.invocations)
+    super('user', base.invocations, deps)
   }
 
   /** Every account, the newest first, each saying whether it is staff; with a text, those whose email or name it is. */
@@ -574,7 +579,7 @@ export class User_Module extends Module {
     const filter: UserFilterDTO | undefined = text
       ? { or: [{ field: 'email', op: 'ieq', value: text }, { field: 'name', op: 'ieq', value: text }] }
       : undefined
-    const users = await this.deps.user.list(filter, page)
+    const users = await this.deps.auth.user.list(filter, page)
     // One question to auth per account of the page: a page is short, and auth says it fresh.
     const items = await Promise.all(users.items.map(async user => ({ ...user, staff: await this.deps.staff.isStaff(user.id) })))
     return { ...users, items }
@@ -582,10 +587,10 @@ export class User_Module extends Module {
 
   @UseCase()
   async get(userId: string): Promise<UserDetailDTO> {
-    const user = await this.deps.user.get(userId)
+    const user = await this.deps.auth.user.get(userId)
     const [staff, workspaces] = await Promise.all([
       this.deps.staff.isStaff(userId),
-      this.deps.access.listForUser(userId, { size: 1 }, this.options.workspacesProduct),
+      this.deps.auth.access.listForUser(userId, { size: 1 }, this.options.workspacesProduct),
     ])
     return { ...user, staff, workspaces: workspaces.total }
   }
@@ -593,9 +598,9 @@ export class User_Module extends Module {
   /** The workspaces someone belongs to, the ones they joined last first, with their role in each. */
   @UseCase()
   async workspaces(userId: string, page: PageRequest): Promise<Page<UserWorkspaceDTO>> {
-    await this.deps.user.get(userId)
-    const accesses = await this.deps.access.listForUser(userId, page, this.options.workspacesProduct)
-    const tenants = new Map((await this.deps.tenant.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
+    await this.deps.auth.user.get(userId)
+    const accesses = await this.deps.auth.access.listForUser(userId, page, this.options.workspacesProduct)
+    const tenants = new Map((await this.deps.auth.tenant.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
     // A workspace deleted a moment ago, whose accesses are not taken away yet, is left out.
     return mapPage(accesses, access => {
       const tenant = tenants.get(access.tenantId ?? '')
@@ -631,7 +636,7 @@ deps listan los módulos que sí:
 // cooper/backend/contexts/backoffice/modules/workspace/workspace.deps.ts
 import type { Access_Module } from '../../../auth/modules/access/access.module'
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
-import type { User_Module as AuthUser_Module } from '../../../auth/modules/user/user.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 import type { Board_Module } from '../../../boards/modules/board/board.module'
 import type { Card_Module } from '../../../boards/modules/card/card.module'
 import type { Staff_Module } from '../staff/staff.module'
@@ -644,12 +649,16 @@ import type { Staff_Module } from '../staff/staff.module'
 export interface Workspace_Deps {
   /** That who asks is of the staff, before any route answers. */
   staff: Staff_Module
-  tenant: Tenant_Module
-  access: Access_Module
-  user: AuthUser_Module
-  board: Board_Module
-  /** How many cards each workspace and board has: Kysely's counts, in boards. */
-  card: Card_Module
+  auth: {
+    tenant: Tenant_Module
+    access: Access_Module
+    user: User_Module
+  }
+  boards: {
+    board: Board_Module
+    /** How many cards each workspace and board has: Kysely's counts, in boards. */
+    card: Card_Module
+  }
 }
 ```
 
@@ -777,7 +786,7 @@ export class Workspace_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Workspace_Deps) {
-    super('workspace', base.invocations)
+    super('workspace', base.invocations, deps)
   }
 
   /** Every workspace, the newest first; with a name, those with it. With its admin and its cards. */
@@ -785,17 +794,17 @@ export class Workspace_Module extends Module {
   async list(input: WorkspaceSearchDTO, page: PageRequest): Promise<Page<WorkspaceSummaryDTO>> {
     const { name } = WorkspaceSearchSchema.parse(input)
     const filter: TenantFilterDTO | undefined = name ? { field: 'name', op: 'ieq', value: name } : undefined
-    const found = await this.deps.tenant.list(filter, page)
+    const found = await this.deps.auth.tenant.list(filter, page)
     return { ...found, items: await this.summaries(found.items) }
   }
 
   @UseCase()
   async get(workspaceId: string): Promise<WorkspaceDetailDTO> {
-    const tenant = await this.deps.tenant.get(workspaceId)
+    const tenant = await this.deps.auth.tenant.get(workspaceId)
     const [[summary], members, boards] = await Promise.all([
       this.summaries([tenant]),
-      this.deps.access.listForTenant(workspaceId, { size: 1 }),
-      this.deps.board.listOf(workspaceId, { size: 1 }),
+      this.deps.auth.access.listForTenant(workspaceId, { size: 1 }),
+      this.deps.boards.board.listOf(workspaceId, { size: 1 }),
     ])
     return { ...summary!, members: members.total, boards: boards.total }
   }
@@ -803,8 +812,8 @@ export class Workspace_Module extends Module {
   /** Its members, the oldest first: its admin leads. */
   @UseCase()
   async members(workspaceId: string, page: PageRequest): Promise<Page<WorkspaceMemberDTO>> {
-    await this.deps.tenant.get(workspaceId)
-    const accesses = await this.deps.access.listForTenant(workspaceId, page)
+    await this.deps.auth.tenant.get(workspaceId)
+    const accesses = await this.deps.auth.access.listForTenant(workspaceId, page)
     const people = await this.people(accesses.items.map(access => access.userId))
     return mapPage(accesses, access => {
       const person = people.get(access.userId)
@@ -815,10 +824,10 @@ export class Workspace_Module extends Module {
   /** Its boards, the newest first, each with how many cards it has. */
   @UseCase()
   async boards(workspaceId: string, page: PageRequest): Promise<Page<WorkspaceBoardDTO>> {
-    await this.deps.tenant.get(workspaceId)
+    await this.deps.auth.tenant.get(workspaceId)
     const [boards, counts] = await Promise.all([
-      this.deps.board.listOf(workspaceId, page),
-      this.deps.card.countByBoard(workspaceId),
+      this.deps.boards.board.listOf(workspaceId, page),
+      this.deps.boards.card.countByBoard(workspaceId),
     ])
     const cards = new Map(counts.map(count => [count.boardId, count.cards]))
     return mapPage(boards, board => ({ id: board.id, name: board.name, description: board.description, createdAt: board.createdAt, cards: cards.get(board.id) ?? 0 }))
@@ -827,8 +836,8 @@ export class Workspace_Module extends Module {
   /** The boards created last across every workspace, each with its workspace's name: two calls. */
   @UseCase()
   async recentBoards(): Promise<RecentBoardDTO[]> {
-    const boards = await this.deps.board.recentInEveryWorkspace(RECENT_BOARDS)
-    const tenants = new Map((await this.deps.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
+    const boards = await this.deps.boards.board.recentInEveryWorkspace(RECENT_BOARDS)
+    const tenants = new Map((await this.deps.auth.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
     return boards.map(board => ({ id: board.id, name: board.name, workspaceId: board.workspaceId, createdAt: board.createdAt, workspaceName: tenants.get(board.workspaceId) ?? null }))
   }
 
@@ -836,7 +845,7 @@ export class Workspace_Module extends Module {
   private async summaries(tenants: TenantDTO[]): Promise<WorkspaceSummaryDTO[]> {
     const [admins, counts] = await Promise.all([
       this.people(tenants.map(tenant => tenant.createdBy)),
-      this.deps.card.countByWorkspace(tenants.map(tenant => tenant.id)),
+      this.deps.boards.card.countByWorkspace(tenants.map(tenant => tenant.id)),
     ])
     const cards = new Map(counts.map(count => [count.workspaceId, count.cards]))
     return tenants.map(tenant => ({
@@ -849,7 +858,7 @@ export class Workspace_Module extends Module {
   }
 
   private async people(userIds: string[]): Promise<Map<string, PersonDTO>> {
-    const users = await this.deps.user.getMany(userIds)
+    const users = await this.deps.auth.user.getMany(userIds)
     return new Map(users.map(user => [user.id, { id: user.id, name: user.name, email: user.email }]))
   }
 }
@@ -911,7 +920,7 @@ export type Backoffice_ModuleDeps = {
 export function initializeModules(base: CooperBase, config: Backoffice_Config, deps: Backoffice_ModuleDeps) {
   const { auth, boards } = deps
 
-  const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: PRODUCTS.backoffice })
+  const staff = Staff_Module.initialize(base, { auth: { user: auth.user, access: auth.access } }, { productId: PRODUCTS.backoffice })
   const session = WebSession_Module.initialize(base, {
     context: 'backoffice',
     clientId: PRODUCTS.backoffice,
@@ -924,8 +933,8 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
     // an access taken away since signing in, gets a 403.
     profile: async () => ({ user: await staff.me() }),
   })
-  const user = User_Module.initialize(base, { staff, user: auth.user, access: auth.access, tenant: auth.tenant }, { workspacesProduct: WORKSPACES_PRODUCT })
-  const workspace = Workspace_Module.initialize(base, { staff, tenant: auth.tenant, access: auth.access, user: auth.user, board: boards.board, card: boards.card })
+  const user = User_Module.initialize(base, { staff, auth: { user: auth.user, access: auth.access, tenant: auth.tenant } }, { workspacesProduct: WORKSPACES_PRODUCT })
+  const workspace = Workspace_Module.initialize(base, { staff, auth: { tenant: auth.tenant, access: auth.access, user: auth.user }, boards: { board: boards.board, card: boards.card } })
   return { session, staff, user, workspace }
 }
 
@@ -941,6 +950,11 @@ pasa `auth.modules` entero, y TypeScript lo acepta donde se pide un `Pick`; pero
 backoffice solo existen los módulos nombrados. No hay un `deps.auth.base.store` al que
 llegar, y quien revisa ve de un vistazo de qué módulos de auth depende el backoffice.
 Añadir uno es un cambio en este tipo, a la vista de todos.
+
+Luego cada módulo recibe solo los que usa, bajo el nombre de su contexto:
+`{ staff, auth: { user, access, tenant } }` para `user`, y además `boards: { board, card }`
+para `workspace`. Los módulos se los pasan a `super`, así que las dependencias del
+backoffice en auth y boards se ven tanto como las de boards en auth.
 
 ### Iniciar sesión al personal
 
@@ -1015,7 +1029,6 @@ haya uno. No sobrescribe ningún `routes()`: no tiene nada fuera de `/api`.
 ```ts
 // cooper/backend/open-contexts.ts
 import { Auth_Context } from './contexts/auth/auth.context'
-import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
 import { Backoffice_Context } from './contexts/backoffice/backoffice.context'
 import { Boards_Context } from './contexts/boards/boards.context'
 ```
@@ -1035,7 +1048,7 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const { clock } = options
   const auth = await Auth_Context.open(config.auth, { mailer }, clock)
   // For now each card's move is a line on the console (chapter 28 writes it only while tracing).
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
+  const boards = await Boards_Context.open(config.boards, { auth: auth.modules, mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
   const backoffice = await Backoffice_Context.open(config.backoffice, { auth: auth.modules, boards: boards.modules }, clock)
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
@@ -1046,10 +1059,10 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
 backoffice se detiene antes que los contextos que usa. `index.ts` sirve cada contexto de
 `all`, así que el backoffice tiene su servidor, en el puerto 3003, sin una línea ahí.
 
-A diferencia de boards, el backoffice no necesita un adaptador como `boardsOnAuth`. boards
-pregunta a auth por puertos en sus propias palabras (`Workspaces`), porque las reglas de
-boards dependen de ellos. El backoffice no tiene reglas propias sobre workspaces ni
-cuentas; muestra las de auth y las de boards, así que toma sus módulos tal cual.
+Nada se interpone entre el backoffice y los contextos que lee: ni adaptador ni puerto.
+Toma sus módulos tal cual, como boards toma los de auth desde el
+[capítulo 20](./20-wiring-contexts). El backoffice no tiene reglas propias sobre
+workspaces ni cuentas; muestra las de auth y las de boards.
 
 ## El lint: backoffice usa auth y boards
 

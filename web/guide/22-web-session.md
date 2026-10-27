@@ -672,8 +672,7 @@ callback: it is a top-level navigation from auth's site, which `lax` allows and
 ## boards signs in through it
 
 boards initializes the module first in `initializeModules`, and hands it auth's
-`token` through `Boards_Auth`. Add the three imports (`Auth_Modules` comes back, for
-`token`):
+`token` through `Boards_Auth`. Add the two imports:
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
@@ -685,19 +684,18 @@ import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 // …
 ```
 
-make `Boards_Auth` what the workspace module asks of auth, `WorkspaceAuth`, and auth's
-`token` module besides:
+add auth's `token` module to those `Boards_Auth` picks:
 
 ```ts
 // cooper/backend/contexts/boards/initialize-modules.ts
 // …
 /**
- * auth's use cases `boards` calls besides its ports: who an access token is for (the
- * web session, the MCP server), and what its workspace module asks of auth (who
- * someone is, and what boards' routes for workspaces, members and invitations manage
- * in auth).
+ * auth's modules `boards` uses, as its own modules use each other: who an access
+ * token is for (the web session, the MCP server), who belongs to each workspace
+ * (`member`), auth's events about workspaces and access, and what boards' routes for
+ * workspaces, members and invitations manage in auth.
  */
-export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
+export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
 // …
 ```
 
@@ -722,7 +720,8 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
       return { user: { id, name, email } }
     },
   })
-  const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
+  const { user, tenant, access, invitation } = deps.auth
+  const member = Member_Module.initialize(base, { auth: { access, tenant, user } })
 // …
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
@@ -742,18 +741,8 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
 The lint already lets boards import from auth (chapter [20](./20-wiring-contexts)),
 and `shared/` is anyone's.
 
-`openContexts` hands boards auth's `token`, in `boardsOnAuth`:
-
-```ts
-// cooper/backend/open-contexts.ts
-// …
-function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'search' | 'log'> {
-  const { access, user, tenant, token, invitation } = auth.modules
-// …
-    auth: { token, user, tenant, access, invitation },
-  }
-}
-```
+`openContexts` needs no change: it hands boards `auth.modules`, which has `token`
+already.
 
 ## The clock reaches boards
 
@@ -786,7 +775,7 @@ and `openContexts` gives boards the same clock as auth:
 ```ts
 // cooper/backend/open-contexts.ts
 // …
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
+  const boards = await Boards_Context.open(config.boards, { auth: auth.modules, mailer, search: new MemoryCardSearch(), log: line => console.log(line) }, clock)
 // …
 ```
 
@@ -839,15 +828,23 @@ replaces it: the last one set wins. Only its comment changes:
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
 // …
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth
- * behind its ports, its emails and its log's lines in lists, and who sends a request
+ * `boards` for a test: its database and its cards' search in memory, a fake auth's
+ * modules, its emails and its log's lines in lists, and who sends a request
  * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
 // …
 ```
 
-`FakeAuth`'s `modules` is a Proxy (chapter 20), so it stands in for a `Boards_Auth`
-with `token` without a change. boards' own tests never sign in, so they never call it.
+`FakeAuth`'s `modules` must now have a `token` too (chapter 20). boards' own tests never
+sign in, so it reaches nothing: a fake module refuses any use case it is asked. Add it,
+in `testing/fake-auth.ts`:
+
+```ts
+// cooper/backend/contexts/boards/testing/fake-auth.ts
+      token: fakeModule('token', {}),
+      invitation: fakeModule('invitation', {}),
+    } as Boards_Auth
+```
 
 ## Testing a sign-in: `newt/testing`
 

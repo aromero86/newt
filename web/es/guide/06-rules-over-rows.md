@@ -347,7 +347,7 @@ export class Column_Module extends Module {
   }
 
   private constructor(base: BoardsBase, private readonly repo: Column_Repository, private readonly deps: Column_Deps) {
-    super('column', base.invocations)
+    super('column', base.invocations, deps)
   }
 
   /**

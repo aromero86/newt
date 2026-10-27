@@ -478,7 +478,7 @@ export class Access_Module extends Module {
   readonly events
 
   private constructor(base: AuthBase, private readonly repo: Access_Repository, private readonly deps: Access_Deps) {
-    super('access', base.invocations)
+    super('access', base.invocations, deps)
     this.events = eventsOf(base.bus, { granted: Access_Granted, revoked: Access_Revoked })
   }
 
@@ -934,7 +934,7 @@ export class Tenant_Module extends Module {
     private readonly deps: Tenant_Deps,
     private readonly options: Tenant_Options,
   ) {
-    super('tenant', base.invocations)
+    super('tenant', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Tenant_Created, renamed: Tenant_Renamed, deleted: Tenant_Deleted })
   }
 

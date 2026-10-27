@@ -153,16 +153,20 @@ coinciden.
 Una dep es de uno de tres tipos:
 
 - **`module`**: otro módulo, de su contexto o de otro. `board`, `column` y `member` de
-  `card`.
-- **`events`**: los eventos de otro módulo, como se suscribe a ellos un worker. El
-  `access` de `card` es `{ kind: 'events', target: 'auth/access', events:
-  ['access.granted', 'access.revoked'] }`.
-- **`port`**: cualquier otra cosa, un objeto en las palabras del propio módulo. El
-  `member` de boards depende de `workspaces`, un puerto; de quién es (de auth, cableado
-  en `open-contexts.ts`) la descripción no lo puede saber, así que su `target` es null.
+  `card`, y el módulo de accesos de auth, `{ name: 'auth.access', kind: 'module',
+  target: 'auth/access' }`.
+- **`events`**: los eventos de un módulo entregados solos (`orders: order.events`), como
+  se suscribe a ellos un worker: `{ kind: 'events', target: 'shop/order', events:
+  ['order.placed'] }`. cooper entrega los módulos mismos, así que no tiene ninguno.
+- **`port`**: cualquier otra cosa, un objeto en las palabras del propio módulo: un
+  mailer, una búsqueda, un proveedor de pagos. De quién es la descripción no lo puede
+  saber, así que su `target` es null. Por eso los módulos de otro contexto se entregan
+  tal cual, nunca envueltos en un puerto de funciones
+  ([capítulo 20](./20-wiring-contexts)): envuelta, la dependencia sería un puerto sin
+  destino.
 
-En un objeto de deps se mira dentro, con sus claves unidas: el `workspace` de boards
-depende de `auth.token`, `auth.user`…
+En un objeto de deps se mira dentro, con sus claves unidas: el `member` de boards
+depende de `auth.access`, `auth.tenant` y `auth.user`.
 
 ## Lo que no puede saber
 

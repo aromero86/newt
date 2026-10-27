@@ -206,8 +206,8 @@ Luego el campo, en el constructor:
 // cooper/backend/contexts/boards/modules/board/board.module.ts
   readonly events
 
-  private constructor(base: BoardsBase, private readonly repo: Board_Repository) {
-    super('board', base.invocations)
+  private constructor(base: BoardsBase, private readonly repo: Board_Repository, deps: Board_Deps) {
+    super('board', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Board_Created, updated: Board_Updated, archived: Board_Archived })
   }
 ```
@@ -399,7 +399,7 @@ y el campo:
   readonly events
 
   private constructor(base: BoardsBase, private readonly repo: Column_Repository, private readonly deps: Column_Deps) {
-    super('column', base.invocations)
+    super('column', base.invocations, deps)
     this.events = eventsOf(base.bus, { added: Column_Added, renamed: Column_Renamed, moved: Column_Moved, removed: Column_Removed })
   }
 ```
@@ -724,7 +724,7 @@ El módulo ofrece sus seis eventos:
     private readonly repo: Card_Repository,
     private readonly deps: Card_Deps,
   ) {
-    super('card', base.invocations)
+    super('card', base.invocations, deps)
     this.events = eventsOf(base.bus, {
       created: Card_Created,
       edited: Card_Edited,
@@ -845,13 +845,13 @@ import { registerActivityWorkers } from './activity.workers'
 export class Activity_Module extends Module {
 
   static initialize(base: BoardsBase, deps: Activity_Deps, options: Activity_Options): Activity_Module {
-    const module = new Activity_Module(base)
+    const module = new Activity_Module(base, deps)
     registerActivityWorkers(module, deps, options)
     return module
   }
 
-  private constructor(base: BoardsBase) {
-    super('activity', base.invocations)
+  private constructor(base: BoardsBase, deps: Activity_Deps) {
+    super('activity', base.invocations, deps)
   }
 }
 ```

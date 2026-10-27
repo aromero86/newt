@@ -7,32 +7,46 @@ Meanwhile the real auth grew: accounts and sessions ([chapter 17](./17-auth)),
 workspaces and access ([chapter 18](./18-tenants-and-access)), invitations
 ([chapter 19](./19-invitations-and-time)).
 
-This chapter takes the fake out of the server. `openContexts` hands boards auth's
-use cases and auth's emitters, and boards' ports, unchanged, now answer from auth.
-boards also gets the routes its UI will call to make a workspace, invite someone,
-and remove a member: entry points into auth, on boards' own origin. The lint learns
-that boards may use auth, and nothing else across contexts. A seed script fills a
-fresh database with a workspace to look at. FakeAuth stays, for boards' own tests.
+This chapter takes the fake out of the server, and the ports with it. boards' modules
+are handed auth's modules, as they are handed their own context's, and ask them
+themselves. boards also gets the routes its UI will call to make a workspace, invite
+someone, and remove a member: entry points into auth, on boards' own origin. The lint
+learns that boards may use auth, and nothing else across contexts. A seed script
+fills a fresh database with a workspace to look at. FakeAuth stays, for boards' own
+tests, now as fake auth modules.
 
-## What boards asks of auth
+## The ports go: auth's modules instead
 
-boards gets two kinds of things from auth, and they are different on purpose.
+The ports `Workspaces`, `AccessEvents`, `TenantEvents` and `WorkspaceDeletions` were
+the honest tool while auth did not exist: boards said what it needed in its own
+words, and a fake answered. Now auth is there, and its modules are what boards needs.
+Wiring a port to them would mean functions like `isMember: (w, u) => access.check(…)`:
+a wrapper that hides who is really called. The lint would not see that boards uses
+auth, newt-graph would draw no arrow from boards to auth, and the running
+application ([appendix H](./h-describe-application)) would know only "a port".
 
-- **Ports**, in boards' words: `workspaces` (who belongs to each one, from
-  [chapter 4](./04-who-and-where)), `tenants` and `access` (auth's events, from
-  chapters 13 and 14). boards' modules need them for their own rules, and a test
-  hands its own.
-- **auth's use cases**, as they are: who someone is (`user`), and what boards' routes
-  for workspaces, members and invitations manage in auth (`tenant`, `access`,
-  `invitation`). These are not ports. Those routes take and answer auth's own shapes;
-  a port would only repeat auth's API one to one.
+So the rule is simple: **another context's modules are deps as your own context's
+are**, grouped under that context's name:
 
-`Boards_Auth` says which of auth's modules boards may call. Today they are the four its
-workspace module asks of auth, its `WorkspaceAuth` (in its deps, below), so
-`Boards_Auth` is that type, named once, and the module is handed `deps.auth` whole.
-Never auth's context, its base or its store: with only modules in hand, boards reaches
-auth through its use cases and nothing else. If boards one day needs another of auth's
-modules, the change shows in this type ([chapter 22](./22-web-session) adds one).
+```ts
+export interface Card_Deps {
+  board: Board_Module                  // its own context's
+  auth: { access: Access_Module }      // another context's: this.deps.auth.access.check(…)
+}
+```
+
+The module passes them to `super` with the rest ([chapter 2](./02-first-module)), so
+the dependency is visible everywhere: in the imports the lint reads, in newt-graph's
+picture, and in what the application says of itself. A port in the module's own words
+stays for what is no module of the application: the mailer
+([chapter 12](./12-failures)), the cards' search ([chapter 16](./16-search-port)).
+
+`Boards_Auth` says which of auth's modules boards may use: a `Pick` of auth's
+`Auth_Modules`. Never auth's context, its base or its store: with only modules in
+hand, boards reaches auth through its use cases and its events, and nothing else. If
+boards one day needs another of auth's modules, the change shows in this type
+([chapter 22](./22-web-session) adds one). Each module of boards is given only the
+ones it uses, under `auth`.
 
 Replace `contexts/boards/initialize-modules.ts`:
 
@@ -40,36 +54,29 @@ Replace `contexts/boards/initialize-modules.ts`:
 // cooper/backend/contexts/boards/initialize-modules.ts
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
+import type { Auth_Modules } from '../auth/initialize-modules'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
 import { Board_Module } from './modules/board/board.module'
-import type { AccessEvents } from './modules/card/card.deps'
 import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
-import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
-import type { TenantEvents, WorkspaceAuth } from './modules/workspace/workspace.deps'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
- * auth's use cases `boards` calls besides its ports: what its workspace module asks
- * of auth (who someone is, and what boards' routes for workspaces, members and
- * invitations manage in auth).
+ * auth's modules `boards` uses, as its own modules use each other: who belongs to each
+ * workspace (`member`), auth's events about workspaces and access, and what boards'
+ * routes for workspaces, members and invitations manage in auth.
  */
-export type Boards_Auth = WorkspaceAuth
+export type Boards_Auth = Pick<Auth_Modules, 'user' | 'tenant' | 'access' | 'invitation'>
 
 /**
- * What `boards`' modules are given besides its base: what they need of auth, as ports
- * of their own (who belongs to each workspace, and auth's events about workspaces and
- * access) and as auth's use cases, a mailer, and where the cards are searched. Whoever
- * opens the context wires them.
+ * What `boards`' modules are given besides its base: auth's modules, a mailer, and
+ * where the cards are searched. Whoever opens the context wires them.
  */
 export type Boards_ModuleDeps = {
-  workspaces: Workspaces
-  tenants: TenantEvents
-  access: AccessEvents
   auth: Boards_Auth
   mailer: Mailer
   search: CardSearch
@@ -79,12 +86,13 @@ export type Boards_ModuleDeps = {
 
 /** Every module of `boards`, each one after the modules it uses. */
 export function initializeModules(base: BoardsBase, config: Boards_Config, deps: Boards_ModuleDeps) {
-  const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
+  const { user, tenant, access, invitation } = deps.auth
+  const member = Member_Module.initialize(base, { auth: { access, tenant, user } })
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
-  const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
-  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: deps.auth })
-  const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
+  const card = Card_Module.initialize(base, { board, column, member, auth: { access } }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, auth: { tenant, access, invitation, user } })
+  const activity = Activity_Module.initialize(base, { card, member, auth: { tenant } }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
   return { member, board, column, card, workspace, activity, outbox }
@@ -93,9 +101,10 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
 export type Boards_Modules = ReturnType<typeof initializeModules>
 ```
 
-`Boards_ModuleDeps` gets `auth`, and the workspace module receives auth's four
-modules. The other modules get nothing new: the card and member modules keep asking
-through their ports.
+`Boards_ModuleDeps` loses `workspaces`, `tenants` and `access`, and gets `auth`.
+`member` gets auth's access, tenant and user modules; `card` its access module;
+`activity` its tenant module; and the workspace module the four, for the routes
+below.
 
 Say the same in `boards.context.ts`. Replace its comment, and add one to `open`:
 
@@ -131,9 +140,229 @@ they are for. One `user.get` per access would be a query each. Add `getMany` to 
 It answers the users it finds, in no order. A caller that wants them by id makes a
 `Map`, as you will see.
 
-## boards on auth: `boardsOnAuth`
+## `member` asks auth itself
 
-`openContexts` opens auth first, then boards, and wires boards' ports to auth. Replace
+The `member` module stays the one place in boards that knows how membership is asked
+([chapter 4](./04-who-and-where)). It asked the `Workspaces` port; now it asks auth's
+modules. Replace `modules/member/member.deps.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.deps.ts
+import type { Access_Module } from '../../../auth/modules/access/access.module'
+import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
+
+export interface Member_Deps {
+  /** auth keeps the workspaces (its tenants of `cooper`), who has access to each, and who they are. */
+  auth: {
+    access: Access_Module
+    tenant: Tenant_Module
+    user: User_Module
+  }
+}
+```
+
+In `member.module.ts`, import auth's product:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.module.ts
+import { currentActor, Module, UseCase } from 'newt/core'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
+import type { BoardsBase } from '../../boards-base'
+```
+
+say what a member is in the class comment:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.module.ts
+/**
+ * Who belongs to each workspace, as `boards` asks it: the module that knows,
+ * asked every time, never written in the actor. It keeps nothing: auth keeps the
+ * workspaces (tenants of the product `cooper`) and who has access to each, and this
+ * module asks it. A member is someone with access to a workspace still there.
+ */
+```
+
+and replace its use cases, which now ask two private helpers:
+
+```ts
+// cooper/backend/contexts/boards/modules/member/member.module.ts
+  @UseCase()
+  async enter(workspaceId: string): Promise<WorkspaceScope> {
+    if (!await this.belongs(workspaceId, currentActor().userId)) throw new WorkspaceNotFound(workspaceId)
+    return { workspaceId }
+  }
+
+  /** Whether someone belongs to the current workspace. */
+  @UseCase()
+  async isMember(userId: string): Promise<boolean> {
+    return this.belongs(currentWorkspaceId(), userId)
+  }
+
+  /** Whether a workspace is still there: what a worker that writes in one asks first. */
+  @UseCase()
+  async exists(workspaceId: string): Promise<boolean> {
+    return this.isThere(workspaceId)
+  }
+
+  /** Someone of a workspace, or null if they do not belong to it (any more): what a worker, outside any scope, asks. */
+  @UseCase()
+  async find(workspaceId: string, userId: string): Promise<MemberDTO | null> {
+    if (!await this.belongs(workspaceId, userId)) return null
+    const [found] = await this.deps.auth.user.getMany([userId])
+    return found ? { id: found.id, name: found.name, email: found.email } : null
+  }
+
+  /**
+   * An access and a workspace still there, asked each time so who leaves counts at
+   * once: a deleted workspace's accesses go a moment after it (or, should that fail,
+   * from its worker), and nobody enters it meanwhile.
+   */
+  private async belongs(workspaceId: string, userId: string): Promise<boolean> {
+    const [granted, alive] = await Promise.all([this.deps.auth.access.check(userId, WORKSPACES_PRODUCT, workspaceId), this.isThere(workspaceId)])
+    return granted !== null && alive
+  }
+
+  /** A deleted tenant is not among them. */
+  private async isThere(workspaceId: string): Promise<boolean> {
+    return (await this.deps.auth.tenant.getMany([workspaceId])).length > 0
+  }
+}
+```
+
+This is where boards' words become auth's:
+
+- **A workspace is a tenant of the product `cooper`**: `WORKSPACES_PRODUCT`, which
+  auth declares next to its products ([chapter 18](./18-tenants-and-access)). It is
+  a constant, not a module: importing it gives boards no way into auth's data.
+- **`isThere`**, which `exists` answers (a worker of boards asks it before writing in
+  a workspace that may be gone, [chapter 14](./14-sagas)), is `tenant.getMany`, which
+  leaves deleted tenants out.
+- **`belongs`** asks both `access.check` and `isThere`. Deleting a workspace saves
+  the tenant, then takes its accesses away in a second save
+  ([chapter 18](./18-tenants-and-access)). Between the two, or if the second fails
+  and its worker has not run yet, the accesses are still there. Asking whether the
+  tenant exists too keeps everyone out from the moment it is deleted. A test below
+  makes the second save fail and checks it.
+- **`find`** is `belongs`, then the user.
+
+The use cases keep their names and what they answer, so `board`, `column`, `card`
+and the rest of boards, which ask `member`, do not change.
+
+## auth's events, from auth's modules
+
+The cards, the workspaces and the activity heard auth's events through event ports.
+Now each module is given the auth module that tells them, and subscribes to its
+`events`, as it does to a module of its own context.
+
+The cards hear `access.revoked`. Replace `modules/card/card.deps.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.deps.ts
+import type { Access_Module } from '../../../auth/modules/access/access.module'
+import type { Board_Module } from '../board/board.module'
+import type { Column_Module } from '../column/column.module'
+import type { Member_Module } from '../member/member.module'
+
+export interface Card_Deps {
+  /** That a card's board exists, in the current workspace. */
+  board: Board_Module
+  /** That a card's column exists, and is of its board; and where cards left in a removed column go. */
+  column: Column_Module
+  /** That a card's assignee belongs to its workspace, and where to write to them. */
+  member: Member_Module
+  /** auth taking someone's access away: their cards are left unassigned. */
+  auth: {
+    access: Access_Module
+  }
+}
+```
+
+`RevokedAccess` goes too: the payload is auth's own `AccessDTO`. In
+[chapter 13](./13-another-context) the reaction also named the product `'cooper'` by
+hand, waiting for auth's constant. Use it now. In `card.workers.ts`, replace the
+imports:
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.workers.ts
+import type { AccessDTO } from '../../../auth/modules/access/access.schema'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
+import type { CardAuthor, CardDTO } from './card.schema'
+import type { Card_Deps } from './card.deps'
+import type { Card_Module } from './card.module'
+```
+
+and the subscription on `access.revoked`, dropping the comment line that said "For
+now":
+
+```ts
+// cooper/backend/contexts/boards/modules/card/card.workers.ts
+  // auth took someone's access to a workspace: their cards there are left unassigned.
+  // auth tells every access it takes away, to any product: only a workspace's is boards'.
+  // A card checks its assignee before its save, so they may leave in between: a card
+  // created for someone, or given to them, looks again once saved, the same way.
+  deps.auth.access.events.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
+    strategy: 'handler',
+    queue: 'card.unassignMember.on.access.revoked',
+    when: (access: AccessDTO): access is AccessDTO & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
+  })
+```
+
+The activity hears `tenant.deleted`. Replace `modules/activity/activity.deps.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.deps.ts
+import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
+import type { Card_Module } from '../card/card.module'
+import type { Member_Module } from '../member/member.module'
+
+export interface Activity_Deps {
+  /** What happens to the cards: what the log records. */
+  card: Card_Module
+  /** That who reads a card's activity belongs to its workspace (its routes). */
+  member: Member_Module
+  /** auth deleting a workspace: its log goes with it. */
+  auth: {
+    tenant: Tenant_Module
+  }
+}
+```
+
+and in `activity.workers.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/activity/activity.workers.ts
+  // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
+  deps.auth.tenant.events.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+    strategy: 'handler',
+    queue: 'activity.purgeWorkspace.on.tenant.deleted',
+  })
+```
+
+The workspace module hears `tenant.created` and `tenant.deleted`; its deps come in
+the next section. In `workspace.workers.ts`:
+
+```ts
+// cooper/backend/contexts/boards/modules/workspace/workspace.workers.ts
+export function registerWorkspaceWorkers(workspace: Workspace_Module, deps: Workspace_Deps): void {
+  deps.auth.tenant.events.created.subscribe(tenant => workspace.prepare(tenant.id), {
+    strategy: 'handler',
+    queue: 'workspace.prepare.on.tenant.created',
+  })
+  deps.auth.tenant.events.deleted.subscribe(tenant => workspace.purge(tenant.id), {
+    strategy: 'handler',
+    queue: 'workspace.purge.on.tenant.deleted',
+    // The workspace is gone in auth already: a purge that keeps failing must not die soon.
+    attempts: 10,
+  })
+}
+```
+
+The queues keep their names, so no job is left behind.
+
+## `openContexts` hands boards auth's modules
+
+`openContexts` opens auth first, then boards, and hands boards `auth.modules`. Replace
 `open-contexts.ts`:
 
 ```ts
@@ -141,10 +370,8 @@ It answers the users it finds, in no order. A caller that wants them by id makes
 import type { Clock } from 'newt/core'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
-import { WORKSPACES_PRODUCT } from './contexts/auth/modules/product/product.schema'
 import { Boards_Context } from './contexts/boards/boards.context'
 import { MemoryCardSearch } from './contexts/boards/search/memory-card-search'
-import type { Boards_ModuleDeps } from './contexts/boards/initialize-modules'
 import { ConsoleMailer } from './shared/mail/console-mailer'
 import type { Mailer } from './shared/mail/mailer'
 
@@ -164,41 +391,8 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   const { clock } = options
   const auth = await Auth_Context.open(config.auth, { mailer }, clock)
   // For now each card's move is a line on the console (chapter 28 writes it only while tracing).
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: line => console.log(line) })
+  const boards = await Boards_Context.open(config.boards, { auth: auth.modules, mailer, search: new MemoryCardSearch(), log: line => console.log(line) })
   return { auth, boards, all: [auth, boards] as const }
-}
-
-/**
- * What `boards` asks of auth, wired to auth's use cases and events. A workspace is a
- * tenant of the product `cooper`, and its members are those with access to it while
- * it is there.
- * boards' reactions to auth's events are subscribed on auth's emitters: they are jobs
- * of auth's outbox, run by auth's worker (`auth.base.jobs.idle()`, then boards').
- */
-function boardsOnAuth(auth: Auth_Context): Omit<Boards_ModuleDeps, 'mailer' | 'search' | 'log'> {
-  const { access, user, tenant, invitation } = auth.modules
-  // A deleted tenant is not among them.
-  const exists = async (workspaceId: string) => (await tenant.getMany([workspaceId])).length > 0
-  // An access and a tenant still there: a deleted workspace's accesses go a moment
-  // after it (or, should that fail, from its worker), and nobody enters it meanwhile.
-  const isMember = async (workspaceId: string, userId: string) => {
-    const [granted, alive] = await Promise.all([access.check(userId, WORKSPACES_PRODUCT, workspaceId), exists(workspaceId)])
-    return granted !== null && alive
-  }
-  return {
-    workspaces: {
-      isMember,
-      member: async (workspaceId, userId) => {
-        if (!await isMember(workspaceId, userId)) return null
-        const [found] = await user.getMany([userId])
-        return found ? { id: found.id, name: found.name, email: found.email } : null
-      },
-      exists,
-    },
-    tenants: tenant.events,
-    access: access.events,
-    auth: { user, tenant, access, invitation },
-  }
 }
 
 /** The last opened first: a context stops before those it uses. */
@@ -207,23 +401,8 @@ export async function stopContexts(contexts: Awaited<ReturnType<typeof openConte
 }
 ```
 
-FakeAuth is gone from this file. `boardsOnAuth` is where boards' words become auth's:
-
-- **A workspace is a tenant of the product `cooper`**: `WORKSPACES_PRODUCT`, which
-  auth declares next to its products ([chapter 18](./18-tenants-and-access)). It is
-  a constant, not a module: importing it gives boards no way into auth's data.
-- **`exists`**, which a worker of boards asks before writing in a workspace that may
-  be gone ([chapter 14](./14-sagas)), is `tenant.getMany`, which leaves deleted
-  tenants out.
-- **`isMember`** asks both `access.check` and `exists`. Deleting a workspace saves
-  the tenant, then takes its accesses away in a second save
-  ([chapter 18](./18-tenants-and-access)). Between the two, or if the second fails
-  and its worker has not run yet, the accesses are still there. Asking whether the
-  tenant exists too keeps everyone out from the moment it is deleted. A test below
-  makes the second save fail and checks it.
-- **`member`** is `isMember`, then the user.
-- **`tenants` and `access`** are auth's emitters, `tenant.events` and `access.events`.
-  A port only asks for `subscribe`, and an emitter has it: they fit as they are.
+FakeAuth is gone from this file, and there is nothing to adapt: `auth.modules` has
+every module `Boards_Auth` picks, and more, which boards never sees through its type.
 
 ### Whose worker runs which job
 
@@ -244,36 +423,8 @@ in boards' store. Those saves tell `card.created` and the rest, whose jobs go to
 boards' outbox. So whoever waits for the background work waits for auth's jobs
 first, then boards'. The test and the seed below do exactly that.
 
-FakeAuth did the same from its own store, so nothing in boards changes: it was
-written for this from chapter 13.
-
-### The product, by its name
-
-In [chapter 13](./13-another-context) the cards' reaction to `access.revoked` named
-the product `'cooper'` by hand, waiting for auth's constant. Use it now. In
-`card.workers.ts`, import it:
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.workers.ts
-import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
-import type { CardAuthor, CardDTO } from './card.schema'
-```
-
-and replace the subscription on `access.revoked`, dropping the comment line that said
-"For now":
-
-```ts
-// cooper/backend/contexts/boards/modules/card/card.workers.ts
-  // auth took someone's access to a workspace: their cards there are left unassigned.
-  // auth tells every access it takes away, to any product: only a workspace's is boards'.
-  // A card checks its assignee before its save, so they may leave in between: a card
-  // created for someone, or given to them, looks again once saved, the same way.
-  deps.access.revoked.subscribe(access => cards.unassignMember(access.tenantId, access.userId), {
-    strategy: 'handler',
-    queue: 'card.unassignMember.on.access.revoked',
-    when: (access: RevokedAccess): access is RevokedAccess & { tenantId: string } => access.productId === WORKSPACES_PRODUCT && access.tenantId !== null,
-  })
-```
+FakeAuth did the same from its own store, so nothing in boards' reactions changes: they
+were written for this from chapter 13.
 
 ## Workspaces, members and invitations, through boards
 
@@ -289,7 +440,6 @@ The workspace module gets auth's modules. Replace
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.deps.ts
-import type { EventSource } from 'newt/core'
 import type { Access_Module } from '../../../auth/modules/access/access.module'
 import type { Invitation_Module } from '../../../auth/modules/invitation/invitation.module'
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
@@ -300,24 +450,12 @@ import type { Column_Module } from '../column/column.module'
 import type { Member_Module } from '../member/member.module'
 
 /**
- * auth's events about workspaces (its tenants) that boards reacts to, as a port: what
- * boards needs of them, in its own words. auth's emitters fit it; a test hands its own.
- */
-export type TenantEvents = {
-  created: EventSource<{ id: string }>
-  deleted: EventSource<{ id: string }>
-}
-
-/**
  * auth's modules, whose use cases boards' routes for workspaces, members and
  * invitations call: auth keeps all three, and boards' UI manages them through boards'
  * own origin. A route of boards calls them as any client would: what they
  * write is auth's, and auth's own rules guard it. A use case of boards only reads
- * them, to put together what its screens show.
- *
- * Unlike what `member` and `card` ask of auth, this is not a port in boards' words:
- * those routes are entry points into auth, taking and answering auth's own shapes,
- * and a port would only repeat auth's API one to one.
+ * them, to put together what its screens show. Its tenants' events set boards' own
+ * workspace going, and clear it away.
  */
 export type WorkspaceAuth = {
   tenant: Tenant_Module
@@ -331,13 +469,13 @@ export interface Workspace_Deps {
   column: Column_Module
   card: Card_Module
   member: Member_Module
-  tenants: TenantEvents
   auth: WorkspaceAuth
 }
 ```
 
-`WorkspaceAuth` names the four modules by their classes, in the module's own deps, as
-every module writes what it is given. `Boards_Auth` above is this type.
+`WorkspaceAuth` names the four modules by their classes, under `auth`, as every module
+writes what it is given. Its tenant module is also where `workspace.workers.ts`
+subscribes, above.
 
 ### The shapes boards answers with
 
@@ -608,54 +746,133 @@ whatever can fail on your side, and make the call safe to repeat.
 
 ## FakeAuth stays, for boards' tests
 
-boards' own tests still open boards alone, with FakeAuth behind its ports. They never
-reach auth's use cases: the routes that do are tested on the real auth, in cooper's
-test below. But `Boards_ModuleDeps` now wants `auth`. FakeAuth hands an object that
-fails, saying so, if anything calls it. In `testing/fake-auth.ts`, import the type:
+boards' own tests still open boards alone, without auth. FakeAuth stops being a
+set of ports and becomes what boards is now given: **auth's modules, faked**. Each
+fake module has only what boards' own tests reach, and refuses anything else, saying
+so: who signs in, and the routes for workspaces, members and invitations, are tested
+on the real auth, in cooper's test below. Replace `testing/fake-auth.ts`:
 
 ```ts
 // cooper/backend/contexts/boards/testing/fake-auth.ts
+import { SqliteStore } from 'newt/adapter-sqlite'
+import { Email } from 'newt/contract'
+import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { Boards_Auth } from '../initialize-modules'
-import type { AccessEvents } from '../modules/card/card.deps'
+import type { MemberDTO } from '../modules/member/member.schema'
+
+class Tenant_Created implements DomainEvent<{ id: string }> {
+  static readonly eventName = 'tenant.created'
+  readonly name = Tenant_Created.eventName
+  readonly occurredAt = now().toISOString()
+  constructor(readonly payload: { id: string }) {}
+}
+
+class Tenant_Deleted implements DomainEvent<{ id: string }> {
+  static readonly eventName = 'tenant.deleted'
+  readonly name = Tenant_Deleted.eventName
+  readonly occurredAt = now().toISOString()
+  constructor(readonly payload: { id: string }) {}
+}
+
+type Access = { userId: string, productId: string, tenantId: string | null }
+
+class Access_Revoked implements DomainEvent<Access> {
+  static readonly eventName = 'access.revoked'
+  readonly name = Access_Revoked.eventName
+  readonly occurredAt = now().toISOString()
+  constructor(readonly payload: Access) {}
+}
+
+/**
+ * A module of auth, as boards' tests need it: what they reach of it, and any other use
+ * case refused. Those (who signs in, and the routes for workspaces, members and
+ * invitations) run on the real auth in cooper's test (`cooper/backend/cooper.test.ts`).
+ */
+function fakeModule(module: string, reached: object): unknown {
+  return new Proxy(reached, {
+    get: (target, useCase) => useCase in target
+      ? target[useCase as keyof typeof target]
+      : () => Promise.reject(new Error(`auth.${module}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
+  })
+}
+
+/**
+ * auth, as `boards`' tests need it: its modules, with who belongs to each workspace
+ * kept in memory, and auth's events about workspaces and access, told as auth tells
+ * them. Each event is published in a transaction of its own store, so boards'
+ * handlers are jobs of its worker, as they are of auth's, and run only on `idle`.
+ */
+export class FakeAuth {
+
+  private readonly members = new Map<string, Map<string, MemberDTO>>()
+
+  /** auth's modules, as boards is given them: someone with access to a workspace that is there is a member. */
+  readonly modules: Boards_Auth
+
+  private constructor(private readonly base: Base) {
+    const members = this.members
+    this.modules = {
+      access: fakeModule('access', {
+        check: async (userId: string, _productId: string, tenantId: string | null) => (members.get(tenantId ?? '')?.has(userId) ? { userId, tenantId } : null),
+        events: eventsOf(base.bus, { revoked: Access_Revoked }),
+      }),
+      tenant: fakeModule('tenant', {
+        getMany: async (ids: string[]) => ids.filter(id => members.has(id)).map(id => ({ id })),
+        events: eventsOf(base.bus, { created: Tenant_Created, deleted: Tenant_Deleted }),
+      }),
+      user: fakeModule('user', {
+        getMany: async (ids: string[]) => ids.flatMap(id => [...members.values()].find(each => each.has(id))?.get(id) ?? []),
+      }),
+      invitation: fakeModule('invitation', {}),
+    } as Boards_Auth
+  }
+// …
 ```
 
-and add `modules` after `access`:
+The rest of the class (`open`, `join`, `createWorkspace`, `deleteWorkspace`,
+`revoke`, `idle`…) does not change: the tests drive it as before.
 
-```ts
-// cooper/backend/contexts/boards/testing/fake-auth.ts
-  readonly tenants: TenantEvents
-  readonly access: AccessEvents
+- **`fakeModule`** wraps what the tests reach in a `Proxy`: a use case it has is
+  itself, any other is a function that rejects with that message.
+- **`access.check`** answers an access to a workspace for its members, and null for
+  anyone else; **`tenant.getMany`** answers the workspaces still there; **`user.getMany`**
+  the members by id. That is all `member` asks, so `member` runs in boards' tests
+  exactly as it runs on the real auth.
+- **`events`** are emitters on the fake's own bus, as before. `access.events.revoked`
+  and `tenant.events` are what boards' workers subscribe to.
+- The object is cast to `Boards_Auth`: a fake has only part of each module, on
+  purpose.
 
-  /**
-   * auth's use cases, which boards' own tests never reach: who signs in, and the
-   * routes for workspaces, members and invitations, which run on the real auth in
-   * cooper's test (`cooper/backend/cooper.test.ts`). Any call says so.
-   */
-  readonly modules = new Proxy({}, {
-    get: (_, module) => new Proxy({}, {
-      get: (__, useCase) => () => Promise.reject(new Error(`auth.${String(module)}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
-    }),
-  }) as Boards_Auth
-```
-
-Any `auth.<module>.<useCase>` is a function that rejects with that message. In
-`testing/open-test-boards.ts`, hand it:
+In `testing/open-test-boards.ts`, hand the modules as `auth`, instead of the three
+ports:
 
 ```ts
 // cooper/backend/contexts/boards/testing/open-test-boards.ts
-    access: auth.access,
+/**
+ * `boards` for a test: its database and its cards' search in memory, a fake auth's
+ * modules, its emails and its log's lines in lists, and who sends a request
+ * told by an `x-user` header.
+ */
+export async function openTestBoards() {
+  const auth = await FakeAuth.open()
+  const mailer = new RecordingMailer()
+  const lines: string[] = []
+  const search = new MemoryCardSearch()
+  const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     auth: auth.modules,
     mailer,
+    search,
 ```
 
 FakeAuth is now only in `testing/`, and only `openTestBoards` opens it.
 
 ## The lint: boards uses auth
 
-boards' files now import auth's: `workspace.deps.ts` names auth's module classes,
-`card.workers.ts` and `workspace.routes.ts` import `WORKSPACES_PRODUCT`, and the
-routes one of auth's errors. Since [chapter 17](./17-auth) the lint said `boards: []`, and it says no:
+boards' files now import auth's: the deps of `member`, `card`, `activity` and
+`workspace` name auth's module classes, `member.module.ts`, `card.workers.ts` and
+`workspace.routes.ts` import `WORKSPACES_PRODUCT`, and the routes one of auth's
+errors. That is the point of the new norm: the lint sees each of them. Since [chapter 17](./17-auth) the lint said `boards: []`, and it says no:
 
 ```text
 cooper/backend/contexts/boards/modules/workspace/workspace.deps.ts
@@ -667,8 +884,8 @@ cooper/backend/contexts/boards/modules/workspace/workspace.deps.ts
 `newt/context-boundaries` reads where each import lands: a file in a context's folder
 imports only the contexts that context `uses`. `uses` names every context, and must
 be a tree: `auth: ['boards']` next to `boards: ['auth']` would be a cycle, and the
-preset throws when it is built. So auth can never import boards, and boards hears
-auth only through ports, events and the use cases it is handed.
+preset throws when it is built. So auth can never import boards, and boards reaches
+auth only through the modules it is handed: their use cases and their events.
 
 Say that boards uses auth, and lint the scripts too (the seed comes next). In
 `eslint.config.js`:
@@ -1045,7 +1262,7 @@ someone removed has their cards unassigned; a deleted workspace loses its boards
 
 ### Nobody in a deleted workspace
 
-The last test in `open-contexts.test.ts` checks `isMember`'s second question. Import
+The last test in `open-contexts.test.ts` checks the second question of `belongs`. Import
 `runAsActor` and `stopContexts`:
 
 ```ts
@@ -1235,10 +1452,14 @@ curl -s localhost:3002/api/workspaces/$ACME/members -H 'x-user: someone'
 
 ## What to remember
 
-- A context gets two kinds of things from another: **ports** in its own words, for
-  its own rules (another context's emitters fit an event port as they are), and a
-  **type naming the other's modules** it calls as they are. Never its context, its
-  base or its store.
+- **Another context's modules are deps as your own context's are**, grouped under
+  its name (`auth: { access: Access_Module }`), and passed to `super` with the rest:
+  the lint, newt-graph and the running application all see the dependency. Never a
+  port of functions over its use cases, never its context, its base or its store.
+- A port in the module's own words is for what is no module of the application (a
+  mailer, a search), or a stand-in for a context not built yet, answered by a fake.
+- A fake of another context, for tests, fakes its modules: what the tests reach,
+  anything else refused.
 - A subscription on another context's emitter is a **job of that context's outbox**,
   run by its worker. Wait for its jobs first, then your own.
 - **Writes into another context start at a route**, an entry point. No use case of
@@ -1248,6 +1469,6 @@ curl -s localhost:3002/api/workspaces/$ACME/members -H 'x-user: someone'
 - `newt/context-boundaries` holds each context to the ones its `uses` names, never
   in a cycle. Every file the lint reads is in a TypeScript project.
 - A seed writes through the use cases, as anyone would, and finds what is there
-  before writing, so it runs twice. A fake of another context belongs to tests only.
+  before writing, so it runs twice.
 
 Next: [An OAuth server](./21-oauth-server).

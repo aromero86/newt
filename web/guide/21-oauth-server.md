@@ -780,7 +780,7 @@ module offers the event, as chapter [10](./10-events)'s did:
   readonly events
 
   private constructor(base: AuthBase, private readonly repo: OauthGrant_Repository, private readonly deps: OauthGrant_Deps) {
-    super('oauthGrant', base.invocations)
+    super('oauthGrant', base.invocations, deps)
     this.events = eventsOf(base.bus, { replayed: OauthGrant_Replayed })
   }
 ```

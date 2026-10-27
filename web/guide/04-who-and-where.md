@@ -14,7 +14,8 @@ person a member of that workspace?
 In this chapter boards move under `/api/workspaces/:workspaceId/…`. A member gets in;
 anyone else gets a 404, as if the workspace did not exist. Who belongs to which
 workspace is `auth`'s business, and there is no `auth` yet (it comes in chapter 17).
-So `boards` asks through a **port** of its own, and for now a fake answers it.
+So `boards` asks through a **port** of its own, and for now a fake answers it, until
+auth is there to ask.
 
 We do this before moving to SQLite (chapter 5) on purpose: the board gains a field,
 and with files that needs no migration.
@@ -75,9 +76,13 @@ uses it in chapter 21.
 ## A port: what boards asks of auth
 
 `boards` must know whether someone belongs to a workspace. The answer lives in another
-context. A module of `boards` must not import `auth`'s code, so it says what it needs
-**in its own words**, as a type, and whoever opens the context hands it an
-implementation. That is a port.
+context, `auth`, which is not written yet. So `boards` says what it needs **in its own
+words**, as a type, and whoever opens the context hands it an implementation: for now
+a fake. That is a port.
+
+It is a stand-in for a context that does not exist yet. When auth is wired in
+([chapter 20](./20-wiring-contexts)), `member` is given auth's modules themselves, as a
+module is given those of its own context, and the port goes.
 
 The `member` module owns it. Its `.deps.ts` file says what the module receives:
 
@@ -207,7 +212,7 @@ export class Member_Module extends Module {
   }
 
   private constructor(base: BoardsBase, private readonly deps: Member_Deps) {
-    super('member', base.invocations)
+    super('member', base.invocations, deps)
   }
 
   /**
@@ -396,11 +401,22 @@ says where its use cases run:
 export class Board_Module extends Module {
 
   static initialize(base: BoardsBase, deps: Board_Deps): Board_Module {
-    const module = new Board_Module(base, new Board_Repository(base))
+    const module = new Board_Module(base, new Board_Repository(base), deps)
     registerBoardRoutes(base, module, deps)
     return module
   }
 // …
+```
+
+The module keeps no deps of its own: only its routes use `member`. The constructor
+takes them anyway, only to pass them to `super` ([chapter 2](./02-first-module)): a
+module passes all of its deps, so newt knows what it depends on.
+
+```ts
+// cooper/backend/contexts/boards/modules/board/board.module.ts
+  private constructor(base: BoardsBase, private readonly repo: Board_Repository, deps: Board_Deps) {
+    super('board', base.invocations, deps)
+  }
 ```
 
 `list`, `get`, `update` and `archive` do not change at all: the repository's scope does
@@ -891,7 +907,10 @@ curl localhost:3002/api/workspaces/acme/boards
   forget the filter; looking across workspaces is `findInEveryScope`, behind a name
   that says so. Every repository states its scope (`RepositoryScope` or `'none'`): it
   does not compile otherwise.
-- What a context needs from another is a **port** in its own words, in the module's
-  `.deps.ts`, handed in when the context opens. A test hands it a fake.
+- What a context needs from another that is not built yet is a **port** in its own
+  words, in the module's `.deps.ts`, handed in when the context opens, and answered by
+  a fake. Once the other context is there, its modules take the port's place
+  (chapter 20).
+- A module given deps passes them to `super`, also those only its routes use.
 
 Next: [From files to SQLite](./05-sqlite).

@@ -86,6 +86,21 @@ transacción larga mientras el backend se ejecuta, por ejemplo. No se reintenta.
 cortas las transacciones del script; con varios procesos escribiendo a la vez, pasa a
 Postgres ([capítulo 27](./27-postgres)).
 
+## Depender de otro contexto
+
+**"auth.tenant.list is not in boards' own tests: cooper.test.ts runs it on the real auth"**
+Un test de boards solo llegó a un caso de uso de auth que no tienen los módulos falsos de
+`FakeAuth`. Prueba ese camino en `cooper.test.ts`, con el auth real; o, si las propias
+reglas de boards lo necesitan, dale ese caso de uso al módulo falso
+([capítulo 20](./20-wiring-contexts)).
+
+**newt-graph o `describeApplication` muestran un módulo que no depende de nada, o de un puerto sin destino.**
+El módulo no pasó sus deps a `super`, o recibió los casos de uso de otro contexto
+envueltos en un puerto de funciones. Pasa todas las deps:
+`super('card', base.invocations, deps)`, y entrega los módulos del otro contexto mismos,
+bajo su nombre (`auth: { access }`) ([capítulo 2](./02-first-module),
+[capítulo 20](./20-wiring-contexts), [apéndice H](./h-describe-application)).
+
 ## La regla de escritura
 
 **"[write rule] workspace.prepare writes to boards.board outside a worker: write it from a worker reacting to an event, or list it in its writesTo"**

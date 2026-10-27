@@ -26,6 +26,7 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 - A module's `*.schema.ts` is its contract: input schemas take only what a client sends, and reuse the rules of the whole one; from newt it takes only `newt/contract` (`newt/schema-imports`). ([2](./02-first-module), [23](./23-frontends))
 - A value object keeps a value's rules in one place: `from` forgives what someone typed, `schema` is strict about what is kept. ([2](./02-first-module))
 - A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`). ([6](./06-rules-over-rows))
+- A module passes all of its deps to `super`, also those only its routes or workers use: that is how the application knows what each module depends on. ([2](./02-first-module), [4](./04-who-and-where))
 - A module checks its references by calling the other module's use cases, never its tables. ([7](./07-cards-and-a-counter))
 
 ## Use cases
@@ -80,8 +81,9 @@ teaches it. Come back to it now and then: it is shorter than the code it keeps t
 
 ## Contexts
 
-- What a context needs of another is a port in its own words, in the module's `.deps.ts`; a test hands it a fake. ([4](./04-who-and-where), [13](./13-another-context))
-- A context gets ports and a `Pick` of the other's modules, never its context, base or store. ([20](./20-wiring-contexts))
+- Another context's modules are deps as your own context's are, grouped under its name (`auth: { access: Access_Module }`); never a port of functions over its use cases, which hides the dependency from the lint, newt-graph and `describeApplication`. ([20](./20-wiring-contexts))
+- A port in the module's own words is for what is no module of the application (a mailer, a search), or a stand-in, answered by a fake, for a context not built yet. ([4](./04-who-and-where), [12](./12-failures), [16](./16-search-port))
+- A context is handed a `Pick` of the other's modules, never its context, base or store; a test of it alone hands it fake modules. ([20](./20-wiring-contexts))
 - A subscription on another context's emitter is a job of that context's outbox, run by its worker. ([20](./20-wiring-contexts))
 - Writes into another context start at an entry point (a route); a call into another context is like an external API. ([20](./20-wiring-contexts))
 - A context that reads two reads them through their use cases, never their stores. ([25](./25-backoffice))

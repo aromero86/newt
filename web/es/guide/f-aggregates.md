@@ -160,7 +160,10 @@ export interface Card_Deps {
   column: Column_Module
   /** That a card's assignee belongs to its workspace, and where to write to them. */
   member: Member_Module
-  access: AccessEvents
+  /** auth taking someone's access away: their cards are left unassigned. */
+  auth: {
+    access: Access_Module
+  }
 }
 ```
 
@@ -219,7 +222,7 @@ no hace nada ([capítulo 13](./13-another-context)). A un asignado se le sigue i
 `unassignMember` se ejecuta con el `access.revoked` de auth y con una tarjeta creada
 para alguien o asignada a alguien, y no hace nada mientras esa persona siga
 perteneciendo al workspace, así que quien vuelve a entrar conserva sus tarjetas. Lo mismo funciona entre contextos:
-boards sigue el `access.revoked` de auth a través de un puerto, y el job está en el
+boards sigue el `access.revoked` de auth a través del módulo de accesos de auth, y el job está en el
 outbox de auth ([capítulo 20](./20-wiring-contexts)).
 
 ### Sagas, desde workers
@@ -231,7 +234,7 @@ tarjeta, escritos cuando auth avisa `tenant.created`:
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.workers.ts
-  deps.tenants.created.subscribe(tenant => workspace.prepare(tenant.id), {
+  deps.auth.tenant.events.created.subscribe(tenant => workspace.prepare(tenant.id), {
     strategy: 'handler',
     queue: 'workspace.prepare.on.tenant.created',
   })

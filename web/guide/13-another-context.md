@@ -193,8 +193,7 @@ The subscriptions come below, with the others, in `card.workers.ts`.
 ## auth's events, as a port
 
 Now Bea. boards wants to hear that someone lost their access. That event is auth's,
-and boards must not import auth's modules: the card module would then depend on
-another context's code, and a test of boards would need auth whole.
+and there is no auth yet (it comes in [chapter 17](./17-auth)): nothing to import.
 
 So the card module says what it needs, in its own words, in its deps file. Not auth's
 access module: only something it can **subscribe to**. That is newt's
@@ -247,8 +246,9 @@ export interface Card_Deps {
   adds what the cards now ask it: where cards left in a removed column go.
 
 The port is what boards is given, not what it reaches for. Whoever opens the context
-hands it: a fake auth now, and auth's real `access.events` from [chapter
-20](./20-wiring-contexts).
+hands it: a fake auth now. Like `Workspaces`, it is a stand-in until auth exists: in
+[chapter 20](./20-wiring-contexts) the card module is given auth's access module
+itself, and subscribes to its `events.revoked`.
 
 ## Leaving the cards without an assignee
 
@@ -973,9 +973,9 @@ Ran 9 tests across 6 files.
 
 ## What to remember
 
-- What a module needs of another context is a port in its own deps, in its own
-  words. For events, an `EventSource<T>`: only `subscribe`. The other context's
-  emitter fits it; a test hands its own.
+- While another context is not built yet, what a module needs of it is a port in its
+  own deps, in its own words. For events, an `EventSource<T>`: only `subscribe`. A
+  test hands its own; the other context's modules take its place once it exists.
 - `when` picks which events get a job, in the transaction that tells them, so an
   event it does not take leaves nothing. Written as a type guard with a typed
   parameter, it narrows what the callback gets.

@@ -197,8 +197,7 @@ Las suscripciones vienen más abajo, junto a las demás, en `card.workers.ts`.
 ## Los eventos de auth, como un puerto
 
 Ahora Bea. boards quiere enterarse de que alguien perdió su acceso. Ese evento es de auth,
-y boards no debe importar los módulos de auth: el módulo de tarjetas dependería entonces
-del código de otro contexto, y un test de boards necesitaría auth entero.
+y aún no hay auth (llega en el [capítulo 17](./17-auth)): no hay nada que importar.
 
 Así que el módulo de tarjetas dice lo que necesita, con sus propias palabras, en su
 archivo de deps. No el módulo de acceso de auth: solo algo a lo que pueda **suscribirse**.
@@ -253,8 +252,9 @@ export interface Card_Deps {
   en una columna borrada.
 
 El puerto es lo que se le da a boards, no lo que alcanza por su cuenta. Lo entrega quien
-abre el contexto: ahora un auth falso, y luego el `access.events` real de auth desde el
-[capítulo 20](./20-wiring-contexts).
+abre el contexto: ahora un auth falso. Como `Workspaces`, es un sustituto hasta que
+exista auth: en el [capítulo 20](./20-wiring-contexts) el módulo de tarjetas recibe el
+módulo de accesos de auth mismo, y se suscribe a su `events.revoked`.
 
 ## Dejar las tarjetas sin asignado
 
@@ -986,9 +986,10 @@ Ran 9 tests across 6 files.
 
 ## En resumen
 
-- Lo que un módulo necesita de otro contexto es un puerto en sus propias deps, con sus
-  propias palabras. Para eventos, un `EventSource<T>`: solo `subscribe`. El emisor del
-  otro contexto encaja; un test entrega el suyo.
+- Mientras otro contexto no está construido, lo que un módulo necesita de él es un
+  puerto en sus propias deps, con sus propias palabras. Para eventos, un
+  `EventSource<T>`: solo `subscribe`. Un test entrega el suyo; los módulos del otro
+  contexto ocupan su lugar cuando existe.
 - `when` elige qué eventos reciben un job, en la transacción que los emite, así que un
   evento que no acepta no deja nada. Escrito como un type guard con el parámetro tipado,
   acota lo que recibe el callback.

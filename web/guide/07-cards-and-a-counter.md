@@ -477,7 +477,7 @@ export class Card_Module extends Module {
     private readonly repo: Card_Repository,
     private readonly deps: Card_Deps,
   ) {
-    super('card', base.invocations)
+    super('card', base.invocations, deps)
   }
 
   /**

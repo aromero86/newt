@@ -545,7 +545,7 @@ export class Invitation_Module extends Module {
     private readonly deps: Invitation_Deps,
     private readonly options: Invitation_Options,
   ) {
-    super('invitation', base.invocations)
+    super('invitation', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Invitation_Created, accepted: Invitation_Accepted, revoked: Invitation_Revoked })
   }
 
@@ -916,7 +916,7 @@ import { registerSessionWorkers } from './session.workers'
     private readonly deps: Session_Deps,
     readonly options: Session_Options,
   ) {
-    super('session', base.invocations)
+    super('session', base.invocations, deps)
     this.nightly = base.schedules.define('session.nightly', '0 3 * * *')
   }
 ```

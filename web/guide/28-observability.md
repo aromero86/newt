@@ -282,7 +282,7 @@ boards:
 
 ```ts
 // cooper/backend/open-contexts.ts
-  const boards = await Boards_Context.open(config.boards, { ...boardsOnAuth(auth), mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined }, clock)
+  const boards = await Boards_Context.open(config.boards, { auth: auth.modules, mailer, search: new MemoryCardSearch(), log: config.trace ? line => console.log(line) : undefined }, clock)
 ```
 
 ### `index.ts` hands it to `runContexts`

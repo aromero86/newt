@@ -395,6 +395,11 @@ export class Board_Module extends Module {
   los que verás en las trazas y en los nombres de las colas. Todo método público de un
   módulo es un caso de uso: uno sin `@UseCase()` es un error del lint
   (`newt/use-case`), y lo que no es un caso de uso es `private`, como `load`.
+- **Un módulo que recibe deps también se las pasa a `super`**, como tercer argumento:
+  `super('board', base.invocations, deps)`. board aún no tiene; recibe las primeras en
+  el [capítulo 4](./04-who-and-where). newt las guarda en el registro del contexto, y
+  así la aplicación en marcha sabe de qué depende cada módulo
+  ([apéndice H](./h-describe-application)).
 - **La entrada es `unknown`.** `create` y `update` aceptan lo que se les pase y lo
   validan: `BoardCreateSchema.parse(input)` es lo que le da un tipo. Una ruta, un test
   u otro contexto pueden pasar cualquier cosa; quien comprueba es el caso de uso.

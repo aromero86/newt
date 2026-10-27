@@ -441,9 +441,12 @@ What the chapters taught, in the order you met it. Appendix
 
 **Contexts.**
 
-- A context is its own database, modules and migrations; what it needs from another
-  is a port in its own words (chapters [13](./13-another-context) and
-  [17](./17-auth)).
+- A context is its own database, modules and migrations (chapter [17](./17-auth)).
+- What it needs from another context are that context's modules, deps as its own
+  context's are, under the other's name, and passed to `super`; a port in its own
+  words only for what is no module of the application, or for a context not built
+  yet (chapters [4](./04-who-and-where), [13](./13-another-context) and
+  [20](./20-wiring-contexts)).
 - Writes into another context start at an entry point, never in a use case of yours
   (chapter [20](./20-wiring-contexts)).
 - A third context reads the others only through their use cases (chapter

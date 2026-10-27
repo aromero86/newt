@@ -156,7 +156,10 @@ export interface Card_Deps {
   column: Column_Module
   /** That a card's assignee belongs to its workspace, and where to write to them. */
   member: Member_Module
-  access: AccessEvents
+  /** auth taking someone's access away: their cards are left unassigned. */
+  auth: {
+    access: Access_Module
+  }
 }
 ```
 
@@ -214,7 +217,7 @@ A job may run more than once, so every reaction is idempotent: the second time,
 `unassignMember` runs on auth's `access.revoked` and on a card created for someone
 or assigned to them, and does nothing while the person still belongs to the
 workspace, so someone let in again keeps their cards. The same works across contexts: boards follows
-auth's `access.revoked` through a port, and the job is in auth's outbox
+auth's `access.revoked` through auth's access module, and the job is in auth's outbox
 ([chapter 20](./20-wiring-contexts)).
 
 ### Sagas, from workers
@@ -226,7 +229,7 @@ boards' welcome board is a board, three columns and a card, written when auth te
 
 ```ts
 // cooper/backend/contexts/boards/modules/workspace/workspace.workers.ts
-  deps.tenants.created.subscribe(tenant => workspace.prepare(tenant.id), {
+  deps.auth.tenant.events.created.subscribe(tenant => workspace.prepare(tenant.id), {
     strategy: 'handler',
     queue: 'workspace.prepare.on.tenant.created',
   })

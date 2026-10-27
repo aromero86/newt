@@ -453,9 +453,13 @@ Lo que enseñaron los capítulos, en el orden en que lo fuiste viendo. El apénd
 
 **Contextos.**
 
-- Un contexto es su propia base de datos, módulos y migraciones; lo que necesita de otro
-  es un puerto en sus propias palabras (capítulos [13](./13-another-context) y
+- Un contexto es su propia base de datos, módulos y migraciones (capítulo
   [17](./17-auth)).
+- Lo que necesita de otro contexto son los módulos de ese contexto, deps igual que los
+  del propio, bajo el nombre del otro, y pasadas a `super`; un puerto con sus propias
+  palabras solo para lo que no es un módulo de la aplicación, o para un contexto aún no
+  construido (capítulos [4](./04-who-and-where), [13](./13-another-context) y
+  [20](./20-wiring-contexts)).
 - Las escrituras en otro contexto empiezan en un punto de entrada, nunca en un caso de
   uso tuyo (capítulo [20](./20-wiring-contexts)).
 - Un tercer contexto lee a los otros solo a través de sus casos de uso (capítulo
