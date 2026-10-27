@@ -2,7 +2,7 @@ import { eventsOf, Module, now, type DomainEvent, type DomainEventClass } from '
 import { serveMonitor } from 'newt/monitor'
 import type { Job, QueueDepth } from 'newt/port-outbox'
 import type { Store } from 'newt/port-store'
-import { Base } from 'newt/runtime'
+import { Base, MemoryTraces, type Trace, type TraceSpan } from 'newt/runtime'
 
 /** The key a test's application shares with the monitor. */
 export const TEST_APP_KEY = 'the test application\'s key, long enough'
@@ -51,7 +51,9 @@ class TestModule extends Module {
 export function serveTestApp(name = 'shop') {
   const contexts: Base[] = []
   const outboxes = new Map<string, TestOutbox>()
-  let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY })
+  // Its own: the monitor's requests, in the same process, are no trace of this application.
+  const traces = new MemoryTraces({ keepMinutes: 60 * 24 * 30 })
+  let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY, traces })
   const port = server.port!
   return {
     url: server.url.origin,
@@ -91,6 +93,24 @@ export function serveTestApp(name = 'shop') {
       outbox.depths = depths
       outbox.jobs = dead
     },
+    /**
+     * A trace the application kept, as its root and the calls in it: a request unless a
+     * job is given. Each call a use case of a context, inside the root, one after another.
+     */
+    trace(kept: { id?: string, at: Date, name?: string, ms?: number, outcome?: Trace['outcome'], retried?: boolean, told?: string[], job?: Trace['job'], calls?: { context: string, useCase: string, ms: number, outcome?: Trace['outcome'] }[] }): string {
+      const id = kept.id ?? Bun.randomUUIDv7()
+      const ms = kept.ms ?? 10
+      const kind = kept.job ? 'job' : 'http'
+      const span = (fields: Partial<TraceSpan> & Pick<TraceSpan, 'id' | 'kind' | 'name'>): TraceSpan => ({ parentId: null, context: null, startMs: 0, ms, outcome: null, attributes: {}, failure: null, ...fields })
+      const calls = (kept.calls ?? []).map((call, index) => span({ id: String(index + 2), parentId: '1', kind: 'use-case', name: call.useCase, context: call.context, ms: call.ms, outcome: call.outcome ?? null }))
+      traces.record({
+        id, kind, name: kept.name ?? (kept.job ? kept.job.queue : 'POST /api/test'), startedAt: kept.at.toISOString(), ms,
+        outcome: kept.outcome ?? null, retried: kept.retried ?? false, actor: null, scopes: {},
+        useCases: [...new Set(calls.map(call => call.name))], told: kept.told ?? [], job: kept.job ?? null,
+        spans: [span({ id: '1', kind, name: kept.name ?? 'POST /api/test', outcome: kept.outcome ?? null }), ...calls], dropped: 0,
+      })
+      return id
+    },
     /** A context taken away. */
     remove(context: string) {
       contexts.splice(contexts.findIndex(base => base.name === context), 1)
@@ -98,7 +118,7 @@ export function serveTestApp(name = 'shop') {
     stop: () => server.stop(true),
     /** Served again, on the same port, after `stop`: the application back after a deployment. */
     start() {
-      server = serveMonitor(contexts, { name, port, key: TEST_APP_KEY })
+      server = serveMonitor(contexts, { name, port, key: TEST_APP_KEY, traces })
     },
   }
 }

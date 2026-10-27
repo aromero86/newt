@@ -77,6 +77,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `Heading` | A heading, by `level`. |
 | `Text` | Text: `size`, `tone`, `weight`. |
 | `Emphasis`, `Strong`, `Mono`, `Tone` | Marks inside text. |
+| `CodeBlock` | Text as it was written, its lines kept: a stack, a query. |
 | `TextLink` | A link inside text. |
 | `RelativeTime` | "2 days ago", the exact time on hover. |
 
@@ -120,6 +121,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `LineChart` | A few lines over the same times, each in a tone that says what it is: a latency's percentiles. |
 | `TimeSeries` | A count over time as a line, beside the window it is compared with (dashed). |
 | `Graph` | A few boxes and what uses what, in columns: one piece of a structure, never all of it. |
+| `Waterfall` | Steps on a timeline, each inside the one above: a trace's spans; a row pressed is selected. |
 
 ### Links
 | Component | For |

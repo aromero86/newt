@@ -2,7 +2,7 @@
 // served on its own port, with the worker of its jobs running, until SIGINT or SIGTERM.
 import { runContexts } from 'newt/application'
 import { RedisNonces, serveMonitor } from 'newt/monitor'
-import { RedisMetrics, setMetrics } from 'newt/runtime'
+import { RedisMetrics, RedisTraces, setMetrics, setTraces } from 'newt/runtime'
 import { config } from './config'
 import { frontendSources } from './frontend-sources'
 import { cooperTracer, openContexts } from './open-contexts'
@@ -10,8 +10,11 @@ import { setCooperMessages } from './shared/messages'
 
 // newt's own messages, in cooper's words, for the whole process: before anything answers.
 setCooperMessages()
-// Several instances count their events in one Redis; one alone, in its memory.
-if (config.monitor.redisUrl) setMetrics(new RedisMetrics({ url: config.monitor.redisUrl, prefix: 'cooper:metrics' }))
+// Several instances count their events and keep their traces in one Redis; one alone, in its memory.
+if (config.monitor.redisUrl) {
+  setMetrics(new RedisMetrics({ url: config.monitor.redisUrl, prefix: 'cooper:metrics' }))
+  setTraces(new RedisTraces({ url: config.monitor.redisUrl, prefix: 'cooper:traces' }), { sampleRate: 0.05 })
+}
 const contexts = await openContexts(config)
 
 // In development each context serves its frontend from its sources, as Bun builds them.

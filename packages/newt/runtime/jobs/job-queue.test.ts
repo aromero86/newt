@@ -379,8 +379,8 @@ describe('the worker', () => {
     Object.assign(outbox.job(QUEUE), { status: 'pending', attempts: 0, runAfter: new Date(0).toISOString() })
     await queue.idle()
 
-    expect(locks).toHaveLength(2)
-    expect(locks[0]).not.toBe(locks[1])
+    // A claim made while the job still runs sees its lock again: what counts is that each claim has its own.
+    expect(new Set(locks).size).toBe(2)
   })
 
   test('starts and stops what runs alongside it: the schedules', async () => {

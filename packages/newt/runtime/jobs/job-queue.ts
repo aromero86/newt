@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { DeadJobs, QueueState } from '../../core/metrics/outbox-state'
 import { systemClock, type Clock, type DomainEvent, type EventHandler, type Invocations } from '../../core'
-import { currentClock, eventOfQueue, inWorker } from '../../core/internal'
+import { currentClock, eventOfQueue, inWorker, traceRoot } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
 import { withId } from '../events/with-id'
 import type { JobQueueOptions } from './job-queue-options'
@@ -256,7 +256,10 @@ export class JobQueue {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
     }, this.options.leaseMs / 3)
     try {
-      await detached(() => currentClock.run(this.clock, () => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string }))))
+      const event = JSON.parse(claimed.event) as DomainEvent & { id: string }
+      // Each run of a job, the root of a trace: which run, and the event that caused it, by its id.
+      const job = { id: claimed.id, queue: claimed.queue, run: claimed.attempts, event: event.name, eventId: event.id }
+      await detached(() => traceRoot({ kind: 'job', name: claimed.queue, job }, () => currentClock.run(this.clock, () => inWorker.run(true, () => registration.handler(event)))))
       await this.close(claimed, { status: 'done', lastError: null })
       told('delivered')
     } catch (error) {

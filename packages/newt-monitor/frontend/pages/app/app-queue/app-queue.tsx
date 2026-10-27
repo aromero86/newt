@@ -3,7 +3,7 @@ import { useParams } from 'react-router'
 import { SkullIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
 import { Badge } from 'newt-react-ui/badge'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta } from 'newt-react-ui/box'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
 import { Button } from 'newt-react-ui/button'
 import { Grid } from 'newt-react-ui/grid'
 import { Inline } from 'newt-react-ui/inline'
@@ -20,6 +20,7 @@ import { Provide, useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { WINDOWS, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
 import { BUCKET_LABELS, changeOf, formatMs, handlerOf, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { TraceList } from '../app-traces/trace-list'
 import { AppQueueService, type Compare } from './app-queue.service'
 
 /** One queue: how full it is and was, what went in and out, how long its jobs waited, and its dead jobs. With its own AppQueueService. */
@@ -134,13 +135,14 @@ function AppQueueWrapped({ app }: { app: AppDTO }) {
             </>
           )
         : <Skeleton lines={6} />}
-      <AppQueueDead />
+      <AppQueueDead appId={app.id} />
+      <TraceList appId={app.id} title="Runs" query={{ queue }} window={window} />
     </Stack>
   )
 }
 
 /** Its dead jobs, as the application lists them: which event, how many attempts, why. Never their payloads. */
-function AppQueueDead() {
+function AppQueueDead({ appId }: { appId: string }) {
   const service = useService(AppQueueService)
   const dead = useValue(service.dead)
   const more = useValue(service.moreDead)
@@ -153,7 +155,7 @@ function AppQueueDead() {
       {!failure && dead.length === 0 && <BoxEmpty icon={SkullIcon} title="None" description="Every job of this queue ran, or is still to run." />}
       {dead.map(job => (
         <BoxRow key={job.id} leading={<Badge tone="bad">Dead</Badge>} trailing={<Text size="sm" tone="muted">{job.attempts} attempts</Text>}>
-          <Mono>{job.event}</Mono>
+          <BoxRowTitle href={`/apps/${appId}/jobs/${job.id}`}><Mono>{job.event}</Mono></BoxRowTitle>
           <BoxRowMeta>
             <>died <RelativeTime date={job.diedAt} /></>
             <>published <RelativeTime date={job.createdAt} /></>
