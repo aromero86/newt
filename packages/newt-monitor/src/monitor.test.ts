@@ -24,7 +24,7 @@ describe('the monitor', () => {
 })
 
 describe('its settings', () => {
-  const required = { NEWT_MONITOR_USER: 'ana', NEWT_MONITOR_PASSWORD: 'twelve chars at least' }
+  const required = { NEWT_MONITOR_USER: 'ana', NEWT_MONITOR_PASSWORD: 'twelve chars at least', NEWT_MONITOR_SECRET: 'a secret of thirty-two characters' }
 
   test('have what development needs by default, but who signs in', () => {
     expect(readConfig(required)).toEqual({
@@ -33,6 +33,7 @@ describe('its settings', () => {
       publicUrl: 'http://localhost:4800',
       admin: { user: 'ana', password: 'twelve chars at least' },
       sessionHours: 12,
+      secret: 'a secret of thirty-two characters',
     })
   })
 
@@ -40,8 +41,9 @@ describe('its settings', () => {
     expect(() => readConfig({ NEWT_MONITOR_PORT: 'eighty', NEWT_MONITOR_DATA: ' ' })).toThrow(/NEWT_MONITOR_PORT[\s\S]*NEWT_MONITOR_DATA/)
   })
 
-  test('have no user nor password unless told: a monitor nobody configured does not start', () => {
-    expect(() => readConfig({})).toThrow(/NEWT_MONITOR_USER[\s\S]*NEWT_MONITOR_PASSWORD/)
+  test('have no user, password nor secret unless told: a monitor nobody configured does not start', () => {
+    expect(() => readConfig({})).toThrow(/NEWT_MONITOR_USER[\s\S]*NEWT_MONITOR_PASSWORD[\s\S]*NEWT_MONITOR_SECRET/)
+    expect(() => readConfig({ ...required, NEWT_MONITOR_SECRET: 'too short' })).toThrow(/NEWT_MONITOR_SECRET/)
     expect(() => readConfig({ ...required, NEWT_MONITOR_PASSWORD: 'short' })).toThrow(/NEWT_MONITOR_PASSWORD/)
   })
 })

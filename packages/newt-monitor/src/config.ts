@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MIN_SECRET_LENGTH } from './shared/key-cipher'
 
 /** What the monitor is told by its environment, each variable with what it is for. */
 const EnvSchema = z.object({
@@ -14,6 +15,8 @@ const EnvSchema = z.object({
   NEWT_MONITOR_PASSWORD: z.string().min(12),
   /** How long a session lasts. */
   NEWT_MONITOR_SESSION_HOURS: z.coerce.number().int().min(1).default(12),
+  /** What it encrypts the applications' keys with: no default, 32 characters or more. */
+  NEWT_MONITOR_SECRET: z.string().min(MIN_SECRET_LENGTH),
 })
 
 export type MonitorConfig = {
@@ -23,6 +26,8 @@ export type MonitorConfig = {
   /** The one person who signs in. */
   admin: { user: string, password: string }
   sessionHours: number
+  /** What the applications' keys are encrypted with (`KeyCipher`). */
+  secret: string
 }
 
 /**
@@ -43,5 +48,6 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
     publicUrl: data.NEWT_MONITOR_PUBLIC_URL,
     admin: { user: data.NEWT_MONITOR_USER, password: data.NEWT_MONITOR_PASSWORD },
     sessionHours: data.NEWT_MONITOR_SESSION_HOURS,
+    secret: data.NEWT_MONITOR_SECRET,
   }
 }

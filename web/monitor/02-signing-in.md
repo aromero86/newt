@@ -254,4 +254,4 @@ network, and use a long password. A limit on attempts can come later.
 - `authenticateWith` makes every route need a session; `public: true` is the
   exception, said where the route is.
 
-Next: a secret that encrypts.
+Next: [a secret that encrypts](./03-a-secret-that-encrypts).

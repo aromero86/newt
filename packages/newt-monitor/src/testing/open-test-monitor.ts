@@ -14,6 +14,7 @@ const TEST_CONFIG: MonitorConfig = {
   publicUrl: 'http://localhost:4800',
   admin: TEST_ADMIN,
   sessionHours: 12,
+  secret: 'a secret only tests encrypt with',
 }
 
 /** What a test changes of the monitor's settings (everything else is a test's), and the clock it tells the time by. */

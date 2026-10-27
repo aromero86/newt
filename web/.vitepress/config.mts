@@ -50,6 +50,7 @@ const MONITOR: [string, string, string][] = [
   ['00-introduction', 'Introduction', 'Introducción'],
   ['01-a-monitor-built-with-newt', 'A monitor built with newt', 'Un monitor hecho con newt'],
   ['02-signing-in', 'Signing in', 'Entrar'],
+  ['03-a-secret-that-encrypts', 'A secret that encrypts', 'Un secreto que cifra'],
 ]
 
 const REFERENCE: [string, string, string][] = [
