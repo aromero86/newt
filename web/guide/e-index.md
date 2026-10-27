@@ -360,3 +360,5 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/runtime` | `TimedCall`, `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |
 | `newt/contract` | `Outcome` |
 | `newt/runtime` | `Outcome` |
+| `newt/contract` | `QueueFlow`, `QueueFlows` |
+| `newt/runtime` | `QueueFlow`, `QueueFlows`, `QueueFlowEntry` |

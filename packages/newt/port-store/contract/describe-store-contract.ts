@@ -1082,7 +1082,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         }, 3)
         start(queue)
 
-        await add(event => queue.enqueue(event), 'ada')
+        await add(async event => { await queue.enqueue(event) }, 'ada')
 
         await until(async () => (await jobs())[0]?.status === 'dead')
         expect(calls).toBe(3)
@@ -1102,9 +1102,9 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         })
         start(queue)
 
-        await add(event => queue.enqueue(event), 'slow')
+        await add(async event => { await queue.enqueue(event) }, 'slow')
         await until(async () => resumeSlow !== undefined)
-        await add(event => queue.enqueue(event), 'quick')
+        await add(async event => { await queue.enqueue(event) }, 'quick')
 
         await until(async () => done.includes('quick'))
         resumeSlow!()
@@ -1131,7 +1131,7 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
           await new Promise<void>(resolve => { resumeSecond = resolve })
         })
 
-        await add(event => gone.enqueue(event), 'ada')
+        await add(async event => { await gone.enqueue(event) }, 'ada')
         start(gone)
         await until(async () => enteredFirst)
         // Its worker stopped renewing it: the lease runs out, and another one claims it.

@@ -361,3 +361,5 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `newt/runtime` | `TimedCall`, `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |
 | `newt/contract` | `Outcome` |
 | `newt/runtime` | `Outcome` |
+| `newt/contract` | `QueueFlow`, `QueueFlows` |
+| `newt/runtime` | `QueueFlow`, `QueueFlows`, `QueueFlowEntry` |

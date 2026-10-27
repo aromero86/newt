@@ -71,9 +71,10 @@ export class Base<S extends Store = Store> {
         const told = withId(event)
         // Who told it and in which scopes, as it is told: counted once it is saved.
         const counted = { context: this.name, event: told.name, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() }
-        await this.jobs.enqueue(told)
+        const queues = await this.jobs.enqueue(told)
         this.store.afterCommit(() => {
           this.metrics.count(counted)
+          for (const queue of queues) this.metrics.flow({ context: this.name, queue, kind: 'published', at: counted.at })
           memory.publish(told)
           this.jobs.wake()
         })
@@ -81,6 +82,8 @@ export class Base<S extends Store = Store> {
     }
     this.schedules = new Schedules(this.store, this.bus, this.publisher, this.invocations, clock)
     this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, clock, this.schedules)
+    // Each job as it is taken and closed, in its queue's flow: a broker's numbers.
+    this.jobs.onFlow = ({ queue, kind, waitMs }) => this.metrics.flow({ context: this.name, queue, kind, waitMs, at: clock.now() })
   }
 
   /** Closes its store, and its metrics: what they had not added yet is added before. */

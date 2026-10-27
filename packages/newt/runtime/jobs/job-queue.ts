@@ -87,14 +87,25 @@ export class JobQueue {
     return () => { this.registrations.delete(name) }
   }
 
-  /** One job for each handler the event concerns and takes, in the transaction of the save that publishes it. */
-  async enqueue(event: DomainEvent): Promise<void> {
+  /**
+   * Told of each job as a worker takes it and closes it: delivered (done), redelivered
+   * (to run again) or dead, and how long it waited, ready, before it was taken. Its
+   * base counts it (`Metrics`); what the handler did is its use case's timing.
+   */
+  onFlow: ((step: { queue: string, kind: 'delivered' | 'redelivered' | 'dead', waitMs: number }) => void) | null = null
+
+  /**
+   * One job for each handler the event concerns and takes, in the transaction of the
+   * save that publishes it: the queues it went to.
+   */
+  async enqueue(event: DomainEvent): Promise<string[]> {
     const told = withId(event)
     const now = this.clock.now().toISOString()
     const jobs: Job[] = [...this.registrations]
       .filter(([, registration]) => eventNameMatches(registration.pattern, told.name) && (registration.when?.(told) ?? true))
       .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(told), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
     if (jobs.length > 0) await this.store.add(jobs)
+    return jobs.map(job => job.queue)
   }
 
   /**
@@ -228,11 +239,17 @@ export class JobQueue {
   }
 
   private async process(claimed: Job): Promise<void> {
+    // Ready since it was due: how long it waited in its queue for a worker.
+    const waitMs = Math.max(0, this.clock.now().getTime() - Date.parse(claimed.runAfter))
+    const told = (kind: 'delivered' | 'redelivered' | 'dead') => this.onFlow?.({ queue: claimed.queue, kind, waitMs })
     const registration = this.registrations.get(claimed.queue)
     // Unsubscribed since it was claimed: it goes back to wait for its queue, not at once.
     if (!registration) return this.close(claimed, { status: 'pending', lastError: claimed.lastError, runAfter: this.later(this.options.pollMs) })
     // Its worker stopped mid-run on every attempt it had: running it again would not help.
-    if (claimed.attempts > registration.attempts) return this.close(claimed, { status: 'dead', lastError: claimed.lastError ?? 'Its worker stopped before it finished, on every attempt' })
+    if (claimed.attempts > registration.attempts) {
+      told('dead')
+      return this.close(claimed, { status: 'dead', lastError: claimed.lastError ?? 'Its worker stopped before it finished, on every attempt' })
+    }
 
     const heartbeat = setInterval(() => {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
@@ -240,8 +257,10 @@ export class JobQueue {
     try {
       await detached(() => currentClock.run(this.clock, () => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string }))))
       await this.close(claimed, { status: 'done', lastError: null })
+      told('delivered')
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)
+      told(claimed.attempts >= registration.attempts ? 'dead' : 'redelivered')
       await (claimed.attempts >= registration.attempts
         ? this.close(claimed, { status: 'dead', lastError })
         : this.close(claimed, { status: 'pending', lastError, runAfter: this.later(this.backoff(claimed.attempts)) }))
