@@ -93,7 +93,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
       {series
         ? (
             <>
-              <Grid columns={{ base: 2, md: 3 }}>
+              <Grid columns={{ base: 2, md: 3, lg: 5 }}>
                 {stats.map(each => (
                   <Stat
                     key={each.label}
