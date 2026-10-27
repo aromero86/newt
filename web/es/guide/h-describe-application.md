@@ -180,7 +180,8 @@ aplicación.
 // cooper/backend/index.ts
 // What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
 if (config.monitor.key) {
-  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key })
+  const nonces = config.monitor.redisUrl ? new RedisNonces({ url: config.monitor.redisUrl, prefix: 'cooper:monitor:nonce' }) : undefined
+  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key, nonces })
   console.log(`monitor listening on ${monitor.url}`)
 }
 ```

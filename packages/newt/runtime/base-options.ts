@@ -1,7 +1,7 @@
 import type { Clock, GuardRule, Tracer, WriteRule } from '../core'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
-import type { EventMetrics } from './metrics/event-metrics'
+import type { Metrics } from './metrics/metrics'
 
 export type BaseOptions<S extends Store> = {
   /** The context's name: `auth`, `shop`… Every span of its invocations says it. */
@@ -30,8 +30,8 @@ export type BaseOptions<S extends Store> = {
   guardRule?: GuardRule
   /**
    * Where it counts its events for whoever monitors it: the application's
-   * (`setEventMetrics`), else its own memory (one instance); `RedisEventMetrics` when
+   * (`setMetrics`), else its own memory (one instance); `RedisMetrics` when
    * several instances share the work. Counting starts once `serveMonitor` serves it.
    */
-  metrics?: EventMetrics
+  metrics?: Metrics
 }

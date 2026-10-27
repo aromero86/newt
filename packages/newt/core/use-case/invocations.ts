@@ -30,6 +30,11 @@ export class Invocations {
   private readonly warned = new Set<string>()
   /** What the context knows of itself: its modules and their use cases, its schedules and subscriptions. */
   readonly registry: Registry
+  /**
+   * Told of every call once it ends, well or not: its use case, how long it took as its
+   * caller saw it, and how many runs more a conflict made. Its base times it (`Metrics`).
+   */
+  onTimed: ((call: { useCase: string, ms: number, retries: number }) => void) | null = null
 
   constructor(
     /** Its own; the application's (`setTracer`) when it has none. */
@@ -127,8 +132,11 @@ export class Invocations {
   /** Runs it in its span; `retry`, only for the first of a chain, says whether a conflict runs it again. */
   private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry?: { allowed: boolean }): Promise<T> {
     return (this.tracer ?? applicationTracer.value).startActiveSpan(name, attributes, async span => {
+      const started = performance.now()
+      let retries = 0
       try {
         for (let attempt = 0, duplicates = 0; ; attempt++) {
+          retries = attempt
           try {
             return await fn()
           } catch (error) {
@@ -144,6 +152,7 @@ export class Invocations {
         throw error
       } finally {
         span.end()
+        this.onTimed?.({ useCase: name, ms: performance.now() - started, retries })
       }
     })
   }

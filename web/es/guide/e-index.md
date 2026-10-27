@@ -356,4 +356,6 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `newt/contract` | `EventCount`, `EventCounts` |
 | `newt/core` | `DefineScopeOptions` |
 | `newt/monitor` | `MemoryNonces`, `NonceStore`, `RedisNonces` |
-| `newt/runtime` | `setEventMetrics`, `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |
+| `newt/runtime` | `setMetrics`, `CountedEvent`, `EventCount`, `EventCounts`, `Metrics`, `MemoryMetrics`, `MemoryMetricsOptions`, `RedisMetrics`, `RedisMetricsOptions` |
+| `newt/contract` | `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |
+| `newt/runtime` | `TimedCall`, `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |

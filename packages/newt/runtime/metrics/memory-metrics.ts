@@ -1,25 +1,29 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
-import type { CountedEvent, EventMetrics } from './event-metrics'
-import { countKey, countOf, MINUTE_MS, minuteOf } from './minutes'
+import { histogramBucketOf } from '../../core/metrics/histogram'
+import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
+import type { CountedEvent, Metrics, TimedCall } from './metrics'
+import { countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
-export type MemoryEventMetricsOptions = {
+export type MemoryMetricsOptions = {
   /** How long a minute is kept for whoever monitors it to collect: a day by default. */
   keepMinutes?: number
-  /** At most how many counts are kept: the oldest minutes go first. */
+  /** At most how many counts and timings are kept: the oldest minutes go first. */
   maxCounts?: number
   /** How often what came is told to those watching it live. */
   liveMs?: number
 }
 
 /**
- * An application's event counts in its own memory: for one instance of it. What the
+ * An application's event counts and use case timings in its own memory: for one instance of it. What the
  * monitor has not collected when the process ends is lost; with several instances,
- * each would count only its own, so they take `RedisEventMetrics`.
+ * each would count only its own, so they take `RedisMetrics`.
  */
-export class MemoryEventMetrics implements EventMetrics {
+export class MemoryMetrics implements Metrics {
 
   /** Each minute's counts, by key. */
   private readonly minutes = new Map<string, Map<string, number>>()
+  /** Each minute's timings, by key. */
+  private readonly timings = new Map<string, Map<string, Timing>>()
   private readonly listeners = new Set<(counts: EventCount[]) => void>()
   private pending = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -31,7 +35,7 @@ export class MemoryEventMetrics implements EventMetrics {
   private readonly maxCounts: number
   private readonly liveMs: number
 
-  constructor(options: MemoryEventMetricsOptions = {}) {
+  constructor(options: MemoryMetricsOptions = {}) {
     this.keepMinutes = options.keepMinutes ?? 24 * 60
     this.maxCounts = options.maxCounts ?? 200_000
     this.liveMs = options.liveMs ?? 2_000
@@ -49,11 +53,37 @@ export class MemoryEventMetrics implements EventMetrics {
     if (!counts) this.minutes.set(minute, counts = new Map())
     if (!counts.has(key)) this.kept++
     counts.set(key, (counts.get(key) ?? 0) + 1)
-    if (minute !== this.forgotIn || this.kept > this.maxCounts) {
-      this.forgotIn = minute
-      this.forget(event.at.getTime())
-    }
+    this.forgetIn(minute, event.at)
     if (this.listeners.size > 0) this.tellLive(`${minute}|${key}`)
+  }
+
+  time(call: TimedCall): void {
+    if (!this.enabled) return
+    const minute = minuteOf(call.at)
+    const key = timingKey(call)
+    let timings = this.timings.get(minute)
+    if (!timings) this.timings.set(minute, timings = new Map())
+    let timing = timings.get(key)
+    if (!timing) {
+      timings.set(key, timing = emptyTiming())
+      this.kept++
+    }
+    timing.calls++
+    timing.retries += call.retries
+    timing.totalMs += call.ms
+    const bucket = histogramBucketOf(call.ms)
+    timing.histogram.set(bucket, (timing.histogram.get(bucket) ?? 0) + 1)
+    this.forgetIn(minute, call.at)
+  }
+
+  async closedTimings(since: string | null, now: Date): Promise<UseCaseTimings> {
+    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const timings: UseCaseTiming[] = []
+    for (const minute of [...this.timings.keys()].sort()) {
+      if ((since !== null && minute <= since) || minute > until) continue
+      for (const [key, timing] of this.timings.get(minute)!) timings.push(timingOf(key, minute, timing))
+    }
+    return { timings, until }
   }
 
   async closed(since: string | null, now: Date): Promise<EventCounts> {
@@ -94,20 +124,30 @@ export class MemoryEventMetrics implements EventMetrics {
     this.timer.unref?.()
   }
 
-  /** Minutes too old, and the oldest ones while there are too many counts. */
+  /** Forgets once a minute, or when there are too many: never at every count. */
+  private forgetIn(minute: string, at: Date): void {
+    if (minute === this.forgotIn && this.kept <= this.maxCounts) return
+    this.forgotIn = minute
+    this.forget(at.getTime())
+  }
+
+  /** Minutes too old, and the oldest ones while there are too many counts and timings. */
   private forget(now: number): void {
     const oldest = minuteOf(now - this.keepMinutes * MINUTE_MS)
-    for (const [minute, counts] of this.minutes) {
-      if (minute >= oldest) continue
-      this.kept -= counts.size
-      this.minutes.delete(minute)
+    for (const kept of [this.minutes, this.timings] as Map<string, Map<string, unknown>>[]) {
+      for (const [minute, each] of kept) {
+        if (minute >= oldest) continue
+        this.kept -= each.size
+        kept.delete(minute)
+      }
     }
     if (this.kept <= this.maxCounts) return
     // Too many still: the oldest go first. Rare, so it may sort.
-    for (const minute of [...this.minutes.keys()].sort()) {
+    for (const minute of [...new Set([...this.minutes.keys(), ...this.timings.keys()])].sort()) {
       if (this.kept <= this.maxCounts) break
-      this.kept -= this.minutes.get(minute)!.size
+      this.kept -= (this.minutes.get(minute)?.size ?? 0) + (this.timings.get(minute)?.size ?? 0)
       this.minutes.delete(minute)
+      this.timings.delete(minute)
     }
   }
 }

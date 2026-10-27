@@ -43,7 +43,7 @@ export class HttpAppClient implements AppClient {
   }
 
   async metrics(endpoint: Endpoint, since: string | null): Promise<EventCounts> {
-    return this.read(endpoint, since === null ? '/v1/metrics' : `/v1/metrics?since=${encodeURIComponent(since)}`, CountsSchema)
+    return this.read(endpoint, since === null ? '/v1/metrics/events' : `/v1/metrics/events?since=${encodeURIComponent(since)}`, CountsSchema)
   }
 
   async live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {

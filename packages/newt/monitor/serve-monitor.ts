@@ -1,7 +1,7 @@
 import type { Server } from 'bun'
 import { hostname } from 'node:os'
 import { systemClock } from '../core'
-import { describeApplication, type Base, type BoundedContext, type EventCounts, type EventMetrics } from '../runtime'
+import { describeApplication, type Base, type BoundedContext, type EventCounts, type Metrics, type UseCaseTimings } from '../runtime'
 import manifest from '../package.json'
 import { MIN_KEY_LENGTH } from './monitor-signature'
 import type { MonitorIdentity } from './monitor-identity'
@@ -15,8 +15,9 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * What an application tells whoever monitors it, on a port of its own: which it is
  * (`GET /v1/identity`), what it is made of (`GET /v1/structure`, as
  * `describeApplication` says it while it runs), how many times each event was told
- * minute by minute (`GET /v1/metrics?since=<minute>`, the minutes closed since), and
- * the same live (`GET /v1/metrics/live`, server-sent events). Read only, and never its
+ * minute by minute (`GET /v1/metrics/events?since=<minute>`, the minutes closed since),
+ * how long each use case's calls took, minute by minute (`GET /v1/metrics/use-cases?since=`),
+ * and the events live (`GET /v1/metrics/live`, server-sent events). Read only, and never its
  * data: serving it starts every context's counting (`Base.metrics`).
  *
  * Only to a request signed with the key it shares with the monitor
@@ -58,7 +59,8 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
       if (request.method !== 'GET') return new Response(null, { status: 405, headers: { allow: 'GET' } })
       if (url.pathname === '/v1/identity') return json(identity)
       if (url.pathname === '/v1/structure') return json(describeApplication(contexts))
-      if (url.pathname === '/v1/metrics') return json(await closedCounts(metricsOf(), url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/metrics/events') return json(await closedCounts(metricsOf(), url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/metrics/use-cases') return json(await closedTimings(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/live') return liveCounts(metricsOf(), request.signal)
       return new Response(null, { status: 404 })
     },
@@ -66,7 +68,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
 }
 
 /** Every context's counts of the minutes closed since a minute, and the last one closed. */
-async function closedCounts(metrics: EventMetrics[], since: string | null, now: Date): Promise<EventCounts> {
+async function closedCounts(metrics: Metrics[], since: string | null, now: Date): Promise<EventCounts> {
   const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
   const each = await Promise.all(metrics.map(one => one.closed(valid, now)))
   // The earliest of their cursors: none of them has anything closed after it that is not in.
@@ -74,8 +76,16 @@ async function closedCounts(metrics: EventMetrics[], since: string | null, now: 
   return { counts: each.flatMap(one => one.counts).filter(count => count.minute <= until), until }
 }
 
+/** Every context's use case timings of the minutes closed since a minute, and the last one closed. */
+async function closedTimings(metrics: Metrics[], since: string | null, now: Date): Promise<UseCaseTimings> {
+  const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
+  const each = await Promise.all(metrics.map(one => one.closedTimings(valid, now)))
+  const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
+  return { timings: each.flatMap(one => one.timings).filter(timing => timing.minute <= until), until }
+}
+
 /** Counts as they come, as server-sent events, with a heartbeat every 8 seconds: whatever relays it, with an idle timeout of 10 (Bun's), keeps it open. */
-function liveCounts(metrics: EventMetrics[], signal: AbortSignal): Response {
+function liveCounts(metrics: Metrics[], signal: AbortSignal): Response {
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

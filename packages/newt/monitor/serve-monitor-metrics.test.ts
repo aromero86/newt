@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { SqliteStore } from '../adapter-sqlite'
-import { defineScope, runAsActor, type Actor, type DomainEvent } from '../core'
-import { Base, MemoryEventMetrics, type EventCounts } from '../runtime'
+import { ConcurrencyConflict, defineScope, Module, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
+import { Base, histogramPercentile, MemoryMetrics, type EventCounts, type UseCaseTimings } from '../runtime'
 import { MemoryNonces } from './nonce-store'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
@@ -26,7 +26,7 @@ const event = (name: string): DomainEvent => ({ name, occurredAt: clock.now().to
 const ana = { userId: 'ana' } as Actor
 
 /** A context `shop` whose events are counted, served on a free port. */
-async function serve(options: { metrics?: MemoryEventMetrics } = {}) {
+async function serve(options: { metrics?: MemoryMetrics } = {}) {
   base = new Base({ name: 'shop', store: await SqliteStore.open({ path: ':memory:' }), clock, ...options })
   server = serveMonitor([base], { name: 'shop-app', port: 0, key: KEY, clock })
   return server.url.origin
@@ -45,17 +45,17 @@ describe('serveMonitor, with metrics', () => {
     await tell('order.placed')
 
     // The minute is still open: nothing yet.
-    expect(await (await signed(`${origin}/v1/metrics`)).json()).toEqual({ counts: [], until: '2026-01-01T09:59:00.000Z' })
+    expect(await (await signed(`${origin}/v1/metrics/events`)).json()).toEqual({ counts: [], until: '2026-01-01T09:59:00.000Z' })
 
     time += 60_000
-    const closed = await (await signed(`${origin}/v1/metrics`)).json() as EventCounts
+    const closed = await (await signed(`${origin}/v1/metrics/events`)).json() as EventCounts
     expect(closed.until).toBe('2026-01-01T10:00:00.000Z')
     expect(closed.counts.toSorted((a, b) => b.count - a.count)).toEqual([
       { minute: '2026-01-01T10:00:00.000Z', context: 'shop', event: 'order.placed', scopes: { workspace: 'acme' }, actor: 'ana', count: 2 },
       { minute: '2026-01-01T10:00:00.000Z', context: 'shop', event: 'order.placed', scopes: {}, actor: null, count: 1 },
     ])
     // From the cursor on, nothing again.
-    expect((await (await signed(`${origin}/v1/metrics?since=${closed.until}`)).json() as EventCounts).counts).toEqual([])
+    expect((await (await signed(`${origin}/v1/metrics/events?since=${closed.until}`)).json() as EventCounts).counts).toEqual([])
   })
 
   test('counts nothing told in a transaction that did not commit', async () => {
@@ -66,11 +66,11 @@ describe('serveMonitor, with metrics', () => {
     }).catch(() => undefined)
 
     time += 60_000
-    expect((await (await signed(`${origin}/v1/metrics`)).json() as EventCounts).counts).toEqual([])
+    expect((await (await signed(`${origin}/v1/metrics/events`)).json() as EventCounts).counts).toEqual([])
   })
 
   test('tells counts live, as server-sent events', async () => {
-    const origin = await serve({ metrics: new MemoryEventMetrics({ liveMs: 10 }) })
+    const origin = await serve({ metrics: new MemoryMetrics({ liveMs: 10 }) })
     const response = await signed(`${origin}/v1/metrics/live`)
     expect(response.headers.get('content-type')).toBe('text/event-stream')
     const reader = response.body!.getReader()
@@ -83,12 +83,44 @@ describe('serveMonitor, with metrics', () => {
   })
 
   test('keeps nothing until it is served: an application nobody monitors counts nothing', async () => {
-    const metrics = new MemoryEventMetrics()
+    const metrics = new MemoryMetrics()
     base = new Base({ name: 'shop', store: await SqliteStore.open({ path: ':memory:' }), clock, metrics })
     await tell('order.placed')
     time += 60_000
 
     expect((await metrics.closed(null, clock.now())).counts).toEqual([])
+  })
+})
+
+describe('serveMonitor, with use case timings', () => {
+  test('times each call by minute, actor and scope, with its runs more after a conflict', async () => {
+    const origin = await serve()
+    let conflicts = 1
+    class Order_Module extends Module {
+      constructor() {
+        super('order', base!.invocations)
+      }
+
+      @UseCase()
+      async place(ms: number) {
+        await Bun.sleep(ms)
+        if (conflicts-- > 0) throw new ConcurrencyConflict()
+      }
+    }
+    const orders = new Order_Module()
+    await runAsActor(ana, () => workspace.run({ workspaceId: 'acme' }, async () => {
+      await orders.place(20)
+      await orders.place(5)
+    }))
+
+    time += 60_000
+    const closed = await (await signed(`${origin}/v1/metrics/use-cases`)).json() as UseCaseTimings
+    expect(closed.timings).toHaveLength(1)
+    const [timing] = closed.timings
+    expect(timing).toMatchObject({ context: 'shop', useCase: 'order.place', scopes: { workspace: 'acme' }, actor: 'ana', calls: 2, retries: 1 })
+    // The first call ran twice (its retry included), the second once.
+    expect(timing!.totalMs).toBeGreaterThan(44)
+    expect(histogramPercentile(timing!.histogram, 99)!).toBeGreaterThan(38)
   })
 })
 

@@ -5,9 +5,9 @@ import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
 import { withId } from './events/with-id'
 import { JobQueue } from './jobs/job-queue'
-import type { EventMetrics } from './metrics/event-metrics'
-import { MemoryEventMetrics } from './metrics/memory-event-metrics'
-import { applicationMetrics } from './metrics/set-event-metrics'
+import type { Metrics } from './metrics/metrics'
+import { MemoryMetrics } from './metrics/memory-metrics'
+import { applicationMetrics } from './metrics/set-metrics'
 import { Schedules } from './schedules/schedules'
 
 /**
@@ -34,14 +34,18 @@ export class Base<S extends Store = Store> {
   /** Its schedules, each an event told as a cron expression says: they start and stop with its jobs. */
   readonly schedules: Schedules
   /** Where it counts its events for whoever monitors it (`serveMonitor` starts it). */
-  readonly metrics: EventMetrics
+  readonly metrics: Metrics
 
   constructor(options: BaseOptions<S>) {
     const clock = options.clock ?? systemClock
     this.name = options.name
     this.store = options.store
-    this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryEventMetrics()
+    this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
+    // Every call of its use cases, timed as it ends, in the scopes and by the actor it ran with.
+    this.invocations.onTimed = ({ useCase, ms, retries }) => this.metrics.time({
+      context: this.name, useCase, ms, retries, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now(),
+    })
     const memory = new InMemoryEventBus()
     const { registry } = this.invocations
     this.bus = {
