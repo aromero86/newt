@@ -1,12 +1,15 @@
 import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
-import { App, AppRegisterSchema, AppUpdateSchema, type AppDTO } from './app'
+import { App, AppListSchema, AppRegisterSchema, AppUpdateSchema, type AppDTO } from './app'
 import type { App_Options } from './app-options'
 import { App_Repository } from './app.repository'
 import { registerAppRoutes } from './app.routes'
 import { AppNameTaken } from './errors/app-name-taken'
 import { AppNotFound } from './errors/app-not-found'
+import { App_Archived } from './events/app-archived'
+import { App_Deleted } from './events/app-deleted'
 import { App_Registered } from './events/app-registered'
+import { App_Restored } from './events/app-restored'
 import { App_Updated } from './events/app-updated'
 
 /** The applications the monitor watches: their names, where to reach them, and their keys, sealed. */
@@ -22,7 +25,7 @@ export class App_Module extends Module {
 
   private constructor(base: MonitorBase, private readonly repo: App_Repository, private readonly options: App_Options) {
     super('app', base.invocations)
-    this.events = eventsOf(base.bus, { registered: App_Registered, updated: App_Updated })
+    this.events = eventsOf(base.bus, { registered: App_Registered, updated: App_Updated, archived: App_Archived, restored: App_Restored, deleted: App_Deleted })
   }
 
   @UseCase()
@@ -34,10 +37,12 @@ export class App_Module extends Module {
     return app.toDTO()
   }
 
-  /** A page of them, the newest first. */
+  /** A page of them, the newest first: those watched, unless `filter` asks for the archived ones, or all. */
   @UseCase()
-  async list(page: PageRequest): Promise<Page<AppDTO>> {
-    return mapPage(await this.repo.page({}, page, { newestFirst: true }), app => app.toDTO())
+  async list(filter: unknown, page: PageRequest): Promise<Page<AppDTO>> {
+    const { status } = AppListSchema.parse(filter)
+    const criteria = status === 'active' ? { archivedAt: null } : status === 'archived' ? { archivedAt: { ne: null } } : {}
+    return mapPage(await this.repo.page(criteria, page, { newestFirst: true }), app => app.toDTO())
   }
 
   @UseCase()
@@ -54,6 +59,30 @@ export class App_Module extends Module {
     app.update(change, this.options.cipher)
     await this.repo.persistWithNameFree(app)
     return app.toDTO()
+  }
+
+  @UseCase()
+  async archive(id: string): Promise<AppDTO> {
+    const app = await this.load(id)
+    app.archive()
+    await this.repo.persist(app)
+    return app.toDTO()
+  }
+
+  @UseCase()
+  async restore(id: string): Promise<AppDTO> {
+    const app = await this.load(id)
+    app.restore()
+    await this.repo.persist(app)
+    return app.toDTO()
+  }
+
+  /** For good: it must be archived first. What the other modules know of it goes too, as they hear `app.deleted`. */
+  @UseCase()
+  async delete(id: string): Promise<void> {
+    const app = await this.load(id)
+    app.delete()
+    await this.repo.persist(app)
   }
 
   private load(id: string): Promise<App> {

@@ -7,6 +7,8 @@ export const AppSchema = z.object({
   /** Where its monitor endpoint is (`serveMonitor`): `http://cooper:3010`. */
   url: z.url({ protocol: /^https?$/ }),
   sealedKey: z.string().min(1),
+  /** When it was archived: it is not watched, and all it was is kept. Null while it is. */
+  archivedAt: z.iso.datetime().nullable().default(null),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
 })
@@ -33,9 +35,17 @@ export const AppRegisterSchema = z.object({
 export const AppUpdateSchema = AppRegisterSchema.partial()
   .refine(change => Object.values(change).some(value => value !== undefined), 'Say what changes: name, url or key')
 
+/** Which of them a list shows: those watched (the default), those archived, or all. */
+export const AppListSchema = z.object({
+  status: z.enum(['active', 'archived', 'all']).default('active'),
+})
+
 export type AppDTO = z.infer<typeof AppPublicSchema>
 export type AppRegisterDTO = z.input<typeof AppRegisterSchema>
 export type AppUpdateDTO = z.input<typeof AppUpdateSchema>
+
+/** What `app.deleted` tells: which application it was. Nothing of it is kept any more. */
+export type AppDeletedDTO = { id: string, name: string }
 
 /** What `app.updated` tells: the application now, and which of its fields changed (`key` among them, never its value). */
 export type AppUpdatedDTO = { dto: AppDTO, changed: ('name' | 'url' | 'key')[] }

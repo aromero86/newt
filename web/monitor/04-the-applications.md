@@ -203,4 +203,4 @@ curl -s -b cookies.txt localhost:4800/api/apps -H 'content-type: application/jso
 - A name unique among rows: check first, count again under a guard, and an index.
 - An event about a secret says that it changed, never what it is.
 
-Next: archiving, restoring, deleting.
+Next: [archive, restore, delete](./05-archive-restore-delete).

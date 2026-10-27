@@ -1,8 +1,12 @@
 import type { z } from 'zod'
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, now, type EntityInput } from 'newt/core'
 import type { KeyCipher } from '../../../../shared/key-cipher'
 import { AppPublicSchema, AppSchema } from './app.schema'
+import { AppNotArchived } from './errors/app-not-archived'
+import { App_Archived } from './events/app-archived'
+import { App_Deleted } from './events/app-deleted'
 import { App_Registered } from './events/app-registered'
+import { App_Restored } from './events/app-restored'
 import { App_Updated } from './events/app-updated'
 
 export * from './app.schema'
@@ -25,7 +29,7 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
 
   static register({ name, url, key }: Fields, cipher: KeyCipher): App {
     const id = Bun.randomUUIDv7()
-    const app = new App({ id, name, url, sealedKey: cipher.seal(key, id) }, true)
+    const app = new App({ id, name, url, sealedKey: cipher.seal(key, id), archivedAt: null }, true)
     app.trackEvent(new App_Registered(app.toDTO()))
     return app
   }
@@ -36,6 +40,10 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
 
   get url(): string {
     return this.data.url
+  }
+
+  get isArchived(): boolean {
+    return this.data.archivedAt !== null
   }
 
   /** Its key, opened: only to sign a request with. */
@@ -57,5 +65,25 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
     })
     this.trackEvent(new App_Updated({ dto: this.toDTO(), changed }))
   }
-}
 
+  /** No longer watched, all it was kept. Archiving one archived is archiving it once. */
+  archive(): void {
+    if (this.isArchived) return
+    this.change({ archivedAt: now().toISOString() })
+    this.trackEvent(new App_Archived(this.toDTO()))
+  }
+
+  /** Watched again. */
+  restore(): void {
+    if (!this.isArchived) return
+    this.change({ archivedAt: null })
+    this.trackEvent(new App_Restored(this.toDTO()))
+  }
+
+  /** Gone for good, with all the monitor knows of it: only once it is archived. */
+  delete(): void {
+    if (!this.isArchived) throw new AppNotArchived(this.name)
+    this.markAsDeleted()
+    this.trackEvent(new App_Deleted({ id: this.id, name: this.name }))
+  }
+}

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { EventSource, Json } from 'newt/core'
 import type { Browser } from 'newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import type { AppRow } from './app.repository'
@@ -23,8 +24,8 @@ describe('app', () => {
 
     expect(response.status).toBe(201)
     const app = await response.json() as Record<string, unknown>
-    expect(app).toMatchObject({ name: 'cooper', url: 'http://cooper:3010' })
-    expect(Object.keys(app).sort()).toEqual(['createdAt', 'id', 'name', 'updatedAt', 'url'])
+    expect(app).toMatchObject({ name: 'cooper', url: 'http://cooper:3010', archivedAt: null })
+    expect(Object.keys(app).sort()).toEqual(['archivedAt', 'createdAt', 'id', 'name', 'updatedAt', 'url'])
     expect(await (await as(`/api/apps/${app.id}`)).json()).toEqual(app)
   })
 
@@ -76,5 +77,59 @@ describe('app', () => {
 
   test('shows nothing to anyone not signed in', async () => {
     expect((await monitor.fetch('/api/apps')).status).toBe(401)
+  })
+})
+
+describe('an application\'s life', () => {
+  const registered = async (name = 'cooper') => (await (await register({ ...COOPER, name })).json() as { id: string }).id
+  const names = async (query = '') => ((await (await as(`/api/apps${query}`)).json()) as { items: { name: string }[] }).items.map(app => app.name)
+
+  test('archived, it leaves the list of those watched, and is kept, with all of it', async () => {
+    const id = await registered()
+    await registered('nuke')
+
+    const archived = await (await as(`/api/apps/${id}/archive`, { method: 'POST' })).json() as { archivedAt: string | null }
+    expect(archived.archivedAt).not.toBeNull()
+    expect(await names()).toEqual(['nuke'])
+    expect(await names('?status=archived')).toEqual(['cooper'])
+    expect(await names('?status=all')).toEqual(['nuke', 'cooper'])
+    expect((await as(`/api/apps/${id}`)).status).toBe(200)
+  })
+
+  test('restored, it is watched again', async () => {
+    const id = await registered()
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+
+    expect(await (await as(`/api/apps/${id}/restore`, { method: 'POST' })).json()).toMatchObject({ archivedAt: null })
+    expect(await names()).toEqual(['cooper'])
+  })
+
+  test('is deleted only once archived, and then for good', async () => {
+    const id = await registered()
+
+    const refused = await as(`/api/apps/${id}`, { method: 'DELETE' })
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ code: 'app.not_archived' })
+
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    expect((await as(`/api/apps/${id}`, { method: 'DELETE' })).status).toBe(204)
+    expect((await as(`/api/apps/${id}`)).status).toBe(404)
+    expect(await monitor.monitor.base.store.table<AppRow>('app').find({ id })).toEqual([])
+  })
+
+  test('tells each step, and nothing for a step it was already at', async () => {
+    const told: string[] = []
+    for (const [key, emitter] of Object.entries(monitor.modules.app.events) as [string, EventSource<Json>][]) {
+      emitter.subscribe(() => void told.push(key), { strategy: 'fire-and-forget' })
+    }
+    const id = await registered()
+
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    await as(`/api/apps/${id}/restore`, { method: 'POST' })
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    await as(`/api/apps/${id}`, { method: 'DELETE' })
+
+    expect(told).toEqual(['registered', 'archived', 'restored', 'archived', 'deleted'])
   })
 })
