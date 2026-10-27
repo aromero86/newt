@@ -13,6 +13,7 @@ import { LinkProvider, TextLink, type LinkComponent } from './link'
 import { Graph } from './graph'
 import { LineChart } from './line-chart'
 import { TimeSeries } from './time-series'
+import { Waterfall } from './waterfall'
 import { RelativeTime } from './relative-time'
 import { SideNav, SideNavItem } from './side-nav'
 import { Stack } from './stack'
@@ -54,6 +55,17 @@ describe('newt-react-ui', () => {
     expect(chart).toContain('aria-label="card.create latency"')
     expect(chart).toContain('--color-p50:var(--ok)')
     expect(chart).toContain('--color-p99:var(--bad)')
+  })
+
+  test('a waterfall is a list of steps, each a bar where and as long as it ran, pressed to select it', () => {
+    const rows = [{ id: '1', depth: 0, label: 'POST /cards', startMs: 0, ms: 100 }, { id: '2', depth: 1, label: 'card.create', startMs: 50, ms: 25, tone: 'bad' as const }]
+    const waterfall = html(<Waterfall label="Trace" rows={rows} selected="2" onSelect={() => {}} />)
+
+    expect(waterfall).toContain('aria-label="Trace"')
+    expect(waterfall).toContain('padding-left:16px')
+    expect(waterfall).toContain('left:50%;width:max(2px, 25%)')
+    expect(waterfall).toContain('bg-bad')
+    expect(waterfall).toContain('aria-pressed="true"')
   })
 
   test('a graph draws its nodes as links, and an arrow for each use', () => {
