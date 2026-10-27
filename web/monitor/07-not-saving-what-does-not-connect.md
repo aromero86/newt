@@ -130,4 +130,4 @@ bun test packages/newt-monitor
 - A call outside before the save runs again on a conflict: only calls that change
   nothing there.
 
-Next: versions of the structure.
+Next: [versions of the structure](./08-versions-of-the-structure).

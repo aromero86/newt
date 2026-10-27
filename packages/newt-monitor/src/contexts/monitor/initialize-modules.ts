@@ -6,6 +6,7 @@ import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
 import { Connection_Module } from './modules/connection/connection.module'
 import { Session_Module } from './modules/session/session.module'
+import { Structure_Module } from './modules/structure/structure.module'
 
 /** What the modules are given from outside: the applications, over HTTP, unless a test gives another way to them. */
 export type Monitor_ModuleDeps = { client?: AppClient }
@@ -20,7 +21,8 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const client = deps.client ?? new HttpAppClient()
   const app = App_Module.initialize(base, { client }, { cipher: new KeyCipher(config.secret) })
   const connection = Connection_Module.initialize(base, { app, client })
-  return { session, app, connection }
+  const structure = Structure_Module.initialize(base, { app, connection })
+  return { session, app, connection, structure }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

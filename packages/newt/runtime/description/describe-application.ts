@@ -2,7 +2,7 @@ import { DomainEventEmitter, Module } from '../../core'
 import type { RegisteredModule, Registry } from '../../core/internal'
 import type { Base } from '../base'
 import type { BoundedContext } from '../bounded-context'
-import type { ApplicationDescription, ContextDescription, ModuleDependency, ModuleDescription } from './application-description'
+import type { ApplicationDescription, ContextDescription, ModuleDependency, ModuleDescription } from '../../core/description/application-description'
 
 /** How deep it looks into an object of deps for modules and events (`auth: { token, user }`). */
 const DEPTH = 2

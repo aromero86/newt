@@ -117,6 +117,13 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `Page` | type | [23](./23-frontends), [26](./26-dead-jobs-and-analytics) | [3](./03-pages-and-errors), [15](./15-kysely), [20](./20-wiring-contexts), [24](./24-mcp-server), [B](./b-module-anatomy) |
 | `PageRequest` | type |   | [3](./03-pages-and-errors), [15](./15-kysely), [16](./16-search-port), [20](./20-wiring-contexts), [23](./23-frontends), [B](./b-module-anatomy) |
 | `ErrorBody` | type | [23](./23-frontends) | [3](./03-pages-and-errors), [B](./b-module-anatomy), [C](./c-common-problems) |
+| `ApplicationDescription` | type |   | [H](./h-describe-application) |
+| `ContextDescription` | type |   | [H](./h-describe-application) |
+| `ModuleDescription` | type |   | [H](./h-describe-application) |
+| `UseCaseDescription` | type |   | [H](./h-describe-application) |
+| `EventDescription` | type |   | [H](./h-describe-application) |
+| `ModuleDependency` | type |   | [H](./h-describe-application) |
+| `SubscriptionDescription` | type |   | [H](./h-describe-application) |
 
 ## `newt/port-store`
 

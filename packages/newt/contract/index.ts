@@ -1,6 +1,7 @@
 // newt/contract: what a backend and its clients share, and a browser may load: the
 // value objects and the errors they throw, the filters a client may send, pages of
-// lists and the body of an error. Nothing here keeps a scope (`node:async_hooks`), so
+// lists, the body of an error, and what an application says it is made of
+// (`describeApplication`). Nothing here keeps a scope (`node:async_hooks`), so
 // a frontend imports it as it is. It is core's own files, those that run anywhere.
 
 export { DomainError } from '../core/errors/domain-error'
@@ -21,3 +22,12 @@ export type { FilterNode } from '../core/criteria/filter/filter-node'
 export type { Page } from '../core/pagination/page'
 export type { PageRequest } from '../core/pagination/page-request'
 export type { ErrorBody } from '../core/errors/error-body'
+export type {
+  ApplicationDescription,
+  ContextDescription,
+  ModuleDescription,
+  UseCaseDescription,
+  EventDescription,
+  ModuleDependency,
+  SubscriptionDescription,
+} from '../core/description/application-description'

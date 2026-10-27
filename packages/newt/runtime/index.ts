@@ -18,4 +18,4 @@ export type {
   EventDescription,
   ModuleDependency,
   SubscriptionDescription,
-} from './description/application-description'
+} from '../core/description/application-description'

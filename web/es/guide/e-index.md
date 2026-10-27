@@ -118,6 +118,13 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `Page` | tipo | [23](./23-frontends), [26](./26-dead-jobs-and-analytics) | [3](./03-pages-and-errors), [15](./15-kysely), [20](./20-wiring-contexts), [24](./24-mcp-server), [B](./b-module-anatomy) |
 | `PageRequest` | tipo |   | [3](./03-pages-and-errors), [15](./15-kysely), [16](./16-search-port), [20](./20-wiring-contexts), [23](./23-frontends), [B](./b-module-anatomy) |
 | `ErrorBody` | tipo | [23](./23-frontends) | [3](./03-pages-and-errors), [B](./b-module-anatomy), [C](./c-common-problems) |
+| `ApplicationDescription` | tipo |   | [H](./h-describe-application) |
+| `ContextDescription` | tipo |   | [H](./h-describe-application) |
+| `ModuleDescription` | tipo |   | [H](./h-describe-application) |
+| `UseCaseDescription` | tipo |   | [H](./h-describe-application) |
+| `EventDescription` | tipo |   | [H](./h-describe-application) |
+| `ModuleDependency` | tipo |   | [H](./h-describe-application) |
+| `SubscriptionDescription` | tipo |   | [H](./h-describe-application) |
 
 ## `newt/port-store`
 

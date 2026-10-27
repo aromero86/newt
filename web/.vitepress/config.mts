@@ -55,6 +55,7 @@ const MONITOR: [string, string, string][] = [
   ['05-archive-restore-delete', 'Archive, restore, delete', 'Archivar, restaurar, borrar'],
   ['06-talking-to-an-application', 'Talking to an application', 'Hablar con una aplicación'],
   ['07-not-saving-what-does-not-connect', 'Not saving what does not connect', 'No guardar lo que no conecta'],
+  ['08-versions-of-the-structure', 'Versions of the structure', 'Versiones de la estructura'],
 ]
 
 const REFERENCE: [string, string, string][] = [
