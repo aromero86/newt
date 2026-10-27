@@ -1,5 +1,5 @@
 import { eventsOf, Module, UseCase } from 'newt/core'
-import type { ApplicationDescription, EventCounts, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
@@ -65,6 +65,28 @@ export class Connection_Module extends Module {
     const called = await this.call(appId, endpoint => this.deps.client.timings(endpoint, since))
     await this.record(appId, called.answered ? { answered: true } : called)
     return called
+  }
+
+  /** How its queues' jobs went in the minutes closed since a cursor, if it answers; recorded as any call. */
+  @UseCase()
+  async fetchFlows(appId: string, since: string | null): Promise<Called<QueueFlows>> {
+    const called = await this.call(appId, endpoint => this.deps.client.flows(endpoint, since))
+    await this.record(appId, called.answered ? { answered: true } : called)
+    return called
+  }
+
+  /** How full its queues are now, if it answers; recorded as any call. */
+  @UseCase()
+  async fetchOutbox(appId: string): Promise<Called<OutboxState>> {
+    const called = await this.call(appId, endpoint => this.deps.client.outbox(endpoint))
+    await this.record(appId, called.answered ? { answered: true } : called)
+    return called
+  }
+
+  /** A page of a context's dead jobs, if it answers: asked as someone looks, not recorded. */
+  @UseCase()
+  async fetchDeadJobs(appId: string, context: string, after: string | null, limit: number): Promise<Called<DeadJobs>> {
+    return this.call(appId, endpoint => this.deps.client.deadJobs(endpoint, context, after, limit))
   }
 
   /**

@@ -64,6 +64,11 @@ export function serveTestApp(name = 'shop') {
         base.metrics.time({ context, useCase, at: called.at, ms: called.ms, retries: called.retries ?? 0, actor: called.actor ?? null, scopes: called.scopes ?? {}, outcome: called.outcome ?? null })
       }
     },
+    /** A job's step in one of a context's queues, counted as the application counts it. */
+    flow(context: string, queue: string, step: { at: Date, kind: 'published' | 'delivered' | 'redelivered' | 'dead', waitMs?: number, times?: number }) {
+      const base = contexts.find(each => each.name === context)!
+      for (let time = 0; time < (step.times ?? 1); time++) base.metrics.flow({ context, queue, kind: step.kind, at: step.at, waitMs: step.waitMs })
+    },
     /** A context taken away. */
     remove(context: string) {
       contexts.splice(contexts.findIndex(base => base.name === context), 1)
