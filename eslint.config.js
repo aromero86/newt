@@ -1,5 +1,6 @@
 import tseslint from 'typescript-eslint'
 import { newt } from 'newt-eslint'
+import { newtReactUi } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
 // frontends the rules of a UI built from one library. The framework's own code is not
@@ -15,6 +16,9 @@ const MONITOR = newt({
   files: ['packages/newt-monitor/**/*.ts'],
   contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
 })
+
+// newt-react-ui's gallery is an app like any other: it keeps the library's lint.
+const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
 
 // The frontends build their UI from @cooper/ui only. Styling lives in cooper/libs/ui and
 // in each app's own components/ folder; everywhere else, class names and inline styles
@@ -48,6 +52,7 @@ export default [
   { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
   ...MONITOR,
+  ...UI_GALLERY,
   {
     files: FRONTEND,
     languageOptions: { parser: tseslint.parser },
