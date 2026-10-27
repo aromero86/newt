@@ -88,12 +88,12 @@ describe('newt init, for the newt packages an application uses', () => {
     const web = join(app, 'with-ui')
     await mkdir(web, { recursive: true })
     await linkModules(web)
-    await Bun.write(join(web, 'package.json'), JSON.stringify({ name: 'web', private: true, dependencies: { 'newt-react-ui': 'workspace:*' } }))
+    await Bun.write(join(web, 'package.json'), JSON.stringify({ name: 'web', private: true, dependencies: { 'newt-react': 'workspace:*', 'newt-react-ui': 'workspace:*' } }))
 
     const { lines, code } = await run(['init'], web)
 
     expect(code).toBe(0)
-    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt/AGENTS.md\n@node_modules/newt-react-ui/AGENTS.md\n')
+    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt/AGENTS.md\n@node_modules/newt-react/AGENTS.md\n@node_modules/newt-react-ui/AGENTS.md\n')
     expect(lines).toContain('wrote    .claude/skills/newt-react-ui/SKILL.md')
     expect(await Bun.file(join(web, '.claude/skills/newt-react-ui/SKILL.md')).text()).toContain('name: newt-react-ui')
   })

@@ -8,6 +8,9 @@
     ".": "./index.ts",
     "./form-field": "./form-field/index.ts"
   },
+  "newt": {
+    "agents": "AGENTS.md"
+  },
   "dependencies": {
     "@preact/signals-core": "1.14.4"
   },
@@ -18,6 +21,8 @@
     "zod": "^4.3.6"
   },
   "peerDependenciesMeta": {
-    "newt-react-ui": { "optional": true }
+    "newt-react-ui": {
+      "optional": true
+    }
   }
 }
