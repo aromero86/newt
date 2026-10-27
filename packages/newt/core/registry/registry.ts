@@ -54,6 +54,12 @@ export class Registry {
     module.useCases.set(name, options)
   }
 
+  /** Whether a name is one of its modules' use cases: `card.create` is, the framework's own `job.claim` is not. */
+  isUseCase(name: string): boolean {
+    const dot = name.indexOf('.')
+    return this.modules.get(name.slice(0, dot))?.useCases.has(name.slice(dot + 1)) ?? false
+  }
+
   /** A schedule, by the name of the event it tells. */
   schedule(name: string, cron: string): void {
     this.cronOf.set(name, cron)

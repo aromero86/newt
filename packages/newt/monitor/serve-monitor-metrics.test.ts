@@ -116,6 +116,8 @@ describe('serveMonitor, with use case timings', () => {
       await orders.place(20)
       await orders.place(5)
     }))
+    // The framework's own invocations are no one's use case: not timed.
+    await base!.invocations.run('job.claim', async () => [])
 
     time += 60_000
     const closed = await (await signed(`${origin}/v1/metrics/use-cases`)).json() as UseCaseTimings
