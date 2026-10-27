@@ -36,4 +36,5 @@ export type { UseCaseTiming, UseCaseTimings } from '../core/metrics/use-case-tim
 export type { Outcome } from '../core/metrics/outcome'
 export type { QueueFlow, QueueFlows } from '../core/metrics/queue-flow'
 export type { DeadJob, DeadJobs, OutboxState, QueueState } from '../core/metrics/outbox-state'
+export type { ClosedTraces, SpanAttributeValue, SpanKind, Trace, TraceJob, TraceSpan } from '../core/traces/trace'
 export { histogramBucketMs, histogramBucketOf, histogramPercentile, HISTOGRAM_FLOOR_MS, HISTOGRAM_GROWTH } from '../core/metrics/histogram'

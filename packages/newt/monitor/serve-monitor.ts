@@ -1,7 +1,7 @@
 import type { Server } from 'bun'
 import { hostname } from 'node:os'
 import { systemClock } from '../core'
-import { describeApplication, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { describeApplication, enableTraces, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
 import manifest from '../package.json'
 import { MIN_KEY_LENGTH } from './monitor-signature'
 import type { MonitorIdentity } from './monitor-identity'
@@ -19,8 +19,10 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * how long each use case's calls took, minute by minute (`GET /v1/metrics/use-cases?since=`),
  * the events live (`GET /v1/metrics/live`, server-sent events), how full its queues are
  * now (`GET /v1/outbox`) and its dead jobs without their payloads
- * (`GET /v1/outbox/dead?context=&after=&limit=`). Read only, and never its
- * data: serving it starts every context's counting (`Base.metrics`).
+ * (`GET /v1/outbox/dead?context=&after=&limit=`), and the traces it kept, by the minute
+ * they ended (`GET /v1/traces?since=<minute>`, whole minutes, about 2,000 traces a page).
+ * Read only, and never its data: serving it starts every context's counting
+ * (`Base.metrics`) and the application's traces (`setTraces`; in its memory unless set).
  *
  * Only to a request signed with the key it shares with the monitor
  * (`signMonitorRequest`): any other gets a 401, the same whatever was wrong, and
@@ -43,6 +45,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
     return metrics
   }
   metricsOf()
+  const traces = enableTraces()
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,
@@ -71,6 +74,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
       }
       if (url.pathname === '/v1/metrics/queues') return json(await closedFlows(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/use-cases') return json(await closedTimings(metricsOf(), url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/traces') return json(await traces.closed(url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/live') return liveCounts(metricsOf(), request.signal)
       return new Response(null, { status: 404 })
     },

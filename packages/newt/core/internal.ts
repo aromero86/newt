@@ -26,3 +26,5 @@ export { message } from './messages/message'
 export { applicationTracer } from './observability/application-tracer'
 // runtime's Base: which scopes an event is told in, for its metrics.
 export { activeScopes, scopeId } from './scope/registered-scopes'
+export { applicationTraces } from './traces/trace-sink'
+export { isTracing, traceRoot, traceSpan, traceTold } from './traces/trace-recorder'

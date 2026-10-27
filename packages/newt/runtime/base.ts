@@ -1,5 +1,5 @@
 import { findCurrentActor, systemClock, type EventBus, type EventPublisher } from '../core'
-import { activeScopes, Invocations } from '../core/internal'
+import { activeScopes, Invocations, traceTold } from '../core/internal'
 import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
@@ -9,6 +9,7 @@ import type { Metrics } from './metrics/metrics'
 import { MemoryMetrics } from './metrics/memory-metrics'
 import { applicationMetrics } from './metrics/set-metrics'
 import { Schedules } from './schedules/schedules'
+import { tracedStore } from './traces/traced-store'
 
 /**
  * The infrastructure every module of a context receives: its store, the invocations
@@ -39,7 +40,8 @@ export class Base<S extends Store = Store> {
   constructor(options: BaseOptions<S>) {
     const clock = options.clock ?? systemClock
     this.name = options.name
-    this.store = options.store
+    // Each read and write of its tables, a step of the trace in progress, if any.
+    this.store = tracedStore(options.store, options.name)
     this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     // Every call of its use cases, timed as it ends, in the scopes and by the actor it ran with.
@@ -72,6 +74,7 @@ export class Base<S extends Store = Store> {
         // Who told it and in which scopes, as it is told: counted once it is saved.
         const counted = { context: this.name, event: told.name, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() }
         const queues = await this.jobs.enqueue(told)
+        traceTold(told)
         this.store.afterCommit(() => {
           this.metrics.count(counted)
           for (const queue of queues) this.metrics.flow({ context: this.name, queue, kind: 'published', at: counted.at })
