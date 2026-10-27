@@ -44,6 +44,10 @@ features:
     details: newt-graph reads an application and draws its contexts, modules, use cases and events. Pick a use case and watch its side effects travel, worker after worker.
     link: /guide/g-command-line
     linkText: newt-graph
+  - title: Your system, watched
+    details: newt-monitor watches running newt applications, never their data. Each one tells it what it is made of, to requests signed with a key that never travels; it keeps every version, and when each part came and went.
+    link: /monitor/00-introduction
+    linkText: Build the monitor
   - title: Learn it by building
     details: Thirty chapters build cooper, a small Trello with an OAuth server, an MCP server and a backoffice. Each chapter ends at a git tag that runs and passes its tests.
     link: /guide/00-introduction

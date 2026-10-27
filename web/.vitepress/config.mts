@@ -49,7 +49,7 @@ const APPENDICES: [string, string, string][] = [
 const MONITOR: [string, string, string][] = [
   ['00-introduction', 'Introduction', 'Introducción'],
   ['01-a-monitor-built-with-newt', 'A monitor built with newt', 'Un monitor hecho con newt'],
-  ['02-signing-in', 'Signing in', 'Entrar'],
+  ['02-signing-in', 'Signing in', 'Iniciar sesión'],
   ['03-a-secret-that-encrypts', 'A secret that encrypts', 'Un secreto que cifra'],
   ['04-the-applications', 'The applications', 'Las aplicaciones'],
   ['05-archive-restore-delete', 'Archive, restore, delete', 'Archivar, restaurar, borrar'],

@@ -44,6 +44,10 @@ features:
     details: newt-graph lee una aplicación y dibuja sus contextos, módulos, casos de uso y eventos. Elige un caso de uso y mira cómo viajan sus efectos, worker tras worker.
     link: /es/guide/g-command-line
     linkText: newt-graph
+  - title: Tu sistema, vigilado
+    details: newt-monitor vigila aplicaciones newt en marcha, nunca sus datos. Cada una le dice de qué está hecha, a peticiones firmadas con una clave que nunca viaja; guarda cada versión, y cuándo llegó y se fue cada parte.
+    link: /es/monitor/00-introduction
+    linkText: Construye el monitor
   - title: Apréndelo construyendo
     details: Treinta capítulos construyen cooper, un Trello pequeño con un servidor OAuth, un servidor MCP y un backoffice. Cada capítulo acaba en una etiqueta de git que funciona y pasa sus tests.
     link: /es/guide/00-introduction
