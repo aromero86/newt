@@ -10,6 +10,7 @@ import { Select } from 'newt-react-ui/select'
 import { Stack } from 'newt-react-ui/stack'
 import { Mono } from 'newt-react-ui/text'
 import { useService, useValue } from 'newt-react'
+import { UseCaseErrorsApi, type ErrorsTotalDTO } from '../../../api/use-case-errors'
 import { UseCaseMetricsApi, type UseCaseTotalDTO } from '../../../api/use-case-metrics'
 import { formatMs } from '../app-metrics/metrics-format'
 import type { AppDTO } from '../../../api/app'
@@ -25,8 +26,13 @@ export function AppUseCases({ app }: { app: AppDTO }) {
   const [filter, setFilter] = useState('')
   const removed = useRemoved()
   const totals = useTotals(app)
-  const [sort, setSort] = useState<'structure' | 'calls' | 'retries'>('structure')
-  const totalOf = (context: string, useCase: string) => totals?.get(`${context}|${useCase}`)?.now
+  const ended = useEnded(app)
+  const [sort, setSort] = useState<'structure' | 'calls' | 'retries' | 'failures'>('structure')
+  const sortValue = (context: string, useCase: string) => {
+    if (sort === 'failures') return ended?.get(`${context}|${useCase}`)?.now.failures ?? 0
+    if (sort === 'structure') return 0
+    return totals?.get(`${context}|${useCase}`)?.now[sort] ?? 0
+  }
   if (!structure) return <AppNotRead app={app} />
 
   const gone = removed.filter(item => item.kind === 'useCase' && matches(item.itemId, filter))
@@ -36,7 +42,7 @@ export function AppUseCases({ app }: { app: AppDTO }) {
       ...context,
       gone: gone.filter(item => item.context === context.name),
       useCases: context.modules.flatMap(module => module.useCases.map(useCase => ({ ...useCase, module }))).filter(useCase => matches(useCase.id, filter))
-        .sort((a, b) => sort === 'structure' ? 0 : (totalOf(context.name, b.name)?.[sort] ?? 0) - (totalOf(context.name, a.name)?.[sort] ?? 0)),
+        .sort((a, b) => sortValue(context.name, b.name) - sortValue(context.name, a.name)),
     }))
     .filter(context => context.useCases.length > 0 || context.gone.length > 0)
 
@@ -49,7 +55,7 @@ export function AppUseCases({ app }: { app: AppDTO }) {
           label="Sort use cases"
           value={sort}
           onValueChange={value => setSort(value as typeof sort)}
-          options={[{ value: 'structure', label: 'As in their modules' }, { value: 'calls', label: 'Most called in 24h' }, { value: 'retries', label: 'Most run again in 24h' }]}
+          options={[{ value: 'structure', label: 'As in their modules' }, { value: 'calls', label: 'Most called in 24h' }, { value: 'retries', label: 'Most run again in 24h' }, { value: 'failures', label: 'Most failures in 24h' }]}
         />
         <AppRemovedToggle />
       </Inline>
@@ -66,6 +72,7 @@ export function AppUseCases({ app }: { app: AppDTO }) {
               <BoxRowTitle href={`/apps/${app.id}/use-cases/${context.name}/${useCase.name}`}><Mono>{useCase.name}</Mono></BoxRowTitle>
               <BoxRowMeta>
                 {totals && <>{describeTotal(totals.get(`${context.name}|${useCase.name}`))}</>}
+                {ended && describeEnded(ended.get(`${context.name}|${useCase.name}`)) && <>{describeEnded(ended.get(`${context.name}|${useCase.name}`))}</>}
                 <>{useCase.writesTo.length ? `writes also to ${useCase.writesTo.join(', ')}` : 'writes only to its own module'}</>
                 {!useCase.retryOnConflict && <>never retried on a conflict</>}
               </BoxRowMeta>
@@ -95,4 +102,26 @@ function describeTotal(total: UseCaseTotalDTO | undefined): string {
   if (!total || total.now.calls === 0) return 'not called in 24h'
   const retries = total.now.retries ? `, ${total.now.retries.toLocaleString('en')} ${total.now.retries === 1 ? 'retry' : 'retries'}` : ''
   return `${total.now.calls.toLocaleString('en')} calls in 24h${retries}, p90 ${formatMs(total.now.p90)}`
+}
+
+/** Each use case's errors and failures in the last 24 hours: null until known. */
+function useEnded(app: AppDTO): Map<string, ErrorsTotalDTO> | null {
+  const api = useService(UseCaseErrorsApi)
+  const [ended, setEnded] = useState<Map<string, ErrorsTotalDTO> | null>(null)
+  useEffect(() => {
+    api.totals(app.id, '24h')
+      .then(found => setEnded(new Map(found.map(total => [`${total.context}|${total.useCase}`, total]))))
+      .catch(() => setEnded(new Map()))
+  }, [api, app.id])
+  return ended
+}
+
+/** `3 failures, 12 errors`: none said when it ended badly never. */
+function describeEnded(ended: ErrorsTotalDTO | undefined): string | null {
+  if (!ended) return null
+  const parts = [
+    ended.now.failures ? `${ended.now.failures.toLocaleString('en')} ${ended.now.failures === 1 ? 'failure' : 'failures'}` : '',
+    ended.now.errors ? `${ended.now.errors.toLocaleString('en')} ${ended.now.errors === 1 ? 'error' : 'errors'}` : '',
+  ].filter(Boolean)
+  return parts.length ? parts.join(', ') : null
 }
