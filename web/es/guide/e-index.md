@@ -325,7 +325,7 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 
 | Export | Tipo | Se importa en | También en |
 |---|---|---|---|
-| `serveMonitor` | valor |   | [H](./h-describe-application) |
+| `serveMonitor` | valor | [28](./28-observability) | [H](./h-describe-application) |
 | `signMonitorRequest` | valor |   | [H](./h-describe-application) |
 | `MonitorOptions` | tipo |   | — |
 | `MonitorIdentity` | tipo |   | [H](./h-describe-application) |

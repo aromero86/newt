@@ -8,9 +8,10 @@ form, and the page where she says yes to boards.
 
 This chapter gives cooper its two web apps: **auth's** (sign in, sign up, approve
 an application) and **boards'** (the SaaS: workspaces, boards, cards, search,
-settings). They are React apps built with Vite. The tutorial is about the backend, so
-you copy them from the repository instead of typing them. What this chapter teaches is
-where they touch the backend and newt:
+settings). They are React apps built with newt's two frontend packages, and Bun builds
+and serves them. The tutorial is about the backend, so you copy the apps from the
+repository instead of typing them. What this chapter teaches is where they touch the
+backend and newt:
 
 - **`newt/contract`**, the part of newt a browser may load, and why it is apart from
   `newt/core`;
@@ -18,73 +19,115 @@ where they touch the backend and newt:
   its **contract**, the modules' `*.schema.ts`;
 - the API clients, with `CardApi` in detail: the `Idempotency-Key` of
   [chapter 9](./09-idempotent-posts) and the search of [chapter 16](./16-search-port);
-- how the apps reach their contexts: through Vite's proxy in development, and served
-  by the contexts themselves once built (`frontendFolder`);
+- how each context serves its own app, on its own port: from its sources in
+  development, built in production;
 - the scripts `cooper` and `cooper:build`, a TypeScript project for the browser, and
   the frontend half of the lint.
 
 ## What you copy
 
-Three folders come from the tag:
+The apps, their libraries and the two scripts come from the tag:
 
 ```sh
-git checkout tutorial/23 -- cooper/frontend cooper/libs cooper/scripts/dev.ts
+git checkout tutorial/23 -- cooper/frontend cooper/libs cooper/scripts/dev.ts cooper/scripts/build.ts
 ```
 
 ```
 cooper/
   frontend/
-    vite-app.ts            what both apps' Vite configs share
-    auth/                  auth's app: index.html, main.tsx, app.routes.tsx, pages/, services/, vite.config.ts
+    auth/                  auth's app: index.html, app.css, main.tsx, app.routes.tsx, pages/, services/, public/
     boards/                boards' app: the same shape, with modules/ for its zones
   libs/
     api/                   @cooper/api: the API clients, the only way to the backend
-    core/                  @cooper/core: stores, forms, an injector, the theme
-    ui/                    @cooper/ui: the components, the only place that styles
+    ui/                    @cooper/ui: cooper's own components (the board, the counter, the logo)
   scripts/
-    dev.ts                 bun run cooper: the backend and both Vite servers
+    dev.ts                 bun run cooper: the backend, serving the apps from their sources
+    build.ts               bun run cooper:build: the apps, built
 ```
 
-Then their dependencies, at the versions cooper pins:
+There is nothing to install. The root `package.json` has had what the apps need since
+chapter 0: newt's frontend packages, `newt-react` and `newt-react-ui`, and what they
+build on (React, React Router, Radix, Tailwind and `bun-plugin-tailwind`).
 
-```sh
-bun add --exact @fontsource-variable/inter@5.3.0 @fontsource-variable/jetbrains-mono@5.3.0 @preact/signals-core@1.14.4 class-variance-authority@0.7.1 cn@0.4.0 lucide-react@1.48.0 radix-ui@1.7.0 react@19.3.0 react-dom@19.3.0 react-router@8.4.0 sonner@2.0.8 tw-animate-css@1.4.0
-bun add --exact --dev @tailwindcss/vite@4.3.3 @types/react@19.3.0 @types/react-dom@19.3.0 @vitejs/plugin-react@6.1.2 tailwindcss@4.3.3 typescript-eslint@8.71.1 vite@8.3.4
-```
-
-The rest of the chapter is typed: two backend files change a little, and the root's
+The rest of the chapter is typed: the backend learns to serve the apps, and the root's
 `package.json` scripts, `tsconfig*.json` and `eslint.config.js` grow. The files the
-checkout brought that touch the backend or newt are shown in full below, so you know
-what they do.
+checkout brought that touch the backend or newt are shown below, so you know what they
+do.
 
 ## The apps in a few lines
 
-Both apps have the same shape, and the same three libraries under them:
+Both apps stand on two packages of the repository, which any newt application can use:
 
-- **`@cooper/ui`** (`cooper/libs/ui`) is the components: buttons, fields, dialogs,
-  tables, the board, the shell. They are built on shadcn and Radix, styled with
-  Tailwind. It is the only place that styles; the apps compose its components.
-- **`@cooper/core`** (`cooper/libs/core`) is what the apps' services are made of: a
-  `Store` (a service's state in one signal, from `@preact/signals-core`), a
-  `ListStore` (a list read page by page with a cursor, from any function that returns
-  a `Page`), a `FormStore` (a form's values, errors and submit, validated with a zod
-  schema), and a small injector (`inject`, `Provide`, `useService`) that gives each
-  screen its services.
-- **`@cooper/api`** (`cooper/libs/api`) is one client per backend module, below.
+- **`newt-react-ui`** is the components: buttons, fields, dialogs, tables, boxes, the
+  app's shell, each imported by its name (`newt-react-ui/button`). They are built on
+  shadcn and Radix and styled with Tailwind, with one theme (`newt-react-ui/theme.css`,
+  the system's own fonts, light and dark). It comes with its lint (below): an app
+  composes its components and styles nothing.
+- **`newt-react`** is what the apps think with: a `Store` (a service's state in a
+  signal, read with `useValue`), services and their injector (`inject`, `Provide`,
+  `useService`), a `FormStore` (a form's values, errors and submit, validated with a
+  zod schema) and its `FormField` (`newt-react/form-field`), a `ListStore` (a list read
+  page by page), `Requester` and `ApiError` (the requests to a newt API) and the
+  `ThemeService`.
 
-Each app is an `index.html`, a `main.tsx` that mounts React, and an `app.routes.tsx`
-with React Router. auth's routes are `sign-in`, `sign-up`, `authorize/:id` and
-`error`: the pages its OAuth server sends the browser to. boards' are behind a session
-guard (no session: it shows a sign-in button where the page would be, which starts
-chapter 22's round trip at `/api/session/sign-in`), then the workspace's zones (`w/:workspaceId/boards`, `search`, `settings`),
-each loaded the first time someone enters it. A screen is a component that reads a
-service's signals; the service holds the state and calls the API. A screen may say
-in advance what the backend would refuse: on a board, a column's menu disables
-*Remove* while the column has cards, and on the board's last column ("a board keeps
-one column", [chapter 8](./08-two-people-one-card)); the backend still answers a 409
-`card.column_not_empty` or `column.last` to whoever asks anyway.
+cooper adds two libraries of its own, under `cooper/libs`:
 
-None of that touches newt. What does is in `@cooper/api`.
+- **`@cooper/ui`** is the few components only cooper has: the board and its columns,
+  the counter, the logo. They wrap `newt-react-ui`'s, and they are the only code of
+  cooper that styles.
+- **`@cooper/api`** is one client per backend module, below.
+
+Each app is an `index.html`, which names its icon (`./public/cooper.svg`), its styles
+(`./app.css`) and its script (`./main.tsx`); a `main.tsx` that mounts React; and an
+`app.routes.tsx` with React Router. Its `app.css` is newt-react-ui's theme, and where
+Tailwind finds the classes of cooper's own components:
+
+```css
+/* cooper/frontend/boards/app.css */
+/* The app's styles: newt-react-ui's theme, and cooper's own components, which Tailwind
+   reads for the classes they use. Pages use none. */
+@import "newt-react-ui/theme.css";
+@source "../../libs/ui";
+```
+
+auth's routes are `sign-in`, `sign-up`, `authorize/:id` and `error`: the pages its
+OAuth server sends the browser to. boards' are behind a session guard (no session: it
+shows a sign-in button where the page would be, which starts chapter 22's round trip
+at `/api/session/sign-in`), then the workspace's zones (`w/:workspaceId/boards`,
+`search`, `settings`), each loaded the first time someone enters it.
+
+A screen is a component made of newt-react-ui's components that reads a service's
+signals; the service holds the state and calls the API. This is the sign-up form's
+service:
+
+```ts
+// cooper/frontend/auth/pages/sign-up/sign-up.service.ts
+import { SessionApi } from '@cooper/api/session'
+import { UserSignUpSchema } from '@cooper/api/user'
+import { FormStore, inject } from 'newt-react'
+import { SessionService } from '../../services/session/session.service'
+
+/** Making an account, signed in at once. */
+export class SignUpService {
+
+  private readonly api = inject(SessionApi)
+  private readonly session = inject(SessionService)
+
+  readonly form = new FormStore(UserSignUpSchema, { email: '', name: '', password: '' }, { errorFields: { 'user.email_taken': 'email' } })
+
+  /** For the product the person is on the way to, if any. Resolves to whether they are now signed in. */
+  submit(productId: string | undefined): Promise<boolean> {
+    return this.form.submit(async account => this.session.signedIn(await this.api.signUp({ ...account, productId })))
+  }
+}
+```
+
+A screen may say in advance what the backend would refuse: on a board, a column's
+menu disables *Remove* while the column has cards, and on the board's last column ("a
+board keeps one column", [chapter 8](./08-two-people-one-card)); the backend still
+answers a 409 `card.column_not_empty` or `column.last` to whoever asks anyway.
+
+None of that touches the backend. What does is in `@cooper/api`.
 
 ## newt/contract: what a browser may load
 
@@ -95,12 +138,9 @@ why.
 `newt/core` is what a backend runs on. Among its pieces is the scope a use case runs
 in: who is acting, in which workspace, by which clock, inside which transaction. newt
 keeps that in an `AsyncLocalStorage`, from `node:async_hooks`, and `newt/core` creates
-it as the module loads. A browser has no `node:async_hooks`. Vite can only put an
-empty stand-in in its place, and warns when it does:
-
-```text
-[plugin rolldown:vite-resolve] Module "node:async_hooks" has been externalized for browser compatibility, imported by ".../packages/newt/core/scope/define-scope.ts".
-```
+it as the module loads. A browser has no `node:async_hooks`. Bun, building an app for
+the browser, puts an empty stand-in in its place without a word, and the page breaks
+as soon as `newt/core` loads.
 
 `newt/contract` is the part of `newt/core` that keeps no scope: the files that run
 anywhere, re-exported. It is what a backend and its clients share:
@@ -115,7 +155,7 @@ anywhere, re-exported. It is what a backend and its clients share:
 
 These are the same classes and types `newt/core` exports; `newt/contract` is another
 door to them, not a copy. A file that imports only `newt/contract` (and zod) can go to
-the browser as it is.
+the browser as it is. `newt-react` imports nothing else of newt.
 
 ## The schema is the contract
 
@@ -171,115 +211,53 @@ a workspace's name. The web session has no module at all (its routes live in
 
 ## Talking to the API: Requester
 
-Every client extends `Requester`. It knows the base URL, `/api`, and does the rest of
-what every request shares: JSON in and out, the cookie (`credentials: 'include'`), and
-a failed answer turned into an `ApiError`:
-
-```ts
-// cooper/libs/api/core/requester.ts
-import type { ErrorBody } from 'newt/contract'
-import { ApiError } from './api-error'
-import type { QueryParams } from './query-params'
-
-const BASE_URL = '/api'
-
-/**
- * What every API client shares: the base URL, query params, JSON in and out, and
- * turning a failed answer into an `ApiError`. A client only says its `path` and
- * which requests it makes.
- */
-export abstract class Requester {
-
-  /** Called when the backend says the session is gone (401), wherever the request came from. */
-  static onUnauthorized: (() => void) | null = null
-
-  /** The client's part of the URL, after `/api`: `/proposals`. */
-  protected abstract readonly path: string
-
-  protected get<T>(path: string, params?: QueryParams): Promise<T> {
-    return this.call<T>('GET', path, undefined, params)
-  }
-
-  /** With `headers` of its own, such as an `Idempotency-Key`. */
-  protected post<T>(path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
-    return this.call<T>('POST', path, body, undefined, headers)
-  }
-
-  protected put<T>(path: string, body?: unknown): Promise<T> {
-    return this.call<T>('PUT', path, body)
-  }
-
-  protected patch<T>(path: string, body?: unknown): Promise<T> {
-    return this.call<T>('PATCH', path, body)
-  }
-
-  protected delete<T>(path: string): Promise<T> {
-    return this.call<T>('DELETE', path)
-  }
-
-  private async call<T>(method: string, path: string, body?: unknown, params?: QueryParams, headers?: Record<string, string>): Promise<T> {
-    let response: Response
-    try {
-      response = await fetch(this.url(path, params), {
-        method,
-        headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        credentials: 'include',
-      })
-    } catch (error) {
-      throw new ApiError(0, error instanceof Error ? error.message : 'Request failed')
-    }
-
-    if (!response.ok) {
-      if (response.status === 401) Requester.onUnauthorized?.()
-      const failure = (await response.json().catch(() => null)) as Partial<ErrorBody> | null
-      throw new ApiError(response.status, failure?.error ?? response.statusText ?? 'Request failed', failure?.code)
-    }
-
-    return (response.status === 204 ? undefined : await response.json()) as T
-  }
-
-  private url(path: string, params?: QueryParams): string {
-    const query = new URLSearchParams()
-    for (const [key, value] of Object.entries(params ?? {})) {
-      if (value !== undefined) query.set(key, String(value))
-    }
-    const search = query.size ? `?${query}` : ''
-    return `${BASE_URL}${this.path}${path}${search}`
-  }
-}
-```
+Every client extends `Requester`, from `newt-react`. It knows the base URL, `/api`,
+on the page's own origin, and does the rest of what every request shares: the query
+params, JSON in and out, the cookie (`credentials: 'include'`), and a failed answer
+turned into an `ApiError`. A client only says its `path` and which requests it makes,
+with `get`, `post`, `put`, `patch` and `delete`.
 
 The failure is read as an `ErrorBody`, the type from `newt/contract`. Whatever the
 backend throws, newt's router answers with that body
 ([chapter 3](./03-pages-and-errors)), so a client reads every failure the same way:
 `error` is the message to show, `code` is what it acts on. `ApiError` keeps both,
-with the status (0 when there was no answer at all):
-
-```ts
-// cooper/libs/api/core/api-error.ts
-/** A failed request: the backend's status, message and error `code`. Status 0 is no answer at all. */
-export class ApiError extends Error {
-
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
-}
-```
+with the status (0 when there was no answer at all).
 
 The forms act on `code`. A `FormStore` takes which codes belong to a field
-(`{ 'user.email_taken': 'email' }` in the sign-up form) and its own words for the ones
-that belong to none (`{ 'card.too_many': '…' }` in the card forms). The message
-changes with `setMessages`; the code never does, so that is what the frontend keys
-on.
+(`errorFields: { 'user.email_taken': 'email' }` in the sign-up form above) and its
+own words for the ones that belong to none (`{ 'card.too_many': '…' }` in the card
+forms). The message changes with `setMessages`; the code never does, so that is what
+the frontend keys on.
 
 A 401 anywhere calls `Requester.onUnauthorized`. boards' `main.tsx` sets it to show
 the way to sign in again: whatever request finds the session gone, the screen says so.
+
+```tsx
+// cooper/frontend/boards/main.tsx
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { RouterProvider } from 'react-router/dom'
+import { RouterLinkProvider } from 'newt-react-ui/router-link'
+import { Toaster } from 'newt-react-ui/toast'
+import { Requester, rootInjector, ThemeService } from 'newt-react'
+import { router } from './app.routes'
+import { SessionService } from './services/session/session.service'
+
+// The theme follows the stored choice from the first frame.
+rootInjector.get(ThemeService)
+
+// Whatever request finds the session gone shows the way to sign in again.
+Requester.onUnauthorized = () => rootInjector.get(SessionService).expired()
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <RouterLinkProvider>
+      <RouterProvider router={router} />
+    </RouterLinkProvider>
+    <Toaster />
+  </StrictMode>,
+)
+```
 
 ## CardApi
 
@@ -287,17 +265,9 @@ This is the client of boards' `card` module, one method per route:
 
 ```ts
 // cooper/libs/api/card/card.api.ts
-import type {
-  CardAssignDTO,
-  CardCreateDTO,
-  CardDTO,
-  CardEditDTO,
-  CardMoveDTO,
-  CardSearchDTO,
-} from '../../../backend/contexts/boards/modules/card/card.schema'
+import type { CardAssignDTO, CardCreateDTO, CardDTO, CardEditDTO, CardMoveDTO, CardSearchDTO } from '../../../backend/contexts/boards/modules/card/card.schema'
 import type { Page } from 'newt/contract'
-import type { PageRequest } from '../core/page-request'
-import { Requester } from '../core/requester'
+import { type PageRequest, Requester } from 'newt-react'
 
 /** The backend's `card` module: the cards of a workspace's boards. */
 export class CardApi extends Requester {
@@ -386,7 +356,7 @@ have more after it: the index found cards that are gone since, so the page has n
 them left, but its cursor is still the last one found. `ListStore` follows that cursor
 on, past the empty pages, until a page has cards or says there are no more; with the
 id of the last card shown it would ask for the same page again. The types of the page
-come from `newt/contract` (`@cooper/api`'s `PageRequest` is newt's, with `size`
+come from `newt/contract` (`newt-react`'s `PageRequest` is newt's, with `size`
 optional); the server's `pageRequestFrom` reads the same two parameters.
 
 Its test replaces `fetch` and looks at the headers each call sent:
@@ -426,116 +396,26 @@ describe('CardApi', () => {
 })
 ```
 
-It is a test of `bun test cooper` like any other: the libraries' tests (the stores,
-the form, the injector, the requester, this one) came with the checkout.
+It is a test of `bun test cooper/` like any other.
 
-## Development: a Vite server per app, and its proxy
+## One port per context: pages and API
 
-In development each app has a Vite server, which serves it from source and reloads it
-as you edit. Both apps' configs come from one function:
+There is one address per context, and the browser only ever talks to it: auth on
+3001, boards on 3002, in production each on its own domain. The context answers its
+API under `/api` (and auth its OAuth endpoints) and hands its app's page to every
+other address. So the app calls `/api/workspaces/acme/cards/...` on its own origin,
+boards' session cookie is set on the origin the page is on, and a redirect boards
+builds from its public URL (`/api/session/callback`) lands on boards itself. That is
+why the public URLs of `config.ts` have been the contexts' own ports
+(`http://localhost:3001`, `http://localhost:3002`) since you wrote them: there is
+nothing in front.
 
-```ts
-// cooper/frontend/vite-app.ts
-import { fileURLToPath } from 'node:url'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import { defineConfig, type UserConfig } from 'vite'
+What changes is where the app comes from: built, from a folder; in development, from
+its sources.
 
-type CooperApp = {
-  /** The app's folder name under cooper/frontend, and under dist/cooper once built. */
-  name: 'auth' | 'boards'
-  /** The dev server's port. */
-  port: number
-  /** Paths the dev server hands to the backend: the app reaches it through its own origin. */
-  proxy: string[]
-}
+## Built: each context serves its folder
 
-/** Each context's port in dev, as the backend reads it (`COOPER_<NAME>_PORT`), with its defaults. */
-const BACKEND_PORTS = { auth: 3001, boards: 3002 } as const
-
-/** The app's context in dev, which the proxied paths go to. */
-function backendOf(name: CooperApp['name']): string {
-  return `http://localhost:${Number(process.env[`COOPER_${name.toUpperCase()}_PORT`] ?? BACKEND_PORTS[name])}`
-}
-
-const libs = (name: string) => fileURLToPath(new URL(`../libs/${name}`, import.meta.url))
-
-/**
- * What the two apps share: React, Tailwind, the aliases of cooper's libraries,
- * a fixed dev port that proxies to the app's context, and the build in
- * `dist/cooper/<name>`, which that context serves in production.
- */
-export function cooperApp({ name, port, proxy }: CooperApp): UserConfig {
-  return defineConfig({
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@cooper/ui': libs('ui'),
-        // The API client: the only way the frontend reaches the backend.
-        '@cooper/api': libs('api'),
-        '@cooper/core': libs('core'),
-      },
-    },
-    server: {
-      port,
-      strictPort: true,
-      proxy: Object.fromEntries(proxy.map(path => [path, backendOf(name)])),
-    },
-    build: {
-      outDir: fileURLToPath(new URL(`../../dist/cooper/${name}`, import.meta.url)),
-      emptyOutDir: true,
-    },
-  })
-}
-```
-
-- **`resolve.alias`** maps `@cooper/ui`, `@cooper/api` and `@cooper/core` to their
-  folders under `cooper/libs`. They are not packages; the aliases (and the `paths` of
-  the tsconfigs, below) make them look like ones.
-- **`server.port`** is fixed, with `strictPort`: if the port is taken, Vite fails
-  instead of moving to another one.
-- **`server.proxy`** sends the paths the app gives on to its context, on its own port
-  (`COOPER_AUTH_PORT`, `COOPER_BOARDS_PORT`, with the backend's defaults).
-- **`build.outDir`** is `dist/cooper/<name>`, which the context serves once built.
-
-Each app's config is one line:
-
-```ts
-// cooper/frontend/auth/vite.config.ts
-import { cooperApp } from '../vite-app.ts'
-
-// Signing in, signing up and granting access. Its context is the OAuth server: the
-// API, the authorization endpoints and their metadata.
-export default cooperApp({ name: 'auth', port: 5171, proxy: ['/api', '/oauth', '/.well-known'] })
-```
-
-```ts
-// cooper/frontend/boards/vite.config.ts
-import { cooperApp } from '../vite-app.ts'
-
-// The SaaS. Its context serves the API.
-export default cooperApp({ name: 'boards', port: 5172, proxy: ['/api'] })
-```
-
-The import names `../vite-app.ts` with its extension, as Node would need it: Vite may
-load its config that way, and the tools' TypeScript project allows it (below).
-
-The ports are not arbitrary: 5171 and 5172 are the **public URLs** of auth and boards
-in `config.ts` (`COOPER_AUTH_PUBLIC_URL`, `COOPER_BOARDS_PUBLIC_URL`), the addresses
-people open. In development the browser only ever talks to the Vite server. The app
-calls `/api/workspaces/acme/cards/...` on its own origin, Vite passes it to `:3002`, and the answer
-comes back through the same origin. So boards' session cookie is set on
-`localhost:5172`, the same origin the page is on, and a redirect that boards builds
-from its public URL (`/api/session/callback`) lands on the Vite server, which passes
-it on again. auth's proxy has more paths because its context serves more than its
-API: the OAuth endpoints (`/oauth/authorize`, `/oauth/token`) and their metadata
-under `/.well-known`.
-
-## Production: each context serves its frontend
-
-Built, there is no Vite. Each context serves its own app, on its own port and, in
-production, its own domain: the public URL and the context's address are the same
-again. Add where each context finds its build to `config.ts`, at the end of `auth`:
+Add where each context finds its build to `config.ts`, at the end of `auth`:
 
 ```ts
 // cooper/backend/config.ts
@@ -551,7 +431,6 @@ and at the end of `boards`:
     /** `COOPER_BOARDS_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BOARDS_FRONTEND ?? 'dist/cooper/boards'),
   },
-}
 ```
 
 and change the comment above `config` to say so:
@@ -622,9 +501,9 @@ What `frontend` gives you, from `newt/http`:
   (auth's `/oauth/*` and `/.well-known/*`) and `health` come before the frontend too.
   Anything else is the frontend's.
 - **A file, or `index.html`.** A path that names a file of the folder gets the file
-  (`/assets/index-….js`, `/cooper.svg`); any other gets `index.html`, so
-  `/w/acme/boards` opens the app and React Router shows the board (or its own "not
-  found"). A path that leaves the folder names no file.
+  (`/main-….js`, `/cooper.svg`); any other gets `index.html`, so `/w/acme/boards` opens
+  the app and React Router shows the board (or its own "not found"). A path that leaves
+  the folder names no file.
 - **Never under `/api`.** A path under `/api` that no route takes is a 404 with an
   `ErrorBody` (`route_not_found`), never the app's page: a client that calls a wrong
   address gets an error it can read, not HTML.
@@ -635,6 +514,86 @@ What `frontend` gives you, from `newt/http`:
   answer `503 The frontend is not built: its folder has no index.html`. The API works
   all the same, which is why the tests need no build.
 
+## In development: from its sources
+
+In development nobody wants to build after every edit. `frontend` also takes an app's
+`index.html` imported (`import app from './index.html'`): Bun builds it as it serves
+it, with whatever it names, and reloads the page as its files change. The root
+`bunfig.toml`, there since chapter 0, gives that build Tailwind:
+
+```toml
+# Bun's bundler builds HTML with Tailwind: the gallery of newt-react-ui, and the apps that serve their pages with Bun.
+[serve.static]
+plugins = ["bun-plugin-tailwind"]
+```
+
+Importing an `index.html` starts that build, so production must not do it. Add the
+setting that asks for it, at the end of `config`:
+
+```ts
+// cooper/backend/config.ts
+// …
+  /**
+   * `COOPER_FRONTEND_SOURCES=1` (`bun run cooper` sets it): each context serves its
+   * frontend from its sources, which Bun builds as it serves them and reloads as they
+   * change, instead of its built folder.
+   */
+  frontendSources: env.COOPER_FRONTEND_SOURCES === '1',
+}
+```
+
+Create `cooper/backend/frontend-sources.ts`, which imports each app only when called:
+
+```ts
+// cooper/backend/frontend-sources.ts
+import type { HTMLBundle } from 'bun'
+
+/**
+ * Each context's frontend from its sources, for development (`bun run cooper`): every
+ * context serves its pages beside its API, on its own port, as it will once built, and
+ * Bun reloads them as they change. Imported only when asked for, so production never
+ * builds them as it starts.
+ */
+export async function frontendSources(): Promise<Record<string, { frontend: HTMLBundle }>> {
+  const [auth, boards] = await Promise.all([
+    import('../frontend/auth/index.html'),
+    import('../frontend/boards/index.html'),
+  ])
+  return { auth: { frontend: auth.default }, boards: { frontend: boards.default } }
+}
+```
+
+And in `index.ts`, hand each context its app when the setting asks for it. Replace
+the file:
+
+```ts
+// cooper/backend/index.ts
+// bun cooper/backend/index.ts: cooper's backend. Every context in one process, each one
+// served on its own port, with the worker of its jobs running, until SIGINT or SIGTERM.
+import { runContexts } from 'newt/application'
+import { config } from './config'
+import { frontendSources } from './frontend-sources'
+import { openContexts } from './open-contexts'
+import { setCooperMessages } from './shared/messages'
+
+// newt's own messages, in cooper's words, for the whole process: before anything answers.
+setCooperMessages()
+const contexts = await openContexts(config)
+
+// In development each context serves its frontend from its sources, as Bun builds them.
+const sources = config.frontendSources ? await frontendSources() : null
+
+const app = runContexts(contexts.all.map(context => ({
+  context,
+  serve: { ...context.serving(), ...(sources?.[context.name] ? { ...sources[context.name], development: true } : {}) },
+})))
+for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)
+```
+
+What a context's `serving()` gives stays as it is; `frontend` is replaced by the
+app's sources, and `development: true` turns on Bun's development mode: its reloads,
+and its error page, which shows the source, for what throws outside a route.
+
 ## The scripts: cooper and cooper:build
 
 Add two scripts to the root `package.json`, around `cooper:seed`:
@@ -642,131 +601,85 @@ Add two scripts to the root `package.json`, around `cooper:seed`:
 ```json
 "cooper": "bun run cooper/scripts/dev.ts --watch",
 "cooper:seed": "bun run cooper/scripts/seed.ts",
-"cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards"
+"cooper:build": "bun cooper/scripts/build.ts"
 ```
 
-`cooper:build` builds both apps into `dist/cooper/auth` and `dist/cooper/boards`, the
-folders `frontendFolder` names by default. `cooper` starts cooper in development with
-the script the checkout brought:
+`cooper:build` runs the script the checkout brought. It builds each app with
+`Bun.build`, from its `index.html`, with Tailwind, into the folder `frontendFolder`
+names by default:
+
+```ts
+// cooper/scripts/build.ts
+// bun run cooper:build: each frontend built by Bun, with Tailwind, into dist/cooper/<app>:
+// the folder its context serves in production. What its index.html names (its icon, its
+// styles, its script) is built with it.
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import tailwind from 'bun-plugin-tailwind'
+
+const ROOT = join(import.meta.dir, '../..')
+const APPS = ['auth', 'boards'] as const
+
+for (const app of APPS) {
+  const source = join(ROOT, 'cooper/frontend', app)
+  const out = join(ROOT, 'dist/cooper', app)
+  await rm(out, { recursive: true, force: true })
+  const built = await Bun.build({
+    entrypoints: [join(source, 'index.html')],
+    outdir: out,
+    plugins: [tailwind],
+    minify: true,
+    // From the root: the app's router serves index.html at every address, however deep.
+    publicPath: '/',
+    // Fonts as files of their own, fetched when a page needs them, not inside the stylesheet.
+    loader: { '.woff': 'file', '.woff2': 'file' },
+    sourcemap: 'linked',
+    target: 'browser',
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+  })
+  if (!built.success) {
+    for (const log of built.logs) console.error(log)
+    process.exit(1)
+  }
+  console.log(`${app}: ${built.outputs.length} files in dist/cooper/${app}`)
+}
+```
+
+`cooper` starts cooper in development with the other script: one process, the backend
+with `COOPER_FRONTEND_SOURCES=1`, which `--watch` restarts on every change of its own
+(the apps reload on their own). The part that says what it starts:
 
 ```ts
 // cooper/scripts/dev.ts
-// bun run cooper: cooper in development, and stops it all together. The backend (every
-// context, each on its port) and the Vite server of each frontend, which sends the
-// API's addresses on to its context. With --watch the backend restarts on every change.
-// Each service runs in its own process group, so stopping it also stops what it spawns.
-// The ports are fixed (each service fails instead of moving to another one), so the
-// links below always hold.
+// bun run cooper: cooper in development, and stops it all together. One process, the
+// backend: every context on its port, each serving its API and its frontend from its
+// sources, which Bun builds as it serves them and reloads as they change. With --watch
+// the backend restarts on every change of its own. It runs in its own process group, so
+// stopping it also stops what it spawns. The ports are fixed (it fails instead of moving
+// to another one), so the links below always hold.
 import { config } from '../backend/config'
 
 const watch = Bun.argv.includes('--watch')
 
-/** A frontend's Vite server, on the port of its context's public URL. */
-const frontend = (name: 'auth' | 'boards') => {
-  const url = config[name].publicUrl
-  return { name: `${name} UI`, url, cmd: ['bun', 'x', 'vite', `cooper/frontend/${name}`, '--port', new URL(url).port, '--strictPort'] }
-}
-
 const SERVICES = [
-  frontend('auth'),
-  frontend('boards'),
-  { name: 'backend', url: `http://localhost:${config.auth.port}/api/health`, cmd: ['bun', ...(watch ? ['--watch'] : []), 'cooper/backend/index.ts'] },
+  {
+    name: 'backend',
+    url: `http://localhost:${config.auth.port}/api/health`,
+    cmd: ['bun', ...(watch ? ['--watch'] : []), 'cooper/backend/index.ts'],
+    env: { ...process.env, COOPER_FRONTEND_SOURCES: '1' },
+  },
 ]
 
 // The backend serves every context, each one on its own port: they must all be free.
-const PORTS = [
-  ...SERVICES.filter(service => service.name !== 'backend').map(({ name, url }) => ({ name, port: Number(new URL(url).port) })),
-  ...(['auth', 'boards'] as const).map(name => ({ name: `${name} API`, port: config[name].port })),
-]
-
-// Nothing starts unless every port is free: `bun --watch`, for one, stays alive after
-// failing to listen, so a taken port would go unnoticed otherwise.
-async function isTaken(port: number) {
-  for (const hostname of ['127.0.0.1', '::1']) {
-    try {
-      const socket = await Bun.connect({ hostname, port, socket: { data() {} } })
-      socket.end()
-      return true
-    } catch {
-      // Nothing listening on this address.
-    }
-  }
-  return false
-}
-
-const taken = (await Promise.all(PORTS.map(async each => ((await isTaken(each.port)) ? each : null)))).filter(each => each !== null)
-if (taken.length > 0) {
-  for (const { name, port } of taken) console.error(`${name}: port ${port} is already in use`)
-  console.error('Nothing was started.')
-  process.exit(1)
-}
-
-const children = SERVICES.map(({ cmd }) => Bun.spawn(cmd, { detached: true, stdio: ['inherit', 'inherit', 'inherit'] }))
-
-function signalGroups(signal: NodeJS.Signals) {
-  for (const child of children) {
-    try {
-      process.kill(-child.pid, signal)
-    } catch {
-      // The group is already gone.
-    }
-  }
-}
-
-let stopping = false
-
-async function shutdown(code = 0) {
-  if (stopping) return
-  stopping = true
-  signalGroups('SIGINT')
-  // Whatever ignores SIGINT gets SIGTERM after a grace period.
-  const timeout = setTimeout(() => signalGroups('SIGTERM'), 3000)
-  await Promise.all(children.map(child => child.exited))
-  clearTimeout(timeout)
-  process.exit(code)
-}
-
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => void shutdown())
-
-// If any service dies on its own, everything stops with it.
-children.forEach((child, index) => {
-  void child.exited.then(code => {
-    if (stopping) return
-    console.error(`${SERVICES[index]!.name} exited (code ${code}): stopping everything.`)
-    void shutdown(1)
-  })
-})
-
-async function waitUntilUp(url: string) {
-  while (!stopping) {
-    try {
-      await fetch(url)
-      return
-    } catch {
-      await Bun.sleep(200)
-    }
-  }
-}
-
-// Once everything answers, print where each frontend lives.
-void Promise.all(SERVICES.map(({ url }) => waitUntilUp(url))).then(() => {
-  if (stopping) return
-  const names = ['auth', 'boards'] as const
-  const width = Math.max(...names.map(name => name.length))
-  console.log(['', ...names.map(name => `  ${name.padEnd(width)}  ${config[name].publicUrl}  (API on port ${config[name].port})`), ''].join('\n'))
-})
-
-await Promise.all(children.map(child => child.exited))
+const PORTS = (['auth', 'boards'] as const).map(name => ({ name, port: config[name].port }))
+// …
 ```
 
-It starts three processes: the backend (`bun --watch cooper/backend/index.ts`, which
-restarts it on every change) and one Vite server per app, each on the port of its
-context's public URL. Before starting anything it checks that the four ports are
-free: `bun --watch` stays alive after failing to listen, so a taken port would go
-unnoticed otherwise. Each process runs in a group of its own, so Ctrl+C stops what
-each one spawned too; whatever ignores the `SIGINT` gets a `SIGTERM` three seconds
-later. If one dies on its own, everything stops with it. When all of them answer, it
-prints where each app lives.
+Before starting anything it checks that the contexts' ports are free: `bun --watch`
+stays alive after failing to listen, so a taken port would go unnoticed otherwise. The
+backend runs in a process group of its own, so Ctrl+C stops what it spawned too;
+whatever ignores the `SIGINT` gets a `SIGTERM` three seconds later. When it answers,
+the script prints where each context lives.
 
 ## TypeScript: a project for the browser
 
@@ -784,14 +697,13 @@ project of their own. Create `tsconfig.frontend.json` at the root:
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "types": ["vite/client", "bun"],
+    "types": ["bun"],
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
     "paths": {
       "@cooper/ui/*": ["./cooper/libs/ui/*"],
-      "@cooper/api/*": ["./cooper/libs/api/*"],
-      "@cooper/core/*": ["./cooper/libs/core/*"]
+      "@cooper/api/*": ["./cooper/libs/api/*"]
     }
   },
   "include": [
@@ -801,35 +713,38 @@ project of their own. Create `tsconfig.frontend.json` at the root:
     "cooper/libs/**/*.tsx",
     "cooper/backend/contexts/*/modules/*/*.schema.ts"
   ],
-  "exclude": ["**/node_modules", "cooper/frontend/*/vite.config.ts"]
+  "exclude": ["**/node_modules"]
 }
 ```
 
 Note the last `include`: the modules' schemas are checked in this project too, with
 the browser's types, besides the backend's. `bun` stays in `types` because the
-libraries' tests run on `bun test`.
+clients' tests run on `bun test`.
 
-The root `tsconfig.json` references it, and repeats the `paths`, because Bun resolves
-imports (in `bun test`) with the root file:
+The root `tsconfig.json` references it, and gets the `paths`, because Bun resolves
+imports (in `bun test`, and as it builds the apps) with the root file:
 
 ```json
 {
-  // The whole repository, as five projects: the framework (newt), its graph (newt-graph), what runs on the
-  // server (cooper's backend), what runs in the browser (cooper's frontends and their
-  // libraries), and the tools around them (scripts, Vite's configs). `bun check` follows the references.
+  // The whole repository, as eight projects: the framework (newt), its graph (newt-graph), its
+  // monitor (newt-monitor), its React frontend's components and logic (newt-react-ui,
+  // newt-react), what runs on the server (cooper's backend), what runs in the browser
+  // (cooper's frontends and their libraries), and the tools around them (scripts). `bun check` follows the references.
   // The paths are here too because Bun resolves imports with this file. newt is not among
   // them: it is a workspace package, reached through its `exports` as any application reaches it.
   "compilerOptions": {
     "paths": {
       "@cooper/ui/*": ["./cooper/libs/ui/*"],
-      "@cooper/api/*": ["./cooper/libs/api/*"],
-      "@cooper/core/*": ["./cooper/libs/core/*"]
+      "@cooper/api/*": ["./cooper/libs/api/*"]
     }
   },
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.newt-graph.json" },
+    { "path": "./tsconfig.newt-monitor.json" },
+    { "path": "./tsconfig.newt-react-ui.json" },
+    { "path": "./tsconfig.newt-react.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }
@@ -837,64 +752,33 @@ imports (in `bun test`) with the root file:
 }
 ```
 
-The Vite configs run in Bun, not in the browser, so they are left out of the frontend
-project and go to the tools' one. In `tsconfig.node.json`, change the comment and the
-`include`, and allow the configs' imports with a `.ts` extension
-(`allowImportingTsExtensions`, which needs `noEmit`):
-
-```json
-{
-  // The tools around the application: cooper's scripts and its frontends' Vite configs.
-  "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "types": ["bun"],
-    "moduleDetection": "force",
-    "noEmit": true,
-    // A Vite config imports its neighbour as Node would load it: with its extension.
-    "allowImportingTsExtensions": true,
-    "skipLibCheck": true,
-    "strict": true
-  },
-  "include": ["cooper/scripts/**/*.ts", "cooper/frontend/*/vite.config.ts"],
-  "exclude": ["**/node_modules"]
-}
-```
-
 ## Lint: the frontend half
 
-`newt-eslint` lints the backend. The frontend gets rules of its own, in the same
-`eslint.config.js`. Replace it:
+`newt-eslint` lints the backend. The frontends get `newt-react-ui`'s own preset,
+`newtReactUi`, in the same `eslint.config.js`. Replace it:
 
 ```js
 import tseslint from 'typescript-eslint'
 import { newt } from 'newt-eslint'
+import { newtReactUi } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
-// frontends the rules of a UI built from one library. The framework's own code is not
-// an application, so it is left out.
+// frontends newt-react-ui's. The framework's own code is not
+// an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'] } },
 })
 
-// The frontends build their UI from @cooper/ui only. Styling lives in cooper/libs/ui and
-// in each app's own components/ folder; everywhere else, class names and inline styles
-// are forbidden, and so is reaching past @cooper/ui into shadcn or Radix.
+// newt-monitor is an application built with newt too, so it keeps the same lint.
+const MONITOR = newt({
+  files: ['packages/newt-monitor/**/*.ts'],
+  contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
+})
 
-const FRONTEND = ['cooper/frontend/**/*.{ts,tsx}', 'cooper/libs/**/*.{ts,tsx}']
-// Where styling is allowed: the UI library, and each app's own UI pieces.
-const STYLED = ['cooper/libs/ui/**', 'cooper/frontend/*/components/**']
-
-const STYLING_MESSAGE = 'Apps do not style: use a component from @cooper/ui or from this app\'s own components/ folder.'
-
-const UI_IMPORTS = [
-  { group: ['radix-ui', '@radix-ui/*'], message: 'Use a component from @cooper/ui instead.' },
-  { group: ['@cooper/ui/shadcn', '@cooper/ui/shadcn/*', '**/libs/ui/shadcn', '**/libs/ui/shadcn/**'], message: 'shadcn is private to @cooper/ui: use @cooper/ui/components/*.' },
-]
+// newt-react-ui's gallery is an app like any other: it keeps the library's lint.
+const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
 
 // The frontend reaches the backend only through @cooper/api, the API clients.
 const BACKEND_IMPORTS = {
@@ -909,70 +793,60 @@ const API_BACKEND_IMPORTS = {
   message: '@cooper/api may only import a backend module\'s *.schema.ts (its contract).',
 }
 
+// cooper's frontends compose newt-react-ui's components and style nothing: only cooper's
+// own components (cooper/libs/ui, each app's components/) style, wrapping the library's.
+const FRONTEND = newtReactUi({
+  files: ['cooper/frontend/**/*.{ts,tsx}'],
+  components: ['cooper/libs/ui/**', 'cooper/frontend/*/components/**'],
+  imports: [BACKEND_IMPORTS],
+})
+
 export default [
-  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
+  ...MONITOR,
+  ...UI_GALLERY,
+  ...FRONTEND,
   {
-    files: FRONTEND,
+    files: ['cooper/libs/api/**/*.ts'],
     languageOptions: { parser: tseslint.parser },
-  },
-  {
-    files: ['cooper/frontend/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [...UI_IMPORTS, BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: ['cooper/libs/ui/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': ['error', { patterns: [BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: ['cooper/libs/api/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': ['error', { patterns: [...UI_IMPORTS, API_BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: FRONTEND,
-    ignores: STYLED,
-    rules: {
-      'no-restricted-syntax': ['error',
-        { selector: 'JSXAttribute[name.name=/^(className|class|style)$/]', message: STYLING_MESSAGE },
-        { selector: 'JSXAttribute > JSXNamespacedName[namespace.name=/^(class|style)$/]', message: STYLING_MESSAGE },
-        { selector: 'JSXElement[openingElement.name.name="style"]', message: STYLING_MESSAGE },
-      ],
+      'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
     },
   },
 ]
 ```
 
-The backend half is as it was. The frontend half uses ESLint's own rules, with
-typescript-eslint's parser for `.ts` and `.tsx`:
+The backend half is as it was. `newtReactUi({ files, components, imports })` is the
+library's lint for an app that uses it:
 
-- **The apps** (`cooper/frontend`) never import `backend/`, nor Radix or shadcn
-  directly: what they show comes from `@cooper/ui`, what they ask comes from
-  `@cooper/api`.
-- **`@cooper/ui`** never imports `backend/` either.
-- **`@cooper/api`** may import from `backend/` only a path of the form
-  `contexts/<context>/modules/<module>/<file>.schema.ts`: the contract. A client that
-  imported `card.module.ts` would bring use cases, repositories and `newt/core` into
-  the browser.
-- **Nobody styles** outside `cooper/libs/ui` and an app's own `components/` folder: no
-  `className`, `class` or `style` attribute, no `<style>` element.
+- **Pages compose components.** In `files`, out of `components`: no `className`,
+  `class` or `style` attribute, no `<style>`, no `cn` or
+  `class-variance-authority`, and no HTML element but `form` and `fieldset`. A page
+  is made of newt-react-ui's components, or of the app's own.
+- **Nobody reaches past the library.** No Radix, and none of newt-react-ui's internals:
+  its components are the way in.
+- **`components` may style.** cooper's own components (`cooper/libs/ui`, and an app's
+  `components/` folder if it has one) wrap newt-react-ui's, with Tailwind's classes.
+- **`imports` adds cooper's rule**: the apps never import `backend/`.
 
-This is what the lint says when a client reaches past the schema, and when a page
-styles itself:
+And one block of cooper's own: **`@cooper/api`** may import from `backend/` only a
+path of the form `contexts/<context>/modules/<module>/<file>.schema.ts`, the contract.
+A client that imported `card.module.ts` would bring use cases, repositories and
+`newt/core` into the browser.
+
+This is what the lint says when a page styles itself, when it writes HTML, and when a
+client reaches past the schema:
 
 ```text
 cooper/frontend/boards/pages/home/bad.tsx
-  1:29  error  Apps do not style: use a component from @cooper/ui or from this app's own components/ folder  no-restricted-syntax
+  1:27  error  A page is made of components: use one of newt-react-ui, or make one in the app's own components folder      no-restricted-syntax
+  1:31  error  An app does not style: compose components of newt-react-ui, or make one in the app's own components folder  no-restricted-syntax
 
 cooper/libs/api/card/bad.ts
   1:1  error  '../../../backend/contexts/boards/modules/card/card.module' import is restricted from being used by a pattern. @cooper/api may only import a backend module's *.schema.ts (its contract)  no-restricted-imports
 
-✖ 2 problems (2 errors, 0 warnings)
+✖ 3 problems (3 errors, 0 warnings)
 ```
 
 The lint checks the path. What keeps the schema itself safe for a browser is that it
@@ -984,32 +858,31 @@ not those of the files it imports: that a value object imports `newt/contract`, 
 
 ## Check it
 
-The gate, with the new project and the libraries' tests:
+The gate, with the new project and the clients' test:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
- 142 pass
+ 116 pass
  0 fail
- 492 expect() calls
-Ran 142 tests across 19 files.
+ 444 expect() calls
+Ran 116 tests across 14 files.
 ```
 
 Build both apps:
 
 ```sh
 bun run cooper:build
-ls dist/cooper
 ```
 
 ```text
-auth
-boards
+auth: 5 files in dist/cooper/auth
+boards: 5 files in dist/cooper/boards
 ```
 
-Then start everything:
+Then start cooper in development:
 
 ```sh
 bun run cooper
@@ -1019,25 +892,17 @@ bun run cooper
 auth listening on http://localhost:3001/
 boards listening on http://localhost:3002/
 
-  VITE v8.3.4  ready in 229 ms
-
-  ➜  Local:   http://localhost:5171/
-
-  VITE v8.3.4  ready in 224 ms
-
-  ➜  Local:   http://localhost:5172/
-
-  auth    http://localhost:5171  (API on port 3001)
-  boards  http://localhost:5172  (API on port 3002)
+  auth    http://localhost:3001
+  boards  http://localhost:3002
 ```
 
-Both apps answer, and boards' API answers through its Vite server:
+Both apps answer on their contexts' ports, beside their APIs:
 
 ```sh
-curl -s localhost:5171 | grep -o '<title>.*</title>'
-curl -s localhost:5172 | grep -o '<title>.*</title>'
-curl -s localhost:5172/api/health
-curl -s -i localhost:5172/api/session/sign-in | grep -i '^HTTP\|^location'
+curl -s localhost:3001 | grep -o '<title>.*</title>'
+curl -s localhost:3002 | grep -o '<title>.*</title>'
+curl -s localhost:3002/api/health
+curl -s -i localhost:3002/api/session/sign-in | grep -i '^HTTP\|^location'
 ```
 
 ```text
@@ -1045,15 +910,19 @@ curl -s -i localhost:5172/api/session/sign-in | grep -i '^HTTP\|^location'
 <title>Cooper</title>
 {"status":"ok"}
 HTTP/1.1 302 Found
-location: http://localhost:5171/oauth/authorize?response_type=code&client_id=cooper&redirect_uri=http%3A%2F%2Flocalhost%3A5172%2Fapi%2Fsession%2Fcallback&code_challenge=…&code_challenge_method=S256&state=…
+Location: http://localhost:3001/oauth/authorize?response_type=code&client_id=cooper&redirect_uri=http%3A%2F%2Flocalhost%3A3002%2Fapi%2Fsession%2Fcallback&code_challenge=…&code_challenge_method=S256&state=…
 ```
 
-Signing in goes to auth's app, and comes back to boards' Vite server. Open
-`http://localhost:5172` in a browser and sign in: boards sends you to auth's sign-in
-page, where you can sign up; auth answers its own product's request at once (cooper
-asks nobody's consent to sign in to cooper), and you are back on boards.
+Open `http://localhost:3002` in a browser and sign in: boards sends you to auth's
+sign-in page, on 3001, where you can sign up; auth answers its own product's request
+at once (cooper asks nobody's consent to sign in to cooper), and you are back on
+boards. Edit a page and it reloads.
 
-The built apps are served by the contexts themselves, on their own ports:
+Stop it with Ctrl+C. The built apps are served the same way, without the setting:
+
+```sh
+bun cooper/backend/index.ts
+```
 
 ```sh
 curl -s localhost:3001/ | grep -o '<title>.*</title>'
@@ -1068,7 +937,7 @@ curl -s localhost:3002/api/nothing
 ```
 
 `/boards` is no file of the build, so it gets `index.html`; `/api/nothing` is under
-`/api`, so it gets a 404 the client can read. Ctrl+C stops all of it.
+`/api`, so it gets a 404 the client can read.
 
 ## What to remember
 
@@ -1078,12 +947,15 @@ curl -s localhost:3002/api/nothing
 - A module's `*.schema.ts` is its contract, and the only backend file a client may
   import. It imports zod, `newt/contract`, value objects and other schemas; anything
   else only as a type. The lint keeps the clients to it.
-- A client reads every failure as an `ErrorBody` and acts on `code`, never on the
-  message.
+- The apps are made of `newt-react-ui`'s components and think with `newt-react`;
+  cooper's own components are the only code of it that styles, and the lint says so.
+- A client extends `newt-react`'s `Requester`, reads every failure as an `ErrorBody`
+  and acts on `code`, never on the message.
 - The client makes the `Idempotency-Key`: a new `crypto.randomUUID()` per submit, the
   same one when the same submit is sent again.
-- In development the browser talks only to Vite, on the context's public URL, which
-  proxies the context's paths; built, each context serves its own app
-  (`frontendFolder`) for every address its routes do not take, never under `/api`.
+- Each context serves its app on its own port, for every address its routes do not
+  take, never under `/api`: from its sources in development (`bun run cooper`), built
+  by Bun in production (`bun run cooper:build`, `frontendFolder`). No proxy, nothing in
+  front.
 
 Next: [An MCP server](./24-mcp-server).

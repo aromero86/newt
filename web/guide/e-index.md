@@ -324,7 +324,7 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 
 | Export | Kind | Imported in | Also in |
 |---|---|---|---|
-| `serveMonitor` | value |   | [H](./h-describe-application) |
+| `serveMonitor` | value | [28](./28-observability) | [H](./h-describe-application) |
 | `signMonitorRequest` | value |   | [H](./h-describe-application) |
 | `MonitorOptions` | type |   | — |
 | `MonitorIdentity` | type |   | [H](./h-describe-application) |

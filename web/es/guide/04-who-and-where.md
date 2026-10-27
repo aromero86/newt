@@ -871,7 +871,7 @@ Añádela a las convenciones de `cooper/AGENTS.md` (capítulo
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Los tableros que creaste en capítulos anteriores no tienen espacio de trabajo, así que

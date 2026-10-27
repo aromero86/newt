@@ -48,9 +48,10 @@ cooper/backend/
 
 auth listens on 3001 and keeps its data in its own SQLite file. It also needs to know
 where the apps it signs people in to are opened, and how long a session lasts. In
-`config.ts`, add `sessionDays` after `env`, the backoffice's public URL (its app comes
-in chapter [25](./25-backoffice), but auth names it from now on), and auth's part,
-before boards':
+`config.ts`, add `sessionDays` after `env`, auth's port and the backoffice's to
+`ports`, the backoffice's public URL (its app comes in chapter
+[25](./25-backoffice), but auth names it from now on), and auth's part, before
+boards':
 
 ```ts
 // cooper/backend/config.ts
@@ -58,10 +59,17 @@ const env = process.env
 
 /** `COOPER_SESSION_DAYS`: how long a browser session lasts without signing in again, in every context. */
 const sessionDays = Number(env.COOPER_SESSION_DAYS ?? 30)
+
+/** `COOPER_<CONTEXT>_PORT`: where each context listens, its API and its pages. */
+const ports = {
+  auth: Number(env.COOPER_AUTH_PORT ?? 3001),
+  boards: Number(env.COOPER_BOARDS_PORT ?? 3002),
+  backoffice: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+}
 // …
 const publicUrls = {
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
-  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? 'http://localhost:5173',
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
+  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? `http://localhost:${ports.backoffice}`,
 }
 // …
   mail: {
@@ -69,8 +77,8 @@ const publicUrls = {
   },
   /** Who someone is: accounts, and who is signed in, for every app of cooper. */
   auth: {
-    /** `COOPER_AUTH_PORT`: where it listens. */
-    port: Number(env.COOPER_AUTH_PORT ?? 3001),
+    /** Where it listens (`COOPER_AUTH_PORT`). */
+    port: ports.auth,
     /** `COOPER_AUTH_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
     /** Where the other contexts are opened: the apps that sign people in through it. */
@@ -1370,7 +1378,7 @@ sent by opening and stopping.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1381,7 +1389,7 @@ bun install && bun check && bun test cooper && bun run lint
 The new tests on their own:
 
 ```sh
-bun test cooper -t 'accounts|two contexts'
+bun test cooper/ -t 'accounts|two contexts'
 ```
 
 ```text

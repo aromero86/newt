@@ -42,8 +42,8 @@ se inicia sesión, el secreto de su cliente OAuth. auth nombra al backoffice des
   },
   /** The staff's console. */
   backoffice: {
-    /** `COOPER_BACKOFFICE_PORT`: where it listens. */
-    port: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+    /** Where it listens (`COOPER_BACKOFFICE_PORT`). */
+    port: ports.backoffice,
     /** `COOPER_BACKOFFICE_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BACKOFFICE_DATABASE ?? 'data/cooper-backoffice.db'),
     publicUrl: publicUrls.backoffice,
@@ -55,7 +55,6 @@ se inicia sesión, el secreto de su cliente OAuth. auth nombra al backoffice des
     /** `COOPER_BACKOFFICE_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BACKOFFICE_FRONTEND ?? 'dist/cooper/backoffice'),
   },
-}
 // …
 ```
 
@@ -1591,7 +1590,7 @@ Sin él, el test abriría el backoffice en el puerto 3003 y con su base de datos
 La comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 Los tests del propio backoffice:
@@ -1643,7 +1642,7 @@ curl -i "localhost:3003/api/session/sign-in?returnTo=/"
 
 ```text
 HTTP/1.1 302 Found
-Location: http://localhost:5171/oauth/authorize?response_type=code&client_id=backoffice&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fapi%2Fsession%2Fcallback&code_challenge=…&code_challenge_method=S256&state=…
+Location: http://localhost:3001/oauth/authorize?response_type=code&client_id=backoffice&redirect_uri=http%3A%2F%2Flocalhost%3A3003%2Fapi%2Fsession%2Fcallback&code_challenge=…&code_challenge_method=S256&state=…
 Set-Cookie: cooper_backoffice_sign_in=…; Path=/api/session; Max-Age=600; HttpOnly; SameSite=Lax
 …
 ```

@@ -962,7 +962,7 @@ a los tests propios del workspace en el próximo capítulo, sobre un tablero de 
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -973,7 +973,7 @@ bun install && bun check && bun test cooper && bun run lint
 Los tests nuevos por separado:
 
 ```sh
-bun test cooper -t 'credits nobody|being removed|removed column|leave the workspace|let in again'
+bun test cooper/ -t 'credits nobody|being removed|removed column|leave the workspace|let in again'
 ```
 
 ```text

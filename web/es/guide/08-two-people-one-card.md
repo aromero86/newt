@@ -752,7 +752,7 @@ vacía y se quita, y la última que queda responde 409 `column.last`:
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Luego, a mano, con el backend en marcha (`bun cooper/backend/index.ts`). Crea un

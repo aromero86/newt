@@ -183,13 +183,18 @@ const fromRoot = (path: string) => (isAbsolute(path) || path === ':memory:' ? pa
 
 const env = process.env
 
+/** `COOPER_<CONTEXT>_PORT`: where each context listens, its API and its pages. */
+const ports = {
+  boards: Number(env.COOPER_BOARDS_PORT ?? 3002),
+}
+
 /**
- * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. In development it is
- * its frontend's Vite server, which sends the API's addresses on to the context's port;
- * in production, the context's own domain, in front of its port.
+ * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. Each context serves
+ * its pages and its API on its own port, so in development it is that port; in
+ * production, the context's own domain, in front of it.
  */
 const publicUrls = {
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
 }
 
 /**
@@ -204,8 +209,8 @@ export const config = {
   },
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {
-    /** `COOPER_BOARDS_PORT`: where it listens. */
-    port: Number(env.COOPER_BOARDS_PORT ?? 3002),
+    /** Where it listens (`COOPER_BOARDS_PORT`). */
+    port: ports.boards,
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
@@ -217,9 +222,10 @@ export type Config = typeof config
 
 - `COOPER_MAIL_FROM` es uno para toda la aplicación: los emails de todos los contextos
   salen de la misma dirección.
-- `COOPER_BOARDS_PUBLIC_URL` es donde la gente abre boards. En desarrollo, el frontend de
-  boards (capítulo [23](./23-frontends)) corre en el puerto 5172; en producción, el
-  dominio propio de boards. Un enlace de un email se envía una vez y no se puede corregir
+- `ports` dice dónde escucha cada contexto, `COOPER_BOARDS_PORT` para boards, como
+  hacía `port`. `COOPER_BOARDS_PUBLIC_URL` es donde la gente abre boards. En desarrollo,
+  el puerto propio de boards, 3002, donde servirá sus páginas junto a su API (capítulo
+  [23](./23-frontends)); en producción, el dominio propio de boards. Un enlace de un email se envía una vez y no se puede corregir
   después, así que se construye con este ajuste, nunca con el sitio desde el que entró
   una petición.
 
@@ -866,7 +872,7 @@ esperaría 10 segundos, y `settled` no espera a un job que aún no toca.
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`), crea una tarjeta y
@@ -890,7 +896,7 @@ La respuesta llega primero; un momento después la consola del backend muestra e
   
   Card #1, "Plan", is assigned to you.
   
-  http://localhost:5172/w/acme/boards/01a17958-afda-767a-a367-2b8833ba1c7c?card=01a17958-aff5-714a-9813-1a28017f15a0
+  http://localhost:3002/w/acme/boards/01a17958-afda-767a-a367-2b8833ba1c7c?card=01a17958-aff5-714a-9813-1a28017f15a0
 ```
 
 con los ids de tu tablero y de tu tarjeta. Asígnala a ana, que es quien actúa, y no se

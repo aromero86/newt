@@ -557,7 +557,7 @@ línea del medio:
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Luego a mano. Arranca el backend (`bun cooper/backend/index.ts`), crea un tablero con

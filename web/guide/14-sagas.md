@@ -1106,7 +1106,7 @@ now reads them through `/view`. Rename it and replace its two reads:
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 The workspace's tests on their own:

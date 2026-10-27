@@ -48,9 +48,10 @@ cooper/backend/
 
 auth escucha en el 3001 y guarda sus datos en su propio archivo SQLite. También necesita
 saber dónde se abren las apps a las que da acceso, y cuánto dura una sesión. En
-`config.ts`, añade `sessionDays` después de `env`, la URL pública del backoffice (su app
-llega en el capítulo [25](./25-backoffice), pero auth la nombra desde ya) y la parte de
-auth, antes de la de boards:
+`config.ts`, añade `sessionDays` después de `env`, el puerto de auth y el del backoffice
+a `ports`, la URL pública del backoffice (su app llega en el capítulo
+[25](./25-backoffice), pero auth la nombra desde ya) y la parte de auth, antes de la de
+boards:
 
 ```ts
 // cooper/backend/config.ts
@@ -58,10 +59,17 @@ const env = process.env
 
 /** `COOPER_SESSION_DAYS`: how long a browser session lasts without signing in again, in every context. */
 const sessionDays = Number(env.COOPER_SESSION_DAYS ?? 30)
+
+/** `COOPER_<CONTEXT>_PORT`: where each context listens, its API and its pages. */
+const ports = {
+  auth: Number(env.COOPER_AUTH_PORT ?? 3001),
+  boards: Number(env.COOPER_BOARDS_PORT ?? 3002),
+  backoffice: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+}
 // …
 const publicUrls = {
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
-  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? 'http://localhost:5173',
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
+  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? `http://localhost:${ports.backoffice}`,
 }
 // …
   mail: {
@@ -69,8 +77,8 @@ const publicUrls = {
   },
   /** Who someone is: accounts, and who is signed in, for every app of cooper. */
   auth: {
-    /** `COOPER_AUTH_PORT`: where it listens. */
-    port: Number(env.COOPER_AUTH_PORT ?? 3001),
+    /** Where it listens (`COOPER_AUTH_PORT`). */
+    port: ports.auth,
     /** `COOPER_AUTH_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
     /** Where the other contexts are opened: the apps that sign people in through it. */
@@ -1381,7 +1389,7 @@ guarda lo que se enviaría: abrir y detener no envía ningún correo.
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1392,7 +1400,7 @@ bun install && bun check && bun test cooper && bun run lint
 Los tests nuevos por separado:
 
 ```sh
-bun test cooper -t 'accounts|two contexts'
+bun test cooper/ -t 'accounts|two contexts'
 ```
 
 ```text

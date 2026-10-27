@@ -1058,7 +1058,7 @@ the commit, in this process.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`), and in another

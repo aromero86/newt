@@ -592,7 +592,7 @@ activity while the worker may still be writing it.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`): it runs migration

@@ -347,13 +347,15 @@ La regla necesita que cada archivo linteado esté en un proyecto TypeScript: el
 - La anatomía de los módulos de `shared/`, que no están en ninguna carpeta `modules/`.
 - Lo que importan los objetos de valor de un esquema: `newt/schema-imports` lee solo
   los imports del propio esquema. Un objeto de valor que importa `newt/core` llega al
-  frontend a través de él, y Vite avisa de `node:async_hooks` ([capítulo 23](./23-frontends)).
+  frontend a través de él, y Bun lo construye con un `node:async_hooks` vacío: la página
+  se rompe al cargar ([capítulo 23](./23-frontends)).
 - El scope de un repositorio: lo comprueba el compilador. `scope` es obligatorio en las
   opciones de un `TableRepository` (`RepositoryScope` o `'none'`), así que si falta no
   compila ([capítulo 4](./04-who-and-where)).
 - La regla de escritura y la regla del guard: newt las comprueba mientras se ejecuta el
   código ([capítulo 8](./08-two-people-one-card), [capítulo 6](./06-rules-over-rows)).
 
-El `eslint.config.js` de cooper añade reglas propias para los frontends (ningún estilo
-fuera de `@cooper/ui`, ningún import del backend salvo el `*.schema.ts` de un módulo); son
-de cooper, no de newt-eslint ([capítulo 23](./23-frontends)).
+El `eslint.config.js` de cooper revisa sus frontends con el preset de newt-react-ui,
+`newtReactUi` (las páginas componen componentes y no dan estilo a nada; solo `@cooper/ui`
+da estilo), y una regla propia (ningún import del backend salvo el `*.schema.ts` de un
+módulo); no son de newt-eslint ([capítulo 23](./23-frontends)).

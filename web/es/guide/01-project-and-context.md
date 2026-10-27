@@ -32,8 +32,9 @@ cooper/backend/
 
 ## Un proyecto TypeScript para el backend
 
-El repositorio se compone de proyectos TypeScript. En `tutorial/00` hay dos, el de
-newt y el de newt-graph. El backend de cooper tiene el suyo: TypeScript plano para Bun, estricto, sin el
+El repositorio se compone de proyectos TypeScript. En `tutorial/00` hay uno por
+paquete: el de newt, el de newt-graph, el de newt-monitor, el de newt-react-ui y el de
+newt-react. El backend de cooper tiene el suyo: TypeScript plano para Bun, estricto, sin el
 DOM. Crea `tsconfig.backend.json` en la raíz:
 
 ```json
@@ -56,18 +57,22 @@ DOM. Crea `tsconfig.backend.json` en la raíz:
 }
 ```
 
-Y haz que el `tsconfig.json` de la raíz lo referencie, junto al de newt:
+Y haz que el `tsconfig.json` de la raíz lo referencie, junto a los de los paquetes:
 
 ```json
 {
-  // The whole repository, as its projects: the framework (newt), its graph (newt-graph) and what runs on the
-  // server (cooper's backend). `bun check` follows the references. newt is not among
-  // any paths: it is a workspace package, reached through its `exports` as any
-  // application reaches it.
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph), its
+  // monitor (newt-monitor), its React frontend's components and logic (newt-react-ui,
+  // newt-react) and what runs on the server (cooper's backend). `bun check` follows the references.
+  // newt is not among any paths: it is a workspace package, reached through its `exports`
+  // as any application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.newt-graph.json" },
+    { "path": "./tsconfig.newt-monitor.json" },
+    { "path": "./tsconfig.newt-react-ui.json" },
+    { "path": "./tsconfig.newt-react.json" },
     { "path": "./tsconfig.backend.json" }
   ]
 }
@@ -93,28 +98,43 @@ decoradores antiguos, no estándar, que no son aquellos para los que está escri
 ## Lint: newt-eslint
 
 El compilador comprueba tipos. No puede comprobar que un módulo esté montado como todos
-los demás, ni que un contexto no se meta en otro. Para eso está `newt-eslint`. Sustituye
-el `eslint.config.js` de la raíz:
+los demás, ni que un contexto no se meta en otro. Para eso está `newt-eslint`. El
+`eslint.config.js` de la raíz ya revisa newt-monitor (una aplicación hecha con newt) y la
+galería de newt-react-ui. Añádele el backend de cooper:
 
 ```js
 import { newt } from 'newt-eslint'
+import { newtReactUi } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint. The
-// framework's own code is not an application, so it is left out.
+// framework's own code is not an application, so it is left out; newt-monitor is one,
+// so it is in.
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { boards: [] } },
 })
 
+// newt-monitor is an application built with newt too, so it keeps the same lint.
+const MONITOR = newt({
+  files: ['packages/newt-monitor/**/*.ts'],
+  contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
+})
+
+// newt-react-ui's gallery is an app like any other: it keeps the library's lint.
+const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
+
 export default [
-  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
+  ...MONITOR,
+  ...UI_GALLERY,
 ]
 ```
 
 `newt(options)` es el preset: sus reglas, el parser de TypeScript y los ficheros que
-miran. `files` lo limita al backend. `contexts` dice dónde viven los contextos y cuáles
+miran. `BACKEND` es el mismo preset que el de `MONITOR`, para otros archivos: `files`
+lo limita al backend de cooper. `contexts` dice dónde viven los contextos y cuáles
 usa cada uno: por ahora hay uno, `boards`, y no usa ninguno. Un contexto que no figure,
 o un ciclo, es un error en cuanto arranca el lint.
 
@@ -482,7 +502,7 @@ El orden de `afterEach` importa: primero el servidor deja de aceptar peticiones,
 Ejecuta la comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

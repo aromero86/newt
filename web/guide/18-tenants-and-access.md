@@ -1401,7 +1401,7 @@ the worker found nothing left to revoke. The admin is never revoked by `revoke`,
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text

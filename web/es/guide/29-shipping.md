@@ -58,14 +58,14 @@ Ran 6 tests across 1 file.
 Y toda la comprobación, una vez más:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 ```text
- 170 pass
+ 144 pass
  0 fail
- 623 expect() calls
-Ran 170 tests across 29 files.
+ 575 expect() calls
+Ran 144 tests across 24 files.
 ```
 
 Con `COOPER_TEST_POSTGRES_URL` definida (capítulo [27](./27-postgres)), se ejecutan cinco
@@ -73,16 +73,18 @@ más sobre Postgres.
 
 ## Construir los frontends
 
-En desarrollo, `bun run cooper` arranca el backend y un servidor Vite por frontend, que
-reenvía las direcciones de la API a su contexto (capítulo [23](./23-frontends)). En
-producción no hay Vite. Construye las tres apps una vez:
+En desarrollo, `bun run cooper` arranca el backend con `COOPER_FRONTEND_SOURCES=1`: cada
+contexto sirve su app desde su código fuente, que Bun construye a medida que la sirve
+(capítulo [23](./23-frontends)). En producción nada se construye al servirse. Construye
+las tres apps una vez, con Bun y Tailwind (`cooper/scripts/build.ts`):
 
 ```sh
 bun run cooper:build
 ```
 
-Cada una acaba en `dist/cooper/<name>`: `auth`, `boards`, `backoffice`. Cada contexto
-sirve la suya, en su propio puerto, para toda dirección que sus rutas no atienden:
+Cada una acaba en `dist/cooper/<name>`: `auth`, `boards`, `backoffice`. Sin
+`COOPER_FRONTEND_SOURCES`, cada contexto sirve su propia carpeta, en su propio puerto,
+para toda dirección que sus rutas no atienden:
 
 ```ts
 // cooper/backend/shared/served-context.ts
@@ -123,14 +125,15 @@ con lo que necesita el desarrollo por defecto. Bun carga un fichero `.env` por s
 | `COOPER_AUTH_DATABASE` | `data/cooper-auth.db` | La base de datos de auth: un fichero SQLite, o una dirección `postgres://`. |
 | `COOPER_BOARDS_DATABASE` | `data/cooper-boards.db` | La base de datos de boards, igual. |
 | `COOPER_BACKOFFICE_DATABASE` | `data/cooper-backoffice.db` | La base de datos del backoffice, igual. |
-| `COOPER_AUTH_PUBLIC_URL` | `http://localhost:5171` | Dónde abre la gente auth. |
-| `COOPER_BOARDS_PUBLIC_URL` | `http://localhost:5172` | Dónde abre la gente boards. |
-| `COOPER_BACKOFFICE_PUBLIC_URL` | `http://localhost:5173` | Dónde abre la gente el backoffice. |
+| `COOPER_AUTH_PUBLIC_URL` | `http://localhost:3001` | Dónde abre la gente auth. |
+| `COOPER_BOARDS_PUBLIC_URL` | `http://localhost:3002` | Dónde abre la gente boards. |
+| `COOPER_BACKOFFICE_PUBLIC_URL` | `http://localhost:3003` | Dónde abre la gente el backoffice. |
 | `COOPER_BOARDS_CLIENT_SECRET` | un secreto de desarrollo | El secreto de cliente OAuth de boards. |
 | `COOPER_BACKOFFICE_CLIENT_SECRET` | un secreto de desarrollo | El secreto de cliente OAuth del backoffice. |
 | `COOPER_AUTH_FRONTEND` | `dist/cooper/auth` | El frontend construido de auth. |
 | `COOPER_BOARDS_FRONTEND` | `dist/cooper/boards` | El frontend construido de boards. |
 | `COOPER_BACKOFFICE_FRONTEND` | `dist/cooper/backoffice` | El frontend construido del backoffice. |
+| `COOPER_FRONTEND_SOURCES` | apagado | `1` sirve cada frontend desde su código fuente en su lugar (`bun run cooper` lo pone). |
 | `COOPER_SESSION_DAYS` | `30` | Cuánto dura una sesión del navegador, en todos los contextos. |
 | `COOPER_INVITATION_DAYS` | `7` | Cuánto espera una invitación a ser aceptada. |
 | `COOPER_OAUTH_ACCESS_MINUTES` | `60` | Cuánto dura un token de acceso. |
@@ -139,11 +142,14 @@ con lo que necesita el desarrollo por defecto. Bun carga un fichero `.env` por s
 | `COOPER_TRACE` | apagado | `1` escribe cada traza en la consola, y cada movimiento de tarjeta. |
 | `COOPER_OTLP_URL` | ninguna | Un colector de OpenTelemetry al que van las trazas en su lugar. |
 | `COOPER_DRAIN_MS` | `2000` | Cuánto sigue respondiendo cada servidor una vez se le dice que se detenga. |
+| `COOPER_MONITOR_KEY` | ninguna | La clave con la que un monitor firma sus peticiones; sin ella no hay endpoint del monitor. |
+| `COOPER_MONITOR_PORT` | `3010` | Dónde escucha el endpoint del monitor. |
+| `COOPER_MONITOR_HOSTNAME` | `127.0.0.1` | La dirección en la que escucha: `0.0.0.0` en la imagen. |
 
 Las rutas relativas son relativas a la raíz del repositorio. Los tests leen una más,
 `COOPER_TEST_POSTGRES_URL`, y nada más la lee.
 
-En desarrollo las URL públicas son los servidores Vite. En producción cada una es el
+En desarrollo las URL públicas son los puertos propios de los contextos. En producción cada una es el
 dominio propio del contexto, delante de su puerto: `auth.example.com` al 3001, y así
 sucesivamente. Las URL públicas son lo que auth pone en sus metadatos OAuth y en sus
 redirect URIs, y para lo que son los tokens (capítulo [24](./24-mcp-server)), así que
@@ -184,21 +190,14 @@ y sirve cada contexto con ella, en `index.ts`:
 
 ```ts
 // cooper/backend/index.ts
-// bun cooper/backend/index.ts: cooper's backend. Every context in one process, each one
-// served on its own port, with the worker of its jobs running, until SIGINT or SIGTERM.
-import { runContexts } from 'newt/application'
-import { config } from './config'
-import { cooperTracer, openContexts } from './open-contexts'
-import { setCooperMessages } from './shared/messages'
-
-// newt's own messages, in cooper's words, for the whole process: before anything answers.
-setCooperMessages()
-const contexts = await openContexts(config)
-
+// …
 // One tracer for every context: a request, and the use cases it calls in any context, is one trace.
 // Stopping, each server's health answers 503 for a moment before it closes.
-const app = runContexts(contexts.all.map(context => ({ context, serve: { ...context.serving(), drainMs: config.drainMs } })), { tracer: cooperTracer(config) })
-for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)
+const app = runContexts(contexts.all.map(context => ({
+  context,
+  serve: { ...context.serving(), drainMs: config.drainMs, ...(sources?.[context.name] ? { ...sources[context.name], development: true } : {}) },
+})), { tracer: cooperTracer(config) })
+// …
 ```
 
 **Antes de arrancar**, aplica las migraciones por separado, con el código de la versión
@@ -268,6 +267,42 @@ esperan bajo el nombre antiguo (capítulo [11](./11-reacting)). Los jobs que fal
 definitivamente se listan, y se ejecutan de nuevo, en el backoffice (capítulo
 [26](./26-dead-jobs-and-analytics)).
 
+### La imagen
+
+La raíz del repositorio tiene el `Dockerfile` de cooper. Instala el workspace (primero el
+`package.json` de cada paquete, para que la instalación quede en caché), construye los
+frontends y arranca el backend:
+
+```dockerfile
+# cooper in production: the backend, which serves every context on its own port
+# (auth 3001, boards 3002, backoffice 3003), each with its built frontend. Its
+# SQLite databases live in /app/data, which must be a persistent volume.
+FROM oven/bun:1.4.2-alpine
+WORKDIR /app
+
+COPY package.json bun.lock ./
+COPY packages/newt/package.json packages/newt/
+COPY packages/newt-eslint/package.json packages/newt-eslint/
+COPY packages/newt-graph/package.json packages/newt-graph/
+COPY packages/newt-monitor/package.json packages/newt-monitor/
+COPY packages/newt-react/package.json packages/newt-react/
+COPY packages/newt-react-ui/package.json packages/newt-react-ui/
+RUN bun install --frozen-lockfile
+
+COPY . .
+RUN bun run cooper:build
+
+ENV NODE_ENV=production
+# The monitor's port (3010, with COOPER_MONITOR_KEY) is reached over the container's network only: it is not exposed.
+ENV COOPER_MONITOR_HOSTNAME=0.0.0.0
+EXPOSE 3001 3002 3003
+CMD ["bun", "cooper/backend/index.ts"]
+```
+
+Dale los ajustes de arriba como variables de entorno, y un volumen en `/app/data` (o
+direcciones de Postgres para las bases de datos). Cada puerto expuesto recibe el dominio
+de su contexto; el del monitor, ninguno (capítulo [28](./28-observability)).
+
 ### Un proceso, por ahora
 
 cooper tal como está corre como **un** proceso. Las bases de datos admitirían más:
@@ -307,9 +342,11 @@ comprobarías a ojo:
 - [ ] **Ningún `transaction` en un módulo**: un módulo escribe a través del `save` o
   `saveRows` de su repositorio (capítulo [6](./06-rules-over-rows)).
 - [ ] **Ninguna promesa sin esperar** (`@typescript-eslint/no-floating-promises`).
-- [ ] **Los frontends**: ni nombres de clase ni estilos en línea fuera de `@cooper/ui`
-  y de los `components/` de una app, y nunca un import del backend salvo el
-  `*.schema.ts` de un módulo, desde `@cooper/api` (capítulo [23](./23-frontends)).
+- [ ] **Los frontends** (`newtReactUi`): las páginas componen los componentes de
+  newt-react-ui, sin nombres de clase, estilos en línea ni elementos HTML salvo `form` y
+  `fieldset`; solo `@cooper/ui` y los `components/` de una app dan estilo; y nunca un
+  import del backend salvo el `*.schema.ts` de un módulo, desde `@cooper/api` (capítulo
+  [23](./23-frontends)).
 
 Lo que el lint no puede ver, lo comprueba newt mientras se ejecuta: un guardado que lee
 filas y no protege nada (la regla del guard), una escritura en otro módulo fuera de un

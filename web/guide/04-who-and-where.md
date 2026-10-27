@@ -862,7 +862,7 @@ a module scopes its repository too:
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Boards you created in earlier chapters have no workspace, so no workspace lists them.

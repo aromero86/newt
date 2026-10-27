@@ -308,7 +308,7 @@ code is what a client relies on.
 Run the gate:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

@@ -63,9 +63,10 @@ para `boards`. Con él llama a herramientas como `list_boards`, `create_card` o
 Aun así, cooper sabe por dónde llegó cada cambio: quien actúa dice si fue por la web o
 por MCP, y la actividad de cada tarjeta lo enseña.
 
-cooper también tiene tres frontends web, uno por contexto. El tutorial va del backend:
-los frontends se copian del repositorio en el capítulo [23](./23-frontends), donde se
-ve qué comparten con el backend.
+cooper también tiene tres frontends web, uno por contexto, hechos con los paquetes de
+frontend de newt, `newt-react-ui` y `newt-react`. El tutorial va del backend: los
+frontends se copian del repositorio en el capítulo [23](./23-frontends), donde se ve qué
+comparten con el backend y cómo cada contexto sirve el suyo.
 
 ## Las piezas
 
@@ -196,20 +197,26 @@ git switch -c my-cooper
 El repositorio es un único workspace de Bun. En `tutorial/00` tiene:
 
 ```
-package.json          the workspace: newt, newt-eslint, typescript, eslint, vitepress
-tsconfig.json         the repository's TypeScript projects: for now only newt's
-tsconfig.newt.json    newt's project: the framework and its tests
-eslint.config.js      lints nothing yet: the framework's code is left out
+package.json          the workspace: newt's packages, React and Tailwind for its frontend packages, typescript, eslint, vitepress
+bunfig.toml           Bun's bundler builds HTML with Tailwind
+tsconfig.json         the repository's TypeScript projects: for now only the packages'
+tsconfig.newt*.json   each package's project: its code and its tests
+eslint.config.js      lints newt-monitor and newt-react-ui's gallery: the framework's code is left out
+Dockerfile            cooper's image, once cooper is whole
 packages/
   newt/               the framework: newt/core, newt/runtime, newt/http…, its `newt`
                       command and its AGENTS.md, the rules for coding agents
   newt-eslint/        the lint of an application built with newt
+  newt-graph/         draws an application from its code
+  newt-monitor/       watches running newt applications (a newt application itself)
+  newt-react-ui/      the components of a newt application's React frontend, and their lint
+  newt-react/         what that frontend thinks with: stores, services, forms, requests
 web/                  this site
 ```
 
 El `package.json` de la raíz ya depende de `newt` (`"workspace:*"`) y tiene
-`newt-eslint` entre sus dependencias de desarrollo. cooper importa el framework por su
-nombre, `newt/core`, `newt/http`, exactamente como una aplicación que hubiera ejecutado
+`newt-eslint` entre sus dependencias de desarrollo, con los demás paquetes. cooper
+importa el framework por su nombre, `newt/core`, `newt/http`, exactamente como una aplicación que hubiera ejecutado
 `bun add newt`: cada entrada es uno de los `exports` de `packages/newt/package.json`, y
 nada más del paquete se puede importar.
 
@@ -261,19 +268,23 @@ de qué etiqueta.
 Todos los capítulos terminan con las mismas cuatro comprobaciones:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 - `bun check` comprueba los tipos de cada proyecto al que hace referencia el
   `tsconfig.json` de la raíz, como haría `tsc -b`: el de newt y, desde el capítulo 1, el
   del backend de cooper. Da los mismos errores que `tsc`, y termina con
   `✓ No type errors` si todo va bien.
-- `bun test cooper` ejecuta los tests de cooper. La comprobación de cada capítulo es
+- `bun test cooper/` ejecuta los tests de cooper: los archivos de `cooper/`. Ojo con la
+  barra: `bun test cooper` ejecutaría también todo archivo de test cuyo nombre diga
+  cooper, y el `against-cooper.test.ts` de newt-monitor arranca cooper entero, con su
+  monitor, que solo tienes desde el capítulo 28. La comprobación de cada capítulo es
   también un test, así que lo que pruebas a mano se vuelve a comprobar cada vez.
 - `bun run lint` ejecuta ESLint con el preset de newt sobre el backend de cooper.
 
-En `tutorial/00` todavía no hay cooper: ejecuta `bun test`, que corre los tests del
-propio newt, para ver que el repositorio está sano antes de empezar.
+En `tutorial/00` todavía no hay cooper: ejecuta `bun test packages`, los tests del
+propio framework, para ver que el repositorio está sano antes de empezar. Pasan todos
+menos `against-cooper.test.ts`, por lo dicho arriba.
 
 Después cada capítulo tiene su propio "Compruébalo": el servidor arrancado a mano y
 unas líneas de `curl` con lo que responden.
@@ -288,6 +299,6 @@ unas líneas de `curl` con lo que responden.
   `tutorial/NN`; `git diff tutorial/NN-1 tutorial/NN` lo enseña,
   `git checkout tutorial/NN -- cooper` te pone al día.
 - La comprobación, al final de cada capítulo:
-  `bun install && bun check && bun test cooper && bun run lint`.
+  `bun install && bun check && bun test cooper/ && bun run lint`.
 
 Empieza por el [capítulo 1: el proyecto y un contexto](./01-project-and-context).

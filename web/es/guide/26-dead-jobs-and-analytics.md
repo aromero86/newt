@@ -1073,7 +1073,7 @@ git checkout tutorial/26 -- cooper/frontend/backoffice cooper/libs/api/backoffic
 ```
 cooper/
   frontend/
-    backoffice/            la consola del personal: index.html, main.tsx, app.routes.tsx, vite.config.ts
+    backoffice/            la consola del personal: index.html, app.css, main.tsx, app.routes.tsx, public/
       guards/              el guard de la sesión: iniciar sesión ocurre en auth
       modules/             resumen, workspaces, usuarios, personal, jobs: una zona cada uno, perezosas
       pages/               el shell, iniciar sesión, no encontrada, el error de una ruta
@@ -1087,8 +1087,9 @@ cooper/
       backoffice-workspace/
 ```
 
-Se construye como las apps del capítulo 23: `@cooper/ui` para cada componente,
-`@cooper/core` para los stores, un `Requester` por módulo en `@cooper/api`. Cada cliente
+Se construye como las apps del capítulo 23: los componentes de `newt-react-ui`, los stores
+y servicios de `newt-react`, un `app.css` con el tema, y un cliente por módulo en
+`@cooper/api`, cada uno extendiendo `Requester`. Cada cliente
 importa el esquema de su módulo del backend, así que el frontend y la API comparten un
 contrato. Por ejemplo, el cliente de jobs:
 
@@ -1096,8 +1097,7 @@ contrato. Por ejemplo, el cliente de jobs:
 // cooper/libs/api/backoffice-job/backoffice-job.api.ts
 import type { ContextJobDTO, JobContext } from '../../../backend/contexts/backoffice/modules/job/job.schema'
 import type { Page } from 'newt/contract'
-import type { PageRequest } from '../core/page-request'
-import { Requester } from '../core/requester'
+import { type PageRequest, Requester } from 'newt-react'
 
 /** The backoffice's `job` module: the jobs that died in each context. */
 export class BackofficeJobApi extends Requester {
@@ -1119,50 +1119,41 @@ El resumen muestra `GET /api/metrics` y los tableros creados más recientemente;
 jobs tiene una pestaña por contexto de `JOB_CONTEXTS`, cada una una lista con un botón de
 reintentar.
 
-El resto está tipado. La configuración compartida de Vite aprende el nombre de la tercera
-app y el puerto de su backend, en `vite-app.ts`:
+El resto está tipado: los tres sitios que nombran las apps aprenden la tercera. En
+desarrollo el backoffice la sirve desde su código fuente, en
+`cooper/backend/frontend-sources.ts`:
 
 ```ts
-// cooper/frontend/vite-app.ts
+// cooper/backend/frontend-sources.ts
 // …
-  name: 'auth' | 'boards' | 'backoffice'
-// …
-const BACKEND_PORTS = { auth: 3001, boards: 3002, backoffice: 3003 } as const
-// …
-/**
- * What the three apps share: React, Tailwind, the aliases of cooper's libraries,
- * a fixed dev port that proxies to the app's context, and the build in
- * `dist/cooper/<name>`, which that context serves in production.
- */
+  const [auth, boards, backoffice] = await Promise.all([
+    import('../frontend/auth/index.html'),
+    import('../frontend/boards/index.html'),
+    import('../frontend/backoffice/index.html'),
+  ])
+  return { auth: { frontend: auth.default }, boards: { frontend: boards.default }, backoffice: { frontend: backoffice.default } }
 // …
 ```
 
-El `vite.config.ts` propio de la app, que copiaste, le da el puerto 5173 y hace proxy de
-`/api`: el backoffice no sirve nada fuera de su API.
-
-`bun run cooper` arranca el tercer servidor de Vite y comprueba sus puertos. En
+`bun run cooper` comprueba también su puerto, e imprime dónde vive. En
 `cooper/scripts/dev.ts`:
 
 ```ts
 // cooper/scripts/dev.ts
 // …
-const frontend = (name: 'auth' | 'boards' | 'backoffice') => {
-// …
-const SERVICES = [
-  frontend('auth'),
-  frontend('boards'),
-  frontend('backoffice'),
-// …
-  ...(['auth', 'boards', 'backoffice'] as const).map(name => ({ name: `${name} API`, port: config[name].port })),
+const PORTS = (['auth', 'boards', 'backoffice'] as const).map(name => ({ name, port: config[name].port }))
 // …
   const names = ['auth', 'boards', 'backoffice'] as const
 // …
 ```
 
-`bun run cooper:build` también lo construye. En el `package.json` de la raíz:
+Y `bun run cooper:build` lo construye, en `cooper/scripts/build.ts`:
 
-```json
-"cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice"
+```ts
+// cooper/scripts/build.ts
+// …
+const APPS = ['auth', 'boards', 'backoffice'] as const
+// …
 ```
 
 Una vez construido, el contexto backoffice sirve `dist/cooper/backoffice` para toda
@@ -1222,7 +1213,7 @@ workspace y sus tarjetas los cuentan los workers de métricas como los de cualqu
 La comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 Los tests del backoffice y los del adaptador:
@@ -1250,8 +1241,8 @@ bun cooper/backend/index.ts
 cooper is seeded. Every account's password is
   cooper-demo
 
-  staff@cooper.dev   the staff: the backoffice, http://localhost:5173
-  ana@cooper.dev     Acme's admin, http://localhost:5172: its boards Welcome and Launch
+  staff@cooper.dev   the staff: the backoffice, http://localhost:3003
+  ana@cooper.dev     Acme's admin, http://localhost:3002: its boards Welcome and Launch
   bob@cooper.dev     a member of Acme, who accepted Ana's invitation
 …
 ```
@@ -1274,16 +1265,8 @@ HTTP/1.1 401 Unauthorized
 
 ### Iniciar sesión con curl
 
-El inicio de sesión pasa por las páginas de auth, que viven detrás de las URLs públicas de
-los servidores de Vite. Para recorrerlo con curl solo contra las APIs, arranca el servidor
-con cada URL pública apuntando al puerto de su propio contexto, para que cada redirección
-caiga en una API. Deténlo, y arráncalo otra vez:
-
-```sh
-COOPER_AUTH_PUBLIC_URL=http://localhost:3001 COOPER_BOARDS_PUBLIC_URL=http://localhost:3002 COOPER_BACKOFFICE_PUBLIC_URL=http://localhost:3003 bun cooper/backend/index.ts
-```
-
-Luego, con un cookie jar, como lo haría un navegador: empieza en el backoffice, síguelo
+El inicio de sesión pasa por auth, en su URL pública, que es su propio puerto: cada
+redirección cae en un servidor al que puedes llamar. Con un cookie jar, como lo haría un navegador: empieza en el backoffice, síguelo
 hasta auth, inicia sesión allí como el personal, di que sí, y sigue a auth de vuelta:
 
 ```sh
@@ -1325,13 +1308,13 @@ auth `oauthGrant.no_access`.
 
 ### En el navegador
 
-Detén el servidor, y arranca cooper con sus frontends:
+Detén el servidor, y arranca cooper con sus frontends desde su código fuente:
 
 ```sh
 bun run cooper
 ```
 
-Abre `http://localhost:5173`, inicia sesión en auth como `staff@cooper.dev` con la
+Abre `http://localhost:3003`, inicia sesión en auth como `staff@cooper.dev` con la
 contraseña del seed, y llegas al resumen: los totales, un gráfico por serie, los tableros
 creados más recientemente. Busca Acme en Workspaces, a Ana en Usuarios, concede acceso a
 alguien en Personal, y abre Jobs: una pestaña por contexto, cada una vacía hasta que muere

@@ -939,14 +939,18 @@ y refiérelo desde el `tsconfig.json` de la raíz:
 
 ```json
 {
-  // The whole repository, as its projects: the framework (newt), its graph (newt-graph), what runs on the
-  // server (cooper's backend), and the tools around them (scripts). `bun check`
-  // follows the references. newt is not among any paths: it is a workspace package,
-  // reached through its `exports` as any application reaches it.
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph), its
+  // monitor (newt-monitor), its React frontend's components and logic (newt-react-ui,
+  // newt-react), what runs on the server (cooper's backend), and the tools around them (scripts). `bun check` follows the references.
+  // newt is not among any paths: it is a workspace package, reached through its `exports`
+  // as any application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.newt-graph.json" },
+    { "path": "./tsconfig.newt-monitor.json" },
+    { "path": "./tsconfig.newt-react-ui.json" },
+    { "path": "./tsconfig.newt-react.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.node.json" }
   ]
@@ -1063,11 +1067,11 @@ try {
   ([capítulo 4](./04-who-and-where)), como lo haría una petición a boards.
 - Detiene los contextos al final, pase lo que pase.
 
-Añade el script al `package.json` de la raíz, después de `docs:build`:
+Añade el script al `package.json` de la raíz, después de `docs:check`:
 
 ```json
-    "docs:build": "vitepress build web",
-    "cooper:seed": "bun run cooper/scripts/seed.ts"
+    "docs:check": "bun web/scripts/check-tutorial.ts",
+    "cooper:seed": "bun run cooper/scripts/seed.ts",
 ```
 
 ## Tests
@@ -1318,7 +1322,7 @@ sigue ahí. boards no lo deja entrar en ningún sitio de todos modos: el tenant 
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1355,7 +1359,7 @@ asignan), y termina con:
 cooper is seeded. Every account's password is
   cooper-demo
 
-  ana@cooper.dev     Acme's admin, http://localhost:5172: its boards Welcome and Launch
+  ana@cooper.dev     Acme's admin, http://localhost:3002: its boards Welcome and Launch
   bob@cooper.dev     a member of Acme, who accepted Ana's invitation
 ```
 
@@ -1435,7 +1439,7 @@ auth:
 [mail] from cooper <no-reply@cooper.local> to cai@cooper.dev: Ana García invited you to Acme on Cooper
   Ana García invited you to join the workspace Acme on Cooper.
 
-  Accept the invitation: http://localhost:5172/invitations/nQ_j9xI9Tdw0_eBzCqgmcKWf_KYimsA0z3CmEKL0ymc
+  Accept the invitation: http://localhost:3002/invitations/nQ_j9xI9Tdw0_eBzCqgmcKWf_KYimsA0z3CmEKL0ymc
 
   Sign in, or sign up, with cai@cooper.dev to accept it. It expires on 2026-11-02.
 ```

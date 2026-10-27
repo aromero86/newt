@@ -658,7 +658,7 @@ Todos los tests hasta ahora corren sobre SQLite en memoria. Uno más ejecuta coo
 sobre un Postgres de verdad, cuando le das uno: `COOPER_TEST_POSTGRES_URL`, la
 dirección de un usuario con permiso para crear bases de datos en ese servidor (un rol
 con `CREATEDB`). Sin ella, el fichero no
-define ningún test, y `bun test cooper` lo salta.
+define ningún test, y `bun test cooper/` lo salta.
 
 ```ts
 // cooper/backend/postgres.test.ts
@@ -793,7 +793,7 @@ if (url) {
 La comprobación, como al final de cada capítulo:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 Sin `COOPER_TEST_POSTGRES_URL`, `postgres.test.ts` no tiene nada que ejecutar:

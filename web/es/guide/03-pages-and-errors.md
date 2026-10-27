@@ -310,7 +310,7 @@ mensajes: el código es lo que usa un cliente.
 Ejecuta la comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

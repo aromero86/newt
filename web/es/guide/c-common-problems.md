@@ -306,12 +306,12 @@ cookie ([capítulo 21](./21-oauth-server), [capítulo 24](./24-mcp-server)).
 **"…: port 3002 is already in use" y "Nothing was started."**
 `bun run cooper` comprueba primero todos los puertos. Otro cooper, u otra cosa, está
 escuchando. Páralo, o mueve cooper con las variables `COOPER_*_PORT` y
-`COOPER_*_PUBLIC_URL`; en desarrollo los proxies de los servidores Vite leen los mismos
-`COOPER_*_PORT` ([capítulo 23](./23-frontends), [capítulo 29](./29-shipping)).
+`COOPER_*_PUBLIC_URL` ([capítulo 23](./23-frontends), [capítulo 29](./29-shipping)).
 
 **Una página responde "The frontend is not built: its folder has no index.html".**
-Has abierto el puerto propio de un contexto sin construir los frontends. En desarrollo,
-abre las URLs de los servidores Vite (5171, 5172, 5173). En producción, ejecuta primero
+El backend sirve los frontends construidos, y no están construidos. En desarrollo,
+arranca cooper con `bun run cooper`, que los sirve desde su código fuente
+(`COOPER_FRONTEND_SOURCES=1`). En producción, ejecuta primero
 `bun run cooper:build` ([capítulo 23](./23-frontends), [capítulo 29](./29-shipping)).
 
 **El lint: "'unassign' is a public method of Card_Module without @UseCase: …" (`newt/use-case`)**

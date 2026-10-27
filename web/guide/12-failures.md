@@ -180,13 +180,18 @@ const fromRoot = (path: string) => (isAbsolute(path) || path === ':memory:' ? pa
 
 const env = process.env
 
+/** `COOPER_<CONTEXT>_PORT`: where each context listens, its API and its pages. */
+const ports = {
+  boards: Number(env.COOPER_BOARDS_PORT ?? 3002),
+}
+
 /**
- * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. In development it is
- * its frontend's Vite server, which sends the API's addresses on to the context's port;
- * in production, the context's own domain, in front of its port.
+ * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. Each context serves
+ * its pages and its API on its own port, so in development it is that port; in
+ * production, the context's own domain, in front of it.
  */
 const publicUrls = {
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
 }
 
 /**
@@ -201,8 +206,8 @@ export const config = {
   },
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {
-    /** `COOPER_BOARDS_PORT`: where it listens. */
-    port: Number(env.COOPER_BOARDS_PORT ?? 3002),
+    /** Where it listens (`COOPER_BOARDS_PORT`). */
+    port: ports.boards,
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
@@ -214,9 +219,10 @@ export type Config = typeof config
 
 - `COOPER_MAIL_FROM` is one for the whole application: every context's emails come
   from the same address.
-- `COOPER_BOARDS_PUBLIC_URL` is where people open boards. In development, boards'
-  frontend (chapter [23](./23-frontends)) runs on port 5172; in production, boards'
-  own domain. A link in an email is sent once and cannot be fixed afterwards, so it
+- `ports` names where each context listens, `COOPER_BOARDS_PORT` for boards, as
+  `port` did. `COOPER_BOARDS_PUBLIC_URL` is where people open boards. In development,
+  boards' own port, 3002, where it will serve its pages beside its API (chapter
+  [23](./23-frontends)); in production, boards' own domain. A link in an email is sent once and cannot be fixed afterwards, so it
   is built from this setting, never from where a request came in.
 
 `Boards_Config` is `Config['boards']`, so the context gets `publicUrl` with no other
@@ -854,7 +860,7 @@ off for that line. Only a test does that.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`), make a card, and
@@ -878,7 +884,7 @@ The answer comes first; a moment later the backend's console shows the email:
   
   Card #1, "Plan", is assigned to you.
   
-  http://localhost:5172/w/acme/boards/01a17958-afda-767a-a367-2b8833ba1c7c?card=01a17958-aff5-714a-9813-1a28017f15a0
+  http://localhost:3002/w/acme/boards/01a17958-afda-767a-a367-2b8833ba1c7c?card=01a17958-aff5-714a-9813-1a28017f15a0
 ```
 
 with your board's and card's ids. Assign it to ana, who is the one acting, and no

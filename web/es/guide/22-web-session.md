@@ -49,8 +49,8 @@ auth). Añade las tres últimas líneas de `boards`:
 // …
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {
-    /** `COOPER_BOARDS_PORT`: where it listens. */
-    port: Number(env.COOPER_BOARDS_PORT ?? 3002),
+    /** Where it listens (`COOPER_BOARDS_PORT`). */
+    port: ports.boards,
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
@@ -65,9 +65,9 @@ auth). Añade las tres últimas líneas de `boards`:
 
 `authPublicUrl` es la URL **pública** de auth, donde la gente la abre, no su puerto: el
 navegador va ahí, y también el servidor de boards cuando llama a `/oauth/token`. En
-desarrollo las URL públicas son los servidores Vite del capítulo 23 (`localhost:5171` para
-auth, `localhost:5172` para boards). Hasta entonces, la comprobación a mano del final del
-capítulo las apunta a los puertos del backend.
+desarrollo cada URL pública es el puerto propio de su contexto (`localhost:3001` para
+auth, `localhost:3002` para boards), donde sirve sus páginas junto a su API desde el
+capítulo 23; en producción, su propio dominio.
 
 ## Las cookies
 
@@ -909,8 +909,8 @@ function testConfig(authPort: number, boardsPort: number): Config {
 // …
 ```
 
-Sin Vite delante, la URL pública de cada contexto es su propio servidor: `freePort` da los
-dos puertos antes de que se abra nada. `beforeEach` ya no pone un autenticador `x-user` en
+La URL pública de cada contexto es su propio servidor, en un puerto del test: `freePort`
+da los dos puertos antes de que se abra nada. `beforeEach` ya no pone un autenticador `x-user` en
 boards; boards tiene el de la sesión web:
 
 ```ts
@@ -1145,7 +1145,7 @@ describe('the web session of a context', () => {
 Ejecuta la comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1154,12 +1154,10 @@ bun install && bun check && bun test cooper && bun run lint
 ```
 
 Después inicia sesión a mano, con `curl` como navegador y un archivo como su almacén de
-cookies. Hasta el capítulo 23 las URL públicas apuntan a servidores Vite que todavía no
-existen, así que arranca el backend con la URL pública de cada contexto en su propio
-puerto:
+cookies. Arranca el backend; la URL pública de cada contexto es su propio puerto:
 
 ```sh
-COOPER_AUTH_PUBLIC_URL=http://localhost:3001 COOPER_BOARDS_PUBLIC_URL=http://localhost:3002 bun cooper/backend/index.ts
+bun cooper/backend/index.ts
 ```
 
 boards aplica su nueva migración a `data/cooper-boards.db` al abrirse. En otra terminal,

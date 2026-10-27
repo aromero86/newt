@@ -77,9 +77,9 @@ después:
 ```ts
 // cooper/backend/config.ts
 const publicUrls = {
-  auth: env.COOPER_AUTH_PUBLIC_URL ?? 'http://localhost:5171',
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
-  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? 'http://localhost:5173',
+  auth: env.COOPER_AUTH_PUBLIC_URL ?? `http://localhost:${ports.auth}`,
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
+  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? `http://localhost:${ports.backoffice}`,
 }
 
 /**
@@ -105,8 +105,8 @@ y la parte de auth queda así:
 // cooper/backend/config.ts
   /** Who someone is: accounts, workspaces, who may enter what, and the OAuth server every app signs in with. */
   auth: {
-    /** `COOPER_AUTH_PORT`: where it listens. */
-    port: Number(env.COOPER_AUTH_PORT ?? 3001),
+    /** Where it listens (`COOPER_AUTH_PORT`). */
+    port: ports.auth,
     /** `COOPER_AUTH_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
     publicUrl: publicUrls.auth,
@@ -127,10 +127,10 @@ y la parte de auth queda así:
   },
 ```
 
-La URL pública de auth no es su puerto. En desarrollo, el 5171 es el frontend de auth
-(capítulo 23), cuyo servidor de desarrollo reenvía `/api`, `/oauth` y `/.well-known` al
-3001: el navegador ve un solo origen para las páginas de auth y sus endpoints, así que la
-cookie de auth se envía a ambos. En producción es el dominio propio de auth. Los secretos
+La URL pública de auth es donde la gente lo abre, no donde escucha: en desarrollo es lo
+mismo, `http://localhost:3001`, donde auth sirve sus páginas (capítulo 23) junto a sus
+endpoints, así que el navegador ve un solo origen para ambos y la cookie de auth se envía
+a ambos; en producción, el dominio propio de auth, delante de su puerto. Los secretos
 tienen valores por defecto para desarrollo; producción los fija, y cada app conoce solo el
 suyo. La clave `cooper` es el id de producto de boards, así que su variable es
 `COOPER_BOARDS_CLIENT_SECRET`.
@@ -1044,7 +1044,7 @@ OAuth.
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1074,10 +1074,11 @@ curl -s localhost:3001/.well-known/oauth-authorization-server
 ```
 
 ```text
-{"issuer":"http://localhost:5171","authorization_endpoint":"http://localhost:5171/oauth/authorize","token_endpoint":"http://localhost:5171/oauth/token","registration_endpoint":"http://localhost:5171/oauth/register","revocation_endpoint":"http://localhost:5171/oauth/revoke","response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"code_challenge_methods_supported":["S256"],"token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"],"revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"]}
+{"issuer":"http://localhost:3001","authorization_endpoint":"http://localhost:3001/oauth/authorize","token_endpoint":"http://localhost:3001/oauth/token","registration_endpoint":"http://localhost:3001/oauth/register","revocation_endpoint":"http://localhost:3001/oauth/revoke","response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"code_challenge_methods_supported":["S256"],"token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"],"revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","none"]}
 ```
 
-Todas las direcciones son la URL pública de auth, 5171, no el puerto al que has pedido.
+Todas las direcciones son la URL pública de auth, aquí `http://localhost:3001`, hecha con
+el ajuste, nunca con la dirección por la que entró la petición.
 Pregunta como lo haría la página del MCP inspector antes de registrarse, con un preflight
 desde otro origen:
 
@@ -1129,7 +1130,7 @@ curl -si "localhost:3001/oauth/authorize?response_type=code&client_id=$CID&redir
 
 ```text
 HTTP/1.1 302 Found
-Location: http://localhost:5171/authorize/01a17968-6d57-7655-93cb-7bc4198b3538
+Location: http://localhost:3001/authorize/01a17968-6d57-7655-93cb-7bc4198b3538
 …
 ```
 
@@ -1139,7 +1140,7 @@ MCP, boards. La misma petición con `code_challenge_method=plain` va a la págin
 
 ```text
 HTTP/1.1 302 Found
-Location: http://localhost:5171/error?message=The+application+does+not+protect+its+request+with+PKCE+%28S256%29
+Location: http://localhost:3001/error?message=The+application+does+not+protect+its+request+with+PKCE+%28S256%29
 ```
 
 Sé la página de auth. Lee la petición, intenta aprobarla sin haber iniciado sesión,
@@ -1214,14 +1215,14 @@ Por último, cierra sesión en auth de camino de vuelta a boards, y luego intent
 sitio:
 
 ```sh
-curl -si -b jar "localhost:3001/oauth/logout?redirect=http://localhost:5172/boards"
+curl -si -b jar "localhost:3001/oauth/logout?redirect=http://localhost:3002/boards"
 curl -s -b jar localhost:3001/api/session
 curl -si "localhost:3001/oauth/logout?redirect=https://evil.test/" | grep -i location
 ```
 
 ```text
 HTTP/1.1 302 Found
-Location: http://localhost:5172/boards
+Location: http://localhost:3002/boards
 Set-Cookie: cooper_auth_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax
 …
 {"error":"You are not signed in, or your session has ended: sign in to go on","code":"not_signed_in"}

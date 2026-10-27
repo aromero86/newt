@@ -341,13 +341,15 @@ part ([chapter 20](./20-wiring-contexts)).
 - The anatomy of `shared/` modules, which are in no `modules/` folder.
 - What a schema's value objects import: `newt/schema-imports` reads only the schema's
   own imports. A value object that imports `newt/core` reaches the frontend through
-  it, and Vite warns about `node:async_hooks` ([chapter 23](./23-frontends)).
+  it, and Bun builds it with an empty `node:async_hooks`: the page breaks as it loads
+  ([chapter 23](./23-frontends)).
 - A repository's scope: the compiler does. `scope` is required in a
   `TableRepository`'s options (`RepositoryScope` or `'none'`), so leaving it out does
   not compile ([chapter 4](./04-who-and-where)).
 - The write rule and the guard rule: newt checks those as the code runs
   ([chapter 8](./08-two-people-one-card), [chapter 6](./06-rules-over-rows)).
 
-cooper's `eslint.config.js` adds rules of its own for the frontends (no styling outside
-`@cooper/ui`, no backend import but a module's `*.schema.ts`); they are cooper's, not
+cooper's `eslint.config.js` lints its frontends with newt-react-ui's preset,
+`newtReactUi` (pages compose components and style nothing; only `@cooper/ui` styles),
+and a rule of its own (no backend import but a module's `*.schema.ts`); they are not
 newt-eslint's ([chapter 23](./23-frontends)).

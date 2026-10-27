@@ -1070,7 +1070,7 @@ git checkout tutorial/26 -- cooper/frontend/backoffice cooper/libs/api/backoffic
 ```
 cooper/
   frontend/
-    backoffice/            the staff's console: index.html, main.tsx, app.routes.tsx, vite.config.ts
+    backoffice/            the staff's console: index.html, app.css, main.tsx, app.routes.tsx, public/
       guards/              the session guard: signing in happens at auth
       modules/             overview, workspaces, users, staff, jobs: one zone each, lazy
       pages/               the shell, sign-in, not found, a route's error
@@ -1084,17 +1084,17 @@ cooper/
       backoffice-workspace/
 ```
 
-It is built as chapter 23's apps are: `@cooper/ui` for every component, `@cooper/core`
-for stores, a `Requester` per module in `@cooper/api`. Each client imports its module's
-schema from the backend, so the frontend and the API share one contract. For
-instance, the jobs' client:
+It is built as chapter 23's apps are: `newt-react-ui`'s components, `newt-react`'s
+stores and services, an `app.css` with the theme, and a client per module in
+`@cooper/api`, each extending `Requester`. Each client imports its module's schema
+from the backend, so the frontend and the API share one contract. For instance, the
+jobs' client:
 
 ```ts
 // cooper/libs/api/backoffice-job/backoffice-job.api.ts
 import type { ContextJobDTO, JobContext } from '../../../backend/contexts/backoffice/modules/job/job.schema'
 import type { Page } from 'newt/contract'
-import type { PageRequest } from '../core/page-request'
-import { Requester } from '../core/requester'
+import { type PageRequest, Requester } from 'newt-react'
 
 /** The backoffice's `job` module: the jobs that died in each context. */
 export class BackofficeJobApi extends Requester {
@@ -1115,50 +1115,41 @@ export class BackofficeJobApi extends Requester {
 The overview shows `GET /api/metrics` and the boards created last; the jobs page has a
 tab per context in `JOB_CONTEXTS`, each a list with a retry button.
 
-The rest is typed. The shared Vite config learns the third app's name and its
-backend's port, in `vite-app.ts`:
+The rest is typed: the three places that name the apps learn the third. In
+development the backoffice serves it from its sources, in
+`cooper/backend/frontend-sources.ts`:
 
 ```ts
-// cooper/frontend/vite-app.ts
+// cooper/backend/frontend-sources.ts
 // …
-  name: 'auth' | 'boards' | 'backoffice'
-// …
-const BACKEND_PORTS = { auth: 3001, boards: 3002, backoffice: 3003 } as const
-// …
-/**
- * What the three apps share: React, Tailwind, the aliases of cooper's libraries,
- * a fixed dev port that proxies to the app's context, and the build in
- * `dist/cooper/<name>`, which that context serves in production.
- */
+  const [auth, boards, backoffice] = await Promise.all([
+    import('../frontend/auth/index.html'),
+    import('../frontend/boards/index.html'),
+    import('../frontend/backoffice/index.html'),
+  ])
+  return { auth: { frontend: auth.default }, boards: { frontend: boards.default }, backoffice: { frontend: backoffice.default } }
 // …
 ```
 
-The app's own `vite.config.ts`, which you copied, gives it port 5173 and proxies
-`/api`: the backoffice serves nothing outside its API.
-
-`bun run cooper` starts the third Vite server and checks its ports. In
+`bun run cooper` checks its port too, and prints where it lives. In
 `cooper/scripts/dev.ts`:
 
 ```ts
 // cooper/scripts/dev.ts
 // …
-const frontend = (name: 'auth' | 'boards' | 'backoffice') => {
-// …
-const SERVICES = [
-  frontend('auth'),
-  frontend('boards'),
-  frontend('backoffice'),
-// …
-  ...(['auth', 'boards', 'backoffice'] as const).map(name => ({ name: `${name} API`, port: config[name].port })),
+const PORTS = (['auth', 'boards', 'backoffice'] as const).map(name => ({ name, port: config[name].port }))
 // …
   const names = ['auth', 'boards', 'backoffice'] as const
 // …
 ```
 
-`bun run cooper:build` builds it too. In the root `package.json`:
+And `bun run cooper:build` builds it, in `cooper/scripts/build.ts`:
 
-```json
-"cooper:build": "vite build cooper/frontend/auth && vite build cooper/frontend/boards && vite build cooper/frontend/backoffice"
+```ts
+// cooper/scripts/build.ts
+// …
+const APPS = ['auth', 'boards', 'backoffice'] as const
+// …
 ```
 
 Once built, the backoffice context serves `dist/cooper/backoffice` for every address
@@ -1218,7 +1209,7 @@ workspace and cards are counted by the metric workers like anyone's.
 The gate:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 The backoffice's tests and the adapter's:
@@ -1246,8 +1237,8 @@ bun cooper/backend/index.ts
 cooper is seeded. Every account's password is
   cooper-demo
 
-  staff@cooper.dev   the staff: the backoffice, http://localhost:5173
-  ana@cooper.dev     Acme's admin, http://localhost:5172: its boards Welcome and Launch
+  staff@cooper.dev   the staff: the backoffice, http://localhost:3003
+  ana@cooper.dev     Acme's admin, http://localhost:3002: its boards Welcome and Launch
   bob@cooper.dev     a member of Acme, who accepted Ana's invitation
 …
 ```
@@ -1270,16 +1261,8 @@ HTTP/1.1 401 Unauthorized
 
 ### Sign in with curl
 
-The sign-in goes through auth's pages, which live behind the public URLs of the Vite
-servers. To walk it with curl against the APIs alone, start the server with each
-public URL set to its context's own port, so every redirect lands on an API. Stop it,
-and start it again:
-
-```sh
-COOPER_AUTH_PUBLIC_URL=http://localhost:3001 COOPER_BOARDS_PUBLIC_URL=http://localhost:3002 COOPER_BACKOFFICE_PUBLIC_URL=http://localhost:3003 bun cooper/backend/index.ts
-```
-
-Then, with a cookie jar, as a browser would: start at the backoffice, follow it to
+The sign-in goes through auth, at its public URL, which is its own port: every
+redirect lands on a server you can call. With a cookie jar, as a browser would: start at the backoffice, follow it to
 auth, sign in there as the staff, say yes, and follow auth back:
 
 ```sh
@@ -1321,13 +1304,13 @@ walk as `ana@cooper.dev` stops at the approval, with auth's 403
 
 ### In the browser
 
-Stop the server, and start cooper with its frontends:
+Stop the server, and start cooper with its frontends from their sources:
 
 ```sh
 bun run cooper
 ```
 
-Open `http://localhost:5173`, sign in at auth as `staff@cooper.dev` with the seed's
+Open `http://localhost:3003`, sign in at auth as `staff@cooper.dev` with the seed's
 password, and you land on the overview: the totals, a chart per series, the boards
 made last. Look up Acme under Workspaces, Ana under Users, grant someone under Staff,
 and open Jobs: one tab per context, each empty until a job dies.

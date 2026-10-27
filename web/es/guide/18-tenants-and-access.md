@@ -1407,7 +1407,7 @@ el worker no encontró nada que revocar. El admin nunca lo revoca `revoke`, pero
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text

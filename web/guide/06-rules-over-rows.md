@@ -562,7 +562,7 @@ forgotten.
 its transaction (a `find` or a `count` in `before`, `write` or `after`) breaks the
 guard rule, on every store, SQLite included. By default (`guardRule: 'error'`) the
 save fails, and rolls back. Try it: write `guard: []` in `persistAdded`, and
-`bun test cooper` fails with
+`bun test cooper/` fails with
 
 ```text
 error: [guard rule] column.add reads column in a save that guards nothing: on Postgres and MySQL another save may change what it read before it commits. Name what its rule protects in the save's guard
@@ -835,7 +835,7 @@ tries a taken name:
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Start the server (`bun cooper/backend/index.ts`; the new migration is applied as it

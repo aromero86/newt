@@ -46,8 +46,8 @@ long a session lasts. `publicUrls`, `clientSecrets` and `sessionDays` are alread
 // …
   /** The SaaS: workspaces' boards, columns and cards. */
   boards: {
-    /** `COOPER_BOARDS_PORT`: where it listens. */
-    port: Number(env.COOPER_BOARDS_PORT ?? 3002),
+    /** Where it listens (`COOPER_BOARDS_PORT`). */
+    port: ports.boards,
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file. */
     database: fromRoot(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
@@ -62,9 +62,9 @@ long a session lasts. `publicUrls`, `clientSecrets` and `sessionDays` are alread
 
 `authPublicUrl` is auth's **public** URL, where people open it, not its port: the
 browser goes there, and so does boards' server when it calls `/oauth/token`. In
-development the public URLs are the Vite servers of chapter 23 (`localhost:5171` for
-auth, `localhost:5172` for boards). Until then, the by-hand check at the end of the
-chapter points them at the backend's ports.
+development each public URL is its context's own port (`localhost:3001` for auth,
+`localhost:3002` for boards), where it serves its pages beside its API from chapter
+23; in production, its own domain.
 
 ## The cookies
 
@@ -902,7 +902,7 @@ function testConfig(authPort: number, boardsPort: number): Config {
 // …
 ```
 
-With no Vite in front, each context's public URL is its own server: `freePort` gives
+Each context's public URL is its own server, on a port of the test's: `freePort` gives
 both ports before anything opens. `beforeEach` no longer sets an `x-user`
 authenticator on boards; boards has the web session's:
 
@@ -1136,7 +1136,7 @@ describe('the web session of a context', () => {
 Run the check:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -1144,12 +1144,11 @@ bun install && bun check && bun test cooper && bun run lint
  0 fail
 ```
 
-Then sign in by hand, with `curl` as the browser and a file as its cookie jar. Until
-chapter 23 the public URLs point at Vite servers that do not exist yet, so start the
-backend with each context's public URL at its own port:
+Then sign in by hand, with `curl` as the browser and a file as its cookie jar. Start
+the backend; each context's public URL is its own port:
 
 ```sh
-COOPER_AUTH_PUBLIC_URL=http://localhost:3001 COOPER_BOARDS_PUBLIC_URL=http://localhost:3002 bun cooper/backend/index.ts
+bun cooper/backend/index.ts
 ```
 
 boards applies its new migration to `data/cooper-boards.db` as it opens. In another

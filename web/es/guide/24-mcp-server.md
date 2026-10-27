@@ -37,7 +37,7 @@ Habla el protocolo en los dos sentidos: `McpServer` y un transporte para boards,
 
 ## Los metadatos del recurso protegido
 
-Un cliente MCP empieza conociendo una sola dirección, `http://localhost:5172/mcp`. El
+Un cliente MCP empieza conociendo una sola dirección, `http://localhost:3002/mcp`. El
 resto lo encuentra en tres pasos:
 
 1. Llama a `/mcp` sin token. La respuesta es un **401** cuya cabecera `WWW-Authenticate`
@@ -542,18 +542,10 @@ descripción de los ajustes de boards en `config.ts` para que coincida:
 
 ## La URL pública en desarrollo
 
-En desarrollo la gente abre boards en `http://localhost:5172`, su servidor Vite, que envía
-la API al puerto de boards, el 3002 (capítulo 23). El recurso para el que son los tokens
-es esa URL pública más `/mcp`, así que un cliente MCP debe llegar también a `/mcp` y a los
-metadatos por ahí. Añade ambos al proxy del frontend de boards:
-
-```ts
-// cooper/frontend/boards/vite.config.ts
-import { cooperApp } from '../vite-app.ts'
-
-// The SaaS. Its context serves the API, the MCP server and the OAuth metadata that points to auth.
-export default cooperApp({ name: 'boards', port: 5172, proxy: ['/api', '/mcp', '/.well-known'] })
-```
+En desarrollo la gente abre boards en `http://localhost:3002`, su URL pública, donde
+boards sirve sus páginas, su API, y ahora `/mcp` y los metadatos, sin nada delante
+(capítulo 23). El recurso para el que son los tokens es esa URL pública más `/mcp`. En
+producción es el dominio propio de boards, y las mismas rutas van al mismo servidor.
 
 El seed te dice dónde está. En `cooper/scripts/seed.ts`, añade una línea a lo que imprime,
 después de la de Bob:
@@ -634,7 +626,7 @@ El segundo test es la puerta: sin token, con uno falso, y un preflight desde otr
 La comprobación, como al final de todos los capítulos:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Solo los tests de MCP:
@@ -675,24 +667,24 @@ HTTP/1.1 401 Unauthorized
 Content-Type: application/json;charset=utf-8
 Access-Control-Allow-Origin: *
 Access-Control-Expose-Headers: mcp-session-id, www-authenticate
-www-authenticate: Bearer resource_metadata="http://localhost:5172/.well-known/oauth-protected-resource/mcp"
+www-authenticate: Bearer resource_metadata="http://localhost:3002/.well-known/oauth-protected-resource/mcp"
 
 {"error":"An access token for this MCP server is needed: connect through OAuth"}
 ```
 
-La cabecera nombra los metadatos en la URL **pública** de boards, la del servidor Vite,
-aunque llamaste al puerto 3002: esa es la dirección que usan los clientes. Pídelos igual
-al puerto de boards:
+La cabecera nombra los metadatos en la URL **pública** de boards, hecha con el ajuste, no
+con la dirección a la que llamaste: esa es la dirección que usan los clientes. Aquí son
+la misma. Pídelos:
 
 ```sh
 curl http://localhost:3002/.well-known/oauth-protected-resource/mcp
 ```
 
 ```json
-{"resource":"http://localhost:5172/mcp","authorization_servers":["http://localhost:5171"],"bearer_methods_supported":["header"],"resource_name":"Cooper"}
+{"resource":"http://localhost:3002/mcp","authorization_servers":["http://localhost:3001"],"bearer_methods_supported":["header"],"resource_name":"Cooper"}
 ```
 
-auth, en `http://localhost:5171`, es donde iniciar sesión. Con un token que no lo es, el
+auth, en `http://localhost:3001`, es donde iniciar sesión. Con un token que no lo es, el
 401 lo dice:
 
 ```sh
@@ -702,7 +694,7 @@ curl -i -X POST http://localhost:3002/mcp -H 'authorization: Bearer not-a-token'
 ```text
 HTTP/1.1 401 Unauthorized
 …
-www-authenticate: Bearer resource_metadata="http://localhost:5172/.well-known/oauth-protected-resource/mcp", error="invalid_token"
+www-authenticate: Bearer resource_metadata="http://localhost:3002/.well-known/oauth-protected-resource/mcp", error="invalid_token"
 ```
 
 Y un GET, que abriría un flujo que el servidor nunca mantiene, se rechaza antes de pedirle
@@ -729,7 +721,7 @@ bun run cooper:seed
 bun run cooper
 ```
 
-Usa la URL pública de boards, `http://localhost:5172/mcp`: los tokens son para esa
+Usa la URL pública de boards, `http://localhost:3002/mcp`: los tokens son para esa
 dirección.
 
 **Claude Code.** Añade el servidor, y luego autentícate desde dentro de Claude Code con
@@ -737,11 +729,11 @@ dirección.
 `ana@cooper.dev` con la contraseña del seed, y permite el acceso:
 
 ```sh
-claude mcp add --transport http cooper http://localhost:5172/mcp
+claude mcp add --transport http cooper http://localhost:3002/mcp
 ```
 
 **El MCP inspector.** Ejecútalo, elige el transporte Streamable HTTP, escribe
-`http://localhost:5172/mcp` y conecta. Pasa por el mismo flujo OAuth desde su página, en
+`http://localhost:3002/mcp` y conecta. Pasa por el mismo flujo OAuth desde su página, en
 otro origen, y por eso las rutas están abiertas a cualquiera:
 
 ```sh

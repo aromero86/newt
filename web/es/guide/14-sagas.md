@@ -1124,7 +1124,7 @@ ahora las lee a través de `/view`. Renómbralo y sustituye sus dos lecturas:
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Los tests del workspace por separado:

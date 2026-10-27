@@ -10,17 +10,18 @@ That is a **trace**: a tree of **spans**, one for each thing that ran, each insi
 one that called it. newt starts the spans for you, around every request and every use
 case. What it leaves to you is where they go. In this chapter cooper sends them to the
 console, or to an OpenTelemetry collector, and one request that crosses contexts is
-one trace.
+one trace. And for whoever watches cooper from outside, a monitor, cooper says what it
+is made of.
 
 What you add:
 
 ```text
 cooper/backend/
-  config.ts                                  changed: trace, otlpUrl
+  config.ts                                  changed: trace, otlpUrl, monitor
   shared/observability/console-tracer.ts     new: cooper's ConsoleTracer
   shared/observability/console-tracer.test.ts new
   open-contexts.ts                           changed: cooperTracer; boards' log only while tracing
-  index.ts                                   changed: runContexts with the tracer
+  index.ts                                   changed: runContexts with the tracer; the monitor's endpoint
   open-contexts.test.ts                      changed: two tests of the tracer
   postgres.test.ts                           changed: trace: false
   contexts/backoffice/testing/open-test-backoffice.ts  changed: trace: false
@@ -201,11 +202,12 @@ contexts (so the last spans are sent, for a tracer that sends in batches).
 ### Which tracer: the settings
 
 cooper picks the tracer from two settings. Add them to `config.ts`, at the end of
-`config`, after `backoffice`:
+`config`, after `frontendSources`:
 
 ```ts
 // cooper/backend/config.ts
 // …
+  frontendSources: env.COOPER_FRONTEND_SOURCES === '1',
   /**
    * `COOPER_TRACE=1`: each use case any context runs written to the console, with
    * those it calls, in its context or another, and how long each took.
@@ -216,7 +218,7 @@ cooper picks the tracer from two settings. Add them to `config.ts`, at the end o
    * `http://localhost:4318`) the traces go to instead, as service `cooper`.
    */
   otlpUrl: env.COOPER_OTLP_URL,
-}
+// …
 ```
 
 ### OpenTelemetry without its SDK: `newt/otel`
@@ -294,11 +296,66 @@ Import `cooperTracer` and pass it:
 import { cooperTracer, openContexts } from './open-contexts'
 // …
 // One tracer for every context: a request, and the use cases it calls in any context, is one trace.
-const app = runContexts(contexts.all.map(context => ({ context, serve: context.serving() })), { tracer: cooperTracer(config) })
+const app = runContexts(contexts.all.map(context => ({
+  context,
+  serve: { ...context.serving(), ...(sources?.[context.name] ? { ...sources[context.name], development: true } : {}) },
+})), { tracer: cooperTracer(config) })
 ```
 
 With neither setting, `cooperTracer` gives `undefined`, `runContexts` sets nothing,
 and the spans go to the `NoopTracer`, at almost no cost.
+
+## What cooper is made of, for a monitor
+
+A trace says what one request did. A **monitor** (newt-monitor, in the repository)
+watches whole applications: which contexts, modules, use cases, events and schedules
+each one has, and whether it is up. It reads that from the application as it runs,
+through **`serveMonitor`**, from `newt/monitor`: on a port of its own, it answers
+`describeApplication` (appendix [H](./h-describe-application)) and who the process is,
+only to requests signed with a key both sides share. Never the application's data.
+
+cooper serves it only when it is given a key. Add its settings at the end of
+`config`, after `otlpUrl`:
+
+```ts
+// cooper/backend/config.ts
+// …
+  /**
+   * What cooper tells whoever monitors it (newt/monitor), on a port of its own with no
+   * public address: only when `COOPER_MONITOR_KEY` gives the key the monitor signs its
+   * requests with (32 characters or more), never sent.
+   */
+  monitor: {
+    key: env.COOPER_MONITOR_KEY,
+    /** `COOPER_MONITOR_PORT`: 3010. */
+    port: Number(env.COOPER_MONITOR_PORT ?? 3010),
+    /** `COOPER_MONITOR_HOSTNAME`: this machine only, unless told; the image says `0.0.0.0`, for the monitor's container. */
+    hostname: env.COOPER_MONITOR_HOSTNAME ?? '127.0.0.1',
+  },
+}
+```
+
+and serve it at the end of `index.ts`, with the import:
+
+```ts
+// cooper/backend/index.ts
+import { serveMonitor } from 'newt/monitor'
+// …
+// What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
+if (config.monitor.key) {
+  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key })
+  console.log(`monitor listening on ${monitor.url}`)
+}
+```
+
+The key never travels: the monitor signs each request with it, and anything not
+signed, or signed with another key, gets the same 401. Its port has no domain in
+front: on this machine it listens on `127.0.0.1`; in cooper's image (chapter
+[29](./29-shipping)) the `Dockerfile` sets `COOPER_MONITOR_HOSTNAME=0.0.0.0`, so the
+monitor's container reaches it over their network, and does not expose the port.
+
+newt-monitor has a test that runs cooper whole, with a key, and reads it:
+`packages/newt-monitor/src/against-cooper.test.ts`. It passes from this chapter on.
 
 ## The tests
 
@@ -416,7 +473,7 @@ The collector wins over the console when both are set; `job.claim` never leaves;
 The gate:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 The tracing tests alone:
@@ -472,6 +529,35 @@ sign-up is one trace of three spans, and `metric.recordSignUp` another. Stop the
 server first and then the container (`docker rm -f jaeger`): the last spans are sent
 as the server stops.
 
+And the monitor's endpoint, with a key:
+
+```sh
+COOPER_MONITOR_KEY=a-key-of-thirty-two-characters-or-more bun cooper/backend/index.ts
+```
+
+```text
+auth listening on http://localhost:3001/
+boards listening on http://localhost:3002/
+backoffice listening on http://localhost:3003/
+monitor listening on http://127.0.0.1:3010/
+```
+
+A request without the signature learns nothing:
+
+```sh
+curl -s -i localhost:3010/v1/structure | head -1
+```
+
+```text
+HTTP/1.1 401 Unauthorized
+```
+
+newt-monitor's test signs its requests and reads the whole of it:
+
+```sh
+bun test packages/newt-monitor/src/against-cooper.test.ts
+```
+
 ## What to remember
 
 - newt makes the spans: every request, every use case (in any context), every job's
@@ -484,5 +570,7 @@ as the server stops.
 - `filterSpans` leaves out what is noise (the worker's `job.*`); what a job does is
   still traced, as its use case.
 - Domain errors are answers, not failures: only other errors mark a span.
+- `serveMonitor` (`newt/monitor`) tells a monitor what cooper is made of, on a port of
+  its own, only to requests signed with the key `COOPER_MONITOR_KEY` gives.
 
 Next: [Shipping it](./29-shipping).

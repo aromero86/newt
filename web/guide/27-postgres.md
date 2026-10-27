@@ -647,7 +647,7 @@ server would open. Add it to the root `package.json`, after `cooper:seed`:
 
 Every test so far runs on SQLite in memory. One more runs cooper on a real Postgres,
 when you give it one: `COOPER_TEST_POSTGRES_URL`, the address of a user with the right
-to create databases on that server (a role with `CREATEDB`). Without it, the file defines no test, and `bun test cooper` skips
+to create databases on that server (a role with `CREATEDB`). Without it, the file defines no test, and `bun test cooper/` skips
 it.
 
 ```ts
@@ -782,7 +782,7 @@ if (url) {
 The gate, as at the end of every chapter:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint && bun run cooper:build
+bun install && bun check && bun test cooper/ && bun run lint && bun run cooper:build
 ```
 
 Without `COOPER_TEST_POSTGRES_URL`, `postgres.test.ts` has nothing to run:

@@ -801,7 +801,7 @@ bea está en globex, no en acme, así que asignarle una tarjeta de acme es
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Luego, a mano. Arranca el backend; ejecuta la nueva migración en tu base de datos de

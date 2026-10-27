@@ -41,13 +41,10 @@ root `package.json`, at an exact version:
 bun add zod@4.3.6 --exact
 ```
 
-The root `package.json` now depends on it beside newt:
+The root `package.json` now has it among its dependencies, beside newt and the ones the frontend packages brought:
 
 ```json
-  "dependencies": {
-    "newt": "workspace:*",
     "zod": "4.3.6"
-  },
 ```
 
 ## The contract
@@ -640,7 +637,7 @@ describe('boards, through its API', () => {
 Run the gate:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

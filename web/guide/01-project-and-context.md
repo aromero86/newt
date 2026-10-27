@@ -31,8 +31,8 @@ cooper/backend/
 
 ## A TypeScript project for the backend
 
-The repository is made of TypeScript projects. At `tutorial/00` there are two, newt's and
-newt-graph's.
+The repository is made of TypeScript projects. At `tutorial/00` there is one per
+package: newt's, newt-graph's, newt-monitor's, newt-react-ui's and newt-react's.
 cooper's backend gets its own: plain TypeScript for Bun, strict, without the DOM.
 Create `tsconfig.backend.json` at the root:
 
@@ -56,18 +56,22 @@ Create `tsconfig.backend.json` at the root:
 }
 ```
 
-And make the root `tsconfig.json` reference it, beside newt's:
+And make the root `tsconfig.json` reference it, beside the packages':
 
 ```json
 {
-  // The whole repository, as its projects: the framework (newt), its graph (newt-graph) and what runs on the
-  // server (cooper's backend). `bun check` follows the references. newt is not among
-  // any paths: it is a workspace package, reached through its `exports` as any
-  // application reaches it.
+  // The whole repository, as its projects: the framework (newt), its graph (newt-graph), its
+  // monitor (newt-monitor), its React frontend's components and logic (newt-react-ui,
+  // newt-react) and what runs on the server (cooper's backend). `bun check` follows the references.
+  // newt is not among any paths: it is a workspace package, reached through its `exports`
+  // as any application reaches it.
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.newt-graph.json" },
+    { "path": "./tsconfig.newt-monitor.json" },
+    { "path": "./tsconfig.newt-react-ui.json" },
+    { "path": "./tsconfig.newt-react.json" },
     { "path": "./tsconfig.backend.json" }
   ]
 }
@@ -94,27 +98,42 @@ non-standard decorators, which are not the ones newt is written for.
 
 The compiler checks types. It cannot check that a module is put together the way
 every other module is, or that one context does not reach into another. That is what
-`newt-eslint` is for. Replace the root `eslint.config.js`:
+`newt-eslint` is for. The root `eslint.config.js` already lints newt-monitor (an
+application built with newt) and newt-react-ui's gallery. Add cooper's backend to it:
 
 ```js
 import { newt } from 'newt-eslint'
+import { newtReactUi } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint. The
-// framework's own code is not an application, so it is left out.
+// framework's own code is not an application, so it is left out; newt-monitor is one,
+// so it is in.
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { boards: [] } },
 })
 
+// newt-monitor is an application built with newt too, so it keeps the same lint.
+const MONITOR = newt({
+  files: ['packages/newt-monitor/**/*.ts'],
+  contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
+})
+
+// newt-react-ui's gallery is an app like any other: it keeps the library's lint.
+const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
+
 export default [
-  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
+  ...MONITOR,
+  ...UI_GALLERY,
 ]
 ```
 
 `newt(options)` is the preset: its rules, the TypeScript parser, and the files they
-look at. `files` keeps it to the backend. `contexts` says where the contexts live and
+look at. `BACKEND` is the same preset as `MONITOR`'s, for other files: `files` keeps
+it to cooper's backend. `contexts` says where the contexts live and
 which ones each one uses: for now there is one, `boards`, and it uses none. A context
 it does not list, or a cycle, is an error as soon as the lint starts.
 
@@ -477,7 +496,7 @@ The order of `afterEach` matters: the server stops taking requests first, then
 Run the gate:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

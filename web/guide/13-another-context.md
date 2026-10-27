@@ -949,7 +949,7 @@ the next chapter, on a welcome board.)
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```text
@@ -960,7 +960,7 @@ bun install && bun check && bun test cooper && bun run lint
 The new tests on their own:
 
 ```sh
-bun test cooper -t 'credits nobody|being removed|removed column|leave the workspace|let in again'
+bun test cooper/ -t 'credits nobody|being removed|removed column|leave the workspace|let in again'
 ```
 
 ```text

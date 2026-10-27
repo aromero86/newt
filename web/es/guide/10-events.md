@@ -1062,7 +1062,7 @@ confirmación, en este proceso.
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Luego, a mano. Arranca el backend (`bun cooper/backend/index.ts`), y en otra terminal

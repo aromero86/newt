@@ -739,7 +739,7 @@ emptied and removed, and the last one left answers 409 `column.last`:
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand, with the backend running (`bun cooper/backend/index.ts`). Make a board

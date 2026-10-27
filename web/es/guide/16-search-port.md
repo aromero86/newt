@@ -907,10 +907,10 @@ propósito, al que el adaptador de memoria tendría que ponerse al día o renunc
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
-`bun test cooper` ahora ejecuta la suite del contrato una vez, como *MemoryCardSearch
+`bun test cooper/` ahora ejecuta la suite del contrato una vez, como *MemoryCardSearch
 keeps the CardSearch contract*.
 
 Luego a mano, sobre un fichero de base de datos. Arranca el backend (`bun

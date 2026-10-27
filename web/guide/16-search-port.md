@@ -886,10 +886,10 @@ adapter would then have to keep up with or give up.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
-`bun test cooper` now runs the contract suite once, as *MemoryCardSearch keeps the
+`bun test cooper/` now runs the contract suite once, as *MemoryCardSearch keeps the
 CardSearch contract*.
 
 Then by hand, on a database file. Start the backend (`bun cooper/backend/index.ts`),

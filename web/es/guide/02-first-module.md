@@ -41,13 +41,10 @@ Todos los datos de newt se describen con [zod](https://zod.dev). Añádelo al
 bun add zod@4.3.6 --exact
 ```
 
-El `package.json` de la raíz depende ahora de él junto a newt:
+El `package.json` de la raíz lo tiene ahora entre sus dependencias, junto a newt y a las que trajeron los paquetes de frontend:
 
 ```json
-  "dependencies": {
-    "newt": "workspace:*",
     "zod": "4.3.6"
-  },
 ```
 
 ## El contrato
@@ -645,7 +642,7 @@ describe('boards, through its API', () => {
 Ejecuta la comprobación:
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 ```

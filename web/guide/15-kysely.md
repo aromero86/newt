@@ -545,7 +545,7 @@ the line in the middle:
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand. Start the backend (`bun cooper/backend/index.ts`), make a board with a

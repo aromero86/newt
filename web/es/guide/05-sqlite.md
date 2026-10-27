@@ -312,7 +312,7 @@ contexto, tomada en una línea, y los módulos se escriben una sola vez.
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Los tests que pasaban con ficheros pasan con SQLite, sin cambios. Ahora mira cómo se

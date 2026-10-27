@@ -791,7 +791,7 @@ bea is in globex, not acme, so assigning her a card of acme is `card.assignee_no
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Then by hand. Start the backend; it runs the new migration on your development

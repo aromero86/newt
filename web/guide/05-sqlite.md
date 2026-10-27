@@ -305,7 +305,7 @@ line, and the modules are written once.
 ## Check it
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 The tests that passed on files pass on SQLite, unchanged. Now see the checksum refuse

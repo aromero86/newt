@@ -570,7 +570,7 @@ se olvidó uno.
 filas dentro de su transacción (un `find` o un `count` en `before`, `write` o `after`)
 incumple la regla del guard, en todos los stores, SQLite incluido. Por defecto
 (`guardRule: 'error'`) el guardado falla, y se revierte. Pruébalo: escribe `guard: []`
-en `persistAdded`, y `bun test cooper` falla con
+en `persistAdded`, y `bun test cooper/` falla con
 
 ```text
 error: [guard rule] column.add reads column in a save that guards nothing: on Postgres and MySQL another save may change what it read before it commits. Name what its rule protects in the save's guard
@@ -851,7 +851,7 @@ columnas y prueba un nombre ocupado:
 ## Compruébalo
 
 ```sh
-bun install && bun check && bun test cooper && bun run lint
+bun install && bun check && bun test cooper/ && bun run lint
 ```
 
 Arranca el servidor (`bun cooper/backend/index.ts`; la migración nueva se aplica al

@@ -294,13 +294,12 @@ says so with `cors`, and proves who calls with a token, never a cookie
 **"…: port 3002 is already in use" and "Nothing was started."**
 `bun run cooper` checks every port first. Another cooper, or something else, is
 listening. Stop it, or move cooper with the `COOPER_*_PORT` and `COOPER_*_PUBLIC_URL`
-variables; in development the Vite servers' proxies read the same `COOPER_*_PORT`
-([chapter 23](./23-frontends), [chapter 29](./29-shipping)).
+variables ([chapter 23](./23-frontends), [chapter 29](./29-shipping)).
 
 **A page answers "The frontend is not built: its folder has no index.html".**
-You opened a context's own port without building the frontends. In development, open
-the Vite servers' URLs (5171, 5172, 5173). In production, run `bun run cooper:build`
-first ([chapter 23](./23-frontends), [chapter 29](./29-shipping)).
+The backend serves the built frontends, and they are not built. In development, start
+cooper with `bun run cooper`, which serves them from their sources
+(`COOPER_FRONTEND_SOURCES=1`). In production, run `bun run cooper:build` first ([chapter 23](./23-frontends), [chapter 29](./29-shipping)).
 
 **The lint: "'unassign' is a public method of Card_Module without @UseCase: …" (`newt/use-case`)**
 A method of a module that anyone holding it may call, without `@UseCase`: it would run
