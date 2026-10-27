@@ -1,17 +1,25 @@
-// bun web/scripts/check-tutorial.ts: checks that the guide shows the code it builds.
+// bun web/scripts/check-tutorial.ts: checks that the guides show the code they build.
 //
-// Chapter NN takes cooper to the tag `tutorial/NN`. Every block of a cooper file in it
-// starts with that file's path (`// cooper/…`, `-- cooper/…` in SQL) and must be in the
-// file at the chapter's tag: a whole file equal to it, or a part of it whose pieces,
-// split on `// …` lines, are each in it. An appendix shows the finished code, at HEAD.
-// Both languages are checked. Every export of newt must be named in some page.
+// Chapter NN of the guide takes cooper to the tag `tutorial/NN`; chapter NN of the
+// monitor's guide takes newt-monitor to `monitor/NN`. Every block of a file in it
+// starts with that file's path (`// cooper/…`, `// packages/newt-monitor/…`, `-- …` in
+// SQL) and must be in the file at the chapter's tag: a whole file equal to it, or a
+// part of it whose pieces, split on `// …` lines, are each in it. An appendix shows the
+// finished code, at HEAD. Both languages are checked. Every export of newt must be
+// named in some page.
 import { $ } from 'bun'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const root = join(import.meta.dir, '../..')
-const folders = ['web/guide', 'web/es/guide']
-const BLOCK = /```(?:ts|tsx|sql|js|json)\n(?:\/\/|--) (cooper\/[^\n]+)\n([\s\S]*?)\n```/g
+/** Each guide's folders, and the prefix of its chapters' tags. */
+const guides = [
+  { folder: 'web/guide', tags: 'tutorial' },
+  { folder: 'web/es/guide', tags: 'tutorial' },
+  { folder: 'web/monitor', tags: 'monitor' },
+  { folder: 'web/es/monitor', tags: 'monitor' },
+]
+const BLOCK = /```(?:ts|tsx|sql|js|json)\n(?:\/\/|--) ((?:cooper|packages\/newt-monitor)\/[^\n]+)\n([\s\S]*?)\n```/g
 const SEPARATOR = /(?:^|\n)[ \t]*(?:\/\/|--) …[ \t]*(?:\n|$)/
 
 const files = new Map<string, string | undefined>()
@@ -28,7 +36,7 @@ const problems: string[] = []
 let blocks = 0
 const pages: string[] = []
 
-for (const folder of folders) {
+for (const { folder, tags } of guides) {
   for (const name of (await readdir(join(root, folder))).filter(each => each.endsWith('.md')).sort()) {
     const text = await Bun.file(join(root, folder, name)).text()
     pages.push(text)
@@ -39,7 +47,7 @@ for (const folder of folders) {
       else if (!fenced && /^\s*<[A-Za-z/]/.test(line)) problems.push(`${folder}/${name}:${index + 1}: a line starts with \`<\`, which the site reads as HTML: move it into the line before`)
     }
     const chapter = /^(\d\d)-/.exec(name)?.[1]
-    const ref = chapter ? `tutorial/${chapter}` : 'HEAD'
+    const ref = chapter ? `${tags}/${chapter}` : 'HEAD'
     for (const [, path, body] of text.matchAll(BLOCK) as IterableIterator<[string, string, string]>) {
       blocks++
       const file = await show(ref, path)

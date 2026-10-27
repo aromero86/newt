@@ -45,6 +45,12 @@ const APPENDICES: [string, string, string][] = [
   ['h-describe-application', 'H. What an application knows of itself', 'H. Lo que una aplicación sabe de sí misma'],
 ]
 
+/** The monitor's guide: newt-monitor built with newt, chapter by chapter. */
+const MONITOR: [string, string, string][] = [
+  ['00-introduction', 'Introduction', 'Introducción'],
+  ['01-a-monitor-built-with-newt', 'A monitor built with newt', 'Un monitor hecho con newt'],
+]
+
 const REFERENCE: [string, string, string][] = [
   ['rules', 'The framework\'s rules', 'Las reglas del framework'],
   ['stores', 'Stores', 'Stores'],
@@ -58,6 +64,7 @@ function sidebar(base: string, spanish: boolean): DefaultTheme.Sidebar {
   return [
     { text: spanish ? 'Guía' : 'Guide', items: items('guide', CHAPTERS) },
     { text: spanish ? 'Apéndices' : 'Appendices', collapsed: true, items: items('guide', APPENDICES) },
+    { text: spanish ? 'El monitor' : 'The monitor', collapsed: true, items: items('monitor', MONITOR) },
     { text: spanish ? 'Referencia' : 'Reference', items: items('reference', REFERENCE) },
   ]
 }
@@ -71,7 +78,7 @@ export default defineConfig({
       label: 'English',
       lang: 'en',
       themeConfig: {
-        nav: [{ text: 'Guide', link: '/guide/00-introduction' }, { text: 'Reference', link: '/reference/rules' }],
+        nav: [{ text: 'Guide', link: '/guide/00-introduction' }, { text: 'Monitor', link: '/monitor/00-introduction' }, { text: 'Reference', link: '/reference/rules' }],
         sidebar: sidebar('', false),
       },
     },
@@ -79,7 +86,7 @@ export default defineConfig({
       label: 'Español',
       lang: 'es',
       themeConfig: {
-        nav: [{ text: 'Guía', link: '/es/guide/00-introduction' }, { text: 'Referencia', link: '/es/reference/rules' }],
+        nav: [{ text: 'Guía', link: '/es/guide/00-introduction' }, { text: 'Monitor', link: '/es/monitor/00-introduction' }, { text: 'Referencia', link: '/es/reference/rules' }],
         sidebar: sidebar('/es', true),
         outline: { label: 'En esta página' },
         docFooter: { prev: 'Anterior', next: 'Siguiente' },

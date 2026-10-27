@@ -1,0 +1,16 @@
+{
+  "name": "newt-monitor",
+  "version": "0.0.0",
+  "description": "Watches newt applications: what each one is made of, read from it as it runs, never from its data. A newt application itself.",
+  "type": "module",
+  "bin": {
+    "newt-monitor": "./bin/newt-monitor.ts"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "dependencies": {
+    "newt": "workspace:*",
+    "zod": "4.3.6"
+  }
+}

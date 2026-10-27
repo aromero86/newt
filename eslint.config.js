@@ -3,11 +3,17 @@ import { newt } from 'newt-eslint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
 // frontends the rules of a UI built from one library. The framework's own code is not
-// an application, so it is left out.
+// an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
+})
+
+// newt-monitor is an application built with newt too, so it keeps the same lint.
+const MONITOR = newt({
+  files: ['packages/newt-monitor/**/*.ts'],
+  contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
 })
 
 // The frontends build their UI from @cooper/ui only. Styling lives in cooper/libs/ui and
@@ -39,8 +45,9 @@ const API_BACKEND_IMPORTS = {
 }
 
 export default [
-  { ignores: ['packages/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
+  ...MONITOR,
   {
     files: FRONTEND,
     languageOptions: { parser: tseslint.parser },

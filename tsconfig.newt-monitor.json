@@ -1,0 +1,16 @@
+{
+  // newt-monitor: a newt application on Bun, which watches others. No DOM. Apart from
+  // newt's own project, as any application has newt apart.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["packages/newt-monitor/**/*.ts"],
+  "exclude": ["**/node_modules"]
+}
