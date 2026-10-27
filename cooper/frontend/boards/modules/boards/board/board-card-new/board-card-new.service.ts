@@ -1,5 +1,4 @@
-import { FormStore } from '@cooper/core/form/form-store'
-import { inject } from '@cooper/core/injector/inject'
+import { FormStore, inject } from 'newt-react'
 import { BoardService } from '../board.service'
 import { CARD_FORM_MESSAGES, CardFormSchema } from '../board-card-form'
 

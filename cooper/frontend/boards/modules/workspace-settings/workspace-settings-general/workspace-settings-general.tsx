@@ -1,16 +1,14 @@
 import { useEffect, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { Alert } from '@cooper/ui/components/alert'
-import { Box, BoxRow } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { ConfirmDialog } from '@cooper/ui/components/confirm-dialog'
-import { Stack } from '@cooper/ui/components/stack'
-import { Subhead } from '@cooper/ui/components/subhead'
-import { Text } from '@cooper/ui/components/text'
-import { FormField } from '@cooper/core/form/form-field'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Box, BoxRow } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { ConfirmDialog } from 'newt-react-ui/confirm-dialog'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { Text } from 'newt-react-ui/text'
+import { FormField } from 'newt-react/form-field'
+import { Provide, useService, useValue } from 'newt-react'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 import { WorkspaceSettingsGeneralService } from './workspace-settings-general.service'
 
@@ -50,7 +48,7 @@ function WorkspaceSettingsGeneralWrapped() {
 
   return (
     <Stack gap={8}>
-      <section>
+      <Stack gap={0}>
         <Subhead title="General" description="What the workspace is called, everywhere its members see it." />
         <form onSubmit={onSubmit} noValidate>
           <Stack gap={4} align="start">
@@ -59,8 +57,8 @@ function WorkspaceSettingsGeneralWrapped() {
             <Button type="submit" loading={submitting}>Rename</Button>
           </Stack>
         </form>
-      </section>
-      <section>
+      </Stack>
+      <Stack gap={0}>
         <Subhead title="Danger zone" tone="danger" />
         <Box label="Danger zone">
           <BoxRow trailing={<Button size="sm" variant="destructive" onClick={() => service.askDelete()}>Delete workspace</Button>}>
@@ -68,7 +66,7 @@ function WorkspaceSettingsGeneralWrapped() {
             <Text size="sm" tone="muted">Its boards, columns and cards are gone, and its members lose access. It cannot be undone.</Text>
           </BoxRow>
         </Box>
-      </section>
+      </Stack>
       <ConfirmDialog
         open={confirmingDelete}
         onOpenChange={open => !open && service.cancelDelete()}

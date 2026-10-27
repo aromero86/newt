@@ -1,4 +1,4 @@
-import { Requester } from '../core/requester'
+import { Requester } from 'newt-react'
 import type { SessionDTO, SessionSignOutDTO } from './web-session.contract'
 
 /**

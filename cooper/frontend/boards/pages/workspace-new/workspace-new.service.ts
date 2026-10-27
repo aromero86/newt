@@ -1,6 +1,5 @@
 import { WorkspaceCreateSchema, type WorkspaceDTO } from '@cooper/api/workspace'
-import { FormStore } from '@cooper/core/form/form-store'
-import { inject } from '@cooper/core/injector/inject'
+import { FormStore, inject } from 'newt-react'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 
 /** Creating a workspace, with the signed-in person as its admin. */

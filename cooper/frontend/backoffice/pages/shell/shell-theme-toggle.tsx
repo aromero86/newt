@@ -1,9 +1,7 @@
 import { MoonIcon, SunIcon } from 'lucide-react'
-import { Button } from '@cooper/ui/components/button'
-import { Icon } from '@cooper/ui/components/icon'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
-import { ThemeService } from '@cooper/core/theme/theme.service'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
+import { useService, useValue, ThemeService } from 'newt-react'
 
 export function ShellThemeToggle() {
   const themes = useService(ThemeService)

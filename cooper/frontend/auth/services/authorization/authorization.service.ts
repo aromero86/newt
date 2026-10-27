@@ -1,6 +1,5 @@
 import { OauthGrantApi, type OauthGrantReviewDTO } from '@cooper/api/oauth-grant'
-import { inject } from '@cooper/core/injector/inject'
-import { Store } from '@cooper/core/store/store'
+import { inject, Store } from 'newt-react'
 
 type AuthorizationState = {
   /** The request the person is on the way to answer, from `?authorization=` or the address. */

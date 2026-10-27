@@ -1,7 +1,6 @@
 import { SessionApi } from '@cooper/api/session'
 import type { UserDTO } from '@cooper/api/user'
-import { inject } from '@cooper/core/injector/inject'
-import { Store } from '@cooper/core/store/store'
+import { inject, Store } from 'newt-react'
 
 type SessionState =
   | { status: 'checking', user: null }

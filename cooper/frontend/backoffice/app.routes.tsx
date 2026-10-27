@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router'
-import { PageBody } from '@cooper/ui/components/page-body'
-import { Spinner } from '@cooper/ui/components/spinner'
+import { PageBody } from 'newt-react-ui/page-body'
+import { Spinner } from 'newt-react-ui/spinner'
 import { SessionGuard } from './guards/session.guard'
 import { NotFound } from './pages/not-found/not-found'
 import { RouteError } from './pages/route-error/route-error'

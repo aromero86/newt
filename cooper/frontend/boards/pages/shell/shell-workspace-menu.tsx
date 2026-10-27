@@ -1,11 +1,10 @@
 import { useEffect } from 'react'
 import { ChevronsUpDownIcon, LayersIcon, PlusIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { Button } from '@cooper/ui/components/button'
-import { Icon } from '@cooper/ui/components/icon'
-import { Menu, type MenuItem } from '@cooper/ui/components/menu'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
+import { Menu, type MenuItem } from 'newt-react-ui/menu'
+import { useService, useValue } from 'newt-react'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 
 /** Which workspace you are in, and the way to any other. */

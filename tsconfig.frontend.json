@@ -13,8 +13,7 @@
     "strict": true,
     "paths": {
       "@cooper/ui/*": ["./cooper/libs/ui/*"],
-      "@cooper/api/*": ["./cooper/libs/api/*"],
-      "@cooper/core/*": ["./cooper/libs/core/*"]
+      "@cooper/api/*": ["./cooper/libs/api/*"]
     }
   },
   "include": [

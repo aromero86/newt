@@ -1,9 +1,8 @@
 import { Fragment, useEffect } from 'react'
 import { Outlet } from 'react-router'
-import { NarrowPage } from '@cooper/ui/components/narrow-page'
-import { Spinner } from '@cooper/ui/components/spinner'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { NarrowPage } from 'newt-react-ui/narrow-page'
+import { Spinner } from 'newt-react-ui/spinner'
+import { useService, useValue } from 'newt-react'
 import { SignIn } from '../pages/sign-in/sign-in'
 import { SessionService } from '../services/session/session.service'
 

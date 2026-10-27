@@ -1,6 +1,5 @@
 import { OauthGrantApi } from '@cooper/api/oauth-grant'
-import { inject } from '@cooper/core/injector/inject'
-import { Store } from '@cooper/core/store/store'
+import { inject, Store } from 'newt-react'
 import { AuthorizationService } from '../../services/authorization/authorization.service'
 import { SessionService } from '../../services/session/session.service'
 

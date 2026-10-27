@@ -1,7 +1,7 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router'
-import { Button } from '@cooper/ui/components/button'
-import { PageBody } from '@cooper/ui/components/page-body'
-import { PageHeader } from '@cooper/ui/components/page-header'
+import { Button } from 'newt-react-ui/button'
+import { PageBody } from 'newt-react-ui/page-body'
+import { PageHeader } from 'newt-react-ui/page-header'
 import { NotFound } from '../not-found/not-found'
 
 /**

@@ -1,11 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router/dom'
-import '@cooper/ui/styles/theme.css'
-import { RouterLinkProvider } from '@cooper/ui/components/router-link'
-import { Toaster } from '@cooper/ui/components/toast'
-import { rootInjector } from '@cooper/core/injector/root-injector'
-import { ThemeService } from '@cooper/core/theme/theme.service'
+import 'newt-react-ui/theme.css'
+import { RouterLinkProvider } from 'newt-react-ui/router-link'
+import { Toaster } from 'newt-react-ui/toast'
+import { rootInjector, ThemeService } from 'newt-react'
 import { router } from './app.routes'
 
 // The theme follows the stored choice from the first frame.

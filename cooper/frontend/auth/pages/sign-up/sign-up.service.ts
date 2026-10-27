@@ -1,7 +1,6 @@
 import { SessionApi } from '@cooper/api/session'
 import { UserSignUpSchema } from '@cooper/api/user'
-import { FormStore } from '@cooper/core/form/form-store'
-import { inject } from '@cooper/core/injector/inject'
+import { FormStore, inject } from 'newt-react'
 import { SessionService } from '../../services/session/session.service'
 
 /** Making an account, signed in at once. */

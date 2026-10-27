@@ -2,20 +2,19 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { LogOutIcon, UserMinusIcon, UsersIcon } from 'lucide-react'
 import type { WorkspaceMemberDTO } from '@cooper/api/workspace-member'
-import { Alert } from '@cooper/ui/components/alert'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Badge } from '@cooper/ui/components/badge'
-import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { ConfirmDialog } from '@cooper/ui/components/confirm-dialog'
-import { Icon } from '@cooper/ui/components/icon'
-import { Inline } from '@cooper/ui/components/inline'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { Subhead } from '@cooper/ui/components/subhead'
-import { Text } from '@cooper/ui/components/text'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Badge } from 'newt-react-ui/badge'
+import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { ConfirmDialog } from 'newt-react-ui/confirm-dialog'
+import { Icon } from 'newt-react-ui/icon'
+import { Inline } from 'newt-react-ui/inline'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { Text } from 'newt-react-ui/text'
+import { useService, useValue } from 'newt-react'
 import { SessionService } from '../../../services/session/session.service'
 import { WorkspaceService } from '../../workspace/workspace.service'
 
@@ -86,7 +85,7 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
         ))}
       </Box>
       {!admin && (
-        <section>
+        <Stack gap={0}>
           <Subhead title="Leave" tone="danger" />
           <Box label="Leave the workspace">
             <BoxRow trailing={<Button size="sm" variant="destructive" onClick={() => setConfirmingLeave(true)}><Icon icon={LogOutIcon} size="sm" />Leave workspace</Button>}>
@@ -94,7 +93,7 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
               <Text size="sm" tone="muted">You no longer see its boards, and your cards in it are left unassigned. Its admin can invite you again.</Text>
             </BoxRow>
           </Box>
-        </section>
+        </Stack>
       )}
       <ConfirmDialog
         open={confirmingLeave}

@@ -1,14 +1,13 @@
 import { UsersIcon } from 'lucide-react'
-import { Alert } from '@cooper/ui/components/alert'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Badge } from '@cooper/ui/components/badge'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
+import { Alert } from 'newt-react-ui/alert'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Badge } from 'newt-react-ui/badge'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
 import { Counter } from '@cooper/ui/components/counter'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { useService, useValue } from 'newt-react'
 import { WorkspacesDetailService } from './workspaces-detail.service'
 
 /** Who is in the workspace, its admin first. */
@@ -31,9 +30,8 @@ export function WorkspacesDetailMembers() {
         <BoxRow key={member.id} leading={<Avatar name={member.name} size={8} />} trailing={<Badge tone={member.role === 'admin' ? 'brand' : 'muted'}>{member.role}</Badge>}>
           <BoxRowTitle href={`/users/${member.userId}`}>{member.name}</BoxRowTitle>
           <BoxRowMeta>
-            <span>{member.email}</span>
-            <span>·</span>
-            <span>joined <RelativeTime date={member.since} /></span>
+            <>{member.email}</>
+            <>joined <RelativeTime date={member.since} /></>
           </BoxRowMeta>
         </BoxRow>
       ))}

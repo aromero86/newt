@@ -1,8 +1,8 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router'
-import { Button } from '@cooper/ui/components/button'
-import { Card } from '@cooper/ui/components/card'
-import { NarrowPage } from '@cooper/ui/components/narrow-page'
-import { Text } from '@cooper/ui/components/text'
+import { Button } from 'newt-react-ui/button'
+import { Card } from 'newt-react-ui/card'
+import { NarrowPage } from 'newt-react-ui/narrow-page'
+import { Text } from 'newt-react-ui/text'
 import { NotFound } from '../not-found/not-found'
 
 /**

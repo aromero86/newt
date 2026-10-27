@@ -1,7 +1,5 @@
 import { BackofficeWorkspaceApi, type WorkspaceSummaryDTO } from '@cooper/api/backoffice-workspace'
-import { inject } from '@cooper/core/injector/inject'
-import { ListStore } from '@cooper/core/list/list-store'
-import { Store } from '@cooper/core/store/store'
+import { inject, ListStore, Store } from 'newt-react'
 
 type WorkspacesState = {
   /** The name looked for; empty for every workspace. */

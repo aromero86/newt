@@ -1,19 +1,17 @@
 import { useEffect } from 'react'
 import { UsersIcon } from 'lucide-react'
-import { Alert } from '@cooper/ui/components/alert'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Badge } from '@cooper/ui/components/badge'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
+import { Alert } from 'newt-react-ui/alert'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Badge } from 'newt-react-ui/badge'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
 import { Counter } from '@cooper/ui/components/counter'
-import { PageHeader } from '@cooper/ui/components/page-header'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { SearchField } from '@cooper/ui/components/search-field'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { PageHeader } from 'newt-react-ui/page-header'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { SearchField } from 'newt-react-ui/search-field'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { Provide, useService, useValue } from 'newt-react'
 import { UsersService } from './users.service'
 
 /** Every account of cooper, with a search by email or name. With its own UsersService. */
@@ -55,9 +53,8 @@ function UsersWrapped() {
           <BoxRow key={user.id} leading={<Avatar name={user.name} size={8} />} trailing={user.staff ? <Badge tone="brand">staff</Badge> : undefined}>
             <BoxRowTitle href={`/users/${user.id}`}>{user.name}</BoxRowTitle>
             <BoxRowMeta>
-              <span>{user.email}</span>
-              <span>·</span>
-              <span>signed up <RelativeTime date={user.createdAt} /></span>
+              <>{user.email}</>
+              <>signed up <RelativeTime date={user.createdAt} /></>
             </BoxRowMeta>
           </BoxRow>
         ))}

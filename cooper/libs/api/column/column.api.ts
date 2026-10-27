@@ -1,5 +1,5 @@
 import type { ColumnAddDTO, ColumnDTO, ColumnMoveDTO, ColumnRenameDTO } from '../../../backend/contexts/boards/modules/column/column.schema'
-import { Requester } from '../core/requester'
+import { Requester } from 'newt-react'
 
 /** The backend's `column` module: a board's columns, at most `MAX_COLUMNS`. */
 export class ColumnApi extends Requester {

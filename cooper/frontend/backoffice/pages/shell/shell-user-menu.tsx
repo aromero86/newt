@@ -1,9 +1,8 @@
 import { LogOutIcon } from 'lucide-react'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Button } from '@cooper/ui/components/button'
-import { Menu } from '@cooper/ui/components/menu'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Button } from 'newt-react-ui/button'
+import { Menu } from 'newt-react-ui/menu'
+import { useService, useValue } from 'newt-react'
 import { SessionService } from '../../services/session/session.service'
 
 /** Who is signed in, with the way out. */

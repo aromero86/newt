@@ -2,20 +2,18 @@ import { useEffect, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import { MailIcon, SendIcon } from 'lucide-react'
 import type { InvitationDTO, InvitationStatus } from '@cooper/api/invitation'
-import { Alert } from '@cooper/ui/components/alert'
-import { Badge } from '@cooper/ui/components/badge'
-import { Box, BoxBody, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { Icon } from '@cooper/ui/components/icon'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { Subhead } from '@cooper/ui/components/subhead'
-import { Text } from '@cooper/ui/components/text'
-import { FormField } from '@cooper/core/form/form-field'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Badge } from 'newt-react-ui/badge'
+import { Box, BoxBody, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { Text } from 'newt-react-ui/text'
+import { FormField } from 'newt-react/form-field'
+import { Provide, useService, useValue } from 'newt-react'
 import { WorkspaceSettingsInvitationsService } from './workspace-settings-invitations.service'
 
 const statusTone: Record<InvitationStatus, 'info' | 'ok' | 'muted'> = { pending: 'info', accepted: 'ok', revoked: 'muted' }
@@ -89,8 +87,8 @@ function WorkspaceSettingsInvitationsRow({ invitation, onRevoke }: { invitation:
     >
       <Text size="sm" weight="semibold">{invitation.email}</Text>
       <BoxRowMeta>
-        <span>{'Sent '}<RelativeTime date={invitation.createdAt} /></span>
-        {invitation.status === 'pending' && !expired && <span>{'expires '}<RelativeTime date={invitation.expiresAt} /></span>}
+        <>{'Sent '}<RelativeTime date={invitation.createdAt} /></>
+        {invitation.status === 'pending' && !expired && <>{'expires '}<RelativeTime date={invitation.expiresAt} /></>}
       </BoxRowMeta>
     </BoxRow>
   )

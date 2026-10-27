@@ -1,6 +1,6 @@
 import { CompassIcon } from 'lucide-react'
-import { Box, BoxEmpty } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
+import { Box, BoxEmpty } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
 
 /** An address that does not exist. */
 export function NotFound() {

@@ -1,6 +1,5 @@
 import { ColumnAddSchema, type ColumnDTO } from '@cooper/api/column'
-import { FormStore } from '@cooper/core/form/form-store'
-import { inject } from '@cooper/core/injector/inject'
+import { FormStore, inject } from 'newt-react'
 import { BoardService } from '../board.service'
 
 /** A column's name: a new column at the end of the board, or a new name for one. */

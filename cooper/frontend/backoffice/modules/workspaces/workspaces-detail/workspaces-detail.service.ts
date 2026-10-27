@@ -1,8 +1,5 @@
-import { ApiError } from '@cooper/api/core/api-error'
+import { ApiError, inject, ListStore, Store } from 'newt-react'
 import { BackofficeWorkspaceApi, type WorkspaceBoardDTO, type WorkspaceDetailDTO, type WorkspaceMemberDTO } from '@cooper/api/backoffice-workspace'
-import { inject } from '@cooper/core/injector/inject'
-import { ListStore } from '@cooper/core/list/list-store'
-import { Store } from '@cooper/core/store/store'
 
 type WorkspacesDetailState = {
   workspace: WorkspaceDetailDTO | null

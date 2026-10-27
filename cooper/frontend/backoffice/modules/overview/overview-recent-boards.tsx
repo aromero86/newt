@@ -1,9 +1,8 @@
 import { SquareKanbanIcon } from 'lucide-react'
-import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Icon } from '@cooper/ui/components/icon'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Icon } from 'newt-react-ui/icon'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { useService, useValue } from 'newt-react'
 import { OverviewService } from './overview.service'
 
 /** The boards created last, whatever their workspace, each linked to its workspace's page. */
@@ -19,9 +18,8 @@ export function OverviewRecentBoards() {
         <BoxRow key={board.id} leading={<Icon icon={SquareKanbanIcon} tone="muted" />}>
           <BoxRowTitle href={board.workspaceName === null ? undefined : `/workspaces/${board.workspaceId}`}>{board.name}</BoxRowTitle>
           <BoxRowMeta>
-            <span>{board.workspaceName ?? 'a deleted workspace'}</span>
-            <span>·</span>
-            <span>created <RelativeTime date={board.createdAt} /></span>
+            <>{board.workspaceName ?? 'a deleted workspace'}</>
+            <>created <RelativeTime date={board.createdAt} /></>
           </BoxRowMeta>
         </BoxRow>
       ))}

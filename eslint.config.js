@@ -3,7 +3,7 @@ import { newt } from 'newt-eslint'
 import { newtReactUi } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
-// frontends the rules of a UI built from one library. The framework's own code is not
+// frontends newt-react-ui's. The framework's own code is not
 // an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
@@ -20,21 +20,6 @@ const MONITOR = newt({
 // newt-react-ui's gallery is an app like any other: it keeps the library's lint.
 const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
 
-// The frontends build their UI from @cooper/ui only. Styling lives in cooper/libs/ui and
-// in each app's own components/ folder; everywhere else, class names and inline styles
-// are forbidden, and so is reaching past @cooper/ui into shadcn or Radix.
-
-const FRONTEND = ['cooper/frontend/**/*.{ts,tsx}', 'cooper/libs/**/*.{ts,tsx}']
-// Where styling is allowed: the UI library, and each app's own UI pieces.
-const STYLED = ['cooper/libs/ui/**', 'cooper/frontend/*/components/**']
-
-const STYLING_MESSAGE = 'Apps do not style: use a component from @cooper/ui or from this app\'s own components/ folder.'
-
-const UI_IMPORTS = [
-  { group: ['radix-ui', '@radix-ui/*'], message: 'Use a component from @cooper/ui instead.' },
-  { group: ['@cooper/ui/shadcn', '@cooper/ui/shadcn/*', '**/libs/ui/shadcn', '**/libs/ui/shadcn/**'], message: 'shadcn is private to @cooper/ui: use @cooper/ui/components/*.' },
-]
-
 // The frontend reaches the backend only through @cooper/api, the API clients.
 const BACKEND_IMPORTS = {
   regex: '(^|/)backend(/|$)',
@@ -48,42 +33,25 @@ const API_BACKEND_IMPORTS = {
   message: '@cooper/api may only import a backend module\'s *.schema.ts (its contract).',
 }
 
+// cooper's frontends compose newt-react-ui's components and style nothing: only cooper's
+// own components (cooper/libs/ui, each app's components/) style, wrapping the library's.
+const FRONTEND = newtReactUi({
+  files: ['cooper/frontend/**/*.{ts,tsx}'],
+  components: ['cooper/libs/ui/**', 'cooper/frontend/*/components/**'],
+  imports: [BACKEND_IMPORTS],
+})
+
 export default [
   { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
   ...MONITOR,
   ...UI_GALLERY,
+  ...FRONTEND,
   {
-    files: FRONTEND,
+    files: ['cooper/libs/api/**/*.ts'],
     languageOptions: { parser: tseslint.parser },
-  },
-  {
-    files: ['cooper/frontend/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [...UI_IMPORTS, BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: ['cooper/libs/ui/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': ['error', { patterns: [BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: ['cooper/libs/api/**/*.{ts,tsx}'],
-    rules: {
-      'no-restricted-imports': ['error', { patterns: [...UI_IMPORTS, API_BACKEND_IMPORTS] }],
-    },
-  },
-  {
-    files: FRONTEND,
-    ignores: STYLED,
-    rules: {
-      'no-restricted-syntax': ['error',
-        { selector: 'JSXAttribute[name.name=/^(className|class|style)$/]', message: STYLING_MESSAGE },
-        { selector: 'JSXAttribute > JSXNamespacedName[namespace.name=/^(class|style)$/]', message: STYLING_MESSAGE },
-        { selector: 'JSXElement[openingElement.name.name="style"]', message: STYLING_MESSAGE },
-      ],
+      'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
     },
   },
 ]

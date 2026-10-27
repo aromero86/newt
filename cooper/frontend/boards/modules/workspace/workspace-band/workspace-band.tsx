@@ -1,11 +1,11 @@
 import { useLocation } from 'react-router'
 import { KanbanIcon, LayersIcon, SearchIcon, SettingsIcon, UsersIcon } from 'lucide-react'
 import type { WorkspaceDTO } from '@cooper/api/workspace'
-import { Badge } from '@cooper/ui/components/badge'
-import { Breadcrumbs } from '@cooper/ui/components/breadcrumbs'
-import { Icon } from '@cooper/ui/components/icon'
-import { PageBand } from '@cooper/ui/components/page-band'
-import { UnderlineNav, UnderlineNavItem } from '@cooper/ui/components/underline-nav'
+import { Badge } from 'newt-react-ui/badge'
+import { Breadcrumbs } from 'newt-react-ui/breadcrumbs'
+import { Icon } from 'newt-react-ui/icon'
+import { PageBand } from 'newt-react-ui/page-band'
+import { UnderlineNav, UnderlineNavItem } from 'newt-react-ui/underline-nav'
 
 /** The workspace's header, like a repository's on GitHub: its name and its parts. */
 export function WorkspaceBand({ workspace }: { workspace: WorkspaceDTO }) {

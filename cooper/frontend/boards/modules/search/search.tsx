@@ -1,21 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { SearchIcon, SquareKanbanIcon } from 'lucide-react'
-import { Alert } from '@cooper/ui/components/alert'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { Icon } from '@cooper/ui/components/icon'
-import { Inline } from '@cooper/ui/components/inline'
-import { Input } from '@cooper/ui/components/input'
-import { Select } from '@cooper/ui/components/select'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { Subhead } from '@cooper/ui/components/subhead'
-import { Mono } from '@cooper/ui/components/text'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
+import { Inline } from 'newt-react-ui/inline'
+import { Input } from 'newt-react-ui/input'
+import { Select } from 'newt-react-ui/select'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { Mono } from 'newt-react-ui/text'
+import { Provide, useService, useValue } from 'newt-react'
 import { WorkspaceService } from '../workspace/workspace.service'
 import { SearchService, type SearchCriteria } from './search.service'
 
@@ -132,8 +130,8 @@ function SearchWrapped() {
               <BoxRowTitle href={`/w/${workspaceId}/boards/${card.boardId}?card=${card.id}`}>{card.title}</BoxRowTitle>
               <BoxRowMeta>
                 <Mono>#{card.number}</Mono>
-                <span>{boardNames.get(card.boardId) ?? 'A board'}</span>
-                {columnNames.has(card.columnId) && <span>{columnNames.get(card.columnId)}</span>}
+                <>{boardNames.get(card.boardId) ?? 'A board'}</>
+                {columnNames.has(card.columnId) && <>{columnNames.get(card.columnId)}</>}
               </BoxRowMeta>
             </BoxRow>
           )

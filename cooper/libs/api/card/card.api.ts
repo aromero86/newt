@@ -1,14 +1,6 @@
-import type {
-  CardAssignDTO,
-  CardCreateDTO,
-  CardDTO,
-  CardEditDTO,
-  CardMoveDTO,
-  CardSearchDTO,
-} from '../../../backend/contexts/boards/modules/card/card.schema'
+import type { CardAssignDTO, CardCreateDTO, CardDTO, CardEditDTO, CardMoveDTO, CardSearchDTO } from '../../../backend/contexts/boards/modules/card/card.schema'
 import type { Page } from 'newt/contract'
-import type { PageRequest } from '../core/page-request'
-import { Requester } from '../core/requester'
+import { type PageRequest, Requester } from 'newt-react'
 
 /** The backend's `card` module: the cards of a workspace's boards. */
 export class CardApi extends Requester {

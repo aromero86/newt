@@ -1,9 +1,7 @@
 import { BoardApi, type BoardDTO } from '@cooper/api/board'
 import { CardApi, type CardDTO, type CardFilterDTO, type CardSearchDTO } from '@cooper/api/card'
 import { ColumnApi, type ColumnDTO } from '@cooper/api/column'
-import { inject } from '@cooper/core/injector/inject'
-import { ListStore } from '@cooper/core/list/list-store'
-import { Store } from '@cooper/core/store/store'
+import { inject, ListStore, Store } from 'newt-react'
 
 /** What the cards are searched by; an empty one leaves it out. */
 export type SearchCriteria = {

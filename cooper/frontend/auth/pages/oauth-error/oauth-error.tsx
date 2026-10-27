@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router'
-import { Alert } from '@cooper/ui/components/alert'
-import { PageHeader } from '@cooper/ui/components/page-header'
+import { Alert } from 'newt-react-ui/alert'
+import { PageHeader } from 'newt-react-ui/page-header'
 
 /** A request auth cannot answer: what is wrong, and never a way back to an address nobody vouched for. */
 export function OauthError() {

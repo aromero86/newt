@@ -1,7 +1,6 @@
 import type { ContextJobDTO, JobContext } from '../../../backend/contexts/backoffice/modules/job/job.schema'
 import type { Page } from 'newt/contract'
-import type { PageRequest } from '../core/page-request'
-import { Requester } from '../core/requester'
+import { type PageRequest, Requester } from 'newt-react'
 
 /** The backoffice's `job` module: the jobs that died in each context. */
 export class BackofficeJobApi extends Requester {

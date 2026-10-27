@@ -1,19 +1,17 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router'
 import { ArchiveIcon, KanbanIcon, MoreHorizontalIcon, PlusIcon } from 'lucide-react'
-import { Alert } from '@cooper/ui/components/alert'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { ConfirmDialog } from '@cooper/ui/components/confirm-dialog'
-import { Icon } from '@cooper/ui/components/icon'
-import { Menu } from '@cooper/ui/components/menu'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { Subhead } from '@cooper/ui/components/subhead'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { ConfirmDialog } from 'newt-react-ui/confirm-dialog'
+import { Icon } from 'newt-react-ui/icon'
+import { Menu } from 'newt-react-ui/menu'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { Provide, useService, useValue } from 'newt-react'
 import { BoardsListNew } from './boards-list-new'
 import { BoardsListService } from './boards-list.service'
 
@@ -70,8 +68,8 @@ function BoardsListWrapped() {
           >
             <BoxRowTitle href={`/w/${workspaceId}/boards/${board.id}`}>{board.name}</BoxRowTitle>
             <BoxRowMeta>
-              {board.description && <span>{board.description}</span>}
-              <span>{'Created '}<RelativeTime date={board.createdAt} /></span>
+              {board.description && <>{board.description}</>}
+              <>{'Created '}<RelativeTime date={board.createdAt} /></>
             </BoxRowMeta>
           </BoxRow>
         ))}

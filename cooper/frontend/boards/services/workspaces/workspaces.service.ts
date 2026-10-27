@@ -1,7 +1,6 @@
 import { computed, type ReadonlySignal } from '@preact/signals-core'
 import { WorkspaceApi, type WorkspaceCreateDTO, type WorkspaceDTO } from '@cooper/api/workspace'
-import { inject } from '@cooper/core/injector/inject'
-import { Store } from '@cooper/core/store/store'
+import { inject, Store } from 'newt-react'
 
 type WorkspacesState = {
   items: WorkspaceDTO[]

@@ -1,5 +1,5 @@
 import { createBrowserRouter } from 'react-router'
-import { Spinner } from '@cooper/ui/components/spinner'
+import { Spinner } from 'newt-react-ui/spinner'
 import { NotFound } from './pages/not-found/not-found'
 import { RouteError } from './pages/route-error/route-error'
 import { Shell } from './pages/shell/shell'

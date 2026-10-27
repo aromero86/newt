@@ -1,7 +1,5 @@
-import { ApiError } from '@cooper/api/core/api-error'
+import { ApiError, inject, Store } from 'newt-react'
 import { WebSessionApi, signInUrl, type SessionUserDTO } from '@cooper/api/web-session'
-import { inject } from '@cooper/core/injector/inject'
-import { Store } from '@cooper/core/store/store'
 
 type SessionState =
   | { status: 'checking', user: null }

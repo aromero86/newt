@@ -1,23 +1,21 @@
 import { useEffect, useState } from 'react'
 import { ShieldCheckIcon, UserMinusIcon } from 'lucide-react'
 import type { StaffMemberDTO } from '@cooper/api/backoffice-staff'
-import { Alert } from '@cooper/ui/components/alert'
-import { Avatar } from '@cooper/ui/components/avatar'
-import { Badge } from '@cooper/ui/components/badge'
-import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { ConfirmDialog } from '@cooper/ui/components/confirm-dialog'
+import { Alert } from 'newt-react-ui/alert'
+import { Avatar } from 'newt-react-ui/avatar'
+import { Badge } from 'newt-react-ui/badge'
+import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { ConfirmDialog } from 'newt-react-ui/confirm-dialog'
 import { Counter } from '@cooper/ui/components/counter'
-import { Icon } from '@cooper/ui/components/icon'
-import { Inline } from '@cooper/ui/components/inline'
-import { PageHeader } from '@cooper/ui/components/page-header'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Stack } from '@cooper/ui/components/stack'
-import { toast } from '@cooper/ui/components/toast'
-import { Provide } from '@cooper/core/injector/provide'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Icon } from 'newt-react-ui/icon'
+import { Inline } from 'newt-react-ui/inline'
+import { PageHeader } from 'newt-react-ui/page-header'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Stack } from 'newt-react-ui/stack'
+import { toast } from 'newt-react-ui/toast'
+import { Provide, useService, useValue } from 'newt-react'
 import { SessionService } from '../../services/session/session.service'
 import { StaffGrant } from './staff-grant'
 import { StaffService } from './staff.service'
@@ -82,9 +80,8 @@ function StaffWrapped() {
               {member.userId === me?.id && <Badge tone="outline">you</Badge>}
             </Inline>
             <BoxRowMeta>
-              <span>{member.email}</span>
-              <span>·</span>
-              <span>staff since <RelativeTime date={member.since} /></span>
+              <>{member.email}</>
+              <>staff since <RelativeTime date={member.since} /></>
             </BoxRowMeta>
           </BoxRow>
         ))}

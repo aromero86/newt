@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import { CircleCheckIcon, RotateCcwIcon } from 'lucide-react'
 import type { ContextJobDTO, JobContext } from '@cooper/api/backoffice-job'
-import { Alert } from '@cooper/ui/components/alert'
-import { Box, BoxEmpty, BoxFooter, BoxRow, BoxRowMeta, BoxRowTitle } from '@cooper/ui/components/box'
-import { Button } from '@cooper/ui/components/button'
-import { Icon } from '@cooper/ui/components/icon'
-import { RelativeTime } from '@cooper/ui/components/relative-time'
-import { Skeleton } from '@cooper/ui/components/skeleton'
-import { Mono, Text } from '@cooper/ui/components/text'
-import { toast } from '@cooper/ui/components/toast'
-import { useService } from '@cooper/core/injector/use-service'
-import { useValue } from '@cooper/core/store/use-value'
+import { Alert } from 'newt-react-ui/alert'
+import { Box, BoxEmpty, BoxFooter, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Skeleton } from 'newt-react-ui/skeleton'
+import { Mono, Text } from 'newt-react-ui/text'
+import { toast } from 'newt-react-ui/toast'
+import { useService, useValue } from 'newt-react'
 import { JobsService } from './jobs.service'
 
 /** The first line of an error: its message, without the stack under it. */
@@ -52,11 +51,9 @@ export function JobsList({ context }: { context: JobContext }) {
         >
           <BoxRowTitle><Mono>{job.queue}</Mono></BoxRowTitle>
           <BoxRowMeta>
-            <span>{job.event}</span>
-            <span>·</span>
-            <span>{job.attempts} {job.attempts === 1 ? 'attempt' : 'attempts'}</span>
-            <span>·</span>
-            <span>died <RelativeTime date={job.updatedAt} /></span>
+            <>{job.event}</>
+            <>{job.attempts} {job.attempts === 1 ? 'attempt' : 'attempts'}</>
+            <>died <RelativeTime date={job.updatedAt} /></>
           </BoxRowMeta>
           <Text size="sm" tone="destructive">{firstLine(job.lastError)}</Text>
         </BoxRow>
