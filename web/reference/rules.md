@@ -441,17 +441,24 @@ adapter that does not build on it is not checked for this.
     board: Board_Module
     column: Column_Module
     member: Member_Module
-    access: AccessEvents
+    auth: {
+      access: Access_Module
+    }
   }
   ```
 - **Dependencies never form a cycle.** When two modules seem to need each other, one
   stops calling and starts listening. (`column` does not know the cards; `card` knows
   the columns and follows `column.removed`.)
 - A module never knows who depends on it.
-- What a module needs of another context is a port, in its own words, typed in its
-  deps file (`AccessEvents` above, each event an `EventSource<Payload>`: what it may
-  subscribe to, nothing more); the context hands it the other context's use cases
-  or emitters when it opens.
+- **Another context's modules are known as its own context's are**: by their
+  module, in `<M>_Deps`, under the other context's name (`auth: { access }` above).
+  It calls their use cases and subscribes to their events the same way
+  (`this.deps.auth.access.check(…)`, `deps.auth.access.events.revoked`); the context
+  hands it those modules when it opens, and newt-eslint's `context-boundaries` says
+  which contexts it may know. Never a port made of functions over another context's
+  use cases: it hides the dependency from the lint, from newt-graph and from
+  `describeApplication`. A port, in the module's own words, is for what is no module
+  of the application: a mailer, a search engine, a payment provider.
 
 ## The entity
 

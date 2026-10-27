@@ -68,9 +68,9 @@ describe.skipIf(!whole)('cooper', () => {
     expect(has(graph, 'calls', 'boards/card.removeColumn', 'boards/column.remove')).toBe(true)
   })
 
-  test('follows a call through a port to the other context\'s use cases', () => {
-    const viaPort = graph.edges.filter(edge => edge.kind === 'calls' && edge.from === 'boards/member.isMember')
-    expect(viaPort.map(edge => [edge.to, edge.via])).toEqual([['auth/access.check', 'Workspaces.isMember'], ['auth/tenant.getMany', 'Workspaces.isMember']])
+  test('follows a call to the other context\'s use cases, through its private methods', () => {
+    const calls = graph.edges.filter(edge => edge.kind === 'calls' && edge.from === 'boards/member.isMember')
+    expect(calls.map(edge => [edge.to, edge.via])).toEqual([['auth/access.check', null], ['auth/tenant.getMany', null]])
     // Each context's web session asks auth who a token is for, through the option its context gave it.
     expect(has(graph, 'calls', 'boards/session.complete', 'auth/token.verify')).toBe(true)
     expect(has(graph, 'calls', 'backoffice/session.me', 'backoffice/staff.me')).toBe(true)
@@ -87,13 +87,13 @@ describe.skipIf(!whole)('cooper', () => {
     expect(graph.routes.some(each => each.id === 'auth/POST /oauth/token')).toBe(true)
   })
 
-  test('module deps: modules, and ports with the module behind them', () => {
+  test('module deps: modules, another context\'s under its name', () => {
     const card = graph.modules.find(each => each.id === 'boards/card')!
     expect(card.deps.map(({ name, kind, target }) => ({ name, kind, target }))).toEqual([
       { name: 'board', kind: 'module', target: 'boards/board' },
       { name: 'column', kind: 'module', target: 'boards/column' },
       { name: 'member', kind: 'module', target: 'boards/member' },
-      { name: 'access', kind: 'port', target: 'auth/access' },
+      { name: 'auth.access', kind: 'module', target: 'auth/access' },
     ])
     expect(card.deps[0]).toMatchObject({ file: 'cooper/backend/contexts/boards/modules/card/card.deps.ts' })
     const job = graph.modules.find(each => each.id === 'backoffice/job')!

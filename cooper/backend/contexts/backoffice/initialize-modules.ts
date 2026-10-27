@@ -33,7 +33,7 @@ const METRIC_DAYS = 30
 export function initializeModules(base: CooperBase, config: Backoffice_Config, deps: Backoffice_ModuleDeps) {
   const { auth, boards } = deps
 
-  const staff = Staff_Module.initialize(base, { user: auth.user, access: auth.access }, { productId: PRODUCTS.backoffice })
+  const staff = Staff_Module.initialize(base, { auth: { user: auth.user, access: auth.access } }, { productId: PRODUCTS.backoffice })
   const session = WebSession_Module.initialize(base, {
     context: 'backoffice',
     clientId: PRODUCTS.backoffice,
@@ -46,9 +46,9 @@ export function initializeModules(base: CooperBase, config: Backoffice_Config, d
     // an access taken away since signing in, gets a 403.
     profile: async () => ({ user: await staff.me() }),
   })
-  const user = User_Module.initialize(base, { staff, user: auth.user, access: auth.access, tenant: auth.tenant }, { workspacesProduct: WORKSPACES_PRODUCT })
-  const workspace = Workspace_Module.initialize(base, { staff, tenant: auth.tenant, access: auth.access, user: auth.user, board: boards.board, card: boards.card })
-  const metric = Metric_Module.initialize(base, { staff, card: boards.card, tenant: auth.tenant, user: auth.user }, {
+  const user = User_Module.initialize(base, { staff, auth: { user: auth.user, access: auth.access, tenant: auth.tenant } }, { workspacesProduct: WORKSPACES_PRODUCT })
+  const workspace = Workspace_Module.initialize(base, { staff, auth: { tenant: auth.tenant, access: auth.access, user: auth.user }, boards: { board: boards.board, card: boards.card } })
+  const metric = Metric_Module.initialize(base, { staff, auth: { tenant: auth.tenant, user: auth.user }, boards: { card: boards.card } }, {
     analytics: new SqlAnalytics(base.store),
     days: METRIC_DAYS,
   })

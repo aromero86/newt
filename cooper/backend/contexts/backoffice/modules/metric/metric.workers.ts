@@ -9,15 +9,15 @@ import type { Metric_Module } from './metric.module'
  * counts once.
  */
 export function registerMetricWorkers(metrics: Metric_Module, deps: Metric_Deps): void {
-  deps.card.events.created.subscribe(card => metrics.recordCard(card), {
+  deps.boards.card.events.created.subscribe(card => metrics.recordCard(card), {
     strategy: 'handler',
     queue: 'metric.recordCard.on.card.created',
   })
-  deps.tenant.events.created.subscribe(tenant => metrics.recordWorkspace(tenant), {
+  deps.auth.tenant.events.created.subscribe(tenant => metrics.recordWorkspace(tenant), {
     strategy: 'handler',
     queue: 'metric.recordWorkspace.on.tenant.created',
   })
-  deps.user.events.signedUp.subscribe(user => metrics.recordSignUp(user), {
+  deps.auth.user.events.signedUp.subscribe(user => metrics.recordSignUp(user), {
     strategy: 'handler',
     queue: 'metric.recordSignUp.on.user.signedUp',
   })

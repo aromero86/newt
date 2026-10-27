@@ -39,19 +39,19 @@ export class Staff_Module extends Module {
   @UseCase()
   async me(): Promise<UserDTO> {
     await this.enter()
-    return this.deps.user.get(currentActor().userId)
+    return this.deps.auth.user.get(currentActor().userId)
   }
 
   @UseCase()
   async isStaff(userId: string): Promise<boolean> {
-    return (await this.deps.access.check(userId, this.options.productId, null)) !== null
+    return (await this.deps.auth.access.check(userId, this.options.productId, null)) !== null
   }
 
   /** The staff, the oldest first. */
   @UseCase()
   async list(page: PageRequest): Promise<Page<StaffMemberDTO>> {
-    const accesses = await this.deps.access.listForProduct(this.options.productId, page)
-    const users = new Map((await this.deps.user.getMany(accesses.items.map(access => access.userId))).map(user => [user.id, user]))
+    const accesses = await this.deps.auth.access.listForProduct(this.options.productId, page)
+    const users = new Map((await this.deps.auth.user.getMany(accesses.items.map(access => access.userId))).map(user => [user.id, user]))
     return mapPage(accesses, access => {
       const user = users.get(access.userId)
       return user && { id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }
@@ -65,9 +65,9 @@ export class Staff_Module extends Module {
   @UseCase()
   async grant(input: unknown): Promise<StaffMemberDTO> {
     const { email } = StaffGrantSchema.parse(input)
-    const user = await this.deps.user.findByEmail(email)
+    const user = await this.deps.auth.user.findByEmail(email)
     if (!user) throw new StaffAccountNotFound(email)
-    const access = await this.deps.access.grant({ userId: user.id, productId: this.options.productId, tenantId: null })
+    const access = await this.deps.auth.access.grant({ userId: user.id, productId: this.options.productId, tenantId: null })
     return { id: access.id, userId: user.id, name: user.name, email: user.email, since: access.createdAt }
   }
 
@@ -75,6 +75,6 @@ export class Staff_Module extends Module {
   @UseCase()
   async revoke(userId: string): Promise<void> {
     if (userId === currentActor().userId) throw new OwnAccessNotRevocable()
-    await this.deps.access.revoke({ userId, productId: this.options.productId, tenantId: null })
+    await this.deps.auth.access.revoke({ userId, productId: this.options.productId, tenantId: null })
   }
 }

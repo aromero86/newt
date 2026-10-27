@@ -40,17 +40,17 @@ export class Workspace_Module extends Module {
   async list(input: WorkspaceSearchDTO, page: PageRequest): Promise<Page<WorkspaceSummaryDTO>> {
     const { name } = WorkspaceSearchSchema.parse(input)
     const filter: TenantFilterDTO | undefined = name ? { field: 'name', op: 'ieq', value: name } : undefined
-    const found = await this.deps.tenant.list(filter, page)
+    const found = await this.deps.auth.tenant.list(filter, page)
     return { ...found, items: await this.summaries(found.items) }
   }
 
   @UseCase()
   async get(workspaceId: string): Promise<WorkspaceDetailDTO> {
-    const tenant = await this.deps.tenant.get(workspaceId)
+    const tenant = await this.deps.auth.tenant.get(workspaceId)
     const [[summary], members, boards] = await Promise.all([
       this.summaries([tenant]),
-      this.deps.access.listForTenant(workspaceId, { size: 1 }),
-      this.deps.board.listOf(workspaceId, { size: 1 }),
+      this.deps.auth.access.listForTenant(workspaceId, { size: 1 }),
+      this.deps.boards.board.listOf(workspaceId, { size: 1 }),
     ])
     return { ...summary!, members: members.total, boards: boards.total }
   }
@@ -58,8 +58,8 @@ export class Workspace_Module extends Module {
   /** Its members, the oldest first: its admin leads. */
   @UseCase()
   async members(workspaceId: string, page: PageRequest): Promise<Page<WorkspaceMemberDTO>> {
-    await this.deps.tenant.get(workspaceId)
-    const accesses = await this.deps.access.listForTenant(workspaceId, page)
+    await this.deps.auth.tenant.get(workspaceId)
+    const accesses = await this.deps.auth.access.listForTenant(workspaceId, page)
     const people = await this.people(accesses.items.map(access => access.userId))
     return mapPage(accesses, access => {
       const person = people.get(access.userId)
@@ -70,10 +70,10 @@ export class Workspace_Module extends Module {
   /** Its boards, the newest first, each with how many cards it has. */
   @UseCase()
   async boards(workspaceId: string, page: PageRequest): Promise<Page<WorkspaceBoardDTO>> {
-    await this.deps.tenant.get(workspaceId)
+    await this.deps.auth.tenant.get(workspaceId)
     const [boards, counts] = await Promise.all([
-      this.deps.board.listOf(workspaceId, page),
-      this.deps.card.countByBoard(workspaceId),
+      this.deps.boards.board.listOf(workspaceId, page),
+      this.deps.boards.card.countByBoard(workspaceId),
     ])
     const cards = new Map(counts.map(count => [count.boardId, count.cards]))
     return mapPage(boards, board => ({ id: board.id, name: board.name, description: board.description, createdAt: board.createdAt, cards: cards.get(board.id) ?? 0 }))
@@ -82,8 +82,8 @@ export class Workspace_Module extends Module {
   /** The boards created last across every workspace, each with its workspace's name: two calls. */
   @UseCase()
   async recentBoards(): Promise<RecentBoardDTO[]> {
-    const boards = await this.deps.board.recentInEveryWorkspace(RECENT_BOARDS)
-    const tenants = new Map((await this.deps.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
+    const boards = await this.deps.boards.board.recentInEveryWorkspace(RECENT_BOARDS)
+    const tenants = new Map((await this.deps.auth.tenant.getMany([...new Set(boards.map(board => board.workspaceId))])).map(tenant => [tenant.id, tenant.name]))
     return boards.map(board => ({ id: board.id, name: board.name, workspaceId: board.workspaceId, createdAt: board.createdAt, workspaceName: tenants.get(board.workspaceId) ?? null }))
   }
 
@@ -91,7 +91,7 @@ export class Workspace_Module extends Module {
   private async summaries(tenants: TenantDTO[]): Promise<WorkspaceSummaryDTO[]> {
     const [admins, counts] = await Promise.all([
       this.people(tenants.map(tenant => tenant.createdBy)),
-      this.deps.card.countByWorkspace(tenants.map(tenant => tenant.id)),
+      this.deps.boards.card.countByWorkspace(tenants.map(tenant => tenant.id)),
     ])
     const cards = new Map(counts.map(count => [count.workspaceId, count.cards]))
     return tenants.map(tenant => ({
@@ -104,7 +104,7 @@ export class Workspace_Module extends Module {
   }
 
   private async people(userIds: string[]): Promise<Map<string, PersonDTO>> {
-    const users = await this.deps.user.getMany(userIds)
+    const users = await this.deps.auth.user.getMany(userIds)
     return new Map(users.map(user => [user.id, { id: user.id, name: user.name, email: user.email }]))
   }
 }

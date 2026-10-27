@@ -39,7 +39,7 @@ repository (`web/guide`, `web/reference/rules.md`, `lint.md`, `stores.md`).
 | `<m>.repository.ts` | `<M>_Repository`: the only file that touches the store. |
 | `<m>.module.ts` | `<M>_Module extends Module`: `static initialize`, `events`, the use cases. |
 | `<m>.routes.ts` / `<m>.workers.ts` | Its routes; its reactions to events and schedules. |
-| `<m>.deps.ts` / `<m>-options.ts` | `<M>_Deps` (modules it calls, ports, `import type`); `<M>_Options` (config). |
+| `<m>.deps.ts` / `<m>-options.ts` | `<M>_Deps` (modules it calls, of its context or another's, ports, `import type`); `<M>_Options` (config). |
 | `events/<m>-<verb>.ts`, `errors/<error>.ts`, `value-objects/`, `services/`, `*.test.ts` | One class per file; tests beside the code. |
 
 Names, for folder `oauth-grant`: class `OauthGrant_Module`, `super('oauthGrant', base.invocations, deps)`, entity `OauthGrant`, `OauthGrant_Repository`, table `oauth_grant`, use case `oauthGrant.redeem`, event `oauthGrant.replayed` (class `OauthGrant_Replayed`, file `events/oauth-grant-replayed.ts`), error code `oauthGrant.invalid_grant`, queue `token.revokeGrant.on.oauthGrant.replayed`.
@@ -47,6 +47,18 @@ Names, for folder `oauth-grant`: class `OauthGrant_Module`, `super('oauthGrant',
 A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`).
 
 A module passes all of its deps to `super`, those only its routes or workers use too: that is how the application knows what each module depends on (`describeApplication`, newt/runtime).
+
+Another context's modules are deps as its own context's are, grouped under that context's name, and the context that opens it hands them over:
+
+```ts
+export interface Card_Deps {
+  board: Board_Module                  // its own context's
+  auth: { access: Access_Module }      // another context's: this.deps.auth.access.check(…), deps.auth.access.events.revoked
+  mailer: Mailer                       // a port: only for what is no module of the application
+}
+```
+
+Never wrap another context's use cases in a port of functions (`{ isMember: (w, u) => auth.access.check(…) }`): the lint, newt-graph and `describeApplication` lose the dependency. Which contexts a context may know is newt-eslint's `contexts.uses`.
 
 ## Entity, schema, repository
 

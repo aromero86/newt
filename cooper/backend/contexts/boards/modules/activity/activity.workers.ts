@@ -17,7 +17,7 @@ export function registerActivityWorkers(activity: Activity_Module, deps: Activit
   events.deleted.subscribe((card, event) => activity.recordDeleted(card, event), { strategy: 'handler', queue: 'activity.recordDeleted.on.card.deleted' })
 
   // auth deleted a workspace: its log goes, like its boards (a job of auth's outbox).
-  deps.tenants.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
+  deps.auth.tenant.events.deleted.subscribe(tenant => activity.purgeWorkspace(tenant.id), {
     strategy: 'handler',
     queue: 'activity.purgeWorkspace.on.tenant.deleted',
   })

@@ -30,7 +30,7 @@ export class User_Module extends Module {
     const filter: UserFilterDTO | undefined = text
       ? { or: [{ field: 'email', op: 'ieq', value: text }, { field: 'name', op: 'ieq', value: text }] }
       : undefined
-    const users = await this.deps.user.list(filter, page)
+    const users = await this.deps.auth.user.list(filter, page)
     // One question to auth per account of the page: a page is short, and auth says it fresh.
     const items = await Promise.all(users.items.map(async user => ({ ...user, staff: await this.deps.staff.isStaff(user.id) })))
     return { ...users, items }
@@ -38,10 +38,10 @@ export class User_Module extends Module {
 
   @UseCase()
   async get(userId: string): Promise<UserDetailDTO> {
-    const user = await this.deps.user.get(userId)
+    const user = await this.deps.auth.user.get(userId)
     const [staff, workspaces] = await Promise.all([
       this.deps.staff.isStaff(userId),
-      this.deps.access.listForUser(userId, { size: 1 }, this.options.workspacesProduct),
+      this.deps.auth.access.listForUser(userId, { size: 1 }, this.options.workspacesProduct),
     ])
     return { ...user, staff, workspaces: workspaces.total }
   }
@@ -49,9 +49,9 @@ export class User_Module extends Module {
   /** The workspaces someone belongs to, the ones they joined last first, with their role in each. */
   @UseCase()
   async workspaces(userId: string, page: PageRequest): Promise<Page<UserWorkspaceDTO>> {
-    await this.deps.user.get(userId)
-    const accesses = await this.deps.access.listForUser(userId, page, this.options.workspacesProduct)
-    const tenants = new Map((await this.deps.tenant.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
+    await this.deps.auth.user.get(userId)
+    const accesses = await this.deps.auth.access.listForUser(userId, page, this.options.workspacesProduct)
+    const tenants = new Map((await this.deps.auth.tenant.getMany(accesses.items.flatMap(access => access.tenantId ?? []))).map(tenant => [tenant.id, tenant]))
     // A workspace deleted a moment ago, whose accesses are not taken away yet, is left out.
     return mapPage(accesses, access => {
       const tenant = tenants.get(access.tenantId ?? '')

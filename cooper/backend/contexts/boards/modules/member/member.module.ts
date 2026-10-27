@@ -1,4 +1,5 @@
 import { currentActor, Module, UseCase } from 'newt/core'
+import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, type WorkspaceScope } from '../../workspace-scope'
 import { WorkspaceNotFound } from './errors/workspace-not-found'
@@ -8,7 +9,8 @@ import type { MemberDTO } from './member.schema'
 /**
  * Who belongs to each workspace, as `boards` asks it: the module that knows,
  * asked every time, never written in the actor. It keeps nothing: auth keeps the
- * workspaces and their members, and answers through the `Workspaces` port.
+ * workspaces (tenants of the product `cooper`) and who has access to each, and this
+ * module asks it. A member is someone with access to a workspace still there.
  */
 export class Member_Module extends Module {
 
@@ -27,25 +29,42 @@ export class Member_Module extends Module {
    */
   @UseCase()
   async enter(workspaceId: string): Promise<WorkspaceScope> {
-    if (!await this.deps.workspaces.isMember(workspaceId, currentActor().userId)) throw new WorkspaceNotFound(workspaceId)
+    if (!await this.belongs(workspaceId, currentActor().userId)) throw new WorkspaceNotFound(workspaceId)
     return { workspaceId }
   }
 
   /** Whether someone belongs to the current workspace. */
   @UseCase()
   async isMember(userId: string): Promise<boolean> {
-    return this.deps.workspaces.isMember(currentWorkspaceId(), userId)
+    return this.belongs(currentWorkspaceId(), userId)
   }
 
   /** Whether a workspace is still there: what a worker that writes in one asks first. */
   @UseCase()
   async exists(workspaceId: string): Promise<boolean> {
-    return this.deps.workspaces.exists(workspaceId)
+    return this.isThere(workspaceId)
   }
 
   /** Someone of a workspace, or null if they do not belong to it (any more): what a worker, outside any scope, asks. */
   @UseCase()
   async find(workspaceId: string, userId: string): Promise<MemberDTO | null> {
-    return this.deps.workspaces.member(workspaceId, userId)
+    if (!await this.belongs(workspaceId, userId)) return null
+    const [found] = await this.deps.auth.user.getMany([userId])
+    return found ? { id: found.id, name: found.name, email: found.email } : null
+  }
+
+  /**
+   * An access and a workspace still there, asked each time so who leaves counts at
+   * once: a deleted workspace's accesses go a moment after it (or, should that fail,
+   * from its worker), and nobody enters it meanwhile.
+   */
+  private async belongs(workspaceId: string, userId: string): Promise<boolean> {
+    const [granted, alive] = await Promise.all([this.deps.auth.access.check(userId, WORKSPACES_PRODUCT, workspaceId), this.isThere(workspaceId)])
+    return granted !== null && alive
+  }
+
+  /** A deleted tenant is not among them. */
+  private async isThere(workspaceId: string): Promise<boolean> {
+    return (await this.deps.auth.tenant.getMany([workspaceId])).length > 0
   }
 }

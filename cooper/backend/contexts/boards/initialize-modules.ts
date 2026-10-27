@@ -7,33 +7,25 @@ import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
 import { Board_Module } from './modules/board/board.module'
-import type { AccessEvents } from './modules/card/card.deps'
 import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
-import type { Workspaces } from './modules/member/member.deps'
 import { Member_Module } from './modules/member/member.module'
-import type { TenantEvents, WorkspaceAuth } from './modules/workspace/workspace.deps'
 import { Workspace_Module } from './modules/workspace/workspace.module'
 import type { CardSearch } from './search/card-search'
 
 /**
- * auth's use cases `boards` calls besides its ports: who an access token is for (the
- * web session, the MCP server), and what its workspace module asks of auth (who
- * someone is, and what boards' routes for workspaces, members and invitations manage
- * in auth).
+ * auth's modules `boards` uses, as its own modules use each other: who an access
+ * token is for (the web session, the MCP server), who belongs to each workspace
+ * (`member`), auth's events about workspaces and access, and what boards' routes for
+ * workspaces, members and invitations manage in auth.
  */
-export type Boards_Auth = WorkspaceAuth & Pick<Auth_Modules, 'token'>
+export type Boards_Auth = Pick<Auth_Modules, 'token' | 'user' | 'tenant' | 'access' | 'invitation'>
 
 /**
- * What `boards`' modules are given besides its base: what they need of auth, as ports
- * of their own (who belongs to each workspace, and auth's events about workspaces and
- * access) and as auth's use cases, a mailer, and where the cards are searched. Whoever
- * opens the context wires them.
+ * What `boards`' modules are given besides its base: auth's modules, a mailer, and
+ * where the cards are searched. Whoever opens the context wires them.
  */
 export type Boards_ModuleDeps = {
-  workspaces: Workspaces
-  tenants: TenantEvents
-  access: AccessEvents
   auth: Boards_Auth
   mailer: Mailer
   search: CardSearch
@@ -58,12 +50,13 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
       return { user: { id, name, email } }
     },
   })
-  const member = Member_Module.initialize(base, { workspaces: deps.workspaces })
+  const { user, tenant, access, invitation } = deps.auth
+  const member = Member_Module.initialize(base, { auth: { access, tenant, user } })
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
-  const card = Card_Module.initialize(base, { board, column, member, access: deps.access }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
-  const workspace = Workspace_Module.initialize(base, { board, column, card, member, tenants: deps.tenants, auth: deps.auth })
-  const activity = Activity_Module.initialize(base, { card, member, tenants: deps.tenants }, { log: deps.log ?? (() => {}) })
+  const card = Card_Module.initialize(base, { board, column, member, auth: { access } }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
+  const workspace = Workspace_Module.initialize(base, { board, column, card, member, auth: { tenant, access, invitation, user } })
+  const activity = Activity_Module.initialize(base, { card, member, auth: { tenant } }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
   return { session, member, board, column, card, workspace, activity, outbox }

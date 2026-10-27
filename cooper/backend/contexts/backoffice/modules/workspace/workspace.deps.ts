@@ -1,6 +1,6 @@
 import type { Access_Module } from '../../../auth/modules/access/access.module'
 import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
-import type { User_Module as AuthUser_Module } from '../../../auth/modules/user/user.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 import type { Board_Module } from '../../../boards/modules/board/board.module'
 import type { Card_Module } from '../../../boards/modules/card/card.module'
 import type { Staff_Module } from '../staff/staff.module'
@@ -13,10 +13,14 @@ import type { Staff_Module } from '../staff/staff.module'
 export interface Workspace_Deps {
   /** That who asks is of the staff, before any route answers. */
   staff: Staff_Module
-  tenant: Tenant_Module
-  access: Access_Module
-  user: AuthUser_Module
-  board: Board_Module
-  /** How many cards each workspace and board has: Kysely's counts, in boards. */
-  card: Card_Module
+  auth: {
+    tenant: Tenant_Module
+    access: Access_Module
+    user: User_Module
+  }
+  boards: {
+    board: Board_Module
+    /** How many cards each workspace and board has: Kysely's counts, in boards. */
+    card: Card_Module
+  }
 }

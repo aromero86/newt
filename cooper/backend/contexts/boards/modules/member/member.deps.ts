@@ -1,19 +1,12 @@
-import type { MemberDTO } from './member.schema'
-
-/**
- * What `boards` needs to know of the workspaces, and asks whoever keeps them (auth's
- * tenants and access): a port, in boards' own words, so this module depends on no
- * module of auth. The context is handed one when it opens; a test, a fake.
- */
-export type Workspaces = {
-  /** Whether someone belongs to a workspace now, deleted it has nobody: asked each time, so who leaves counts at once. */
-  isMember(workspaceId: string, userId: string): Promise<boolean>
-  /** Someone of a workspace, or null if they do not belong to it. */
-  member(workspaceId: string, userId: string): Promise<MemberDTO | null>
-  /** Whether a workspace is still there: deleted, a worker has nothing to write in it. */
-  exists(workspaceId: string): Promise<boolean>
-}
+import type { Access_Module } from '../../../auth/modules/access/access.module'
+import type { Tenant_Module } from '../../../auth/modules/tenant/tenant.module'
+import type { User_Module } from '../../../auth/modules/user/user.module'
 
 export interface Member_Deps {
-  workspaces: Workspaces
+  /** auth keeps the workspaces (its tenants of `cooper`), who has access to each, and who they are. */
+  auth: {
+    access: Access_Module
+    tenant: Tenant_Module
+    user: User_Module
+  }
 }

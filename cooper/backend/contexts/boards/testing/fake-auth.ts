@@ -3,10 +3,7 @@ import { Email } from 'newt/contract'
 import { eventsOf, now, type DomainEvent } from 'newt/core'
 import { Base } from 'newt/runtime'
 import type { Boards_Auth } from '../initialize-modules'
-import type { AccessEvents } from '../modules/card/card.deps'
-import type { Workspaces } from '../modules/member/member.deps'
 import type { MemberDTO } from '../modules/member/member.schema'
-import type { TenantEvents } from '../modules/workspace/workspace.deps'
 
 class Tenant_Created implements DomainEvent<{ id: string }> {
   static readonly eventName = 'tenant.created'
@@ -32,39 +29,48 @@ class Access_Revoked implements DomainEvent<Access> {
 }
 
 /**
- * auth, as `boards`' tests need it: who belongs to each workspace, kept in memory, and
- * auth's events about workspaces and access, told as auth tells them. Each event is
- * published in a transaction of its own store, so boards' handlers are jobs of its
- * worker, as they are of auth's, and run only on `idle`.
+ * A module of auth, as boards' tests need it: what they reach of it, and any other use
+ * case refused. Those (who signs in, and the routes for workspaces, members and
+ * invitations) run on the real auth in cooper's test (`cooper/backend/cooper.test.ts`).
+ */
+function fakeModule(module: string, reached: object): unknown {
+  return new Proxy(reached, {
+    get: (target, useCase) => useCase in target
+      ? target[useCase as keyof typeof target]
+      : () => Promise.reject(new Error(`auth.${module}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
+  })
+}
+
+/**
+ * auth, as `boards`' tests need it: its modules, with who belongs to each workspace
+ * kept in memory, and auth's events about workspaces and access, told as auth tells
+ * them. Each event is published in a transaction of its own store, so boards'
+ * handlers are jobs of its worker, as they are of auth's, and run only on `idle`.
  */
 export class FakeAuth {
 
   private readonly members = new Map<string, Map<string, MemberDTO>>()
 
-  /** The port of who belongs to each workspace. */
-  readonly workspaces: Workspaces = {
-    isMember: async (workspaceId, userId) => this.members.get(workspaceId)?.has(userId) ?? false,
-    member: async (workspaceId, userId) => this.members.get(workspaceId)?.get(userId) ?? null,
-    exists: async workspaceId => this.members.has(workspaceId),
-  }
-
-  readonly tenants: TenantEvents
-  readonly access: AccessEvents
-
-  /**
-   * auth's use cases, which boards' own tests never reach: who signs in, and the
-   * routes for workspaces, members and invitations, which run on the real auth in
-   * cooper's test (`cooper/backend/cooper.test.ts`). Any call says so.
-   */
-  readonly modules = new Proxy({}, {
-    get: (_, module) => new Proxy({}, {
-      get: (__, useCase) => () => Promise.reject(new Error(`auth.${String(module)}.${String(useCase)} is not in boards' own tests: cooper.test.ts runs it on the real auth`)),
-    }),
-  }) as Boards_Auth
+  /** auth's modules, as boards is given them: someone with access to a workspace that is there is a member. */
+  readonly modules: Boards_Auth
 
   private constructor(private readonly base: Base) {
-    this.tenants = eventsOf(base.bus, { created: Tenant_Created, deleted: Tenant_Deleted })
-    this.access = eventsOf(base.bus, { revoked: Access_Revoked })
+    const members = this.members
+    this.modules = {
+      access: fakeModule('access', {
+        check: async (userId: string, _productId: string, tenantId: string | null) => (members.get(tenantId ?? '')?.has(userId) ? { userId, tenantId } : null),
+        events: eventsOf(base.bus, { revoked: Access_Revoked }),
+      }),
+      tenant: fakeModule('tenant', {
+        getMany: async (ids: string[]) => ids.filter(id => members.has(id)).map(id => ({ id })),
+        events: eventsOf(base.bus, { created: Tenant_Created, deleted: Tenant_Deleted }),
+      }),
+      user: fakeModule('user', {
+        getMany: async (ids: string[]) => ids.flatMap(id => [...members.values()].find(each => each.has(id))?.get(id) ?? []),
+      }),
+      token: fakeModule('token', {}),
+      invitation: fakeModule('invitation', {}),
+    } as Boards_Auth
   }
 
   static async open(): Promise<FakeAuth> {

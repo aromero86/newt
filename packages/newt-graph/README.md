@@ -60,14 +60,14 @@ conventions newt's rules ask for:
   contexts (cooper's `WebSession_Module`, `Outbox_Module`) is two modules.
 - **Its deps** are the `deps` argument of its `initialize`: each one a module, or a port
   (a type in the module's own words), with the module behind the port when it can tell
-  (`tenants: tenant.events` is auth's tenant). Where its deps type says each one is the
+  (`orderEvents: order.events` is the order module). Where its deps type says each one is the
   location given.
 - **A use case** is a method with `@UseCase(…)`, with its `writesTo` and `retryOnConflict`.
 - **What a use case does** is read from its body, and the bodies of whatever it calls
   that is no use case: private methods, the entity's methods, the repository's,
   functions, the functions a port or an option is given (`identify: token =>
   auth.token.verify(token)`). A call to another use case is a `calls` edge: through
-  `this`, `this.deps.x`, a port (`Workspaces.isMember` in `via`), whatever value it is
+  `this`, `this.deps.x`, a port (`Orders.total` in `via`), whatever value it is
   followed to. A `new` of an event class (a class with a static `eventName`) is an
   `emits` edge, wherever it is made on the way: `card.create` → `Card.create` →
   `new Card_Created(…)`.
