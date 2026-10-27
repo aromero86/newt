@@ -10,8 +10,8 @@ import { mcpRoutes } from './mcp/mcp'
 /**
  * The SaaS: each workspace's boards, their columns and cards, on the web and through
  * MCP. Its people sign in through `auth`, which also keeps the workspaces and who
- * belongs to each: `boards` asks it through ports it is handed when it opens, and
- * calls its use cases.
+ * belongs to each: `boards` is handed auth's modules when it opens, and
+ * calls their use cases as its own.
  */
 export class Boards_Context extends ServedContext {
 

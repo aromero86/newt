@@ -112,8 +112,8 @@ Di lo mismo en `boards.context.ts`. Reemplaza su comentario, y añade uno a `ope
 // cooper/backend/contexts/boards/boards.context.ts
 /**
  * The SaaS: each workspace's boards, their columns and cards. `auth` keeps the
- * workspaces and who belongs to each: `boards` asks it through ports it is handed when
- * it opens, and calls its use cases.
+ * workspaces and who belongs to each: `boards` is handed auth's modules when
+ * it opens, and calls their use cases as its own.
  */
 export class Boards_Context extends ServedContext {
 // …

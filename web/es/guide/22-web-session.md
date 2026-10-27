@@ -765,7 +765,7 @@ import type { Clock } from 'newt/core'
 /**
  * The SaaS: each workspace's boards, their columns and cards. Its people sign in
  * through `auth`, which also keeps the workspaces and who belongs to each: `boards`
- * asks it through ports it is handed when it opens, and calls its use cases.
+ * is handed auth's modules when it opens, and calls their use cases as its own.
  */
 // …
   /** Opened after `auth`, which it uses; on the real time, unless a test gives it a `clock`. */
