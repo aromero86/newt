@@ -113,6 +113,12 @@ export class App_Module extends Module {
     return (await this.repo.find({ archivedAt: null })).map(app => app.id)
   }
 
+  /** Every application, archived ones too: for what keeps what is known of each (retention). Whole, as `watchedIds`. */
+  @UseCase()
+  async allIds(): Promise<string[]> {
+    return (await this.repo.find({})).map(app => app.id)
+  }
+
   /**
    * Where an application is, and its key, opened: for the module that signs its
    * requests (`connection`). No route answers it.
