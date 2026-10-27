@@ -8,6 +8,9 @@ import { Monitor_Context } from '../contexts/monitor/monitor.context'
 /** Who signs in to a test's monitor. */
 export const TEST_ADMIN = { user: 'ana', password: 'a password only tests know' }
 
+/** What a test's monitor seals its applications' keys with. */
+export const TEST_SECRET = 'a secret only tests encrypt with'
+
 /** A test's settings: its database in memory, on a free port. */
 const TEST_CONFIG: MonitorConfig = {
   port: 0,
@@ -15,7 +18,7 @@ const TEST_CONFIG: MonitorConfig = {
   publicUrl: 'http://localhost:4800',
   admin: TEST_ADMIN,
   sessionHours: 12,
-  secret: 'a secret only tests encrypt with',
+  secret: TEST_SECRET,
   // No build: its pages answer that it is not built; its API, as always.
   frontend: join(import.meta.dir, 'no-frontend'),
   frontendSources: false,

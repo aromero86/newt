@@ -1,7 +1,8 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { QueueFlow, QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
-import type { CountedEvent, Metrics, TimedCall } from './metrics'
-import { addCall, countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
+import type { CountedEvent, Metrics, QueueFlowEntry, TimedCall } from './metrics'
+import { addCall, addEntry, countKey, countOf, emptyFlow, emptyTiming, flowKey, flowOf, type Flow, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
 export type MemoryMetricsOptions = {
   /** How long a minute is kept for whoever monitors it to collect: a day by default. */
@@ -23,6 +24,8 @@ export class MemoryMetrics implements Metrics {
   private readonly minutes = new Map<string, Map<string, number>>()
   /** Each minute's timings, by key. */
   private readonly timings = new Map<string, Map<string, Timing>>()
+  /** Each minute's queue flows, by key. */
+  private readonly flows = new Map<string, Map<string, Flow>>()
   private readonly listeners = new Set<(counts: EventCount[]) => void>()
   private pending = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -69,6 +72,31 @@ export class MemoryMetrics implements Metrics {
     }
     addCall(timing, call)
     this.forgetIn(minute, call.at)
+  }
+
+  flow(entry: QueueFlowEntry): void {
+    if (!this.enabled) return
+    const minute = minuteOf(entry.at)
+    const key = flowKey(entry)
+    let flows = this.flows.get(minute)
+    if (!flows) this.flows.set(minute, flows = new Map())
+    let flow = flows.get(key)
+    if (!flow) {
+      flows.set(key, flow = emptyFlow())
+      this.kept++
+    }
+    addEntry(flow, entry)
+    this.forgetIn(minute, entry.at)
+  }
+
+  async closedFlows(since: string | null, now: Date): Promise<QueueFlows> {
+    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const flows: QueueFlow[] = []
+    for (const minute of [...this.flows.keys()].sort()) {
+      if ((since !== null && minute <= since) || minute > until) continue
+      for (const [key, flow] of this.flows.get(minute)!) flows.push(flowOf(key, minute, flow))
+    }
+    return { flows, until }
   }
 
   async closedTimings(since: string | null, now: Date): Promise<UseCaseTimings> {
@@ -129,7 +157,7 @@ export class MemoryMetrics implements Metrics {
   /** Minutes too old, and the oldest ones while there are too many counts and timings. */
   private forget(now: number): void {
     const oldest = minuteOf(now - this.keepMinutes * MINUTE_MS)
-    for (const kept of [this.minutes, this.timings] as Map<string, Map<string, unknown>>[]) {
+    for (const kept of [this.minutes, this.timings, this.flows] as Map<string, Map<string, unknown>>[]) {
       for (const [minute, each] of kept) {
         if (minute >= oldest) continue
         this.kept -= each.size
@@ -138,11 +166,12 @@ export class MemoryMetrics implements Metrics {
     }
     if (this.kept <= this.maxCounts) return
     // Too many still: the oldest go first. Rare, so it may sort.
-    for (const minute of [...new Set([...this.minutes.keys(), ...this.timings.keys()])].sort()) {
+    for (const minute of [...new Set([...this.minutes.keys(), ...this.timings.keys(), ...this.flows.keys()])].sort()) {
       if (this.kept <= this.maxCounts) break
-      this.kept -= (this.minutes.get(minute)?.size ?? 0) + (this.timings.get(minute)?.size ?? 0)
+      this.kept -= (this.minutes.get(minute)?.size ?? 0) + (this.timings.get(minute)?.size ?? 0) + (this.flows.get(minute)?.size ?? 0)
       this.minutes.delete(minute)
       this.timings.delete(minute)
+      this.flows.delete(minute)
     }
   }
 }

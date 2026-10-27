@@ -1,5 +1,6 @@
 import { eventsOf, Module, now, type DomainEvent, type DomainEventClass } from 'newt/core'
 import { serveMonitor } from 'newt/monitor'
+import type { Job, QueueDepth } from 'newt/port-outbox'
 import type { Store } from 'newt/port-store'
 import { Base } from 'newt/runtime'
 
@@ -16,6 +17,18 @@ function eventClass(name: string): DomainEventClass<{ id: string }> {
     readonly name = name
     readonly occurredAt = now().toISOString()
     constructor(readonly payload: { id: string }) {}
+  }
+}
+
+/** A test context's outbox as its queues say it: how full each is, and its jobs (the dead ones, to list). */
+type TestOutbox = { depths: QueueDepth[], jobs: Job[] }
+
+/** An outbox that answers only what the monitor endpoint reads of one: its depth, its queues, its dead jobs. */
+function testOutbox(outbox: TestOutbox) {
+  return {
+    depth: async () => outbox.depths,
+    queues: async () => [],
+    list: async (query: { status?: string, limit?: number } = {}) => outbox.jobs.filter(job => !query.status || job.status === query.status).slice(0, query.limit),
   }
 }
 
@@ -37,6 +50,7 @@ class TestModule extends Module {
  */
 export function serveTestApp(name = 'shop') {
   const contexts: Base[] = []
+  const outboxes = new Map<string, TestOutbox>()
   let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY })
   const port = server.port!
   return {
@@ -44,7 +58,9 @@ export function serveTestApp(name = 'shop') {
     key: TEST_APP_KEY,
     /** A context, with its modules by name. */
     add(context: string, modules: Record<string, TestModuleShape>) {
-      const base = new Base({ name: context, store: { outbox: {} } as unknown as Store })
+      const outbox: TestOutbox = { depths: [], jobs: [] }
+      outboxes.set(context, outbox)
+      const base = new Base({ name: context, store: { outbox: testOutbox(outbox) } as unknown as Store })
       for (const [module, shape] of Object.entries(modules)) new TestModule(base, module, shape)
       // Counted from the start, as an application's contexts are once its endpoint serves.
       base.metrics.enable()
@@ -63,6 +79,17 @@ export function serveTestApp(name = 'shop') {
       for (let time = 0; time < (called.times ?? 1); time++) {
         base.metrics.time({ context, useCase, at: called.at, ms: called.ms, retries: called.retries ?? 0, actor: called.actor ?? null, scopes: called.scopes ?? {}, outcome: called.outcome ?? null })
       }
+    },
+    /** A job's step in one of a context's queues, counted as the application counts it. */
+    flow(context: string, queue: string, step: { at: Date, kind: 'published' | 'delivered' | 'redelivered' | 'dead', waitMs?: number, times?: number }) {
+      const base = contexts.find(each => each.name === context)!
+      for (let time = 0; time < (step.times ?? 1); time++) base.metrics.flow({ context, queue, kind: step.kind, at: step.at, waitMs: step.waitMs })
+    },
+    /** How full a context's queues are now, and its dead jobs, as its outbox would say. */
+    queues(context: string, depths: QueueDepth[], dead: Job[] = []) {
+      const outbox = outboxes.get(context)!
+      outbox.depths = depths
+      outbox.jobs = dead
     },
     /** A context taken away. */
     remove(context: string) {

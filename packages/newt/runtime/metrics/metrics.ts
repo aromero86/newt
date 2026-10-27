@@ -1,5 +1,6 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
 import type { Outcome } from '../../core/metrics/outcome'
+import type { QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTimings } from '../../core/metrics/use-case-timing'
 
 /** An event told, as it is counted: in which context, scopes and minute, and by whom. */
@@ -18,6 +19,16 @@ export type TimedCall = {
   outcome?: Outcome | null
 }
 
+/** What happened to one job of a queue: published, or taken and then delivered, redelivered or dead, after waiting. */
+export type QueueFlowEntry = {
+  context: string
+  queue: string
+  kind: 'published' | 'delivered' | 'redelivered' | 'dead'
+  at: Date
+  /** How long it waited, ready, before a worker took it: none for one published. */
+  waitMs?: number
+}
+
 /**
  * Where an application counts its events and times its use cases' calls, minute by
  * minute, for whoever monitors it
@@ -30,10 +41,13 @@ export interface Metrics {
   enable(): void
   count(event: CountedEvent): void
   time(call: TimedCall): void
+  flow(entry: QueueFlowEntry): void
   /** The counts of the minutes closed after `since` (every one kept, if null), and up to which minute. */
   closed(since: string | null, now: Date): Promise<EventCounts>
   /** The use cases' timings of the minutes closed after `since`, and up to which minute. */
   closedTimings(since: string | null, now: Date): Promise<UseCaseTimings>
+  /** The queues' flows of the minutes closed after `since`, and up to which minute. */
+  closedFlows(since: string | null, now: Date): Promise<QueueFlows>
   /** Counts as they come, a few seconds apart, from every instance: for watching it live. */
   live(listener: (counts: EventCount[]) => void): Promise<() => void>
   close(): Promise<void>

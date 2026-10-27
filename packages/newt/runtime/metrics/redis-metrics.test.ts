@@ -56,6 +56,21 @@ describe.skipIf(!url)('RedisMetrics', () => {
     expect(Object.values(timings[0]!.histogram).toSorted()).toEqual([1, 1, 2])
   })
 
+  test('sums every instance\'s queue flows', async () => {
+    const one = instance()
+    const two = instance()
+    const step = { context: 'shop', queue: 'invoice.open.on.order.placed', at }
+    one.flow({ ...step, kind: 'published' })
+    two.flow({ ...step, kind: 'redelivered', waitMs: 4 })
+    one.flow({ ...step, kind: 'delivered', waitMs: 40 })
+    await Bun.sleep(200)
+
+    const { flows } = await two.closedFlows(null, new Date('2026-01-01T10:01:10Z'))
+    expect(flows).toHaveLength(1)
+    expect(flows[0]).toMatchObject({ published: 1, redelivered: 1, delivered: 1, dead: 0 })
+    expect(Object.values(flows[0]!.wait).toSorted()).toEqual([1, 1])
+  })
+
   test('tells every instance\'s counts live to whichever instance listens', async () => {
     const listening = instance()
     const counting = instance()

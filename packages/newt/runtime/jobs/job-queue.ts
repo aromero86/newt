@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { DeadJobs, QueueState } from '../../core/metrics/outbox-state'
 import { systemClock, type Clock, type DomainEvent, type EventHandler, type Invocations } from '../../core'
 import { currentClock, eventOfQueue, inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
@@ -87,14 +88,25 @@ export class JobQueue {
     return () => { this.registrations.delete(name) }
   }
 
-  /** One job for each handler the event concerns and takes, in the transaction of the save that publishes it. */
-  async enqueue(event: DomainEvent): Promise<void> {
+  /**
+   * Told of each job as a worker takes it and closes it: delivered (done), redelivered
+   * (to run again) or dead, and how long it waited, ready, before it was taken. Its
+   * base counts it (`Metrics`); what the handler did is its use case's timing.
+   */
+  onFlow: ((step: { queue: string, kind: 'delivered' | 'redelivered' | 'dead', waitMs: number }) => void) | null = null
+
+  /**
+   * One job for each handler the event concerns and takes, in the transaction of the
+   * save that publishes it: the queues it went to.
+   */
+  async enqueue(event: DomainEvent): Promise<string[]> {
     const told = withId(event)
     const now = this.clock.now().toISOString()
     const jobs: Job[] = [...this.registrations]
       .filter(([, registration]) => eventNameMatches(registration.pattern, told.name) && (registration.when?.(told) ?? true))
       .map(([queue]) => ({ id: Bun.randomUUIDv7(), queue, event: JSON.stringify(told), status: 'pending', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now }))
     if (jobs.length > 0) await this.store.add(jobs)
+    return jobs.map(job => job.queue)
   }
 
   /**
@@ -228,11 +240,17 @@ export class JobQueue {
   }
 
   private async process(claimed: Job): Promise<void> {
+    // Ready since it was due: how long it waited in its queue for a worker.
+    const waitMs = Math.max(0, this.clock.now().getTime() - Date.parse(claimed.runAfter))
+    const told = (kind: 'delivered' | 'redelivered' | 'dead') => this.onFlow?.({ queue: claimed.queue, kind, waitMs })
     const registration = this.registrations.get(claimed.queue)
     // Unsubscribed since it was claimed: it goes back to wait for its queue, not at once.
     if (!registration) return this.close(claimed, { status: 'pending', lastError: claimed.lastError, runAfter: this.later(this.options.pollMs) })
     // Its worker stopped mid-run on every attempt it had: running it again would not help.
-    if (claimed.attempts > registration.attempts) return this.close(claimed, { status: 'dead', lastError: claimed.lastError ?? 'Its worker stopped before it finished, on every attempt' })
+    if (claimed.attempts > registration.attempts) {
+      told('dead')
+      return this.close(claimed, { status: 'dead', lastError: claimed.lastError ?? 'Its worker stopped before it finished, on every attempt' })
+    }
 
     const heartbeat = setInterval(() => {
       this.renew(claimed).catch(error => console.error(`[JobQueue] renewing the lease of job ${claimed.id} failed:`, error))
@@ -240,8 +258,10 @@ export class JobQueue {
     try {
       await detached(() => currentClock.run(this.clock, () => inWorker.run(true, () => registration.handler(JSON.parse(claimed.event) as DomainEvent & { id: string }))))
       await this.close(claimed, { status: 'done', lastError: null })
+      told('delivered')
     } catch (error) {
       const lastError = error instanceof Error ? error.stack ?? error.message : String(error)
+      told(claimed.attempts >= registration.attempts ? 'dead' : 'redelivered')
       await (claimed.attempts >= registration.attempts
         ? this.close(claimed, { status: 'dead', lastError })
         : this.close(claimed, { status: 'pending', lastError, runAfter: this.later(this.backoff(claimed.attempts)) }))
@@ -256,6 +276,35 @@ export class JobQueue {
 
   private close(claimed: Job, closing: JobClosing): Promise<void> {
     return this.invocations.run('job.close', () => this.store.close(claimed, closing))
+  }
+
+  /**
+   * How full each queue is now, those with no job too, and which no worker serves (none
+   * seen for five times `seenEveryMs`, as `warnAboutOrphans` says): for whoever monitors it.
+   */
+  async state(): Promise<QueueState[]> {
+    const now = this.clock.now().toISOString()
+    const alive = this.later(-5 * this.options.seenEveryMs)
+    const [depths, queues] = await Promise.all([this.store.depth(now), this.store.queues()])
+    const seen = new Map(queues.map(queue => [queue.name, queue.lastSeenAt]))
+    const names = [...new Set([...queues.map(queue => queue.name), ...depths.map(depth => depth.queue)])].sort()
+    return names.map(queue => {
+      const depth = depths.find(each => each.queue === queue) ?? { ready: 0, retrying: 0, running: 0, dead: 0, oldestDueAt: null }
+      const lastSeenAt = seen.get(queue) ?? null
+      const toRun = depth.ready + depth.retrying + depth.running > 0
+      return { queue, ready: depth.ready, retrying: depth.retrying, running: depth.running, dead: depth.dead, oldestDueAt: depth.oldestDueAt, lastSeenAt, orphan: toRun && !this.registrations.has(queue) && (lastSeenAt === null || lastSeenAt < alive) }
+    })
+  }
+
+  /** A page of its dead jobs, oldest first, after the one `after` says: without their events' payloads. */
+  async dead(after: string | undefined, limit: number): Promise<DeadJobs> {
+    const jobs = await this.store.list({ status: 'dead', after, limit: limit + 1 })
+    return {
+      jobs: jobs.slice(0, limit).map(job => ({
+        id: job.id, queue: job.queue, event: eventNameOf(job.event), attempts: job.attempts, lastError: job.lastError, createdAt: job.createdAt, diedAt: job.updatedAt,
+      })),
+      hasMore: jobs.length > limit,
+    }
   }
 
   /** Registers the queues this worker runs, as they are now, and says they are alive. */
@@ -312,4 +361,13 @@ export class JobQueue {
     return new Date(this.time() + ms).toISOString()
   }
 
+}
+
+/** An event's name out of its JSON, and nothing else of it. */
+function eventNameOf(event: string): string {
+  try {
+    return String((JSON.parse(event) as { name?: unknown }).name ?? 'unknown')
+  } catch {
+    return 'unknown'
+  }
 }

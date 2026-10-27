@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router'
-import { ActivityIcon, ArchiveIcon, BlocksIcon, BookOpenIcon, HistoryIcon, MegaphoneIcon, PlayIcon, RefreshCwIcon, SettingsIcon, ZapIcon } from 'lucide-react'
+import { ActivityIcon, ArchiveIcon, BlocksIcon, BookOpenIcon, HistoryIcon, ListOrderedIcon, MegaphoneIcon, PlayIcon, RefreshCwIcon, SettingsIcon, ZapIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
 import { Breadcrumbs } from 'newt-react-ui/breadcrumbs'
 import { Button } from 'newt-react-ui/button'
@@ -47,6 +47,7 @@ export function AppBand({ app }: { app: AppDTO }) {
           <UnderlineNavItem {...tab('contexts')} icon={BlocksIcon} count={count(counts.contexts)}>Contexts</UnderlineNavItem>
           <UnderlineNavItem {...tab('use-cases')} icon={PlayIcon} count={count(counts.useCases)}>Use cases</UnderlineNavItem>
           <UnderlineNavItem {...tab('events')} icon={MegaphoneIcon} count={count(counts.events)}>Events</UnderlineNavItem>
+          <UnderlineNavItem {...tab('queues')} icon={ListOrderedIcon}>Queues</UnderlineNavItem>
           <UnderlineNavItem {...tab('versions')} icon={HistoryIcon}>Versions</UnderlineNavItem>
           <UnderlineNavItem {...tab('settings')} icon={SettingsIcon}>Settings</UnderlineNavItem>
         </UnderlineNav>
