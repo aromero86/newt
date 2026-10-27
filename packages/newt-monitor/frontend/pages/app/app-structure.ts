@@ -1,3 +1,4 @@
+import type { GraphEdge, GraphNode } from 'newt-react-ui/graph'
 import type { ApplicationDescription, ContextDescription, ModuleDescription, SubscriptionDescription } from '../../api/structure'
 
 /**
@@ -87,4 +88,88 @@ export function differenceOf(before: ApplicationDescription | null, after: Appli
     added: is.filter(part => !had.has(`${part.kind}:${part.id}`)),
     removed: was.filter(part => !has.has(`${part.kind}:${part.id}`)),
   }
+}
+
+/** What a graph of the monitor draws: newt-react-ui's `Graph` nodes and edges. */
+export type StructureGraph = { nodes: GraphNode[], edges: GraphEdge[] }
+
+/** Its contexts, and which uses which. */
+export function contextsGraph(appId: string, description: ApplicationDescription): StructureGraph {
+  return {
+    nodes: description.contexts.map(context => ({ id: context.name, label: context.name, href: contextHref(appId, context.name) })),
+    edges: description.contexts.flatMap(context => context.uses.map(used => ({ from: context.name, to: used }))),
+  }
+}
+
+/**
+ * What each module uses: the modules its deps are, those whose events it takes as a
+ * dep, and, if asked, those whose events one of its use cases handles (dashed). One
+ * edge per pair, solid if any of its reasons is.
+ */
+function usesOf(description: ApplicationDescription, withReactions: boolean): GraphEdge[] {
+  const edges = new Map<string, GraphEdge>()
+  const add = (from: string, to: string | null, dashed: boolean) => {
+    if (to === null || from === to) return
+    const key = `${from}>${to}`
+    const known = edges.get(key)
+    if (!known || (known.dashed && !dashed)) edges.set(key, { from, to, ...(dashed ? { dashed } : {}) })
+  }
+  for (const module of description.contexts.flatMap(context => context.modules)) {
+    for (const dep of module.deps) if (dep.kind !== 'port') add(module.id, dep.target, false)
+  }
+  if (withReactions) {
+    for (const reaction of reactionsOf(description)) {
+      if (reaction.handlerModule) add(reaction.handlerModule.id, moduleOfEvent(description, reaction.event)?.id ?? null, true)
+    }
+  }
+  return [...edges.values()]
+}
+
+/** A module as a node: its name, its page, and its context as its group when that is not the one shown. */
+function moduleNode(appId: string, moduleId: string, home: string, emphasis = false): GraphNode {
+  const [context, name] = moduleId.split('/') as [string, string]
+  return { id: moduleId, label: name, href: moduleHref(appId, moduleId), ...(context !== home ? { group: context } : {}), ...(emphasis ? { emphasis } : {}) }
+}
+
+/**
+ * What a context has to do with the others: in the middle, in its box, those of its
+ * modules that use another context or are used by one; on the left, each context they
+ * use, as one box; on the right, each context that uses them. Which module of the other
+ * context it is shows on each module's neighbourhood: a context's whole web is too much
+ * for one screen.
+ */
+export function contextModulesGraph(appId: string, description: ApplicationDescription, context: string, withReactions: boolean): StructureGraph {
+  const contextOf = (moduleId: string) => moduleId.split('/')[0]!
+  const across = usesOf(description, withReactions).filter(edge => (contextOf(edge.from) === context) !== (contextOf(edge.to) === context))
+  // Each module of another context stands for its context: one edge per module and context, solid if any is.
+  const edges = new Map<string, GraphEdge>()
+  for (const edge of across) {
+    const from = contextOf(edge.from) === context ? edge.from : contextOf(edge.from)
+    const to = contextOf(edge.to) === context ? edge.to : contextOf(edge.to)
+    const key = `${from}>${to}`
+    const known = edges.get(key)
+    if (!known || (known.dashed && !edge.dashed)) edges.set(key, { from, to, ...(edge.dashed ? { dashed: true } : {}) })
+  }
+  const all = [...edges.values()]
+  const left = [...new Set(all.filter(edge => edge.from.includes('/')).map(edge => edge.to))]
+  const right = [...new Set(all.filter(edge => edge.to.includes('/')).map(edge => edge.from))]
+  const middle = [...new Set(all.flatMap(edge => [edge.from, edge.to]).filter(id => id.includes('/')))]
+  const contextNode = (name: string, column: number): GraphNode => ({ id: name, label: name, href: contextHref(appId, name), column })
+  return {
+    nodes: [
+      ...left.map(name => contextNode(name, 0)),
+      ...middle.map(id => ({ ...moduleNode(appId, id, context), group: context, column: 1 })),
+      // A context both used and using (a cycle, which newt-eslint refuses) stays on the left.
+      ...right.filter(name => !left.includes(name)).map(name => contextNode(name, 2)),
+    ],
+    edges: all,
+  }
+}
+
+/** A module, what it uses on its left and what uses it on its right: one step, nothing further. */
+export function moduleNeighbourhood(appId: string, description: ApplicationDescription, moduleId: string, withReactions: boolean): StructureGraph {
+  const home = moduleId.split('/')[0]!
+  const edges = usesOf(description, withReactions).filter(edge => edge.from === moduleId || edge.to === moduleId)
+  const ids = new Set([moduleId, ...edges.flatMap(edge => [edge.from, edge.to])])
+  return { nodes: [...ids].map(id => moduleNode(appId, id, home, id === moduleId)), edges }
 }

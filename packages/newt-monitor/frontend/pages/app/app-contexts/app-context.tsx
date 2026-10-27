@@ -16,7 +16,8 @@ import type { ApplicationDescription } from '../../../api/structure'
 import { NotFound } from '../../not-found/not-found'
 import { AppService } from '../app.service'
 import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
-import { contextHref, findContext, moduleHref, reactionsOf } from '../app-structure'
+import { AppGraph } from '../app-graph/app-graph'
+import { contextHref, contextModulesGraph, findContext, moduleHref, reactionsOf } from '../app-structure'
 
 /** A context: its modules, and who hears its events. */
 export function AppContext({ appId, description }: { appId: string, description: ApplicationDescription }) {
@@ -35,6 +36,7 @@ export function AppContext({ appId, description }: { appId: string, description:
           ? <>Its modules use those of {context.uses.map((used, index) => <Fragment key={used}>{index > 0 && ', '}<TextLink href={contextHref(appId, used)}>{used}</TextLink></Fragment>)}.</>
           : 'Its modules use no other context.'}
       />
+      <AppGraph title="What it has to do with other contexts" reactions graph={withReactions => contextModulesGraph(appId, description, name, withReactions)} />
       <Box label="Modules">
         <BoxHeader>Modules <Counter>{context.modules.length}</Counter></BoxHeader>
         {context.modules.map(module => (

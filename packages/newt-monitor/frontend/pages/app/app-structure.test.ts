@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ApplicationDescription } from '../../api/structure'
-import { differenceOf, findModule, matches, moduleHref, moduleOfEvent, reactionsOf, writtenModuleId } from './app-structure'
+import { contextModulesGraph, contextsGraph, differenceOf, findModule, matches, moduleHref, moduleNeighbourhood, moduleOfEvent, reactionsOf, writtenModuleId } from './app-structure'
 
 const module = (context: string, name: string, useCases: string[], events: string[] = []) => ({
   id: `${context}/${name}`, context, name, className: `${name}_Module`, deps: [],
@@ -54,5 +54,31 @@ describe('reading a description', () => {
     expect(added.map(part => part.id)).toEqual(['auth/tenant.rename'])
     expect(removed.map(part => `${part.kind} ${part.id}`)).toEqual(['context backoffice', 'module backoffice/workspace', 'useCase backoffice/workspace.list'])
     expect(differenceOf(null, after).removed).toEqual([])
+  })
+
+  test('draws its contexts, a context\'s modules with those of others it uses, and a module\'s neighbourhood', () => {
+    // boards' workspace uses auth's tenant as a dep, and handles its tenant.deleted.
+    const withDeps: ApplicationDescription = {
+      ...description,
+      contexts: description.contexts.map(context => context.name !== 'boards' ? context : {
+        ...context,
+        modules: [{ ...context.modules[0]!, deps: [{ name: 'auth.tenant', kind: 'module', target: 'auth/tenant' }] }, module('boards', 'board', ['create'])],
+      }),
+    }
+    expect(contextsGraph('a1', withDeps).edges).toEqual([{ from: 'boards', to: 'auth' }, { from: 'backoffice', to: 'auth' }])
+
+    const boards = contextModulesGraph('a1', withDeps, 'boards', false)
+    // board has nothing to do with another context: it is left out.
+    // Another context is one box: which of its modules shows on a module's neighbourhood.
+    expect(boards.nodes.map(node => [node.id, node.group, node.column])).toEqual([['auth', undefined, 0], ['boards/workspace', 'boards', 1]])
+    expect(boards.edges).toEqual([{ from: 'boards/workspace', to: 'auth' }])
+    const auth = contextModulesGraph('a1', withDeps, 'auth', false)
+    expect(auth.nodes.map(node => [node.id, node.column])).toEqual([['auth/tenant', 1], ['boards', 2]])
+    expect(auth.edges).toEqual([{ from: 'boards', to: 'auth/tenant' }])
+
+    const tenant = moduleNeighbourhood('a1', withDeps, 'auth/tenant', true)
+    expect(tenant.nodes.find(node => node.emphasis)?.id).toBe('auth/tenant')
+    // A dep and a reaction to the same module are one edge, solid.
+    expect(tenant.edges).toEqual([{ from: 'boards/workspace', to: 'auth/tenant' }])
   })
 })

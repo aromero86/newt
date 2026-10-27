@@ -16,7 +16,8 @@ import type { ApplicationDescription, ModuleDependency } from '../../../api/stru
 import { NotFound } from '../../not-found/not-found'
 import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
 import { AppService } from '../app.service'
-import { contextHref, findModule, moduleHref, reactionsOf, writtenModuleId } from '../app-structure'
+import { AppGraph } from '../app-graph/app-graph'
+import { contextHref, findModule, moduleHref, moduleNeighbourhood, reactionsOf, writtenModuleId } from '../app-structure'
 
 /** A module: its use cases, the events it tells, what it depends on and what it reacts to. */
 export function AppModule({ appId, description }: { appId: string, description: ApplicationDescription }) {
@@ -36,6 +37,7 @@ export function AppModule({ appId, description }: { appId: string, description: 
         description={<><Mono>{module.className}</Mono>, a module of <TextLink href={contextHref(appId, module.context)}>{module.context}</TextLink></>}
         actions={<AppRemovedToggle />}
       />
+      <AppGraph title="What it uses, and what uses it" reactions graph={withReactions => moduleNeighbourhood(appId, description, module.id, withReactions)} />
       <Box label="Use cases">
         <BoxHeader>Use cases <Counter>{module.useCases.length}</Counter></BoxHeader>
         {module.useCases.length === 0 && <BoxEmpty icon={PlayIcon} title="No use cases" />}

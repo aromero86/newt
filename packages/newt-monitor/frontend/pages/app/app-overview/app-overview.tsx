@@ -13,7 +13,8 @@ import type { AppDTO } from '../../../api/app'
 import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
 import { AppNotRead } from '../app-not-read/app-not-read'
 import { AppService } from '../app.service'
-import { contextHref } from '../app-structure'
+import { AppGraph } from '../app-graph/app-graph'
+import { contextHref, contextsGraph } from '../app-structure'
 
 /** What the monitor knows of an application at a glance: what it is made of, and whether it answers. */
 export function AppOverview({ app }: { app: AppDTO }) {
@@ -40,6 +41,9 @@ export function AppOverview({ app }: { app: AppDTO }) {
         : <AppNotRead app={app} />}
       {/* An archived application is not watched: whether it answers is nobody's concern. */}
       {!app.archivedAt && <AppOverviewConnection />}
+      {structure && structure.description.contexts.length > 1 && (
+        <AppGraph title="How its contexts use each other" graph={() => contextsGraph(app.id, structure.description)} />
+      )}
       {structure && (
         <Box label="Contexts">
           <BoxHeader>Contexts <Counter>{counts.contexts}</Counter></BoxHeader>
