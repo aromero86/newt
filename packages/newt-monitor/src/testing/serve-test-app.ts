@@ -57,6 +57,13 @@ export function serveTestApp(name = 'shop') {
         base.metrics.count({ context, event, at: told.at, actor: told.actor ?? null, scopes: told.scopes ?? {} })
       }
     },
+    /** A use case's call in a context, timed as the application times it: at a time, how long, by an actor, in scopes. */
+    call(context: string, useCase: string, called: { at: Date, ms: number, retries?: number, actor?: string | null, scopes?: Record<string, string>, times?: number }) {
+      const base = contexts.find(each => each.name === context)!
+      for (let time = 0; time < (called.times ?? 1); time++) {
+        base.metrics.time({ context, useCase, at: called.at, ms: called.ms, retries: called.retries ?? 0, actor: called.actor ?? null, scopes: called.scopes ?? {} })
+      }
+    },
     /** A context taken away. */
     remove(context: string) {
       contexts.splice(contexts.findIndex(base => base.name === context), 1)

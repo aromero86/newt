@@ -1,5 +1,5 @@
 import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, EventCounts } from 'newt/runtime'
+import type { ApplicationDescription, EventCounts, UseCaseTimings } from 'newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'
@@ -31,6 +31,22 @@ const CountsSchema = z.object({
   until: z.iso.datetime(),
 })
 
+/** Enough of a page of timings to know it is one. */
+const TimingsSchema = z.object({
+  timings: z.array(z.object({
+    minute: z.iso.datetime(),
+    context: z.string(),
+    useCase: z.string(),
+    scopes: z.record(z.string(), z.string()),
+    actor: z.string().nullable(),
+    calls: z.number().int().positive(),
+    retries: z.number().int().min(0),
+    totalMs: z.number().min(0),
+    histogram: z.record(z.string().regex(/^\d+$/), z.number().int().positive()),
+  })),
+  until: z.iso.datetime(),
+})
+
 /** `AppClient` over HTTP: each request signed with the endpoint's key, which never travels. */
 export class HttpAppClient implements AppClient {
 
@@ -44,6 +60,10 @@ export class HttpAppClient implements AppClient {
 
   async metrics(endpoint: Endpoint, since: string | null): Promise<EventCounts> {
     return this.read(endpoint, since === null ? '/v1/metrics/events' : `/v1/metrics/events?since=${encodeURIComponent(since)}`, CountsSchema)
+  }
+
+  async timings(endpoint: Endpoint, since: string | null): Promise<UseCaseTimings> {
+    return this.read(endpoint, since === null ? '/v1/metrics/use-cases' : `/v1/metrics/use-cases?since=${encodeURIComponent(since)}`, TimingsSchema)
   }
 
   async live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {

@@ -1,25 +1,15 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import { whereOf as sharedWhereOf, type MetricsFilter } from '../../../../../shared/metrics-store/metrics-filter'
 import { BUCKETS, WINDOWS, type EventTotalDTO, type MetricsBucket, type MetricsWindow, type SeriesDTO, type SeriesPointDTO, type TopDTO } from '../event-metrics.schema'
 
 type Filter = { context: string, event: string, scope?: string, actor?: string }
 
+/** A filter of events, as the shared one says it. */
+const asShared = (filter: Filter): MetricsFilter => ({ context: filter.context, name: filter.event, scope: filter.scope, actor: filter.actor })
+
 const floor = (ms: number, size: number) => ms - (ms % size)
 
-/** The `WHERE` of a filter, with its parameters numbered from `first`. */
-function whereOf(filter: Filter, first: number, withActor: boolean): { sql: string, params: DuckDbParam[] } {
-  const parts = [`context = $${first}`, `event = $${first + 1}`]
-  const params: DuckDbParam[] = [filter.context, filter.event]
-  if (filter.scope !== undefined) {
-    const [name, ...value] = filter.scope.split(':')
-    parts.push(`json_extract_string(scopes, $${first + params.length}) = $${first + params.length + 1}`)
-    params.push(`$."${name}"`, value.join(':'))
-  }
-  if (filter.actor !== undefined && withActor) {
-    parts.push(`actor = $${first + params.length}`)
-    params.push(filter.actor)
-  }
-  return { sql: parts.join(' AND '), params }
-}
+const whereOf = (filter: Filter, first: number, withActor: boolean) => sharedWhereOf(asShared(filter), 'event', first, withActor)
 
 /**
  * What a panel reads of an application's metrics, in DuckDB's SQL: each bucket summed

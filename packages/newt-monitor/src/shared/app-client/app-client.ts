@@ -1,5 +1,5 @@
 import type { MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, EventCounts } from 'newt/runtime'
+import type { ApplicationDescription, EventCounts, UseCaseTimings } from 'newt/runtime'
 
 /** Where an application's monitor endpoint is, and the key to sign with. */
 export type Endpoint = { url: string, key: string }
@@ -16,6 +16,8 @@ export interface AppClient {
   structure(endpoint: Endpoint): Promise<ApplicationDescription>
   /** How many times each event was told, minute by minute, in the minutes closed after `since`. */
   metrics(endpoint: Endpoint, since: string | null): Promise<EventCounts>
+  /** How long each use case's calls took, minute by minute, in the minutes closed after `since`. */
+  timings(endpoint: Endpoint, since: string | null): Promise<UseCaseTimings>
   /** Its counts as they come, as the server-sent events it sends, until `signal` aborts. */
   live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>>
 }

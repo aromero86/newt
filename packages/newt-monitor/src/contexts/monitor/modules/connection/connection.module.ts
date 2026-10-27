@@ -1,5 +1,5 @@
 import { eventsOf, Module, UseCase } from 'newt/core'
-import type { ApplicationDescription, EventCounts } from 'newt/runtime'
+import type { ApplicationDescription, EventCounts, UseCaseTimings } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
@@ -55,6 +55,14 @@ export class Connection_Module extends Module {
   @UseCase()
   async fetchMetrics(appId: string, since: string | null): Promise<Called<EventCounts>> {
     const called = await this.call(appId, endpoint => this.deps.client.metrics(endpoint, since))
+    await this.record(appId, called.answered ? { answered: true } : called)
+    return called
+  }
+
+  /** How long each of its use cases' calls took in the minutes closed since a cursor, if it answers; recorded as any call. */
+  @UseCase()
+  async fetchTimings(appId: string, since: string | null): Promise<Called<UseCaseTimings>> {
+    const called = await this.call(appId, endpoint => this.deps.client.timings(endpoint, since))
     await this.record(appId, called.answered ? { answered: true } : called)
     return called
   }
