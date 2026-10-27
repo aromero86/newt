@@ -175,4 +175,4 @@ curl -s -b cookies.txt 'localhost:4800/api/apps/<id>/catalog?kind=useCase&contex
   event said: twice, or late, it comes to the same.
 - Many entities of one module change together in one save.
 
-Next: deleting for real.
+Next: [deleting for real](./11-deleting-for-real).

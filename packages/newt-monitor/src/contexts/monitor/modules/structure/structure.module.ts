@@ -40,7 +40,8 @@ export class Structure_Module extends Module {
   // call, which every call makes, not a change of the connection this use case decides.
   @UseCase({ writesTo: ['connection'] })
   async refresh(appId: string): Promise<RefreshDTO> {
-    const app = await this.deps.app.get(appId)
+    const app = await this.deps.app.find(appId)
+    if (!app) return { appId, outcome: 'gone', version: null }
     const previous = await this.repo.latest(appId)
     if (app.archivedAt !== null) return { appId, outcome: 'archived', version: previous?.summary() ?? null }
     const read = await this.deps.connection.fetchStructure(appId)
@@ -85,5 +86,11 @@ export class Structure_Module extends Module {
   async get(appId: string, versionId: string): Promise<StructureVersionDTO> {
     const version = await this.resolve(() => this.repo.find({ id: versionId, appId }), () => new StructureVersionNotFound(versionId))
     return version.toDTO()
+  }
+
+  /** Forgets everything of an application deleted: forgetting it twice is forgetting it once. */
+  @UseCase()
+  async forget(appId: string): Promise<void> {
+    await this.repo.purgeApp(appId)
   }
 }

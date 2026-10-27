@@ -23,13 +23,15 @@ export type StructureChangedDTO = { appId: string, versionId: string, previousVe
 
 /**
  * What a refresh came to: a new version (`changed`), the same as the last
- * (`unchanged`), or nothing read: the application not answering (`unreachable`), or
- * archived, so not watched (`archived`), its last version as it was.
+ * (`unchanged`), or nothing read: the application not answering (`unreachable`),
+ * archived, so not watched (`archived`), its last version as it was, or deleted since
+ * whatever asked for it (`gone`).
  */
 export type RefreshDTO =
   | { appId: string, outcome: 'changed' | 'unchanged', version: StructureVersionSummaryDTO }
   | { appId: string, outcome: 'unreachable', version: StructureVersionSummaryDTO | null, failure: { reason: string, message: string } }
   | { appId: string, outcome: 'archived', version: StructureVersionSummaryDTO | null }
+  | { appId: string, outcome: 'gone', version: null }
 
 /** What the hourly refresh came to, application by application. */
 export type RefreshAllDTO = { refreshed: RefreshDTO[] }

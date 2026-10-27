@@ -28,4 +28,9 @@ export class CatalogItem_Repository extends TableRepository<CatalogItem, Catalog
     if (items.length === 0) return
     await this.save(items, each => this.write(each), { guard: [`catalog:${appId}`] })
   }
+
+  /** Everything of an application, for good: it was deleted. */
+  async purgeApp(appId: string): Promise<void> {
+    await this.purge({ appId })
+  }
 }

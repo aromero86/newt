@@ -8,6 +8,7 @@ import { Connection, type ConnectionStatusDTO, type FailureDTO, type Outcome } f
 import type { Connection_Deps } from './connection.deps'
 import { Connection_Repository } from './connection.repository'
 import { registerConnectionRoutes } from './connection.routes'
+import { registerConnectionWorkers } from './connection.workers'
 import { Connection_Lost } from './events/connection-lost'
 import { Connection_Restored } from './events/connection-restored'
 
@@ -23,6 +24,7 @@ export class Connection_Module extends Module {
   static initialize(base: MonitorBase, deps: Connection_Deps): Connection_Module {
     const module = new Connection_Module(base, new Connection_Repository(base), deps)
     registerConnectionRoutes(base, module)
+    registerConnectionWorkers(module, deps)
     return module
   }
 
@@ -57,6 +59,12 @@ export class Connection_Module extends Module {
     if (!connection) return { appId, status: 'unknown', identity: null, failure: null, checkedAt: '', lastSeenAt: null }
     const { status, identity, failure, checkedAt, lastSeenAt } = connection.toDTO()
     return { appId, status, identity, failure, checkedAt, lastSeenAt }
+  }
+
+  /** Forgets everything of an application deleted: forgetting it twice is forgetting it once. */
+  @UseCase()
+  async forget(appId: string): Promise<void> {
+    await this.repo.purgeApp(appId)
   }
 
   /** Calls the application, signing with its key: what it answered, or why it did not. */

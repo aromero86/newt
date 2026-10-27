@@ -58,6 +58,7 @@ const MONITOR: [string, string, string][] = [
   ['08-versions-of-the-structure', 'Versions of the structure', 'Versiones de la estructura'],
   ['09-every-hour-and-a-button', 'Every hour, and a button', 'Cada hora, y un botón'],
   ['10-the-catalog', 'The catalog', 'El catálogo'],
+  ['11-deleting-for-real', 'Deleting for real', 'Borrar de verdad'],
 ]
 
 const REFERENCE: [string, string, string][] = [

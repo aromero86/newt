@@ -34,4 +34,9 @@ export class StructureVersion_Repository extends TableRepository<StructureVersio
       },
     })
   }
+
+  /** Everything of an application, for good: it was deleted. */
+  async purgeApp(appId: string): Promise<void> {
+    await this.purge({ appId })
+  }
 }

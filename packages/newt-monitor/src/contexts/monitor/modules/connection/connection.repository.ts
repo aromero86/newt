@@ -14,4 +14,9 @@ export class Connection_Repository extends TableRepository<Connection, Connectio
   protected toEntity(row: ConnectionRow): Connection {
     return Connection.fromDTO(row)
   }
+
+  /** Everything of an application, for good: it was deleted. */
+  async purgeApp(appId: string): Promise<void> {
+    await this.purge({ appId })
+  }
 }

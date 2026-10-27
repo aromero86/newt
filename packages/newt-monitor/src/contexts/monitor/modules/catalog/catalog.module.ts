@@ -29,10 +29,13 @@ export class Catalog_Module extends Module {
   /**
    * Brings an application's items to its last version: what is new appears, what is
    * there is seen, what is gone is archived. It reads the last version whatever told
-   * it to, so running it twice, or late, comes to the same.
+   * it to, so running it twice, or late, comes to the same; after its application is
+   * deleted, to nothing.
    */
   @UseCase()
   async record(appId: string): Promise<void> {
+    // Told late, its application may be deleted since: there is nothing to bring.
+    if (!await this.deps.app.find(appId)) return
     const version = await this.deps.structure.latest(appId)
     const known = new Map((await this.repo.allOf(appId)).map(item => [item.key, item]))
     const changed: CatalogItem[] = []
@@ -71,5 +74,11 @@ export class Catalog_Module extends Module {
   @UseCase()
   async get(appId: string, id: string): Promise<CatalogItemDTO> {
     return (await this.resolve(() => this.repo.find({ id, appId }), () => new CatalogItemNotFound(id))).toDTO()
+  }
+
+  /** Forgets everything of an application deleted: forgetting it twice is forgetting it once. */
+  @UseCase()
+  async forget(appId: string): Promise<void> {
+    await this.repo.purgeApp(appId)
   }
 }

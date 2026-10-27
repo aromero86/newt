@@ -56,6 +56,12 @@ export class App_Module extends Module {
     return (await this.load(id)).toDTO()
   }
 
+  /** One, or null if there is none: for a worker, whose application may be deleted since it was told. */
+  @UseCase()
+  async find(id: string): Promise<AppDTO | null> {
+    return (await this.repo.first({ id }))?.toDTO() ?? null
+  }
+
   /**
    * Changes its name, its address or its key: what is given and differs. A new address
    * or key must answer before it is saved: one that does not leaves the one that did.
