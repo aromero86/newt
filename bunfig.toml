@@ -1,0 +1,3 @@
+# Bun's bundler builds HTML with Tailwind: the gallery of newt-react-ui, and the apps that serve their pages with Bun.
+[serve.static]
+plugins = ["bun-plugin-tailwind"]

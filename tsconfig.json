@@ -1,8 +1,8 @@
 {
-  // The whole repository, as six projects: the framework (newt), its graph (newt-graph), its
-  // monitor (newt-monitor), what runs on the server (cooper's backend), what runs in the browser
-  // (cooper's frontends and their libraries), and the tools around them (scripts, Vite's
-  // configs). `bun check` follows the references.
+  // The whole repository, as seven projects: the framework (newt), its graph (newt-graph), its
+  // monitor (newt-monitor), its React components (newt-react-ui), what runs on the server
+  // (cooper's backend), what runs in the browser (cooper's frontends and their libraries), and
+  // the tools around them (scripts, Vite's configs). `bun check` follows the references.
   // The paths are here too because Bun resolves imports with this file. newt is not among
   // them: it is a workspace package, reached through its `exports` as any application reaches it.
   "compilerOptions": {
@@ -17,6 +17,7 @@
     { "path": "./tsconfig.newt.json" },
     { "path": "./tsconfig.newt-graph.json" },
     { "path": "./tsconfig.newt-monitor.json" },
+    { "path": "./tsconfig.newt-react-ui.json" },
     { "path": "./tsconfig.backend.json" },
     { "path": "./tsconfig.frontend.json" },
     { "path": "./tsconfig.node.json" }
