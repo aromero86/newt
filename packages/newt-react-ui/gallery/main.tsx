@@ -4,6 +4,7 @@ import { Alert } from '../components/alert'
 import { AppShell } from '../components/app-shell'
 import { Badge } from '../components/badge'
 import { Counter } from '../components/counter'
+import { Graph } from '../components/graph'
 import { Button } from '../components/button'
 import { Card } from '../components/card'
 import { Checkbox } from '../components/checkbox'
@@ -118,6 +119,14 @@ function Gallery() {
                 <Stack gap={2}><Skeleton /><Skeleton /><Skeleton /></Stack>
               </TabsContent>
             </Tabs>
+          </Card>
+
+          <Card title="A graph">
+            <Graph
+              label="cooper's contexts"
+              nodes={[{ id: 'auth', label: 'auth', href: '#auth' }, { id: 'boards', label: 'boards', href: '#boards', emphasis: true }, { id: 'backoffice', label: 'backoffice', href: '#backoffice' }]}
+              edges={[{ from: 'boards', to: 'auth' }, { from: 'backoffice', to: 'auth' }, { from: 'backoffice', to: 'boards', dashed: true }]}
+            />
           </Card>
 
           <Heading level={2}>That is all</Heading>

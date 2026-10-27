@@ -10,6 +10,7 @@ import { EmptyState } from './empty-state'
 import { Field } from './field'
 import { Input } from './input'
 import { LinkProvider, TextLink, type LinkComponent } from './link'
+import { Graph } from './graph'
 import { RelativeTime } from './relative-time'
 import { SideNav, SideNavItem } from './side-nav'
 import { Stack } from './stack'
@@ -34,6 +35,14 @@ describe('newt-react-ui', () => {
     expect(loading).toContain('disabled=""')
     expect(loading).toContain('aria-busy="true"')
     expect(loading).toContain('animate-spin')
+  })
+
+  test('a graph draws its nodes as links, and an arrow for each use', () => {
+    const graph = html(<Graph label="Contexts" nodes={[{ id: 'auth', label: 'auth', href: '/auth' }, { id: 'boards', label: 'boards' }]} edges={[{ from: 'boards', to: 'auth' }]} />)
+
+    expect(graph).toContain('aria-label="Contexts"')
+    expect(graph).toContain('href="/auth"')
+    expect(graph.match(/<path d="M \d/g)).toHaveLength(1)
   })
 
   test('a side menu\'s item inside another one is indented under it', () => {
