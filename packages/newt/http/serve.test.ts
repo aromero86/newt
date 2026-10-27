@@ -114,3 +114,26 @@ describe('serve', () => {
     await expect(fetch(new URL('/api/health', url))).rejects.toThrow()
   })
 })
+
+describe('serve, a frontend from its sources', () => {
+  let server: Server<undefined>
+
+  afterEach(() => server.stop(true))
+
+  test('builds its index.html as it serves it, for every address no route takes, and its public files', async () => {
+    const { default: frontend } = await import('./fixtures/frontend/index.html')
+    const api = new HttpRouter()
+    api.get('/things', () => Response.json([]), { public: true })
+    server = serve({ port: 0, router: api, frontend, publicFolder: join(import.meta.dir, 'fixtures/frontend/public') })
+    const at = (path: string) => fetch(new URL(path, server.url))
+
+    for (const path of ['/', '/boards/1']) {
+      const page = await (await at(path)).text()
+      expect(page).toContain('A frontend for serve\'s test')
+      const script = /<script[^>]*src="([^"]+)"/.exec(page)![1]!
+      expect(await (await at(script)).text()).toContain('ready')
+    }
+    expect(await (await at('/icon.svg')).text()).toContain('<svg')
+    expect(await (await at('/api/things')).json()).toEqual([])
+  })
+})

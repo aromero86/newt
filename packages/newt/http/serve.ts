@@ -1,4 +1,6 @@
-import type { Server } from 'bun'
+import type { HTMLBundle, Server } from 'bun'
+import { readdirSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { serveFrontend } from './serve-frontend'
 import type { ServeOptions } from './serve-options'
 import { toErrorResponse } from './to-error-response'
@@ -21,8 +23,8 @@ export function serve(options: ServeOptions): Server<undefined> {
   const server = Bun.serve({
     port: options.port,
     development,
-    routes: { ...health, ...options.router.routes(), ...options.routes },
-    fetch: options.frontend ? serveFrontend(options.frontend) : () => new Response('Not found', { status: 404 }),
+    routes: { ...health, ...options.router.routes(), ...options.routes, ...sourceFrontend(options.frontend, options.publicFolder) },
+    fetch: typeof options.frontend === 'string' ? serveFrontend(options.frontend) : () => new Response('Not found', { status: 404 }),
     // In development Bun's own page answers instead, with the source.
     ...(development ? {} : { error: toErrorResponse }),
   })
@@ -33,4 +35,21 @@ export function serve(options: ServeOptions): Server<undefined> {
     return stop(closeActiveConnections)
   }
   return server
+}
+
+/**
+ * A frontend served from its sources: its `index.html` for every address no route takes
+ * (Bun builds it as it serves it), and each file of its public folder by its address.
+ */
+function sourceFrontend(frontend: string | HTMLBundle | undefined, publicFolder: string | undefined): Record<string, HTMLBundle | Bun.BunFile> {
+  if (frontend === undefined || typeof frontend === 'string') return {}
+  const files = publicFolder
+    ? readdirSync(publicFolder, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile())
+        .map(entry => join(entry.parentPath, entry.name))
+    : []
+  return {
+    ...Object.fromEntries(files.map(file => [`/${relative(publicFolder!, file)}`, Bun.file(file)])),
+    '/*': frontend,
+  }
 }

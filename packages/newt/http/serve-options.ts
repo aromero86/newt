@@ -1,3 +1,4 @@
+import type { HTMLBundle } from 'bun'
 import type { HttpRouter } from './http-router'
 
 export type ServeOptions = {
@@ -5,8 +6,17 @@ export type ServeOptions = {
   router: HttpRouter
   /** More routes beside the router's, as `Bun.serve` takes them: another router's, a webhook. */
   routes?: Bun.Serve.Routes<undefined, string>
-  /** A built frontend, handed out for every address no route takes. */
-  frontend?: string
+  /**
+   * The frontend, handed out for every address no route takes: its built folder, or,
+   * in development, its `index.html` imported (`import app from './app/index.html'`),
+   * which Bun builds as it serves it and reloads as its sources change.
+   */
+  frontend?: string | HTMLBundle
+  /**
+   * With a frontend's `index.html`: the folder of the files it names by their address
+   * (`/favicon.svg`), served as they are. A built frontend has them in its folder.
+   */
+  publicFolder?: string
   /**
    * Bun's development mode: its error page, which shows the source, for what throws
    * outside a route, and hot reloading of HTML imports. Off unless asked for, and off
