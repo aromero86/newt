@@ -5,6 +5,7 @@ import { AppShell } from '../components/app-shell'
 import { Badge } from '../components/badge'
 import { Counter } from '../components/counter'
 import { Graph } from '../components/graph'
+import { TimeSeries } from '../components/time-series'
 import { Button } from '../components/button'
 import { Card } from '../components/card'
 import { Checkbox } from '../components/checkbox'
@@ -119,6 +120,16 @@ function Gallery() {
                 <Stack gap={2}><Skeleton /><Skeleton /><Skeleton /></Stack>
               </TabsContent>
             </Tabs>
+          </Card>
+
+          <Card title="A time series">
+            <TimeSeries
+              label="card.created, last 24 hours"
+              names={{ points: 'Last 24 hours', compared: 'The day before' }}
+              formatTime={at => new Date(at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
+              points={Array.from({ length: 96 }, (_, index) => ({ at: new Date(Date.UTC(2026, 0, 1) + index * 15 * 60_000).toISOString(), count: Math.round(20 + 15 * Math.sin(index / 8) + (index % 7)) }))}
+              compared={Array.from({ length: 96 }, (_, index) => ({ at: new Date(Date.UTC(2026, 0, 1) + index * 15 * 60_000).toISOString(), count: Math.round(18 + 12 * Math.sin(index / 8 + 0.6)) }))}
+            />
           </Card>
 
           <Card title="A graph">

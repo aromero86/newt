@@ -25,6 +25,7 @@
     "newt-react-ui": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-router": "8.4.0"
+    "react-router": "8.4.0",
+    "recharts": "3.10.1"
   }
 }

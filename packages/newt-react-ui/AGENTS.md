@@ -117,6 +117,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` | Views of the same thing, on one page. |
 | `Stat` | A number and what it counts. |
 | `BarChart` | A few values as bars. |
+| `TimeSeries` | A count over time as a line, beside the window it is compared with (dashed). |
 | `Graph` | A few boxes and what uses what, in columns: one piece of a structure, never all of it. |
 
 ### Links

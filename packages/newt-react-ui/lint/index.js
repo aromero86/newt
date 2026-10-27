@@ -2,7 +2,7 @@ import tseslint from 'typescript-eslint'
 
 const STYLING = 'An app does not style: compose components of newt-react-ui, or make one in the app\'s own components folder.'
 const ELEMENT = 'A page is made of components: use one of newt-react-ui, or make one in the app\'s own components folder.'
-const PRIMITIVES = 'Build on newt-react-ui\'s components: its primitives (Radix, its shadcn pieces) are its own, or the app components folder\'s.'
+const PRIMITIVES = 'Build on newt-react-ui\'s components: its primitives (Radix, Recharts, its shadcn pieces) are its own, or the app components folder\'s.'
 const STYLING_TOOLS = 'Class names are made in the app\'s components folder only.'
 
 /** HTML elements a page may write as they are: none of them is ever styled. */
@@ -54,7 +54,7 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
         ],
         'no-restricted-imports': ['error', {
           patterns: [
-            { group: ['radix-ui', '@radix-ui/*'], message: PRIMITIVES },
+            { group: ['radix-ui', '@radix-ui/*', 'recharts', 'recharts/*'], message: PRIMITIVES },
             { group: ['newt-react-ui/internal', 'newt-react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
             { group: ['cn', 'class-variance-authority', 'tailwind-merge', 'clsx'], message: STYLING_TOOLS },
             ...imports,

@@ -11,6 +11,7 @@ import { Field } from './field'
 import { Input } from './input'
 import { LinkProvider, TextLink, type LinkComponent } from './link'
 import { Graph } from './graph'
+import { TimeSeries } from './time-series'
 import { RelativeTime } from './relative-time'
 import { SideNav, SideNavItem } from './side-nav'
 import { Stack } from './stack'
@@ -35,6 +36,15 @@ describe('newt-react-ui', () => {
     expect(loading).toContain('disabled=""')
     expect(loading).toContain('aria-busy="true"')
     expect(loading).toContain('animate-spin')
+  })
+
+  test('a time series is a figure named for screen readers, coloured by the theme', () => {
+    const points = [{ at: '2026-01-01T10:00:00Z', count: 3 }, { at: '2026-01-01T10:05:00Z', count: 1 }]
+    // Recharts draws once it is measured, in the browser: here, its frame.
+    const chart = html(<TimeSeries label="card.created" points={points} compared={points.map(point => ({ ...point, count: 2 }))} />)
+
+    expect(chart).toContain('aria-label="card.created"')
+    expect(chart).toContain('--color-now:var(--brand)')
   })
 
   test('a graph draws its nodes as links, and an arrow for each use', () => {
