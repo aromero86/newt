@@ -93,6 +93,7 @@
         "zod": "4.3.6",
       },
       "devDependencies": {
+        "@preact/signals-core": "1.14.4",
         "bun-plugin-tailwind": "0.1.2",
         "lucide-react": "1.48.0",
         "newt-react": "workspace:*",

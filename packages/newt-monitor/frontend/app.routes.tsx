@@ -21,14 +21,14 @@ export const router = createBrowserRouter([
         children: [
           {
             // A failing page keeps the shell around it: the bar still works.
-            ErrorBoundary: RouteError,
+            ErrorBoundary: () => <PageBody><RouteError /></PageBody>,
             // The first page's code is still downloading: the shell shows, with a spinner in the page's place.
-            HydrateFallback: () => <Spinner label="Loading page" />,
+            HydrateFallback: () => <PageBody><Spinner label="Loading page" /></PageBody>,
             children: [
               { index: true, lazy: () => import('./pages/apps/apps').then(page => ({ Component: page.Apps })) },
               { path: 'apps/:appId/*', lazy: () => import('./pages/app/app').then(page => ({ Component: page.App })) },
               // Not lazy: the zones and the error page use it too, so it ships with the shell.
-              { path: '*', Component: NotFound },
+              { path: '*', Component: () => <PageBody><NotFound /></PageBody> },
             ],
           },
         ],

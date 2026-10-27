@@ -1,6 +1,5 @@
 import { Link, Outlet, useNavigation } from 'react-router'
 import { AppShell } from 'newt-react-ui/app-shell'
-import { PageBody } from 'newt-react-ui/page-body'
 import { Spinner } from 'newt-react-ui/spinner'
 import { Brand } from '../../components/brand/brand'
 import { ShellThemeToggle } from './shell-theme-toggle'
@@ -24,9 +23,8 @@ export function Shell() {
         </>
       )}
     >
-      <PageBody>
-        <Outlet />
-      </PageBody>
+      {/* Each page lays out its own width: a band across, then its body. */}
+      <Outlet />
     </AppShell>
   )
 }
