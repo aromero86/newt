@@ -12,5 +12,5 @@
     "strict": true
   },
   "include": ["packages/**/*.ts"],
-  "exclude": ["**/node_modules", "packages/newt-graph", "packages/newt-monitor", "packages/newt-react-ui"]
+  "exclude": ["**/node_modules", "packages/newt-graph", "packages/newt-monitor", "packages/newt-react-ui", "packages/newt-react"]
 }

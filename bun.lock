@@ -33,6 +33,7 @@
         "newt-eslint": "workspace:*",
         "newt-graph": "workspace:*",
         "newt-monitor": "workspace:*",
+        "newt-react": "workspace:*",
         "newt-react-ui": "workspace:*",
         "tailwindcss": "4.3.3",
         "typescript": "npm:@typescript/typescript6@6.0.2",
@@ -96,6 +97,22 @@
         "newt": "workspace:*",
         "zod": "4.3.6",
       },
+    },
+    "packages/newt-react": {
+      "name": "newt-react",
+      "version": "0.0.0",
+      "dependencies": {
+        "@preact/signals-core": "1.14.4",
+      },
+      "peerDependencies": {
+        "newt": "*",
+        "newt-react-ui": "*",
+        "react": "^19.3.0",
+        "zod": "^4.3.6",
+      },
+      "optionalPeers": [
+        "newt-react-ui",
+      ],
     },
     "packages/newt-react-ui": {
       "name": "newt-react-ui",
@@ -937,6 +954,8 @@
     "newt-graph": ["newt-graph@workspace:packages/newt-graph"],
 
     "newt-monitor": ["newt-monitor@workspace:packages/newt-monitor"],
+
+    "newt-react": ["newt-react@workspace:packages/newt-react"],
 
     "newt-react-ui": ["newt-react-ui@workspace:packages/newt-react-ui"],
 

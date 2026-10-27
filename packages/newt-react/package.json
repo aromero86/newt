@@ -1,0 +1,23 @@
+{
+  "name": "newt-react",
+  "version": "0.0.0",
+  "description": "What a React frontend of a newt application thinks with: a service's state, services and their injector, forms validated with the backend's own schemas, lists paged as newt pages them, and the requests to a newt API. How it looks is newt-react-ui's.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./index.ts",
+    "./form-field": "./form-field/index.ts"
+  },
+  "dependencies": {
+    "@preact/signals-core": "1.14.4"
+  },
+  "peerDependencies": {
+    "newt": "*",
+    "newt-react-ui": "*",
+    "react": "^19.3.0",
+    "zod": "^4.3.6"
+  },
+  "peerDependenciesMeta": {
+    "newt-react-ui": { "optional": true }
+  }
+}

@@ -1,0 +1,39 @@
+import { Field } from 'newt-react-ui/field'
+import { Input } from 'newt-react-ui/input'
+import { Select } from 'newt-react-ui/select'
+import { Textarea } from 'newt-react-ui/textarea'
+import { useValue } from '../store/use-value'
+import type { FormStore } from '../form/form-store'
+
+type FormFieldProps<TValues extends Record<string, string>> = {
+  form: FormStore<TValues, unknown>
+  name: keyof TValues & string
+  label: string
+  description?: string
+  type?: 'text' | 'email' | 'password'
+  autoComplete?: string
+  placeholder?: string
+  /** A textarea with this many rows, instead of a single line. */
+  rows?: number
+  /** A choice among these, instead of free text. */
+  options?: { value: string, label: string }[]
+}
+
+/**
+ * A labelled field bound to one value of a form: it shows the value and its error.
+^ * The glue between `FormStore` and newt-react-ui's components; it
+ * styles nothing itself.
+ */
+export function FormField<TValues extends Record<string, string>>({ form, name, label, description, type = 'text', autoComplete, placeholder, rows, options }: FormFieldProps<TValues>) {
+  const value = useValue(form.value(name))
+  const error = useValue(form.error(name))
+  const onChange = (next: string) => form.set(name, next as TValues[typeof name])
+
+  return (
+    <Field label={label} description={description} error={error}>
+      {options && <Select name={name} value={value} onValueChange={onChange} options={options} placeholder={placeholder} invalid={error !== undefined} />}
+      {!options && rows === undefined && <Input name={name} type={type} autoComplete={autoComplete} placeholder={placeholder} value={value} onChange={onChange} invalid={error !== undefined} />}
+      {!options && rows !== undefined && <Textarea name={name} rows={rows} placeholder={placeholder} value={value} onChange={onChange} invalid={error !== undefined} />}
+    </Field>
+  )
+}
