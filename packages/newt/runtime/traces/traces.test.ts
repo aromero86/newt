@@ -164,7 +164,7 @@ describe('a query\'s shape', () => {
 describe('MemoryTraces', () => {
   test('gives the traces of the minutes closed, whole, a page at a time', async () => {
     const traces = new MemoryTraces()
-    const trace = (id: string) => ({ id }) as Trace
+    const trace = (id: string) => ({ id, startedAt: new Date().toISOString(), ms: 3 }) as Trace
     traces.record(trace('a'))
     traces.record(trace('b'))
     const now = new Date()

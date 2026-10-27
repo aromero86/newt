@@ -1,6 +1,6 @@
 import type { ClosedTraces, Trace } from '../../core/traces/trace'
 import { MINUTE_MS, minuteOf } from '../metrics/minutes'
-import { pageOf, TRACES_PAGE, type Traces } from './traces'
+import { endOf, pageOf, TRACES_PAGE, type Traces } from './traces'
 
 export type MemoryTracesOptions = {
   /** How long a minute's traces are kept for whoever monitors it to collect: an hour by default. */
@@ -25,12 +25,11 @@ export class MemoryTraces implements Traces {
   }
 
   record(trace: Trace): void {
-    const now = Date.now()
-    const minute = minuteOf(now)
+    const minute = minuteOf(endOf(trace))
     let traces = this.minutes.get(minute)
     if (!traces) {
       this.minutes.set(minute, traces = [])
-      this.forget(now)
+      this.forget(Date.now())
     }
     if (traces.length < this.maxPerMinute) traces.push(trace)
   }

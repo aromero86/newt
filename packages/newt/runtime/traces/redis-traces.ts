@@ -1,7 +1,7 @@
 import { RedisClient } from 'bun'
 import type { ClosedTraces, Trace } from '../../core/traces/trace'
 import { MINUTE_MS, minuteOf } from '../metrics/minutes'
-import { pageOf, TRACES_PAGE, type Traces } from './traces'
+import { endOf, pageOf, TRACES_PAGE, type Traces } from './traces'
 
 export type RedisTracesOptions = {
   /** The Redis every instance shares: `redis://redis:6379`. */
@@ -39,7 +39,7 @@ export class RedisTraces implements Traces {
   }
 
   record(trace: Trace): void {
-    const write = this.write(minuteOf(Date.now()), trace)
+    const write = this.write(minuteOf(endOf(trace)), trace)
       .catch(error => console.error('[RedisTraces] a trace could not be written:', error))
       .finally(() => this.writing.delete(write))
     this.writing.add(write)

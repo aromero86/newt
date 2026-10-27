@@ -45,7 +45,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
     return metrics
   }
   metricsOf()
-  const traces = enableTraces()
+  const traces = options.traces ?? enableTraces()
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,

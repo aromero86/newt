@@ -5,6 +5,7 @@ import { RedisTraces } from './redis-traces'
 // Against a real Redis, when there is one: REDIS_URL=redis://localhost:6390 bun test.
 const url = process.env.REDIS_URL
 const opened: RedisTraces[] = []
+const traceOf = (id: string) => ({ id, startedAt: new Date().toISOString(), ms: 3 }) as Trace
 
 afterEach(async () => {
   await Promise.all(opened.splice(0).map(traces => traces.close()))
@@ -22,8 +23,8 @@ describe.skipIf(!url)('RedisTraces', () => {
     const prefix = `newt:test:${crypto.randomUUID()}`
     const one = instance(prefix)
     const two = instance(prefix)
-    one.record({ id: 'a' } as Trace)
-    two.record({ id: 'b' } as Trace)
+    one.record(traceOf('a'))
+    two.record(traceOf('b'))
     await Promise.all([one.close(), two.close()])
     const reader = instance(prefix)
 
@@ -36,7 +37,7 @@ describe.skipIf(!url)('RedisTraces', () => {
 
   test('keeps at most so many traces a minute', async () => {
     const traces = instance(`newt:test:${crypto.randomUUID()}`, 2)
-    for (const id of ['a', 'b', 'c']) traces.record({ id } as Trace)
+    for (const id of ['a', 'b', 'c']) traces.record(traceOf(id))
     await new Promise(resolve => setTimeout(resolve, 100))
 
     expect((await traces.closed(null, new Date(Date.now() + 70_000))).traces.map(trace => trace.id)).toEqual(['a', 'b'])
