@@ -1,25 +1,24 @@
-import { BlocksIcon, PlugZapIcon, RefreshCwIcon } from 'lucide-react'
+import { BlocksIcon, PlugZapIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
 import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
-import { Button } from 'newt-react-ui/button'
+import { Counter } from 'newt-react-ui/counter'
 import { Grid } from 'newt-react-ui/grid'
 import { Icon } from 'newt-react-ui/icon'
 import { RelativeTime } from 'newt-react-ui/relative-time'
 import { Stack } from 'newt-react-ui/stack'
 import { Stat } from 'newt-react-ui/stat'
-import { Counter } from 'newt-react-ui/counter'
 import { useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
+import { AppNotRead } from '../app-not-read/app-not-read'
 import { AppService } from '../app.service'
+import { contextHref } from '../app-structure'
 
 /** What the monitor knows of an application at a glance: what it is made of, and whether it answers. */
 export function AppOverview({ app }: { app: AppDTO }) {
   const service = useService(AppService)
   const structure = useValue(service.structure)
   const counts = useValue(service.counts)
-  const refreshing = useValue(service.refreshing)
-  const base = `/apps/${app.id}`
 
   return (
     <Stack gap={6}>
@@ -37,16 +36,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
               <Stat label="Events" value={counts.events} />
             </Grid>
           )
-        : (
-            <Box label="Structure">
-              <BoxEmpty
-                icon={BlocksIcon}
-                title="Its structure was not read yet"
-                description="The monitor reads it every hour, and when asked."
-                action={app.archivedAt ? undefined : <Button size="sm" variant="outline" loading={refreshing} onClick={() => void service.refresh()}><Icon icon={RefreshCwIcon} size="sm" />Read it now</Button>}
-              />
-            </Box>
-          )}
+        : <AppNotRead app={app} />}
       {/* An archived application is not watched: whether it answers is nobody's concern. */}
       {!app.archivedAt && <AppOverviewConnection />}
       {structure && (
@@ -54,7 +44,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
           <BoxHeader>Contexts <Counter>{counts.contexts}</Counter></BoxHeader>
           {structure.description.contexts.map(context => (
             <BoxRow key={context.name} leading={<Icon icon={BlocksIcon} tone="muted" />} trailing={<>{context.modules.length} modules</>}>
-              <BoxRowTitle href={`${base}/contexts/${context.name}`}>{context.name}</BoxRowTitle>
+              <BoxRowTitle href={contextHref(app.id, context.name)}>{context.name}</BoxRowTitle>
               <BoxRowMeta>
                 <>{context.uses.length ? `uses ${context.uses.join(', ')}` : 'uses no other context'}</>
                 <>{context.modules.reduce((sum, module) => sum + module.useCases.length, 0)} use cases</>

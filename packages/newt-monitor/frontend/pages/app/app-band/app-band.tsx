@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router'
-import { ActivityIcon, ArchiveIcon, BookOpenIcon, RefreshCwIcon, ZapIcon } from 'lucide-react'
+import { ActivityIcon, ArchiveIcon, BlocksIcon, BookOpenIcon, MegaphoneIcon, PlayIcon, RefreshCwIcon, ZapIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
 import { Breadcrumbs } from 'newt-react-ui/breadcrumbs'
 import { Button } from 'newt-react-ui/button'
@@ -17,6 +17,9 @@ export function AppBand({ app }: { app: AppDTO }) {
   const connection = useValue(service.connection)
   const checking = useValue(service.checking)
   const refreshing = useValue(service.refreshing)
+  const counts = useValue(service.counts)
+  const structure = useValue(service.structure)
+  const count = (value: number) => (structure ? value : undefined)
   const { pathname } = useLocation()
   const base = `/apps/${app.id}`
   const tab = (path: string) => path === ''
@@ -41,6 +44,9 @@ export function AppBand({ app }: { app: AppDTO }) {
       nav={(
         <UnderlineNav label={`${app.name} sections`}>
           <UnderlineNavItem {...tab('')} icon={BookOpenIcon}>Overview</UnderlineNavItem>
+          <UnderlineNavItem {...tab('contexts')} icon={BlocksIcon} count={count(counts.contexts)}>Contexts</UnderlineNavItem>
+          <UnderlineNavItem {...tab('use-cases')} icon={PlayIcon} count={count(counts.useCases)}>Use cases</UnderlineNavItem>
+          <UnderlineNavItem {...tab('events')} icon={MegaphoneIcon} count={count(counts.events)}>Events</UnderlineNavItem>
         </UnderlineNav>
       )}
     />

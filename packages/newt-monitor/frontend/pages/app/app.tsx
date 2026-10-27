@@ -6,7 +6,10 @@ import { Spinner } from 'newt-react-ui/spinner'
 import { Provide, useService, useValue } from 'newt-react'
 import { NotFound } from '../not-found/not-found'
 import { AppBand } from './app-band/app-band'
+import { AppContexts } from './app-contexts/app-contexts'
+import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
+import { AppUseCases } from './app-use-cases/app-use-cases'
 import { AppService } from './app.service'
 
 /** One application, under /apps/:appId: its band and its tabs. With its own AppService. */
@@ -37,6 +40,9 @@ function AppWrapped() {
       <PageBody>
         <Routes>
           <Route index element={<AppOverview app={app} />} />
+          <Route path="contexts/*" element={<AppContexts app={app} />} />
+          <Route path="use-cases" element={<AppUseCases app={app} />} />
+          <Route path="events" element={<AppEvents app={app} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </PageBody>
