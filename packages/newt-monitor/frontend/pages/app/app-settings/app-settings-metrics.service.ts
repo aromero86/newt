@@ -10,6 +10,7 @@ const days = (most: number) => z.coerce.number<string>().int('Whole days').min(M
 const RetentionSchema = z.object({
   minuteDays: days(3650),
   dayDays: z.union([z.literal('').transform(() => null), days(36500)]),
+  traceDays: z.coerce.number<string>().int('Whole days').min(1, 'At least a day').max(365, 'At most 365 days'),
 })
 
 /** How long an application's metrics are kept: changed here, applied at the next nightly keep. */
@@ -18,11 +19,11 @@ export class AppSettingsMetricsService {
   private readonly api = inject(RetentionApi)
   private readonly app = inject(AppService)
 
-  readonly form = new FormStore(RetentionSchema, { minuteDays: '', dayDays: '' })
+  readonly form = new FormStore(RetentionSchema, { minuteDays: '', dayDays: '', traceDays: '' })
 
   async load(): Promise<void> {
     const retention = await this.api.retention(this.app.appId)
-    this.form.reset({ minuteDays: String(retention.minuteDays), dayDays: retention.dayDays === null ? '' : String(retention.dayDays) })
+    this.form.reset({ minuteDays: String(retention.minuteDays), dayDays: retention.dayDays === null ? '' : String(retention.dayDays), traceDays: String(retention.traceDays) })
   }
 
   async save(): Promise<void> {

@@ -37,7 +37,8 @@ export const TraceListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 }).refine(query => query.useCase === undefined || query.context !== undefined, { message: 'A use case is asked of its context', path: ['context'] })
 
-export type TraceListQueryDTO = z.input<typeof TraceListQuerySchema>
+/** As a client asks it: numbers as numbers (the query string makes them text, which the schema reads back). */
+export type TraceListQueryDTO = Omit<z.input<typeof TraceListQuerySchema>, 'nearMs' | 'limit'> & { nearMs?: number, limit?: number }
 
 /** A trace in a list: what it was, how long, how it ended; and, of a use case's, how long its call took. */
 export type TraceSummaryDTO = {

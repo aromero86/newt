@@ -25,6 +25,7 @@ import { AppService } from '../app.service'
 import { findModule, moduleHref } from '../app-structure'
 import { AppUseCaseErrors } from './app-use-case-errors'
 import { AppUseCaseTops } from './app-use-case-tops'
+import { AppUseCaseTraces } from './app-use-case-traces'
 import { AppUseCaseService, type Compare } from './app-use-case.service'
 
 /** One use case: how its calls went over a window, beside the one before; and who calls it most. With its own AppUseCaseService. */
@@ -146,6 +147,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
             </>
           )
         : <Skeleton lines={6} />}
+      <AppUseCaseTraces appId={app.id} context={context} useCase={useCase} window={window} total={series?.total ?? null} />
       <AppUseCaseTops />
     </Stack>
   )
