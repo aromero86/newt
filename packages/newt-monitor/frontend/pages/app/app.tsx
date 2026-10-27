@@ -9,10 +9,13 @@ import { AppBand } from './app-band/app-band'
 import { AppContexts } from './app-contexts/app-contexts'
 import { AppEvent } from './app-event/app-event'
 import { AppEvents } from './app-events/app-events'
+import { AppJob } from './app-job/app-job'
 import { AppOverview } from './app-overview/app-overview'
 import { AppQueue } from './app-queue/app-queue'
 import { AppQueues } from './app-queues/app-queues'
 import { AppSettings } from './app-settings/app-settings'
+import { AppTrace } from './app-trace/app-trace'
+import { AppTraces } from './app-traces/app-traces'
 import { AppUseCase } from './app-use-case/app-use-case'
 import { AppUseCases } from './app-use-cases/app-use-cases'
 import { AppVersions } from './app-versions/app-versions'
@@ -53,6 +56,9 @@ function AppWrapped() {
           <Route path="events/:context/:event" element={<AppEvent app={app} />} />
           <Route path="queues" element={<AppQueues app={app} />} />
           <Route path="queues/:context/:queue" element={<AppQueue app={app} />} />
+          <Route path="traces" element={<AppTraces app={app} />} />
+          <Route path="traces/:traceId" element={<AppTrace app={app} />} />
+          <Route path="jobs/:jobId" element={<AppJob app={app} />} />
           <Route path="versions/*" element={<AppVersions app={app} />} />
           <Route path="settings" element={<AppSettings app={app} />} />
           <Route path="*" element={<NotFound />} />

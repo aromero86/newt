@@ -1,5 +1,5 @@
 import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'
@@ -65,6 +65,40 @@ const FlowsSchema = z.object({
   until: z.iso.datetime(),
 })
 
+const OutcomeSchema = z.object({ kind: z.enum(['error', 'failure']), code: z.string() }).nullable()
+
+/** Enough of a page of traces to know it is one: each a tree of spans. */
+const TracesSchema = z.object({
+  traces: z.array(z.object({
+    id: z.string().min(1),
+    kind: z.enum(['http', 'job']),
+    name: z.string(),
+    startedAt: z.iso.datetime(),
+    ms: z.number().min(0),
+    outcome: OutcomeSchema,
+    retried: z.boolean(),
+    actor: z.string().nullable(),
+    scopes: z.record(z.string(), z.string()),
+    useCases: z.array(z.string()),
+    told: z.array(z.string()),
+    job: z.object({ id: z.string(), queue: z.string(), run: z.number().int().min(1), event: z.string(), eventId: z.string() }).nullable(),
+    spans: z.array(z.object({
+      id: z.string(),
+      parentId: z.string().nullable(),
+      kind: z.enum(['http', 'job', 'use-case', 'attempt', 'query', 'transaction']),
+      name: z.string(),
+      context: z.string().nullable(),
+      startMs: z.number(),
+      ms: z.number().min(0),
+      outcome: OutcomeSchema,
+      attributes: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+      failure: z.object({ message: z.string(), stack: z.string().nullable() }).nullable(),
+    })).min(1),
+    dropped: z.number().int().min(0),
+  })),
+  until: z.iso.datetime(),
+})
+
 /** Enough of an outbox's state to know it is one. */
 const OutboxSchema = z.object({
   at: z.iso.datetime(),
@@ -118,6 +152,10 @@ export class HttpAppClient implements AppClient {
 
   async flows(endpoint: Endpoint, since: string | null): Promise<QueueFlows> {
     return this.read(endpoint, since === null ? '/v1/metrics/queues' : `/v1/metrics/queues?since=${encodeURIComponent(since)}`, FlowsSchema)
+  }
+
+  async traces(endpoint: Endpoint, since: string | null): Promise<ClosedTraces> {
+    return this.read(endpoint, since === null ? '/v1/traces' : `/v1/traces?since=${encodeURIComponent(since)}`, TracesSchema)
   }
 
   async outbox(endpoint: Endpoint): Promise<OutboxState> {

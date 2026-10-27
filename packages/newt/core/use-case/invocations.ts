@@ -8,6 +8,7 @@ import { applicationTracer } from '../observability/application-tracer'
 import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
 import { Registry } from '../registry/registry'
+import { traceSpan } from '../traces/trace-recorder'
 import { invocationChain, inWorker } from './invocation-chain'
 import type { UseCaseOptions } from './use-case-options'
 import type { GuardRule } from './guard-rule'
@@ -130,8 +131,20 @@ export class Invocations {
     console.warn(message)
   }
 
-  /** Runs it in its span; `retry`, only for the first of a chain, says whether a conflict runs it again. */
+  /**
+   * Runs it in its span; `retry`, only for the first of a chain, says whether a conflict
+   * runs it again. A use case's call is a step of the trace in progress too, and each
+   * of its runs one inside it: newt's own invocations are not.
+   */
   private traced<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry?: { allowed: boolean }): Promise<T> {
+    const context = String(this.attributes.context ?? '') || null
+    const step = this.registry.isUseCase(name)
+      ? <R>(kind: 'use-case' | 'attempt', label: string, run: () => Promise<R>) => traceSpan({ kind, name: label, context }, run)
+      : <R>(_kind: 'use-case' | 'attempt', _label: string, run: () => Promise<R>) => run()
+    return step('use-case', name, () => this.spanned(name, attributes, fn, retry, step))
+  }
+
+  private spanned<T>(name: string, attributes: SpanAttributes, fn: () => Promise<T>, retry: { allowed: boolean } | undefined, step: <R>(kind: 'use-case' | 'attempt', label: string, run: () => Promise<R>) => Promise<R>): Promise<T> {
     return (this.tracer ?? applicationTracer.value).startActiveSpan(name, attributes, async span => {
       const started = performance.now()
       let retries = 0
@@ -140,7 +153,7 @@ export class Invocations {
         for (let attempt = 0, duplicates = 0; ; attempt++) {
           retries = attempt
           try {
-            return await fn()
+            return await (retry?.allowed ? step('attempt', `attempt ${attempt + 1}`, fn) : fn())
           } catch (error) {
             if (!retry?.allowed || !(error instanceof ConcurrencyConflict) || attempt === RETRIES) throw error
             // A value taken stays taken: one run more, where the use case's own check finds it and says so.
