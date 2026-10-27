@@ -49,6 +49,10 @@ const MONITOR_API_BACKEND_IMPORTS = {
   regex: '(^|/)src(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$)|$)',
   message: 'The monitor\'s API clients may only import a module\'s *.schema.ts (its contract).',
 }
+const MONITOR_API_TEST_IMPORTS = {
+  regex: '(^|/)src(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$|testing/)|$)',
+  message: 'A test of the monitor\'s API clients may import a module\'s *.schema.ts and src/testing, nothing else of the backend.',
+}
 
 // cooper's frontends compose newt-react-ui's components and style nothing: only cooper's
 // own components (cooper/libs/ui, each app's components/) style, wrapping the library's.
@@ -77,6 +81,13 @@ export default [
     languageOptions: { parser: tseslint.parser },
     rules: {
       'no-restricted-imports': ['error', { patterns: [MONITOR_API_BACKEND_IMPORTS] }],
+    },
+  },
+  {
+    // Their tests run them against the monitor itself, so they open one.
+    files: ['packages/newt-monitor/frontend/api/**/*.test.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [MONITOR_API_TEST_IMPORTS] }],
     },
   },
 ]

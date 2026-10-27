@@ -14,7 +14,9 @@ reaches the API, how forms and lists work.
   that change it. It gets what it needs with `inject(OtherService)`.
 - **An API client is one class per backend module**, extending `Requester`: its `path`,
   and one method per route, typed with the module's own contract (its `*.schema.ts`
-  types, through `newt/contract`). Never `fetch` anywhere else.
+  types, through `newt/contract`). Never `fetch` anywhere else. Never name a method
+  `get`, `post`, `put`, `patch` or `delete`: it would hide `Requester`'s own, and the
+  client would call itself forever (`app(id)`, not `get(id)`).
 
 ```ts
 export class AppApi extends Requester {

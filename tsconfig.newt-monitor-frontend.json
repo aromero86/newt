@@ -2,8 +2,8 @@
   // What of newt-monitor runs in the browser: its frontend, with the contracts of its
   // modules (their *.schema.ts) it shares with the backend.
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
