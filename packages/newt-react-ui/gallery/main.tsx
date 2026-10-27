@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Alert } from '../components/alert'
 import { AppShell } from '../components/app-shell'
 import { Badge } from '../components/badge'
+import { Counter } from '../components/counter'
 import { Button } from '../components/button'
 import { Card } from '../components/card'
 import { Checkbox } from '../components/checkbox'
@@ -65,6 +66,7 @@ function Gallery() {
                 <Badge tone="warn">archived</Badge>
                 <Badge tone="info">changed</Badge>
                 <Badge tone="muted">unknown</Badge>
+                <Counter>145</Counter>
                 <Spinner />
               </Inline>
               <Alert tone="ok" title="cooper answers">Its structure was read an hour ago.</Alert>

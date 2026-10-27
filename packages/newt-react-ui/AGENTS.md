@@ -86,6 +86,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `Button` | Every action; with `href` it is a link; `loading` disables it while it works; `size="icon"` needs a `label`. |
 | `Menu` | Actions behind a `Button`. |
 | `Badge` | A short state: `tone` `ok`, `warn`, `bad`, `info`, `muted`, `brand`. |
+| `Counter` | How many there are, in a pill: after a box's title or a tab's label. |
 | `Alert` | A message about the page: `info`, `ok`, `warn`, `bad`. |
 | `EmptyState` | What a list or a page with nothing shows, and what to do. |
 | `Spinner`, `Skeleton` | Loading: a spinner, or the shape of what is coming. |

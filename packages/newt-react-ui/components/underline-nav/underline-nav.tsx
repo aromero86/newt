@@ -1,5 +1,6 @@
 import { useContext, type ReactNode } from 'react'
 import { cn } from 'cn'
+import { Counter } from '../counter'
 import { LinkComponentContext } from '../link/link-component'
 import type { IconComponent } from '../icon'
 
@@ -34,7 +35,7 @@ export function UnderlineNavItem({ href, active = false, icon: Glyph, count, chi
     >
       {Glyph && <Glyph aria-hidden className="size-4 opacity-80" />}
       {children}
-      {count !== undefined && <span className="rounded-full bg-muted px-1.5 text-[11px] leading-5 font-medium text-muted-foreground tabular-nums">{count}</span>}
+      {count !== undefined && <Counter>{count}</Counter>}
     </Link>
   )
 }

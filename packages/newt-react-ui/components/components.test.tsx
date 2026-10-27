@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Alert } from './alert'
 import { Badge } from './badge'
+import { Counter } from './counter'
 import { BoxRowMeta } from './box'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
@@ -61,6 +62,7 @@ describe('newt-react-ui', () => {
 
   test('tones and spaces are the library\'s, by name', () => {
     expect(html(<Badge tone="ok">up</Badge>)).toContain('text-ok')
+    expect(html(<Counter>145</Counter>)).toContain('>145<')
     expect(html(<Stack gap={2}><span /></Stack>)).toContain('gap-2')
   })
 
