@@ -1,8 +1,7 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
-import { histogramBucketOf } from '../../core/metrics/histogram'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
 import type { CountedEvent, Metrics, TimedCall } from './metrics'
-import { countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
+import { addCall, countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
 export type MemoryMetricsOptions = {
   /** How long a minute is kept for whoever monitors it to collect: a day by default. */
@@ -68,11 +67,7 @@ export class MemoryMetrics implements Metrics {
       timings.set(key, timing = emptyTiming())
       this.kept++
     }
-    timing.calls++
-    timing.retries += call.retries
-    timing.totalMs += call.ms
-    const bucket = histogramBucketOf(call.ms)
-    timing.histogram.set(bucket, (timing.histogram.get(bucket) ?? 0) + 1)
+    addCall(timing, call)
     this.forgetIn(minute, call.at)
   }
 

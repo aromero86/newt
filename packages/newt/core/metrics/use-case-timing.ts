@@ -19,6 +19,10 @@ export type UseCaseTiming = {
   totalMs: number
   /** How many calls took each bucket's time: by the bucket's index, as text. */
   histogram: Record<string, number>
+  /** How many ended in an error they say may happen, by its code: `card.not_found`. */
+  errors: Record<string, number>
+  /** How many ended in a failure nobody expected, by its code or class: `TypeError`. */
+  failures: Record<string, number>
 }
 
 /** The minutes closed since a cursor, and the cursor to ask from next time. */

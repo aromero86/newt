@@ -46,13 +46,14 @@ describe.skipIf(!url)('RedisMetrics', () => {
     const call = { context: 'shop', useCase: 'order.place', scopes: {}, actor: 'ana', at, retries: 0 }
     one.time({ ...call, ms: 10 })
     two.time({ ...call, ms: 10, retries: 1 })
-    two.time({ ...call, ms: 200 })
+    two.time({ ...call, ms: 200, outcome: { kind: 'error', code: 'order.not_found' } })
+    one.time({ ...call, ms: 5, outcome: { kind: 'failure', code: 'Type#Error' } })
     await Bun.sleep(200)
 
     const { timings } = await one.closedTimings(null, new Date('2026-01-01T10:01:10Z'))
     expect(timings).toHaveLength(1)
-    expect(timings[0]).toMatchObject({ useCase: 'order.place', calls: 3, retries: 1, totalMs: 220 })
-    expect(Object.values(timings[0]!.histogram).toSorted()).toEqual([1, 2])
+    expect(timings[0]).toMatchObject({ useCase: 'order.place', calls: 4, retries: 1, totalMs: 225, errors: { 'order.not_found': 1 }, failures: { 'Type#Error': 1 } })
+    expect(Object.values(timings[0]!.histogram).toSorted()).toEqual([1, 1, 2])
   })
 
   test('tells every instance\'s counts live to whichever instance listens', async () => {

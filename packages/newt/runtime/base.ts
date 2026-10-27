@@ -43,8 +43,8 @@ export class Base<S extends Store = Store> {
     this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     // Every call of its use cases, timed as it ends, in the scopes and by the actor it ran with.
-    this.invocations.onTimed = ({ useCase, ms, retries }) => this.metrics.time({
-      context: this.name, useCase, ms, retries, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now(),
+    this.invocations.onTimed = ({ useCase, ms, retries, outcome }) => this.metrics.time({
+      context: this.name, useCase, ms, retries, outcome, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now(),
     })
     const memory = new InMemoryEventBus()
     const { registry } = this.invocations

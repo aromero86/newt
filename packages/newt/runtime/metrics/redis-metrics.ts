@@ -1,9 +1,8 @@
 import { RedisClient } from 'bun'
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
-import { histogramBucketOf } from '../../core/metrics/histogram'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
 import type { CountedEvent, Metrics, TimedCall } from './metrics'
-import { countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
+import { addCall, addTiming, countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
 export type RedisMetricsOptions = {
   /** The Redis every instance shares: `redis://redis:6379`. */
@@ -57,10 +56,7 @@ export class RedisMetrics implements Metrics {
   time(call: TimedCall): void {
     if (!this.enabled) return
     const one = emptyTiming()
-    one.calls = 1
-    one.retries = call.retries
-    one.totalMs = call.ms
-    one.histogram.set(histogramBucketOf(call.ms), 1)
+    addCall(one, call)
     this.addTiming(minuteOf(call.at), timingKey(call), one)
   }
 
@@ -72,7 +68,8 @@ export class RedisMetrics implements Metrics {
     for (const minute of minutes) {
       const byKey = new Map<string, Timing>()
       for (const [field, value] of Object.entries(await this.redis.hgetall(this.key(`uc:${minute}`)))) {
-        // `<key>#calls`, `#retries`, `#us` (microseconds, whole) and `#b<bucket>`: a key never ends in one of them.
+        // `<key>#calls`, `#retries`, `#us` (microseconds, whole), `#b<bucket>`, and `#e:<code>`, `#f:<code>`
+        // with the code URI-encoded: none has a `#` of its own, so the last one is the key's end.
         const at = field.lastIndexOf('#')
         const key = field.slice(0, at)
         const part = field.slice(at + 1)
@@ -81,6 +78,8 @@ export class RedisMetrics implements Metrics {
         if (part === 'calls') timing.calls = Number(value)
         else if (part === 'retries') timing.retries = Number(value)
         else if (part === 'us') timing.totalMs = Number(value) / 1000
+        else if (part.startsWith('e:')) timing.errors.set(decodeURIComponent(part.slice(2)), Number(value))
+        else if (part.startsWith('f:')) timing.failures.set(decodeURIComponent(part.slice(2)), Number(value))
         else timing.histogram.set(Number(part.slice(1)), Number(value))
       }
       for (const [key, timing] of byKey) timings.push(timingOf(key, minute, timing))
@@ -168,6 +167,8 @@ export class RedisMetrics implements Metrics {
           this.redis.hincrby(hash, `${key}#retries`, timing.retries),
           this.redis.hincrby(hash, `${key}#us`, Math.round(timing.totalMs * 1000)),
           ...[...timing.histogram].map(([bucket, count]) => this.redis.hincrby(hash, `${key}#b${bucket}`, count)),
+          ...[...timing.errors].map(([code, count]) => this.redis.hincrby(hash, `${key}#e:${encodeURIComponent(code)}`, count)),
+          ...[...timing.failures].map(([code, count]) => this.redis.hincrby(hash, `${key}#f:${encodeURIComponent(code)}`, count)),
         )
       }
       writes.push(this.redis.expire(hash, this.keepSeconds), this.redis.zadd(this.key('uc:minutes'), Date.parse(minute), minute))
@@ -188,10 +189,7 @@ export class RedisMetrics implements Metrics {
     let timings = this.pendingTimings.get(minute)
     if (!timings) this.pendingTimings.set(minute, timings = new Map())
     const kept = timings.get(key) ?? emptyTiming()
-    kept.calls += timing.calls
-    kept.retries += timing.retries
-    kept.totalMs += timing.totalMs
-    for (const [bucket, count] of timing.histogram) kept.histogram.set(bucket, (kept.histogram.get(bucket) ?? 0) + count)
+    addTiming(kept, timing)
     timings.set(key, kept)
   }
 

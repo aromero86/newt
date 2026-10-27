@@ -1,11 +1,22 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { Outcome } from '../../core/metrics/outcome'
 import type { UseCaseTimings } from '../../core/metrics/use-case-timing'
 
 /** An event told, as it is counted: in which context, scopes and minute, and by whom. */
 export type CountedEvent = { context: string, event: string, scopes: Record<string, string>, actor: string | null, at: Date }
 
 /** A use case's call, as it is timed: in which context, scopes and minute, by whom, how long, and how many runs more. */
-export type TimedCall = { context: string, useCase: string, scopes: Record<string, string>, actor: string | null, at: Date, ms: number, retries: number }
+export type TimedCall = {
+  context: string
+  useCase: string
+  scopes: Record<string, string>
+  actor: string | null
+  at: Date
+  ms: number
+  retries: number
+  /** How it ended, if it threw: null for a call that went well. */
+  outcome?: Outcome | null
+}
 
 /**
  * Where an application counts its events and times its use cases' calls, minute by

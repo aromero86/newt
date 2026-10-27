@@ -358,3 +358,5 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/runtime` | `setMetrics`, `CountedEvent`, `EventCount`, `EventCounts`, `Metrics`, `MemoryMetrics`, `MemoryMetricsOptions`, `RedisMetrics`, `RedisMetricsOptions` |
 | `newt/contract` | `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |
 | `newt/runtime` | `TimedCall`, `UseCaseTiming`, `UseCaseTimings`, `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` |
+| `newt/contract` | `Outcome` |
+| `newt/runtime` | `Outcome` |

@@ -1,13 +1,17 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { SqliteStore } from '../adapter-sqlite'
-import { ConcurrencyConflict, defineScope, Module, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
+import { ConcurrencyConflict, defineScope, Module, NotFoundError, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
 import { Base, histogramPercentile, MemoryMetrics, type EventCounts, type UseCaseTimings } from '../runtime'
 import { MemoryNonces } from './nonce-store'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
 
 const KEY = 'a key both sides share, long enough'
+
+class CardNotFound extends NotFoundError {
+  readonly code = 'card.not_found'
+}
 const workspace = defineScope<{ workspaceId: string }>('workspace')
 
 let time = Date.parse('2026-01-01T10:00:20Z')
@@ -121,6 +125,28 @@ describe('serveMonitor, with use case timings', () => {
     // The first call ran twice (its retry included), the second once.
     expect(timing!.totalMs).toBeGreaterThan(44)
     expect(histogramPercentile(timing!.histogram, 99)!).toBeGreaterThan(38)
+    expect([timing!.errors, timing!.failures]).toEqual([{}, {}])
+  })
+
+  test('says how each call that threw ended: an error by its code, a failure by its class', async () => {
+    const origin = await serve()
+    class Card_Module extends Module {
+      constructor() {
+        super('card', base!.invocations)
+      }
+
+      @UseCase()
+      async get(what: 'missing' | 'broken' | 'fine') {
+        if (what === 'missing') throw new CardNotFound('There is no card c1')
+        if (what === 'broken') throw new TypeError('x is undefined')
+      }
+    }
+    const cards = new Card_Module()
+    for (const what of ['missing', 'missing', 'broken', 'fine'] as const) await cards.get(what).catch(() => undefined)
+
+    time += 60_000
+    const [timing] = ((await (await signed(`${origin}/v1/metrics/use-cases`)).json()) as UseCaseTimings).timings
+    expect(timing).toMatchObject({ useCase: 'card.get', calls: 4, errors: { 'card.not_found': 2 }, failures: { TypeError: 1 } })
   })
 })
 

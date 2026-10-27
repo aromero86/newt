@@ -1,6 +1,7 @@
 import type { Clock } from '../clock/clock'
 import { currentClock } from '../clock/current-clock'
 import { ConcurrencyConflict } from '../errors/concurrency-conflict'
+import { outcomeOf, type Outcome } from '../metrics/outcome'
 import { DomainError } from '../errors/domain-error'
 import { DuplicateValue } from '../errors/duplicate-value'
 import { applicationTracer } from '../observability/application-tracer'
@@ -34,7 +35,7 @@ export class Invocations {
    * Told of every call once it ends, well or not: its use case, how long it took as its
    * caller saw it, and how many runs more a conflict made. Its base times it (`Metrics`).
    */
-  onTimed: ((call: { useCase: string, ms: number, retries: number }) => void) | null = null
+  onTimed: ((call: { useCase: string, ms: number, retries: number, outcome: Outcome | null }) => void) | null = null
 
   constructor(
     /** Its own; the application's (`setTracer`) when it has none. */
@@ -134,6 +135,7 @@ export class Invocations {
     return (this.tracer ?? applicationTracer.value).startActiveSpan(name, attributes, async span => {
       const started = performance.now()
       let retries = 0
+      let outcome: Outcome | null = null
       try {
         for (let attempt = 0, duplicates = 0; ; attempt++) {
           retries = attempt
@@ -149,10 +151,11 @@ export class Invocations {
         }
       } catch (error) {
         if (!(error instanceof DomainError)) span.setError(error)
+        outcome = outcomeOf(error)
         throw error
       } finally {
         span.end()
-        this.onTimed?.({ useCase: name, ms: performance.now() - started, retries })
+        this.onTimed?.({ useCase: name, ms: performance.now() - started, retries, outcome })
       }
     })
   }

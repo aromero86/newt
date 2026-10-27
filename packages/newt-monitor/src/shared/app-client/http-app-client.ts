@@ -43,6 +43,9 @@ const TimingsSchema = z.object({
     retries: z.number().int().min(0),
     totalMs: z.number().min(0),
     histogram: z.record(z.string().regex(/^\d+$/), z.number().int().positive()),
+    // An application on a newt before errors were counted sends none.
+    errors: z.record(z.string(), z.number().int().positive()).default({}),
+    failures: z.record(z.string(), z.number().int().positive()).default({}),
   })),
   until: z.iso.datetime(),
 })

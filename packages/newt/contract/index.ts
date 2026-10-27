@@ -33,4 +33,5 @@ export type {
 } from '../core/description/application-description'
 export type { EventCount, EventCounts } from '../core/metrics/event-count'
 export type { UseCaseTiming, UseCaseTimings } from '../core/metrics/use-case-timing'
+export type { Outcome } from '../core/metrics/outcome'
 export { histogramBucketMs, histogramBucketOf, histogramPercentile, HISTOGRAM_FLOOR_MS, HISTOGRAM_GROWTH } from '../core/metrics/histogram'
