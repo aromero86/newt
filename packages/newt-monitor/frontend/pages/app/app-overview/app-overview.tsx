@@ -4,6 +4,7 @@ import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-
 import { Counter } from 'newt-react-ui/counter'
 import { Grid } from 'newt-react-ui/grid'
 import { Icon } from 'newt-react-ui/icon'
+import { TextLink } from 'newt-react-ui/link'
 import { RelativeTime } from 'newt-react-ui/relative-time'
 import { Stack } from 'newt-react-ui/stack'
 import { Stat } from 'newt-react-ui/stat'
@@ -24,7 +25,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
     <Stack gap={6}>
       {app.archivedAt && (
         <Alert tone="warn" title="This application is archived">
-          It is not watched, and everything known of it is kept. Restore it to watch it again.
+          It is not watched, and everything known of it is kept. <TextLink href={`/apps/${app.id}/settings`}>Restore it</TextLink> to watch it again.
         </Alert>
       )}
       {structure

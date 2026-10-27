@@ -9,6 +9,7 @@ import { AppBand } from './app-band/app-band'
 import { AppContexts } from './app-contexts/app-contexts'
 import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
+import { AppSettings } from './app-settings/app-settings'
 import { AppUseCases } from './app-use-cases/app-use-cases'
 import { AppVersions } from './app-versions/app-versions'
 import { AppService } from './app.service'
@@ -45,6 +46,7 @@ function AppWrapped() {
           <Route path="use-cases" element={<AppUseCases app={app} />} />
           <Route path="events" element={<AppEvents app={app} />} />
           <Route path="versions/*" element={<AppVersions app={app} />} />
+          <Route path="settings" element={<AppSettings app={app} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </PageBody>
