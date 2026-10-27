@@ -120,6 +120,18 @@ export const config = {
    * `http://localhost:4318`) the traces go to instead, as service `cooper`.
    */
   otlpUrl: env.COOPER_OTLP_URL,
+  /**
+   * What cooper tells whoever monitors it (newt/monitor), on a port of its own with no
+   * public address: only when `COOPER_MONITOR_KEY` gives the key the monitor signs its
+   * requests with (32 characters or more), never sent.
+   */
+  monitor: {
+    key: env.COOPER_MONITOR_KEY,
+    /** `COOPER_MONITOR_PORT`: 3010. */
+    port: Number(env.COOPER_MONITOR_PORT ?? 3010),
+    /** `COOPER_MONITOR_HOSTNAME`: this machine only, unless told; the image says `0.0.0.0`, for the monitor's container. */
+    hostname: env.COOPER_MONITOR_HOSTNAME ?? '127.0.0.1',
+  },
 }
 
 export type Config = typeof config

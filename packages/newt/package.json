@@ -26,6 +26,7 @@
     "./http": "./http/index.ts",
     "./application": "./application/index.ts",
     "./otel": "./otel/index.ts",
+    "./monitor": "./monitor/index.ts",
     "./testing": "./testing/index.ts"
   },
   "engines": {

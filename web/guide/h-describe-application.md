@@ -165,6 +165,40 @@ A dep is one of three kinds:
 An object of deps is looked into, its keys joined: boards' `member` depends on
 `auth.access`, `auth.tenant` and `auth.user`.
 
+## Letting a monitor read it
+
+`newt/monitor` serves the description to whoever monitors the application, on a port
+of its own: `GET /v1/structure` is `describeApplication`, and `GET /v1/identity` says
+which application and which process it is (its name, newt's version, an id new each
+start, the machine, when it started). Read only, and never the application's data.
+
+```ts
+// cooper/backend/index.ts
+// What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
+if (config.monitor.key) {
+  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key })
+  console.log(`monitor listening on ${monitor.url}`)
+}
+```
+
+It answers only a request signed with a key both sides share, 32 characters or more;
+without one it does not start. The key never travels: the monitor signs each request
+with `signMonitorRequest` (HMAC-SHA256 of its method, its path, when it was made and a
+nonce of its own), and the application checks the signature, that it was made within
+30 seconds of now, and that its nonce was not seen before. A request seen on the way
+is no use again, nor for another. Any other request gets a 401, the same whatever was
+wrong, and learns nothing, not even which paths there are.
+
+```ts
+const url = 'http://cooper:3010/v1/structure'
+const structure = await (await fetch(url, { headers: signMonitorRequest(key, { url }) })).json()
+```
+
+Keep its port off the internet: listen on `127.0.0.1` (the default), or, in a
+container, on `0.0.0.0` with no public address in front of the port, so only the
+containers on its network reach it. cooper's image does so: its three contexts have a
+domain each, its monitor (`COOPER_MONITOR_KEY`, port 3010) none.
+
 ## What it cannot tell
 
 - **Calls and routes.** It knows what a module depends on, not which use case calls

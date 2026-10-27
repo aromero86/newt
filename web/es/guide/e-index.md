@@ -314,6 +314,15 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `OtlpTracer` | valor | [28](./28-observability) |   |
 | `OtlpTracerOptions` | tipo |   | — |
 
+## `newt/monitor`
+
+| Export | Tipo | Se importa en | También en |
+|---|---|---|---|
+| `serveMonitor` | valor |   | [H](./h-describe-application) |
+| `signMonitorRequest` | valor |   | [H](./h-describe-application) |
+| `MonitorOptions` | tipo |   | — |
+| `MonitorIdentity` | tipo |   | [H](./h-describe-application) |
+
 ## `newt/testing`
 
 | Export | Tipo | Se importa en | También en |

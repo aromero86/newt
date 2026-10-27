@@ -14,5 +14,7 @@ COPY . .
 RUN bun run cooper:build
 
 ENV NODE_ENV=production
+# The monitor's port (3010, with COOPER_MONITOR_KEY) is reached over the container's network only: it is not exposed.
+ENV COOPER_MONITOR_HOSTNAME=0.0.0.0
 EXPOSE 3001 3002 3003
 CMD ["bun", "cooper/backend/index.ts"]

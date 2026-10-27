@@ -168,6 +168,42 @@ Una dep es de uno de tres tipos:
 En un objeto de deps se mira dentro, con sus claves unidas: el `member` de boards
 depende de `auth.access`, `auth.tenant` y `auth.user`.
 
+## Que un monitor lo lea
+
+`newt/monitor` sirve la descripción a quien monitoriza la aplicación, en un puerto
+propio: `GET /v1/structure` es `describeApplication`, y `GET /v1/identity` dice qué
+aplicación y qué proceso es (su nombre, la versión de newt, un id nuevo en cada
+arranque, la máquina y cuándo arrancó). Solo lectura, y nunca los datos de la
+aplicación.
+
+```ts
+// cooper/backend/index.ts
+// What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
+if (config.monitor.key) {
+  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key })
+  console.log(`monitor listening on ${monitor.url}`)
+}
+```
+
+Solo responde a una petición firmada con una clave que comparten los dos lados, de 32
+caracteres o más; sin ella no arranca. La clave nunca viaja: el monitor firma cada
+petición con `signMonitorRequest` (HMAC-SHA256 de su método, su ruta, cuándo se hizo y
+un nonce propio), y la aplicación comprueba la firma, que se hizo a menos de 30
+segundos de ahora y que su nonce no se ha visto antes. Una petición vista por el camino
+no sirve otra vez, ni para otra. Cualquier otra recibe un 401, el mismo sea cual sea el
+fallo, y no aprende nada, ni siquiera qué rutas hay.
+
+```ts
+const url = 'http://cooper:3010/v1/structure'
+const structure = await (await fetch(url, { headers: signMonitorRequest(key, { url }) })).json()
+```
+
+Deja su puerto fuera de internet: escucha en `127.0.0.1` (lo que hace por defecto) o,
+en un contenedor, en `0.0.0.0` sin dirección pública delante del puerto, para que solo
+lo alcancen los contenedores de su red. La imagen de cooper lo hace así: sus tres
+contextos tienen un dominio cada uno; su monitor (`COOPER_MONITOR_KEY`, puerto 3010),
+ninguno.
+
 ## Lo que no puede saber
 
 - **Llamadas y rutas.** Sabe de qué depende un módulo, no qué caso de uso llama a cuál,

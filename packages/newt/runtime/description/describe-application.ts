@@ -17,7 +17,7 @@ const DEPTH = 2
  * Its deps are those its constructor passed to `Module`; one passed none has none.
  * A dep's events are told by a module of the contexts given, or of none known.
  */
-export function describeApplication(contexts: (Base | BoundedContext)[]): ApplicationDescription {
+export function describeApplication(contexts: readonly (Base | BoundedContext)[]): ApplicationDescription {
   const registries = contexts.map(each => ('base' in each ? each.base : each).invocations.registry)
   const owners = new Map<DomainEventEmitter<any>, string>()
   for (const registry of registries) {
