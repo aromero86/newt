@@ -27,7 +27,7 @@ export class Access_Module extends Module {
   readonly events
 
   private constructor(base: AuthBase, private readonly repo: Access_Repository, private readonly deps: Access_Deps) {
-    super('access', base.invocations)
+    super('access', base.invocations, deps)
     this.events = eventsOf(base.bus, { granted: Access_Granted, revoked: Access_Revoked })
   }
 

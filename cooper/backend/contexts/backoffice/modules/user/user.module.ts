@@ -20,7 +20,7 @@ export class User_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: User_Deps, private readonly options: User_Options) {
-    super('user', base.invocations)
+    super('user', base.invocations, deps)
   }
 
   /** Every account, the newest first, each saying whether it is staff; with a text, those whose email or name it is. */

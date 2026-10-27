@@ -17,7 +17,7 @@ export class Member_Module extends Module {
   }
 
   private constructor(base: BoardsBase, private readonly deps: Member_Deps) {
-    super('member', base.invocations)
+    super('member', base.invocations, deps)
   }
 
   /**

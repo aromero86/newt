@@ -193,6 +193,14 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `JobQueueOptions` | tipo |   | — |
 | `Schedules` | tipo |   | [19](./19-invitations-and-time) |
 | `ScheduleTick` | tipo |   | [19](./19-invitations-and-time) |
+| `describeApplication` | valor |   | — |
+| `ApplicationDescription` | tipo |   | — |
+| `ContextDescription` | tipo |   | — |
+| `ModuleDescription` | tipo |   | — |
+| `UseCaseDescription` | tipo |   | — |
+| `EventDescription` | tipo |   | — |
+| `ModuleDependency` | tipo |   | — |
+| `SubscriptionDescription` | tipo |   | — |
 
 ## `newt/sql`
 

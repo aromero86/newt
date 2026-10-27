@@ -192,6 +192,14 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `JobQueueOptions` | type |   | — |
 | `Schedules` | type |   | [19](./19-invitations-and-time) |
 | `ScheduleTick` | type |   | [19](./19-invitations-and-time) |
+| `describeApplication` | value |   | — |
+| `ApplicationDescription` | type |   | — |
+| `ContextDescription` | type |   | — |
+| `ModuleDescription` | type |   | — |
+| `UseCaseDescription` | type |   | — |
+| `EventDescription` | type |   | — |
+| `ModuleDependency` | type |   | — |
+| `SubscriptionDescription` | type |   | — |
 
 ## `newt/sql`
 

@@ -44,7 +44,7 @@ export class OauthGrant_Module extends Module {
   readonly events
 
   private constructor(base: AuthBase, private readonly repo: OauthGrant_Repository, private readonly deps: OauthGrant_Deps) {
-    super('oauthGrant', base.invocations)
+    super('oauthGrant', base.invocations, deps)
     this.events = eventsOf(base.bus, { replayed: OauthGrant_Replayed })
   }
 

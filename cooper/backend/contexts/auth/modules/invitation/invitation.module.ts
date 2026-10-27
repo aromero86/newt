@@ -35,7 +35,7 @@ export class Invitation_Module extends Module {
     private readonly deps: Invitation_Deps,
     private readonly options: Invitation_Options,
   ) {
-    super('invitation', base.invocations)
+    super('invitation', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Invitation_Created, accepted: Invitation_Accepted, revoked: Invitation_Revoked })
   }
 

@@ -35,7 +35,7 @@ export class Session_Module extends Module {
     private readonly deps: Session_Deps,
     readonly options: Session_Options,
   ) {
-    super('session', base.invocations)
+    super('session', base.invocations, deps)
     this.nightly = base.schedules.define('session.nightly', '0 3 * * *')
   }
 

@@ -25,15 +25,15 @@ import { BoardName } from './value-objects/board-name'
 export class Board_Module extends Module {
 
   static initialize(base: BoardsBase, deps: Board_Deps): Board_Module {
-    const module = new Board_Module(base, new Board_Repository(base))
+    const module = new Board_Module(base, new Board_Repository(base), deps)
     registerBoardRoutes(base, module, deps)
     return module
   }
 
   readonly events
 
-  private constructor(base: BoardsBase, private readonly repo: Board_Repository) {
-    super('board', base.invocations)
+  private constructor(base: BoardsBase, private readonly repo: Board_Repository, deps: Board_Deps) {
+    super('board', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Board_Created, updated: Board_Updated, archived: Board_Archived })
   }
 

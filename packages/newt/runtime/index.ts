@@ -9,3 +9,13 @@ export type { JobQueue } from './jobs/job-queue'
 export type { JobQueueOptions } from './jobs/job-queue-options'
 export type { Schedules } from './schedules/schedules'
 export type { ScheduleTick } from './schedules/schedule-tick'
+export { describeApplication } from './description/describe-application'
+export type {
+  ApplicationDescription,
+  ContextDescription,
+  ModuleDescription,
+  UseCaseDescription,
+  EventDescription,
+  ModuleDependency,
+  SubscriptionDescription,
+} from './description/application-description'

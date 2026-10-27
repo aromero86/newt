@@ -19,7 +19,7 @@ export class Job_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Job_Deps) {
-    super('job', base.invocations)
+    super('job', base.invocations, deps)
   }
 
   /** A page of a context's dead jobs, the newest first. */

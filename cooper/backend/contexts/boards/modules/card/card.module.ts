@@ -65,7 +65,7 @@ export class Card_Module extends Module {
     private readonly deps: Card_Deps,
     private readonly options: Card_Options,
   ) {
-    super('card', base.invocations)
+    super('card', base.invocations, deps)
     this.events = eventsOf(base.bus, {
       created: Card_Created,
       edited: Card_Edited,

@@ -35,7 +35,7 @@ export class Column_Module extends Module {
   readonly events
 
   private constructor(base: BoardsBase, private readonly repo: Column_Repository, private readonly deps: Column_Deps) {
-    super('column', base.invocations)
+    super('column', base.invocations, deps)
     this.events = eventsOf(base.bus, { added: Column_Added, renamed: Column_Renamed, moved: Column_Moved, removed: Column_Removed })
   }
 

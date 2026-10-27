@@ -94,7 +94,7 @@ export class ${M}_Module extends Module {
   readonly events
 
   private constructor(base: Base, private readonly repo: ${M}_Repository, private readonly deps: ${M}_Deps) {
-    super('${n.module}', base.invocations)
+    super('${n.module}', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: ${M}_Created })
   }
 

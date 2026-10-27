@@ -6,6 +6,7 @@ import { DuplicateValue } from '../errors/duplicate-value'
 import { applicationTracer } from '../observability/application-tracer'
 import type { SpanAttributes } from '../observability/span-attributes'
 import type { Tracer } from '../observability/tracer'
+import { Registry } from '../registry/registry'
 import { invocationChain, inWorker } from './invocation-chain'
 import type { UseCaseOptions } from './use-case-options'
 import type { GuardRule } from './guard-rule'
@@ -27,6 +28,8 @@ const DUPLICATE_RETRIES = 1
 export class Invocations {
 
   private readonly warned = new Set<string>()
+  /** What the context knows of itself: its modules and their use cases, its schedules and subscriptions. */
+  readonly registry: Registry
 
   constructor(
     /** Its own; the application's (`setTracer`) when it has none. */
@@ -36,7 +39,9 @@ export class Invocations {
     /** The context's clock, which its use cases tell the time by (`now`): the real one if none. */
     private readonly clock?: Clock,
     private readonly guardRule: GuardRule = 'error',
-  ) {}
+  ) {
+    this.registry = new Registry(String(attributes.context ?? ''))
+  }
 
   run<T>(name: string, fn: () => Promise<T>, options?: UseCaseOptions): Promise<T> {
     const module = name.split('.')[0]!

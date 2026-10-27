@@ -6,10 +6,19 @@ import type { RefFinder } from './ref-finder'
 
 export abstract class Module {
 
+    /**
+     * `deps` are what its `initialize` was given (`super('card', base.invocations, deps)`):
+     * the module keeps none of them here, its context's registry reads them to tell
+     * which modules, events and ports it depends on.
+     */
     constructor(
       public readonly name: string,
       public readonly invocations: Invocations,
-    ) {}
+      deps?: object,
+    ) {
+      // A test's stand-in for the invocations may have no registry.
+      invocations.registry?.module(this, deps)
+    }
 
     /**
      * First row of a finder, or throws. The caller injects the error, so the

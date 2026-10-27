@@ -13,6 +13,8 @@ export { restoreSaved, savedState } from './entity/saved-state'
 /** The runtime builds each context's invocations, and runs its jobs as a worker. */
 export { Invocations } from './use-case/invocations'
 export { inWorker } from './use-case/invocation-chain'
+/** The runtime registers each context's schedules and subscriptions, and describes what was registered. */
+export type { Registry, RegisteredModule, RegisteredSubscription } from './registry/registry'
 /** A subscription and the worker check a handler's queue by one rule. */
 export { eventOfQueue } from './events/event-of-queue'
 /** The worker runs its jobs by its context's clock. */

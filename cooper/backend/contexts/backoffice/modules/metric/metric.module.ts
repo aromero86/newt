@@ -24,14 +24,14 @@ const dayOf = (iso: string) => iso.slice(0, 10)
 export class Metric_Module extends Module {
 
   static initialize(base: CooperBase, deps: Metric_Deps, options: Metric_Options): Metric_Module {
-    const module = new Metric_Module(base, options)
+    const module = new Metric_Module(base, deps, options)
     registerMetricRoutes(base, module, deps)
     registerMetricWorkers(module, deps)
     return module
   }
 
-  private constructor(base: CooperBase, private readonly options: Metric_Options) {
-    super('metric', base.invocations)
+  private constructor(base: CooperBase, deps: Metric_Deps, private readonly options: Metric_Options) {
+    super('metric', base.invocations, deps)
   }
 
   /** A card was made, in a board of a workspace. */

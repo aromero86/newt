@@ -23,7 +23,7 @@ export class Staff_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Staff_Deps, private readonly options: Staff_Options) {
-    super('staff', base.invocations)
+    super('staff', base.invocations, deps)
   }
 
   /**

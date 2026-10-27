@@ -70,6 +70,7 @@ export class Schedules {
     parsed.next(this.clock.now())
     const event = tickOf(name, this.clock)
     this.schedules.set(name, { name, cron: parsed, event })
+    this.invocations.registry.schedule(name, parsed.expression)
     return new DomainEventEmitter(this.bus, event)
   }
 

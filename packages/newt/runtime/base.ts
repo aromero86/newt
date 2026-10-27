@@ -37,12 +37,22 @@ export class Base<S extends Store = Store> {
     this.store = options.store
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     const memory = new InMemoryEventBus()
+    const { registry } = this.invocations
     this.bus = {
       // Whoever publishes on the bus gets what a repository gets: the outbox, and the commit.
       publish: event => this.publisher.publish(event),
-      subscribe: (pattern, handler, subscription) => subscription?.mode === 'handler'
-        ? this.jobs.register(subscription.name, pattern, handler, subscription.attempts, subscription.when)
-        : memory.subscribe(pattern, handler),
+      subscribe: (pattern, handler, subscription) => {
+        const unsubscribe = subscription?.mode === 'handler'
+          ? this.jobs.register(subscription.name, pattern, handler, subscription.attempts, subscription.when)
+          : memory.subscribe(pattern, handler)
+        const forget = registry.subscription(subscription?.mode === 'handler'
+          ? { event: pattern, strategy: 'handler', queue: subscription.name, attempts: subscription.attempts ?? null, filtered: subscription.when !== undefined }
+          : { event: pattern, strategy: 'fire-and-forget', queue: null, attempts: null, filtered: null })
+        return () => {
+          forget()
+          unsubscribe()
+        }
+      },
     }
     this.publisher = {
       publish: async event => {

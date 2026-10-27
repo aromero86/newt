@@ -42,9 +42,11 @@ repository (`web/guide`, `web/reference/rules.md`, `lint.md`, `stores.md`).
 | `<m>.deps.ts` / `<m>-options.ts` | `<M>_Deps` (modules it calls, ports, `import type`); `<M>_Options` (config). |
 | `events/<m>-<verb>.ts`, `errors/<error>.ts`, `value-objects/`, `services/`, `*.test.ts` | One class per file; tests beside the code. |
 
-Names, for folder `oauth-grant`: class `OauthGrant_Module`, `super('oauthGrant', base.invocations)`, entity `OauthGrant`, `OauthGrant_Repository`, table `oauth_grant`, use case `oauthGrant.redeem`, event `oauthGrant.replayed` (class `OauthGrant_Replayed`, file `events/oauth-grant-replayed.ts`), error code `oauthGrant.invalid_grant`, queue `token.revokeGrant.on.oauthGrant.replayed`.
+Names, for folder `oauth-grant`: class `OauthGrant_Module`, `super('oauthGrant', base.invocations, deps)`, entity `OauthGrant`, `OauthGrant_Repository`, table `oauth_grant`, use case `oauthGrant.redeem`, event `oauthGrant.replayed` (class `OauthGrant_Replayed`, file `events/oauth-grant-replayed.ts`), error code `oauthGrant.invalid_grant`, queue `token.revokeGrant.on.oauthGrant.replayed`.
 
 A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`).
+
+A module passes all of its deps to `super`, those only its routes or workers use too: that is how the application knows what each module depends on (`describeApplication`, newt/runtime).
 
 ## Entity, schema, repository
 

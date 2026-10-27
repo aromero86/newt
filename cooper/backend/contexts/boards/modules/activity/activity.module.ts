@@ -25,14 +25,14 @@ import { registerActivityWorkers } from './activity.workers'
 export class Activity_Module extends Module {
 
   static initialize(base: BoardsBase, deps: Activity_Deps, options: Activity_Options): Activity_Module {
-    const module = new Activity_Module(base, new Activity_Repository(base))
+    const module = new Activity_Module(base, new Activity_Repository(base), deps)
     registerActivityRoutes(base, module, deps)
     registerActivityWorkers(module, deps, options)
     return module
   }
 
-  private constructor(base: BoardsBase, private readonly repo: Activity_Repository) {
-    super('activity', base.invocations)
+  private constructor(base: BoardsBase, private readonly repo: Activity_Repository, deps: Activity_Deps) {
+    super('activity', base.invocations, deps)
   }
 
   /** A page of a card's activity, the newest first. Its card may be gone: its history stays. */

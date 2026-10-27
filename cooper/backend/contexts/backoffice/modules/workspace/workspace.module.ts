@@ -32,7 +32,7 @@ export class Workspace_Module extends Module {
   }
 
   private constructor(base: CooperBase, private readonly deps: Workspace_Deps) {
-    super('workspace', base.invocations)
+    super('workspace', base.invocations, deps)
   }
 
   /** Every workspace, the newest first; with a name, those with it. With its admin and its cards. */

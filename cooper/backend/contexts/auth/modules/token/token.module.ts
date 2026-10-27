@@ -38,7 +38,7 @@ export class Token_Module extends Module {
     private readonly deps: Token_Deps,
     private readonly options: Token_Options,
   ) {
-    super('token', base.invocations)
+    super('token', base.invocations, deps)
   }
 
   /**

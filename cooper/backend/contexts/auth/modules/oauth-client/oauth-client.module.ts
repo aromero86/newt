@@ -28,7 +28,7 @@ export class OauthClient_Module extends Module {
     private readonly deps: OauthClient_Deps,
     private readonly options: OauthClient_Options,
   ) {
-    super('oauthClient', base.invocations)
+    super('oauthClient', base.invocations, deps)
   }
 
   /** Anyone may register a client: it opens nothing until a person says yes to it. */

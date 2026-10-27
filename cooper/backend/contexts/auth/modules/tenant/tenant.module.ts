@@ -32,7 +32,7 @@ export class Tenant_Module extends Module {
     private readonly deps: Tenant_Deps,
     private readonly options: Tenant_Options,
   ) {
-    super('tenant', base.invocations)
+    super('tenant', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Tenant_Created, renamed: Tenant_Renamed, deleted: Tenant_Deleted })
   }
 
