@@ -58,10 +58,10 @@ export function serveTestApp(name = 'shop') {
       }
     },
     /** A use case's call in a context, timed as the application times it: at a time, how long, by an actor, in scopes. */
-    call(context: string, useCase: string, called: { at: Date, ms: number, retries?: number, actor?: string | null, scopes?: Record<string, string>, times?: number }) {
+    call(context: string, useCase: string, called: { at: Date, ms: number, retries?: number, actor?: string | null, scopes?: Record<string, string>, times?: number, outcome?: { kind: 'error' | 'failure', code: string } }) {
       const base = contexts.find(each => each.name === context)!
       for (let time = 0; time < (called.times ?? 1); time++) {
-        base.metrics.time({ context, useCase, at: called.at, ms: called.ms, retries: called.retries ?? 0, actor: called.actor ?? null, scopes: called.scopes ?? {} })
+        base.metrics.time({ context, useCase, at: called.at, ms: called.ms, retries: called.retries ?? 0, actor: called.actor ?? null, scopes: called.scopes ?? {}, outcome: called.outcome ?? null })
       }
     },
     /** A context taken away. */
