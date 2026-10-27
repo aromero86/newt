@@ -1,10 +1,13 @@
 import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
 import { App, AppListSchema, AppRegisterSchema, AppUpdateSchema, type AppDTO } from './app'
 import type { App_Options } from './app-options'
+import type { App_Deps } from './app.deps'
 import { App_Repository } from './app.repository'
 import { registerAppRoutes } from './app.routes'
+import { AppDoesNotConnect } from './errors/app-does-not-connect'
 import { AppNameTaken } from './errors/app-name-taken'
 import { AppNotFound } from './errors/app-not-found'
 import { App_Archived } from './events/app-archived'
@@ -16,23 +19,25 @@ import { App_Updated } from './events/app-updated'
 /** The applications the monitor watches: their names, where to reach them, and their keys, sealed. */
 export class App_Module extends Module {
 
-  static initialize(base: MonitorBase, options: App_Options): App_Module {
-    const module = new App_Module(base, new App_Repository(base), options)
+  static initialize(base: MonitorBase, deps: App_Deps, options: App_Options): App_Module {
+    const module = new App_Module(base, new App_Repository(base), deps, options)
     registerAppRoutes(base, module)
     return module
   }
 
   readonly events
 
-  private constructor(base: MonitorBase, private readonly repo: App_Repository, private readonly options: App_Options) {
-    super('app', base.invocations)
+  private constructor(base: MonitorBase, private readonly repo: App_Repository, private readonly deps: App_Deps, private readonly options: App_Options) {
+    super('app', base.invocations, deps)
     this.events = eventsOf(base.bus, { registered: App_Registered, updated: App_Updated, archived: App_Archived, restored: App_Restored, deleted: App_Deleted })
   }
 
+  /** Registers an application that answers at its address with its key: one that does not is not saved. */
   @UseCase()
   async register(input: unknown): Promise<AppDTO> {
     const fields = AppRegisterSchema.parse(input)
     if (await this.repo.isNameTaken(fields.name)) throw new AppNameTaken(fields.name)
+    await this.connects(fields)
     const app = App.register(fields, this.options.cipher)
     await this.repo.persistWithNameFree(app)
     return app.toDTO()
@@ -51,12 +56,18 @@ export class App_Module extends Module {
     return (await this.load(id)).toDTO()
   }
 
-  /** Changes its name, its address or its key: what is given and differs. */
+  /**
+   * Changes its name, its address or its key: what is given and differs. A new address
+   * or key must answer before it is saved: one that does not leaves the one that did.
+   */
   @UseCase()
   async update(id: string, input: unknown): Promise<AppDTO> {
     const change = AppUpdateSchema.parse(input)
     const app = await this.load(id)
     if (change.name !== undefined && await this.repo.isNameTaken(change.name, id)) throw new AppNameTaken(change.name)
+    if (change.url !== undefined || change.key !== undefined) {
+      await this.connects({ url: change.url ?? app.url, key: change.key ?? app.key(this.options.cipher) })
+    }
     app.update(change, this.options.cipher)
     await this.repo.persistWithNameFree(app)
     return app.toDTO()
@@ -94,6 +105,16 @@ export class App_Module extends Module {
   async endpointOf(id: string): Promise<Endpoint> {
     const app = await this.load(id)
     return { url: app.url, key: app.key(this.options.cipher) }
+  }
+
+  /** Asks the endpoint which application it is, signing with the key: one that does not answer says why. */
+  private async connects(endpoint: Endpoint): Promise<void> {
+    try {
+      await this.deps.client.identity(endpoint)
+    } catch (error) {
+      if (!(error instanceof AppCallFailed) || error.reason === 'key_unreadable') throw error
+      throw new AppDoesNotConnect(error.reason, error.message)
+    }
   }
 
   private load(id: string): Promise<App> {

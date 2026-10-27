@@ -37,7 +37,8 @@ class TestModule extends Module {
  */
 export function serveTestApp(name = 'shop') {
   const contexts: Base[] = []
-  const server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY })
+  let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY })
+  const port = server.port!
   return {
     url: server.url.origin,
     key: TEST_APP_KEY,
@@ -52,6 +53,10 @@ export function serveTestApp(name = 'shop') {
       contexts.splice(contexts.findIndex(base => base.name === context), 1)
     },
     stop: () => server.stop(true),
+    /** Served again, on the same port, after `stop`: the application back after a deployment. */
+    start() {
+      server = serveMonitor(contexts, { name, port, key: TEST_APP_KEY })
+    },
   }
 }
 

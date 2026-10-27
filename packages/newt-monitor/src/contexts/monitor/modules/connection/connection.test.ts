@@ -45,17 +45,17 @@ describe('connection', () => {
 
   test('records why it did not answer, tells it is lost, and that it is back', async () => {
     await check()
-    await as(`/api/apps/${id}`, { method: 'PATCH', json: { key: 'not the key the application has, but long' } })
+    await app.stop()
 
-    const refused = await check()
-    expect(refused).toMatchObject({ status: 'down', failure: { reason: 'key_rejected' } })
+    const down = await check()
+    expect(down).toMatchObject({ status: 'down', failure: { reason: 'unreachable' } })
     // Down, it keeps who it was and when it last answered.
-    expect(refused.identity).toMatchObject({ name: 'shop' })
-    expect(refused.lastSeenAt).not.toBeNull()
+    expect(down.identity).toMatchObject({ name: 'shop' })
+    expect(down.lastSeenAt).not.toBeNull()
 
-    await as(`/api/apps/${id}`, { method: 'PATCH', json: { key: app.key } })
+    app.start()
     expect(await check()).toMatchObject({ status: 'up' })
-    expect(told).toEqual(['lost: key_rejected', 'restored'])
+    expect(told).toEqual(['lost: unreachable', 'restored'])
   })
 
   test('tells it lost an application that stopped answering, once however many times it asks', async () => {

@@ -214,4 +214,4 @@ curl -s -b cookies.txt -X POST localhost:4800/api/apps/<id>/connection/check
   on.
 - An event tells a change: lost once, restored once, however many times it is asked.
 
-Next: not saving what does not connect.
+Next: [not saving what does not connect](./07-not-saving-what-does-not-connect).

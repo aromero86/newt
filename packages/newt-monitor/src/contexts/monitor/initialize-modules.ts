@@ -17,8 +17,9 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
     hours: config.sessionHours,
     secureCookie: new URL(config.publicUrl).protocol === 'https:',
   })
-  const app = App_Module.initialize(base, { cipher: new KeyCipher(config.secret) })
-  const connection = Connection_Module.initialize(base, { app, client: deps.client ?? new HttpAppClient() })
+  const client = deps.client ?? new HttpAppClient()
+  const app = App_Module.initialize(base, { client }, { cipher: new KeyCipher(config.secret) })
+  const connection = Connection_Module.initialize(base, { app, client })
   return { session, app, connection }
 }
 

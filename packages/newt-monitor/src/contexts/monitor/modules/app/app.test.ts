@@ -1,20 +1,26 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { EventSource, Json } from 'newt/core'
-import type { Browser } from 'newt/testing'
+import { freePort, type Browser } from 'newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
+import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { AppRow } from './app.repository'
-
-const COOPER = { name: 'cooper', url: 'http://cooper:3010/', key: 'cooper\'s monitor key, long enough to sign' }
 
 let monitor: TestMonitor
 let as: Browser
+let cooper: TestApp
+let COOPER: { name: string, url: string, key: string }
 
 beforeEach(async () => {
   monitor = await openTestMonitor()
   as = await monitor.signedIn()
+  cooper = serveTestApp('cooper')
+  COOPER = { name: 'cooper', url: `${cooper.url}/`, key: cooper.key }
 })
 
-afterEach(() => monitor.close())
+afterEach(async () => {
+  await cooper.stop()
+  await monitor.close()
+})
 
 const register = (json: unknown) => as('/api/apps', { method: 'POST', json })
 
@@ -24,7 +30,7 @@ describe('app', () => {
 
     expect(response.status).toBe(201)
     const app = await response.json() as Record<string, unknown>
-    expect(app).toMatchObject({ name: 'cooper', url: 'http://cooper:3010', archivedAt: null })
+    expect(app).toMatchObject({ name: 'cooper', url: cooper.url, archivedAt: null })
     expect(Object.keys(app).sort()).toEqual(['archivedAt', 'createdAt', 'id', 'name', 'updatedAt', 'url'])
     expect(await (await as(`/api/apps/${app.id}`)).json()).toEqual(app)
   })
@@ -60,12 +66,14 @@ describe('app', () => {
 
   test('changes its name, its address or its key, and seals the new key', async () => {
     const { id } = await (await register(COOPER)).json() as { id: string }
+    const moved = serveTestApp('cooper')
 
-    const changed = await as(`/api/apps/${id}`, { method: 'PATCH', json: { url: 'https://cooper.internal:3010', key: 'another key for cooper, just as long' } })
-    expect(await changed.json()).toMatchObject({ name: 'cooper', url: 'https://cooper.internal:3010' })
+    const changed = await as(`/api/apps/${id}`, { method: 'PATCH', json: { name: 'Cooper', url: moved.url } })
+    expect(await changed.json()).toMatchObject({ name: 'Cooper', url: moved.url })
     const [row] = await monitor.monitor.base.store.table<AppRow>('app').find({ id })
-    expect(row!.sealedKey).not.toContain('another key')
+    expect(row!.sealedKey).not.toContain(moved.key)
     expect((await as(`/api/apps/${id}`, { method: 'PATCH', json: {} })).status).toBe(400)
+    await moved.stop()
   })
 
   test('says there is none for an id it does not have', async () => {
@@ -131,5 +139,38 @@ describe('an application\'s life', () => {
     await as(`/api/apps/${id}`, { method: 'DELETE' })
 
     expect(told).toEqual(['registered', 'archived', 'restored', 'archived', 'deleted'])
+  })
+})
+
+describe('an application that does not connect', () => {
+  const nobody = () => `http://127.0.0.1:${freePort()}`
+
+  test('is not registered, and the answer says why', async () => {
+    const answers = [
+      await register({ ...COOPER, url: nobody() }),
+      await register({ ...COOPER, key: 'not cooper\'s key, though long enough' }),
+    ]
+
+    expect(answers.map(answer => answer.status)).toEqual([400, 400])
+    expect(await Promise.all(answers.map(async answer => ((await answer.json()) as { code: string }).code))).toEqual(['app.unreachable', 'app.key_rejected'])
+    expect(await monitor.monitor.base.store.table<AppRow>('app').find()).toEqual([])
+  })
+
+  test('is not where one is moved: the address and key that answered stay', async () => {
+    const { id } = await (await register(COOPER)).json() as { id: string }
+
+    const refused = await as(`/api/apps/${id}`, { method: 'PATCH', json: { url: nobody() } })
+    expect(refused.status).toBe(400)
+    expect(await refused.json()).toMatchObject({ code: 'app.unreachable' })
+    expect((await as(`/api/apps/${id}`, { method: 'PATCH', json: { key: 'not cooper\'s key, though long enough' } })).status).toBe(400)
+    expect(await (await as(`/api/apps/${id}`)).json()).toMatchObject({ url: cooper.url })
+    expect(await monitor.modules.app.endpointOf(id)).toEqual({ url: cooper.url, key: cooper.key })
+  })
+
+  test('is checked only when its address or key changes: a new name asks nothing', async () => {
+    const { id } = await (await register(COOPER)).json() as { id: string }
+    await cooper.stop()
+
+    expect((await as(`/api/apps/${id}`, { method: 'PATCH', json: { name: 'cooper (old)' } })).status).toBe(200)
   })
 })

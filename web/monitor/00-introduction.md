@@ -47,5 +47,6 @@ newt it uses, and points at the chapter of the guide that teaches it.
 4. [The applications](./04-the-applications): register, list, change; a name is one's.
 5. [Archive, restore, delete](./05-archive-restore-delete): an application's life; nothing lost until it is deleted.
 6. [Talking to an application](./06-talking-to-an-application): a port, signed requests, whether it answers.
+7. [Not saving what does not connect](./07-not-saving-what-does-not-connect): ask first, and keep what worked.
 
 Next: [a monitor built with newt](./01-a-monitor-built-with-newt).
