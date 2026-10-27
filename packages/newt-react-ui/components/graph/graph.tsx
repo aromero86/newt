@@ -29,6 +29,9 @@ export function Graph({ label, nodes, edges }: GraphProps) {
   const lit = (edge: GraphEdge) => focused !== null && (edge.from === focused || edge.to === focused)
   // An arrow that skips a column arcs over it, so it never runs under a box: room above for it.
   const ports = portsOf(drawn, byId)
+  // Many arrows into one box would heap their heads there: they get one only when lit.
+  const arriving = (id: string) => drawn.filter(edge => edge.to === id).length
+  const headed = (edge: GraphEdge) => lit(edge) || arriving(edge.to) <= 3
   const top = drawn.some(edge => byId.get(edge.from)!.column - byId.get(edge.to)!.column > 1) ? ARC : 0
 
   return (
@@ -61,7 +64,7 @@ export function Graph({ label, nodes, edges }: GraphProps) {
                 fill="none"
                 strokeWidth={lit(edge) ? 1.75 : 1.25}
                 strokeDasharray={edge.dashed ? '4 4' : undefined}
-                markerEnd={`url(#${lit(edge) ? 'graph-arrow-lit' : 'graph-arrow'})`}
+                markerEnd={headed(edge) ? `url(#${lit(edge) ? 'graph-arrow-lit' : 'graph-arrow'})` : undefined}
                 className={cn('transition-opacity', lit(edge) ? 'stroke-brand' : 'stroke-muted-foreground/50', focused !== null && !lit(edge) && 'opacity-25')}
               />
             ))}

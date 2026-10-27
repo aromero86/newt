@@ -7,6 +7,8 @@ export type GraphNode = {
   group?: string
   /** The one the graph is about: drawn in the brand's colour. */
   emphasis?: boolean
+  /** Its column, counted from the left, when the graph says where it goes instead of what it uses. */
+  column?: number
 }
 
 /** `from` uses `to`: the arrow points at what is used, which sits to its left. */
@@ -34,7 +36,7 @@ export type GraphLayout = { nodes: PlacedNode[], groups: PlacedGroup[], width: n
  * Where everything goes: what nothing else uses sits furthest right, and each node one
  * column right of the furthest it uses, so every arrow points left. A cycle is cut
  * where it is found. In a column, nodes go by group, then by name; a group's nodes
- * stay together, inside its box.
+ * stay together, inside its box. A node given its `column` goes there.
  */
 export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): GraphLayout {
   const ids = new Set(nodes.map(node => node.id))
@@ -46,6 +48,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): GraphLayout
 
   const columns = new Map<string, number>()
   const visiting = new Set<string>()
+  for (const node of nodes) if (node.column !== undefined) columns.set(node.id, node.column)
   const columnOf = (id: string): number => {
     const known = columns.get(id)
     if (known !== undefined) return known
@@ -57,6 +60,9 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[]): GraphLayout
     return column
   }
   for (const node of nodes) columnOf(node.id)
+  // A column nobody is in, on the left, is no room left empty.
+  const first = Math.min(...columns.values())
+  if (Number.isFinite(first) && first > 0) for (const [id, column] of columns) columns.set(id, column - first)
 
   const placed: PlacedNode[] = []
   const groups: PlacedGroup[] = []

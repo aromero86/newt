@@ -24,4 +24,12 @@ describe('a graph\'s layout', () => {
     expect(groups[0]!.y + groups[0]!.height).toBeGreaterThan(b!.y)
     expect(nodes).toHaveLength(4)
   })
+
+  test('puts a node given its column there', () => {
+    const { nodes } = layoutGraph([{ id: 'a', label: 'a', column: 1 }, { id: 'b', label: 'b' }], [])
+    expect(nodes.find(node => node.id === 'a')!.column).toBe(1)
+    expect(nodes.find(node => node.id === 'b')!.column).toBe(0)
+    // With nobody on the left, the graph starts at its first column.
+    expect(layoutGraph([{ id: 'a', label: 'a', column: 1 }, { id: 'b', label: 'b', column: 2 }], []).nodes.map(node => node.column)).toEqual([0, 1])
+  })
 })
