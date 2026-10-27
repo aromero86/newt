@@ -19,6 +19,7 @@ const TEST_CONFIG: MonitorConfig = {
   // No build: its pages answer that it is not built; its API, as always.
   frontend: join(import.meta.dir, 'no-frontend'),
   frontendSources: false,
+  metricsFolder: ':memory:',
 }
 
 /** What a test changes of the monitor's settings (everything else is a test's), and the clock it tells the time by. */

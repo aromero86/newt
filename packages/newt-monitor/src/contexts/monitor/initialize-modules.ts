@@ -6,6 +6,8 @@ import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
 import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
+import { Metrics_Module } from './modules/metrics/metrics.module'
+import { MetricsStore } from './modules/metrics/services/metrics-store'
 import { Session_Module } from './modules/session/session.module'
 import { Structure_Module } from './modules/structure/structure.module'
 
@@ -24,7 +26,8 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const connection = Connection_Module.initialize(base, { app, client })
   const structure = Structure_Module.initialize(base, { app, connection })
   const catalog = Catalog_Module.initialize(base, { app, structure })
-  return { session, app, connection, structure, catalog }
+  const metrics = Metrics_Module.initialize(base, { app, connection }, { store: new MetricsStore(config.metricsFolder) })
+  return { session, app, connection, structure, catalog, metrics }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

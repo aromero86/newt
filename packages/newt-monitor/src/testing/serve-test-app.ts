@@ -46,7 +46,16 @@ export function serveTestApp(name = 'shop') {
     add(context: string, modules: Record<string, TestModuleShape>) {
       const base = new Base({ name: context, store: { outbox: {} } as unknown as Store })
       for (const [module, shape] of Object.entries(modules)) new TestModule(base, module, shape)
+      // Counted from the start, as an application's contexts are once its endpoint serves.
+      base.metrics.enable()
       contexts.push(base)
+    },
+    /** An event told in a context, counted as the application counts it: at a time, by an actor, in scopes. */
+    tell(context: string, event: string, told: { at: Date, actor?: string | null, scopes?: Record<string, string>, times?: number }) {
+      const base = contexts.find(each => each.name === context)!
+      for (let time = 0; time < (told.times ?? 1); time++) {
+        base.metrics.count({ context, event, at: told.at, actor: told.actor ?? null, scopes: told.scopes ?? {} })
+      }
     },
     /** A context taken away. */
     remove(context: string) {

@@ -1,5 +1,5 @@
 import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription } from 'newt/runtime'
+import type { ApplicationDescription, EventCounts } from 'newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'
@@ -18,6 +18,19 @@ const IdentitySchema = z.object({
 /** Enough of a description to know it is one, and of the version the monitor reads. */
 const StructureSchema = z.looseObject({ version: z.literal(1), contexts: z.array(z.looseObject({ name: z.string() })) })
 
+/** Enough of a page of counts to know it is one. */
+const CountsSchema = z.object({
+  counts: z.array(z.object({
+    minute: z.iso.datetime(),
+    context: z.string(),
+    event: z.string(),
+    scopes: z.record(z.string(), z.string()),
+    actor: z.string().nullable(),
+    count: z.number().int().positive(),
+  })),
+  until: z.iso.datetime(),
+})
+
 /** `AppClient` over HTTP: each request signed with the endpoint's key, which never travels. */
 export class HttpAppClient implements AppClient {
 
@@ -27,6 +40,10 @@ export class HttpAppClient implements AppClient {
 
   async structure(endpoint: Endpoint): Promise<ApplicationDescription> {
     return this.read(endpoint, '/v1/structure', StructureSchema) as Promise<unknown> as Promise<ApplicationDescription>
+  }
+
+  async metrics(endpoint: Endpoint, since: string | null): Promise<EventCounts> {
+    return this.read(endpoint, since === null ? '/v1/metrics' : `/v1/metrics?since=${encodeURIComponent(since)}`, CountsSchema)
   }
 
   /** What `path` answers, if it is what `schema` says: anything else is no monitor endpoint's. */

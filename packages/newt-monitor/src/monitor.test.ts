@@ -45,6 +45,7 @@ describe('its settings', () => {
       secret: 'a secret of thirty-two characters',
       frontend: join(import.meta.dir, '../dist/frontend'),
       frontendSources: false,
+      metricsFolder: 'data/metrics',
     })
   })
 

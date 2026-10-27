@@ -33,10 +33,13 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   }
   const clock = options.clock ?? systemClock
   const verifier = new MonitorVerifier(options.key, clock, options.nonces ?? new MemoryNonces())
-  const bases = contexts.map(context => ('base' in context ? context.base : context) as Base)
-  // Contexts may share one: each is asked once.
-  const metrics = [...new Set(bases.map(base => base.metrics))]
-  for (const each of metrics) each.enable()
+  // Contexts may share one: each is asked once. Read at each request, as `describeApplication` reads them.
+  const metricsOf = () => {
+    const metrics = [...new Set(contexts.map(context => (('base' in context ? context.base : context) as Base).metrics))]
+    for (const each of metrics) each.enable()
+    return metrics
+  }
+  metricsOf()
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,
@@ -55,8 +58,8 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
       if (request.method !== 'GET') return new Response(null, { status: 405, headers: { allow: 'GET' } })
       if (url.pathname === '/v1/identity') return json(identity)
       if (url.pathname === '/v1/structure') return json(describeApplication(contexts))
-      if (url.pathname === '/v1/metrics') return json(await closedCounts(metrics, url.searchParams.get('since'), clock.now()))
-      if (url.pathname === '/v1/metrics/live') return liveCounts(metrics, request.signal)
+      if (url.pathname === '/v1/metrics') return json(await closedCounts(metricsOf(), url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/metrics/live') return liveCounts(metricsOf(), request.signal)
       return new Response(null, { status: 404 })
     },
   })
@@ -67,7 +70,7 @@ async function closedCounts(metrics: EventMetrics[], since: string | null, now: 
   const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
   const each = await Promise.all(metrics.map(one => one.closed(valid, now)))
   // The earliest of their cursors: none of them has anything closed after it that is not in.
-  const until = each.map(one => one.until).sort()[0] ?? now.toISOString()
+  const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
   return { counts: each.flatMap(one => one.counts).filter(count => count.minute <= until), until }
 }
 

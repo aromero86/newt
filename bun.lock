@@ -92,6 +92,7 @@
         "newt-monitor": "./bin/newt-monitor.ts",
       },
       "dependencies": {
+        "@duckdb/node-api": "1.5.6-r.1",
         "newt": "workspace:*",
         "zod": "4.3.6",
       },

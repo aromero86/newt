@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import { MIN_SECRET_LENGTH } from './shared/key-cipher'
 
@@ -37,6 +37,8 @@ export type MonitorConfig = {
   frontend: string
   /** Its frontend from its sources instead, rebuilt as they change: development only. */
   frontendSources: boolean
+  /** Where each application's metrics are kept, a DuckDB each: beside its database, or in memory with it. */
+  metricsFolder: string
 }
 
 /**
@@ -60,5 +62,6 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
     secret: data.NEWT_MONITOR_SECRET,
     frontend: data.NEWT_MONITOR_FRONTEND,
     frontendSources: data.NEWT_MONITOR_FRONTEND_SOURCES === '1',
+    metricsFolder: data.NEWT_MONITOR_DATA === ':memory:' ? ':memory:' : join(dirname(data.NEWT_MONITOR_DATA), 'metrics'),
   }
 }

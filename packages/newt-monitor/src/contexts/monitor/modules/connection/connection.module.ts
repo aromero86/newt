@@ -1,5 +1,5 @@
 import { eventsOf, Module, UseCase } from 'newt/core'
-import type { ApplicationDescription } from 'newt/runtime'
+import type { ApplicationDescription, EventCounts } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
@@ -47,6 +47,14 @@ export class Connection_Module extends Module {
   @UseCase()
   async fetchStructure(appId: string): Promise<Called<ApplicationDescription>> {
     const called = await this.call(appId, endpoint => this.deps.client.structure(endpoint))
+    await this.record(appId, called.answered ? { answered: true } : called)
+    return called
+  }
+
+  /** How many times each of its events was told in the minutes closed since a cursor, if it answers; recorded as any call. */
+  @UseCase()
+  async fetchMetrics(appId: string, since: string | null): Promise<Called<EventCounts>> {
+    const called = await this.call(appId, endpoint => this.deps.client.metrics(endpoint, since))
     await this.record(appId, called.answered ? { answered: true } : called)
     return called
   }
