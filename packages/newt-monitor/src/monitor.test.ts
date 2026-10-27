@@ -24,11 +24,24 @@ describe('the monitor', () => {
 })
 
 describe('its settings', () => {
-  test('have what development needs by default', () => {
-    expect(readConfig({})).toEqual({ port: 4800, database: 'data/newt-monitor.db' })
+  const required = { NEWT_MONITOR_USER: 'ana', NEWT_MONITOR_PASSWORD: 'twelve chars at least' }
+
+  test('have what development needs by default, but who signs in', () => {
+    expect(readConfig(required)).toEqual({
+      port: 4800,
+      database: 'data/newt-monitor.db',
+      publicUrl: 'http://localhost:4800',
+      admin: { user: 'ana', password: 'twelve chars at least' },
+      sessionHours: 12,
+    })
   })
 
   test('stop it before it starts, naming every variable that is wrong', () => {
     expect(() => readConfig({ NEWT_MONITOR_PORT: 'eighty', NEWT_MONITOR_DATA: ' ' })).toThrow(/NEWT_MONITOR_PORT[\s\S]*NEWT_MONITOR_DATA/)
+  })
+
+  test('have no user nor password unless told: a monitor nobody configured does not start', () => {
+    expect(() => readConfig({})).toThrow(/NEWT_MONITOR_USER[\s\S]*NEWT_MONITOR_PASSWORD/)
+    expect(() => readConfig({ ...required, NEWT_MONITOR_PASSWORD: 'short' })).toThrow(/NEWT_MONITOR_PASSWORD/)
   })
 })

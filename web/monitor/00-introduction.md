@@ -42,5 +42,6 @@ newt it uses, and points at the chapter of the guide that teaches it.
 
 1. [A monitor built with newt](./01-a-monitor-built-with-newt): the package, its
    context, its settings, and `bunx newt-monitor`.
+2. [Signing in](./02-signing-in): one user and a password, a session in a cookie.
 
 Next: [a monitor built with newt](./01-a-monitor-built-with-newt).

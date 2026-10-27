@@ -49,6 +49,7 @@ const APPENDICES: [string, string, string][] = [
 const MONITOR: [string, string, string][] = [
   ['00-introduction', 'Introduction', 'Introducción'],
   ['01-a-monitor-built-with-newt', 'A monitor built with newt', 'Un monitor hecho con newt'],
+  ['02-signing-in', 'Signing in', 'Entrar'],
 ]
 
 const REFERENCE: [string, string, string][] = [

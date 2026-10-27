@@ -1,0 +1,83 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
+import { currentActor, Module, SecretToken, UseCase, type Actor } from 'newt/core'
+import type { MonitorBase } from '../../../../monitor-base'
+import { WrongCredentials } from './errors/wrong-credentials'
+import { Session, SignInSchema, type MeDTO } from './session'
+import type { Session_Options } from './session-options'
+import { Session_Repository } from './session.repository'
+import { registerSessionRoutes } from './session.routes'
+
+/**
+ * Two texts are the same, told in the same time whatever they are: each one's hash,
+ * of one length, compared byte by byte, so how long it takes says nothing of either.
+ */
+function same(given: string, expected: string): boolean {
+  const digest = (text: string) => createHash('sha256').update(text).digest()
+  return timingSafeEqual(digest(given), digest(expected))
+}
+
+/**
+ * Who is in: the one person the monitor's settings name, with their password, from
+ * any number of browsers. Every other route of the context runs as them, or not at all.
+ */
+export class Session_Module extends Module {
+
+  static initialize(base: MonitorBase, options: Session_Options): Session_Module {
+    const module = new Session_Module(base, new Session_Repository(base), options)
+    registerSessionRoutes(base, module, options)
+    return module
+  }
+
+  private constructor(base: MonitorBase, private readonly repo: Session_Repository, private readonly options: Session_Options) {
+    super('session', base.invocations)
+  }
+
+  /**
+   * A new session, for the right user and password: its token, for the browser's
+   * cookie. Both are checked, each in the same time, so a wrong user answers as late
+   * as a wrong password, and neither says which it was.
+   */
+  @UseCase()
+  async signIn(input: unknown): Promise<{ token: SecretToken, me: MeDTO }> {
+    const { user, password } = SignInSchema.parse(input)
+    const rightUser = same(user, this.options.user)
+    const rightPassword = same(password, this.options.password)
+    if (!rightUser || !rightPassword) throw new WrongCredentials()
+    const { session, token } = Session.open(this.options.hours)
+    await this.repo.persist(session)
+    return { token, me: { user: this.options.user } }
+  }
+
+  /** Who sent a request, from its cookie's token. An expired session is closed. */
+  @UseCase()
+  async authenticate(token: string | undefined): Promise<Actor | null> {
+    const session = await this.find(token)
+    if (!session) return null
+    if (session.isExpired()) {
+      session.close()
+      await this.repo.persist(session)
+      return null
+    }
+    return { userId: this.options.user }
+  }
+
+  /** Who is signed in. */
+  @UseCase()
+  async me(): Promise<MeDTO> {
+    return { user: currentActor().userId }
+  }
+
+  /** Ends the session of this token, if it is one: signing out twice is signing out once. */
+  @UseCase()
+  async signOut(token: string | undefined): Promise<void> {
+    const session = await this.find(token)
+    if (!session) return
+    session.close()
+    await this.repo.persist(session)
+  }
+
+  private async find(token: string | undefined): Promise<Session | undefined> {
+    const parsed = SecretToken.schema.safeParse(token)
+    return parsed.success ? this.repo.first({ tokenHash: SecretToken.hash(parsed.data) }) : undefined
+  }
+}

@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { SqliteStore } from 'newt/adapter-sqlite'
 import type { Clock } from 'newt/core'
 import type { ServeOptions } from 'newt/http'
@@ -20,9 +20,9 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
 
   static async open(config: MonitorConfig, clock?: Clock): Promise<Monitor_Context> {
     if (config.database !== ':memory:') await mkdir(dirname(config.database), { recursive: true })
-    const store = await SqliteStore.open({ path: config.database })
+    const store = await SqliteStore.open({ path: config.database, migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new MonitorBase({ name: 'monitor', store, clock })
-    return new Monitor_Context(base, initializeModules(base), config)
+    return new Monitor_Context(base, initializeModules(base, config), config)
   }
 
   /** How it is served (`runContexts`): its modules' API under `/api`, and `GET /api/health` for whoever watches it is up. */

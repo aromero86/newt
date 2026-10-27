@@ -242,4 +242,4 @@ curl -s localhost:4800/api/health
   of them named. The context receives its config.
 - The context opens its store, its base and its modules, and says how it is served.
 
-Next: signing in.
+Next: [signing in](./02-signing-in).
