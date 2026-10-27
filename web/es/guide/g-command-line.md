@@ -153,3 +153,6 @@ siguen; las entradas que no son el router de newt (las herramientas de un servid
 solo aparecen donde pasan por una ruta; un nombre hecho en tiempo de ejecución no se
 conoce. Los propios tests de newt-graph abren cooper y comprueban que cada cola y cada
 schedule que registra está en el grafo.
+
+La aplicación que corre dice mucho de lo mismo de sí misma, con los mismos ids:
+`describeApplication` ([apéndice H](./h-describe-application)).

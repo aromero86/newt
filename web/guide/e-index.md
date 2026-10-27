@@ -16,7 +16,7 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 
 | Export | Kind | Imported in | Also in |
 |---|---|---|---|
-| `Module` | value | [2](./02-first-module), [3](./03-pages-and-errors), [4](./04-who-and-where), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [12](./12-failures), [14](./14-sagas), [15](./15-kysely), [16](./16-search-port), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice), [26](./26-dead-jobs-and-analytics) | [B](./b-module-anatomy), [C](./c-common-problems) |
+| `Module` | value | [2](./02-first-module), [3](./03-pages-and-errors), [4](./04-who-and-where), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [12](./12-failures), [14](./14-sagas), [15](./15-kysely), [16](./16-search-port), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice), [26](./26-dead-jobs-and-analytics) | [B](./b-module-anatomy), [C](./c-common-problems), [H](./h-describe-application) |
 | `Ref` | type |   | — |
 | `RefFinder` | type |   | — |
 | `Entity` | value | [2](./02-first-module), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [22](./22-web-session) | [B](./b-module-anatomy), [C](./c-common-problems) |
@@ -192,14 +192,14 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `JobQueueOptions` | type |   | — |
 | `Schedules` | type |   | [19](./19-invitations-and-time) |
 | `ScheduleTick` | type |   | [19](./19-invitations-and-time) |
-| `describeApplication` | value |   | — |
-| `ApplicationDescription` | type |   | — |
-| `ContextDescription` | type |   | — |
-| `ModuleDescription` | type |   | — |
-| `UseCaseDescription` | type |   | — |
-| `EventDescription` | type |   | — |
-| `ModuleDependency` | type |   | — |
-| `SubscriptionDescription` | type |   | — |
+| `describeApplication` | value |   | [H](./h-describe-application) |
+| `ApplicationDescription` | type |   | [H](./h-describe-application) |
+| `ContextDescription` | type |   | [H](./h-describe-application) |
+| `ModuleDescription` | type |   | [H](./h-describe-application) |
+| `UseCaseDescription` | type |   | [H](./h-describe-application) |
+| `EventDescription` | type |   | [H](./h-describe-application) |
+| `ModuleDependency` | type |   | [H](./h-describe-application) |
+| `SubscriptionDescription` | type |   | [H](./h-describe-application) |
 
 ## `newt/sql`
 

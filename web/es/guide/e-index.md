@@ -17,7 +17,7 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 
 | Export | Tipo | Se importa en | También en |
 |---|---|---|---|
-| `Module` | valor | [2](./02-first-module), [3](./03-pages-and-errors), [4](./04-who-and-where), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [12](./12-failures), [14](./14-sagas), [15](./15-kysely), [16](./16-search-port), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice), [26](./26-dead-jobs-and-analytics) | [B](./b-module-anatomy), [C](./c-common-problems) |
+| `Module` | valor | [2](./02-first-module), [3](./03-pages-and-errors), [4](./04-who-and-where), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [12](./12-failures), [14](./14-sagas), [15](./15-kysely), [16](./16-search-port), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice), [26](./26-dead-jobs-and-analytics) | [B](./b-module-anatomy), [C](./c-common-problems), [H](./h-describe-application) |
 | `Ref` | tipo |   | — |
 | `RefFinder` | tipo |   | — |
 | `Entity` | valor | [2](./02-first-module), [6](./06-rules-over-rows), [7](./07-cards-and-a-counter), [10](./10-events), [11](./11-reacting), [17](./17-auth), [18](./18-tenants-and-access), [19](./19-invitations-and-time), [22](./22-web-session) | [B](./b-module-anatomy), [C](./c-common-problems) |
@@ -193,14 +193,14 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `JobQueueOptions` | tipo |   | — |
 | `Schedules` | tipo |   | [19](./19-invitations-and-time) |
 | `ScheduleTick` | tipo |   | [19](./19-invitations-and-time) |
-| `describeApplication` | valor |   | — |
-| `ApplicationDescription` | tipo |   | — |
-| `ContextDescription` | tipo |   | — |
-| `ModuleDescription` | tipo |   | — |
-| `UseCaseDescription` | tipo |   | — |
-| `EventDescription` | tipo |   | — |
-| `ModuleDependency` | tipo |   | — |
-| `SubscriptionDescription` | tipo |   | — |
+| `describeApplication` | valor |   | [H](./h-describe-application) |
+| `ApplicationDescription` | tipo |   | [H](./h-describe-application) |
+| `ContextDescription` | tipo |   | [H](./h-describe-application) |
+| `ModuleDescription` | tipo |   | [H](./h-describe-application) |
+| `UseCaseDescription` | tipo |   | [H](./h-describe-application) |
+| `EventDescription` | tipo |   | [H](./h-describe-application) |
+| `ModuleDependency` | tipo |   | [H](./h-describe-application) |
+| `SubscriptionDescription` | tipo |   | [H](./h-describe-application) |
 
 ## `newt/sql`
 

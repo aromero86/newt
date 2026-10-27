@@ -13,7 +13,7 @@ que da.
 | `<m>.schema.ts` | Los esquemas zod, los tipos DTO, los esquemas de entrada y los filtros: el **contrato público** del módulo. Lo importan otros módulos, otros contextos y los clientes de la API. Importa solo zod, `newt/contract`, objetos de valor y otros esquemas. | [2](./02-first-module), [23](./23-frontends) |
 | `<m>.ts` | La entidad, una clase que extiende `Entity`: el único código que cambia el estado del módulo. Reexporta el esquema. | [2](./02-first-module) |
 | `<m>.repository.ts` | El único archivo que toca el store: un `TableRepository` sobre la tabla del módulo, que dice su `scope` (el `{ field, current }` de un tenant, o `'none'` con el motivo), sus guardados con su `guard`, `before` y `after`, y cualquier consulta Kysely. | [2](./02-first-module), [4](./04-who-and-where), [6](./06-rules-over-rows) |
-| `<m>.module.ts` | `<M>_Module`: sus casos de uso (`@UseCase`: todo método público es uno, los demás son `private`), sus `events` (`eventsOf(base.bus, { … })`), y `static initialize`, que construye el repositorio y registra rutas y workers. | [2](./02-first-module), [10](./10-events) |
+| `<m>.module.ts` | `<M>_Module`: sus casos de uso (`@UseCase`: todo método público es uno, los demás son `private`), sus `events` (`eventsOf(base.bus, { … })`), y `static initialize`, que construye el repositorio y registra rutas y workers. Su constructor pasa todas sus deps a `super`, también las que solo usan sus rutas o sus workers, para que la aplicación sepa de qué depende. | [2](./02-first-module), [10](./10-events), [H](./h-describe-application) |
 | `<m>.routes.ts` | Sus rutas, si tiene alguna: leen la petición, llaman a un caso de uso con el cuerpo tal como llegó (`await request.json()`), responden. | [2](./02-first-module) |
 | `<m>.workers.ts` | Sus reacciones a eventos y programaciones (`….subscribe(…, { strategy: 'handler', queue })`), si tiene alguna. | [11](./11-reacting) |
 | `<m>.deps.ts` | `<M>_Deps`: los módulos de su contexto a los que llama, y los puertos que necesita de fuera de su contexto, importados como tipos. | [4](./04-who-and-where), [13](./13-another-context) |
@@ -80,7 +80,7 @@ Para un módulo sobre concesiones OAuth, como lo tiene auth ([capítulo 21](./21
 |---|---|
 | Carpeta | `oauth-grant` |
 | Clase del módulo | `OauthGrant_Module` |
-| Nombre del módulo (`super('…')`) | `oauthGrant` |
+| Nombre del módulo (`super('…', base.invocations, deps)`) | `oauthGrant` |
 | Entidad | `OauthGrant` |
 | Repositorio | `OauthGrant_Repository` |
 | Tabla | `oauth_grant` |

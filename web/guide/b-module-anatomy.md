@@ -12,7 +12,7 @@ what each holds, then every rule of `newt-eslint`, with the error each one gives
 | `<m>.schema.ts` | The zod schemas, the DTO types, the input schemas and the filters: the module's **public contract**. Other modules, other contexts and the API clients import it. It imports only zod, `newt/contract`, value objects and other schemas. | [2](./02-first-module), [23](./23-frontends) |
 | `<m>.ts` | The entity, a class extending `Entity`: the only code that changes the module's state. It re-exports the schema. | [2](./02-first-module) |
 | `<m>.repository.ts` | The only file that touches the store: a `TableRepository` over the module's table, which states its `scope` (a tenant's `{ field, current }`, or `'none'` with the reason), its saves with their `guard`, `before` and `after`, and any Kysely query. | [2](./02-first-module), [4](./04-who-and-where), [6](./06-rules-over-rows) |
-| `<m>.module.ts` | `<M>_Module`: its use cases (`@UseCase`: every public method is one, the rest are `private`), its `events` (`eventsOf(base.bus, { … })`), and `static initialize`, which builds the repository and registers routes and workers. | [2](./02-first-module), [10](./10-events) |
+| `<m>.module.ts` | `<M>_Module`: its use cases (`@UseCase`: every public method is one, the rest are `private`), its `events` (`eventsOf(base.bus, { … })`), and `static initialize`, which builds the repository and registers routes and workers. Its constructor passes all of its deps to `super`, those only its routes or workers use too, so the application knows what it depends on. | [2](./02-first-module), [10](./10-events), [H](./h-describe-application) |
 | `<m>.routes.ts` | Its routes, if it has any: read the request, call a use case with the body as it came (`await request.json()`), answer. | [2](./02-first-module) |
 | `<m>.workers.ts` | Its reactions to events and schedules (`….subscribe(…, { strategy: 'handler', queue })`), if it has any. | [11](./11-reacting) |
 | `<m>.deps.ts` | `<M>_Deps`: the modules of its context it calls, and the ports it needs from outside its context, imported as types. | [4](./04-who-and-where), [13](./13-another-context) |
@@ -78,7 +78,7 @@ For a module about OAuth grants, as auth has it ([chapter 21](./21-oauth-server)
 |---|---|
 | Folder | `oauth-grant` |
 | Module class | `OauthGrant_Module` |
-| Module name (`super('…')`) | `oauthGrant` |
+| Module name (`super('…', base.invocations, deps)`) | `oauthGrant` |
 | Entity | `OauthGrant` |
 | Repository | `OauthGrant_Repository` |
 | Table | `oauth_grant` |
