@@ -373,7 +373,8 @@ newt-graph reads cooper's code and opens a page at `http://localhost:4747` with 
 contexts, modules, use cases and events. Pick `card.create` and press `e`: you watch the
 card's history, its index, the mail to the assignee and the backoffice's metric run one
 after the other, each on the worker that runs it, as chapters 11 to 26 built them.
-[Appendix G](./g-command-line) has its keys and its limits.
+[Appendix G](./g-command-line) has its keys and its limits; [appendix H](./h-describe-application),
+what cooper says of itself while it runs, with the same ids.
 
 ## The rules, once more
 
@@ -479,6 +480,7 @@ From here, the appendices are for looking things up:
 [A. The golden rules](./a-golden-rules), [B. Module anatomy and lint](./b-module-anatomy),
 [C. Common problems](./c-common-problems), [D. Writing a store](./d-writing-a-store),
 [E. Index](./e-index), which says which chapter teaches each of newt's exports,
-[F. Aggregates](./f-aggregates), how newt keeps an aggregate compared with other ways, and
-[G. The command line](./g-command-line), `newt init` and `newt add module`.
+[F. Aggregates](./f-aggregates), how newt keeps an aggregate compared with other ways,
+[G. The command line](./g-command-line), `newt init` and `newt add module`, and
+[H. What an application knows of itself](./h-describe-application), what it says of itself while it runs.
 The [reference](../reference/rules) has every detail the chapters left out.

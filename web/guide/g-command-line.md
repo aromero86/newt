@@ -149,3 +149,6 @@ search, the mailer) are not followed; entry points other than newt's router (an 
 server's tools) show only where they go through a route; a name made at run time is not
 known. newt-graph's own tests open cooper and check that every queue and schedule it
 registers is in the graph.
+
+The running application says much of the same of itself, with the same ids:
+`describeApplication` ([appendix H](./h-describe-application)).

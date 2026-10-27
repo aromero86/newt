@@ -42,6 +42,7 @@ const APPENDICES: [string, string, string][] = [
   ['e-index', 'E. Index of newt\'s exports', 'E. Índice de los exports de newt'],
   ['f-aggregates', 'F. Aggregates', 'F. Agregados'],
   ['g-command-line', 'G. The command line', 'G. La línea de comandos'],
+  ['h-describe-application', 'H. What an application knows of itself', 'H. Lo que una aplicación sabe de sí misma'],
 ]
 
 const REFERENCE: [string, string, string][] = [

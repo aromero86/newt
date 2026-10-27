@@ -380,7 +380,8 @@ newt-graph lee el código de cooper y abre una página en `http://localhost:4747
 contextos, módulos, casos de uso y eventos. Elige `card.create` y pulsa `e`: verás el
 historial de la tarjeta, su índice, el correo al asignado y la métrica del backoffice
 ejecutarse uno tras otro, cada uno en el worker que lo ejecuta, como los construyeron los
-capítulos 11 a 26. El [apéndice G](./g-command-line) tiene sus teclas y sus límites.
+capítulos 11 a 26. El [apéndice G](./g-command-line) tiene sus teclas y sus límites; el
+[apéndice H](./h-describe-application), lo que cooper dice de sí mismo mientras corre, con los mismos ids.
 
 ## Las reglas, una vez más
 
@@ -491,6 +492,7 @@ A partir de aquí, los apéndices son para consultar:
 [A. Las reglas de oro](./a-golden-rules), [B. Anatomía de un módulo y lint](./b-module-anatomy),
 [C. Problemas comunes](./c-common-problems), [D. Escribir un store](./d-writing-a-store),
 [E. Índice](./e-index), que dice qué capítulo enseña cada export de newt,
-[F. Agregados](./f-aggregates), cómo guarda newt un agregado frente a otras formas, y
-[G. La línea de comandos](./g-command-line), `newt init` y `newt add module`.
+[F. Agregados](./f-aggregates), cómo guarda newt un agregado frente a otras formas,
+[G. La línea de comandos](./g-command-line), `newt init` y `newt add module`, y
+[H. Lo que una aplicación sabe de sí misma](./h-describe-application), lo que dice de sí misma mientras corre.
 La [referencia](../reference/rules) tiene cada detalle que los capítulos dejaron fuera.
