@@ -52,7 +52,7 @@ function tracedTable<Row extends StoredRow>(table: Table<Row>, name: string, con
   const shape = (criteria?: Criteria<Row>, options?: Parameters<Table<Row>['find']>[1]) => (isTracing() ? queryShape(criteria, options) : null)
   return {
     find: (criteria, options) => step('find', shape(criteria, options), () => table.find(criteria, options), rows => rows.length),
-    count: criteria => step('count', shape(criteria), () => table.count(criteria)),
+    count: criteria => step('count', shape(criteria), () => table.count(criteria), counted => counted),
     insert: row => step('insert', null, () => table.insert(row)),
     update: (id, version, changes) => step('update', null, () => table.update(id, version, changes)),
     patch: (id, changes) => step('patch', null, () => table.patch(id, changes)),
