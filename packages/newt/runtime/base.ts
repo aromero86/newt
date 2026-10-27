@@ -43,9 +43,11 @@ export class Base<S extends Store = Store> {
     this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     // Every call of its use cases, timed as it ends, in the scopes and by the actor it ran with.
-    this.invocations.onTimed = ({ useCase, ms, retries, outcome }) => this.metrics.time({
-      context: this.name, useCase, ms, retries, outcome, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now(),
-    })
+    // Only its modules' use cases: the framework's own invocations (`job.claim`, `schedule.tick`) are no one's.
+    this.invocations.onTimed = ({ useCase, ms, retries, outcome }) => {
+      if (!this.invocations.registry.isUseCase(useCase)) return
+      this.metrics.time({ context: this.name, useCase, ms, retries, outcome, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() })
+    }
     const memory = new InMemoryEventBus()
     const { registry } = this.invocations
     this.bus = {
@@ -69,9 +71,10 @@ export class Base<S extends Store = Store> {
         const told = withId(event)
         // Who told it and in which scopes, as it is told: counted once it is saved.
         const counted = { context: this.name, event: told.name, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() }
-        await this.jobs.enqueue(told)
+        const queues = await this.jobs.enqueue(told)
         this.store.afterCommit(() => {
           this.metrics.count(counted)
+          for (const queue of queues) this.metrics.flow({ context: this.name, queue, kind: 'published', at: counted.at })
           memory.publish(told)
           this.jobs.wake()
         })
@@ -79,6 +82,8 @@ export class Base<S extends Store = Store> {
     }
     this.schedules = new Schedules(this.store, this.bus, this.publisher, this.invocations, clock)
     this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, clock, this.schedules)
+    // Each job as it is taken and closed, in its queue's flow: a broker's numbers.
+    this.jobs.onFlow = ({ queue, kind, waitMs }) => this.metrics.flow({ context: this.name, queue, kind, waitMs, at: clock.now() })
   }
 
   /** Closes its store, and its metrics: what they had not added yet is added before. */

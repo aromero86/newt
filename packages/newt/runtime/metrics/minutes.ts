@@ -1,7 +1,8 @@
 import type { EventCount } from '../../core/metrics/event-count'
 import type { UseCaseTiming } from '../../core/metrics/use-case-timing'
 import { histogramBucketOf } from '../../core/metrics/histogram'
-import type { CountedEvent, TimedCall } from './metrics'
+import type { QueueFlow } from '../../core/metrics/queue-flow'
+import type { CountedEvent, QueueFlowEntry, TimedCall } from './metrics'
 
 export const MINUTE_MS = 60_000
 
@@ -68,5 +69,43 @@ export function timingOf(key: string, minute: string, timing: Timing): UseCaseTi
     histogram: Object.fromEntries([...timing.histogram].map(([bucket, count]) => [String(bucket), count])),
     errors: Object.fromEntries(timing.errors),
     failures: Object.fromEntries(timing.failures),
+  }
+}
+
+/** What tells one queue's flow from another in a minute: its context and queue. */
+export function flowKey(entry: Pick<QueueFlowEntry, 'context' | 'queue'>): string {
+  return JSON.stringify([entry.context, entry.queue])
+}
+
+/** A minute's flow of one queue, as it adds up. */
+export type Flow = { published: number, delivered: number, redelivered: number, dead: number, wait: Map<number, number> }
+
+export function emptyFlow(): Flow {
+  return { published: 0, delivered: 0, redelivered: 0, dead: 0, wait: new Map() }
+}
+
+/** One job's step added to a minute's flow. */
+export function addEntry(flow: Flow, entry: Pick<QueueFlowEntry, 'kind' | 'waitMs'>): void {
+  flow[entry.kind]++
+  if (entry.waitMs !== undefined) {
+    const bucket = histogramBucketOf(Math.max(0, entry.waitMs))
+    flow.wait.set(bucket, (flow.wait.get(bucket) ?? 0) + 1)
+  }
+}
+
+/** One flow added to another: as two instances' are. */
+export function addFlow(to: Flow, from: Flow): void {
+  to.published += from.published
+  to.delivered += from.delivered
+  to.redelivered += from.redelivered
+  to.dead += from.dead
+  for (const [bucket, count] of from.wait) to.wait.set(bucket, (to.wait.get(bucket) ?? 0) + count)
+}
+
+export function flowOf(key: string, minute: string, flow: Flow): QueueFlow {
+  const [context, queue] = JSON.parse(key) as [string, string]
+  return {
+    minute, context, queue, published: flow.published, delivered: flow.delivered, redelivered: flow.redelivered, dead: flow.dead,
+    wait: Object.fromEntries([...flow.wait].map(([bucket, count]) => [String(bucket), count])),
   }
 }

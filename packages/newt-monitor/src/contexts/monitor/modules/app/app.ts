@@ -1,6 +1,6 @@
 import type { z } from 'zod'
 import { Entity, now, type EntityInput } from 'newt/core'
-import type { KeyCipher } from '../../../../shared/key-cipher'
+import { SealedKeyUnreadable, type KeyCipher } from '../../../../shared/key-cipher'
 import { AppPublicSchema, AppSchema } from './app.schema'
 import { AppNotArchived } from './errors/app-not-archived'
 import { App_Archived } from './events/app-archived'
@@ -51,12 +51,22 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
     return cipher.open(this.data.sealedKey, this.id)
   }
 
+  /** Whether its key is this one: not when the one it keeps no longer opens, which is why it is given again. */
+  private holds(key: string, cipher: KeyCipher): boolean {
+    try {
+      return this.key(cipher) === key
+    } catch (error) {
+      if (error instanceof SealedKeyUnreadable) return false
+      throw error
+    }
+  }
+
   /** Changes what is given and differs; tells which fields did, if any. */
   update(change: Partial<Fields>, cipher: KeyCipher): void {
     const changed: ('name' | 'url' | 'key')[] = []
     if (change.name !== undefined && change.name !== this.data.name) changed.push('name')
     if (change.url !== undefined && change.url !== this.data.url) changed.push('url')
-    if (change.key !== undefined && change.key !== this.key(cipher)) changed.push('key')
+    if (change.key !== undefined && !this.holds(change.key, cipher)) changed.push('key')
     if (changed.length === 0) return
     this.change({
       ...(changed.includes('name') ? { name: change.name } : {}),

@@ -8,6 +8,8 @@ import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
 import { MetricsStore } from '../../shared/metrics-store/metrics-store'
 import { EventMetrics_Module } from './modules/event-metrics/event-metrics.module'
+import { Outbox_Module } from './modules/outbox/outbox.module'
+import { QueueMetrics_Module } from './modules/queue-metrics/queue-metrics.module'
 import { Retention_Module } from './modules/retention/retention.module'
 import { UseCaseErrors_Module } from './modules/use-case-errors/use-case-errors.module'
 import { UseCaseMetrics_Module } from './modules/use-case-metrics/use-case-metrics.module'
@@ -34,7 +36,9 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const eventMetrics = EventMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const useCaseMetrics = UseCaseMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const useCaseErrors = UseCaseErrors_Module.initialize(base, { app, connection, retention }, { store: metrics })
-  return { session, app, connection, structure, catalog, retention, eventMetrics, useCaseMetrics, useCaseErrors }
+  const queueMetrics = QueueMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
+  const outbox = Outbox_Module.initialize(base, { app, connection, retention }, { store: metrics })
+  return { session, app, connection, structure, catalog, retention, eventMetrics, useCaseMetrics, useCaseErrors, queueMetrics, outbox }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

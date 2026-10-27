@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { EventSource, Json } from 'newt/core'
 import { freePort, type Browser } from 'newt/testing'
-import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
+import { KeyCipher } from '../../../../shared/key-cipher'
+import { openTestMonitor, TEST_SECRET, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { AppRow } from './app.repository'
 
@@ -74,6 +75,16 @@ describe('app', () => {
     expect(row!.sealedKey).not.toContain(moved.key)
     expect((await as(`/api/apps/${id}`, { method: 'PATCH', json: {} })).status).toBe(400)
     await moved.stop()
+  })
+
+  test('takes its key again when the one it keeps no longer opens, sealed with another secret', async () => {
+    const { id } = await (await register(COOPER)).json() as { id: string }
+    const table = monitor.monitor.base.store.table<AppRow>('app')
+    await table.patch(id, { sealedKey: new KeyCipher('another secret, the one it was sealed with').seal(COOPER.key, id) })
+
+    expect((await as(`/api/apps/${id}`, { method: 'PATCH', json: { key: COOPER.key } })).status).toBe(200)
+    const [row] = await table.find({ id })
+    expect(new KeyCipher(TEST_SECRET).open(row!.sealedKey, id)).toBe(COOPER.key)
   })
 
   test('says there is none for an id it does not have', async () => {

@@ -2,6 +2,7 @@ import type { Job } from './job'
 import type { JobClosing } from './job-closing'
 import type { JobQuery } from './job-query'
 import type { JobQueueRegistration } from './job-queue-registration'
+import type { QueueDepth } from './queue-depth'
 
 /**
  * Where a store keeps its jobs: the outbox, in the same storage as its data, so a job
@@ -46,6 +47,11 @@ export interface Outbox {
    * done nor any payload.
    */
   waiting(): Promise<{ queue: string, jobs: number }[]>
+  /**
+   * How full each queue with any job not done is now: ready, retrying, running and
+   * dead, and since when its oldest job due (as of `now`) waits. It reads no payload.
+   */
+  depth(now: string): Promise<QueueDepth[]>
   /** Every queue a worker registered, and when one last said it was alive. */
   queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]>
 }

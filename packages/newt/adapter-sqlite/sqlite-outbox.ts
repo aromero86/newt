@@ -1,4 +1,6 @@
 import type { SQLQueryBindings } from 'bun:sqlite'
+import { DEPTH_SQL } from '../port-outbox/depth-sql'
+import type { QueueDepth } from '../port-outbox'
 import type { Job, JobClosing, JobQuery, JobQueueRegistration, Outbox } from '../port-outbox'
 import type { SqliteStore } from './sqlite-store'
 
@@ -105,6 +107,10 @@ export class SqliteOutbox implements Outbox {
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
     return this.store.connection.query(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`).all() as { queue: string, jobs: number }[]
+  }
+
+  async depth(now: string): Promise<QueueDepth[]> {
+    return this.store.connection.query(DEPTH_SQL('?')).all(now) as QueueDepth[]
   }
 
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {

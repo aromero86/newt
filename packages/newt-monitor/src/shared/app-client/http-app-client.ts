@@ -1,5 +1,5 @@
 import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, EventCounts, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'
@@ -50,6 +50,53 @@ const TimingsSchema = z.object({
   until: z.iso.datetime(),
 })
 
+/** Enough of a page of queue flows to know it is one. */
+const FlowsSchema = z.object({
+  flows: z.array(z.object({
+    minute: z.iso.datetime(),
+    context: z.string(),
+    queue: z.string(),
+    published: z.number().int().min(0),
+    delivered: z.number().int().min(0),
+    redelivered: z.number().int().min(0),
+    dead: z.number().int().min(0),
+    wait: z.record(z.string().regex(/^\d+$/), z.number().int().positive()),
+  })),
+  until: z.iso.datetime(),
+})
+
+/** Enough of an outbox's state to know it is one. */
+const OutboxSchema = z.object({
+  at: z.iso.datetime(),
+  contexts: z.array(z.object({
+    context: z.string(),
+    queues: z.array(z.object({
+      queue: z.string(),
+      ready: z.number().int().min(0),
+      retrying: z.number().int().min(0),
+      running: z.number().int().min(0),
+      dead: z.number().int().min(0),
+      oldestDueAt: z.string().nullable(),
+      lastSeenAt: z.string().nullable(),
+      orphan: z.boolean(),
+    })),
+  })),
+})
+
+/** Enough of a page of dead jobs to know it is one: never a payload. */
+const DeadJobsSchema = z.object({
+  jobs: z.array(z.object({
+    id: z.string(),
+    queue: z.string(),
+    event: z.string(),
+    attempts: z.number().int().min(0),
+    lastError: z.string().nullable(),
+    createdAt: z.string(),
+    diedAt: z.string(),
+  })),
+  hasMore: z.boolean(),
+})
+
 /** `AppClient` over HTTP: each request signed with the endpoint's key, which never travels. */
 export class HttpAppClient implements AppClient {
 
@@ -67,6 +114,19 @@ export class HttpAppClient implements AppClient {
 
   async timings(endpoint: Endpoint, since: string | null): Promise<UseCaseTimings> {
     return this.read(endpoint, since === null ? '/v1/metrics/use-cases' : `/v1/metrics/use-cases?since=${encodeURIComponent(since)}`, TimingsSchema)
+  }
+
+  async flows(endpoint: Endpoint, since: string | null): Promise<QueueFlows> {
+    return this.read(endpoint, since === null ? '/v1/metrics/queues' : `/v1/metrics/queues?since=${encodeURIComponent(since)}`, FlowsSchema)
+  }
+
+  async outbox(endpoint: Endpoint): Promise<OutboxState> {
+    return this.read(endpoint, '/v1/outbox', OutboxSchema)
+  }
+
+  async deadJobs(endpoint: Endpoint, context: string, after: string | null, limit: number): Promise<DeadJobs> {
+    const query = new URLSearchParams({ context, limit: String(limit), ...(after ? { after } : {}) })
+    return this.read(endpoint, `/v1/outbox/dead?${query}`, DeadJobsSchema)
   }
 
   async live(endpoint: Endpoint, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {

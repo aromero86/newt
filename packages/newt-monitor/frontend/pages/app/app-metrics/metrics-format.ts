@@ -13,12 +13,13 @@ export function timeFormat(window: MetricsWindow, bucket: MetricsBucket): (at: s
 /** A moment, whole: its day and its time. */
 export const when = (at: string) => new Date(at).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-/** A time as it reads best: `0.4 ms`, `120 ms`, `1.8 s`. */
+/** A time as it reads best: `0.4 ms`, `120 ms`, `1.8 s`, `12.5 min`, `3 h`, `2.1 d`. */
 export function formatMs(ms: number | null): string {
   if (ms === null) return '–'
   if (ms < 1) return `${ms.toLocaleString('en', { maximumFractionDigits: 2 })} ms`
   if (ms < 1000) return `${Math.round(ms).toLocaleString('en')} ms`
-  return `${(ms / 1000).toLocaleString('en', { maximumFractionDigits: 1 })} s`
+  const [unit, size] = ms < 60_000 ? ['s', 1000] : ms < 3_600_000 ? ['min', 60_000] : ms < 86_400_000 ? ['h', 3_600_000] : ['d', 86_400_000]
+  return `${(ms / size).toLocaleString('en', { maximumFractionDigits: 1 })} ${unit}`
 }
 
 /** How a number changed, as `+12%`; null when there was nothing before. */
@@ -26,4 +27,9 @@ export function changeOf(now: number | null, before: number | null): string | nu
   if (now === null || before === null || before === 0) return null
   const change = Math.round(((now - before) / before) * 100)
   return `${change > 0 ? '+' : ''}${change}%`
+}
+
+/** The use case a queue's jobs run: `card.indexCard` of `card.indexCard.on.card.created`. */
+export function handlerOf(queue: string): string {
+  return queue.split('.on.')[0] ?? queue
 }

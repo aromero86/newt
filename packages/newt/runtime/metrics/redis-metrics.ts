@@ -1,8 +1,9 @@
 import { RedisClient } from 'bun'
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { QueueFlow, QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
-import type { CountedEvent, Metrics, TimedCall } from './metrics'
-import { addCall, addTiming, countKey, countOf, emptyTiming, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
+import type { CountedEvent, Metrics, QueueFlowEntry, TimedCall } from './metrics'
+import { addCall, addEntry, addFlow, addTiming, countKey, countOf, emptyFlow, emptyTiming, flowKey, flowOf, type Flow, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
 export type RedisMetricsOptions = {
   /** The Redis every instance shares: `redis://redis:6379`. */
@@ -28,6 +29,7 @@ export class RedisMetrics implements Metrics {
   private readonly subscribers: RedisClient[] = []
   private pending = new Map<string, Map<string, number>>()
   private pendingTimings = new Map<string, Map<string, Timing>>()
+  private pendingFlows = new Map<string, Map<string, Flow>>()
   private readonly timer: ReturnType<typeof setInterval>
   private enabled = false
   private closing: Promise<void> | null = null
@@ -58,6 +60,35 @@ export class RedisMetrics implements Metrics {
     const one = emptyTiming()
     addCall(one, call)
     this.addTiming(minuteOf(call.at), timingKey(call), one)
+  }
+
+  flow(entry: QueueFlowEntry): void {
+    if (!this.enabled) return
+    const one = emptyFlow()
+    addEntry(one, entry)
+    this.addFlowAt(minuteOf(entry.at), flowKey(entry), one)
+  }
+
+  async closedFlows(since: string | null, now: Date): Promise<QueueFlows> {
+    const until = minuteOf(now.getTime() - MINUTE_MS - this.flushMs - 1_000)
+    const from = since === null ? '-inf' : `(${Date.parse(since)}`
+    const minutes = await this.redis.zrangebyscore(this.key('q:minutes'), from, Date.parse(until))
+    const flows: QueueFlow[] = []
+    for (const minute of minutes) {
+      const byKey = new Map<string, Flow>()
+      for (const [field, value] of Object.entries(await this.redis.hgetall(this.key(`q:${minute}`)))) {
+        // `<key>#published`, `#delivered`, `#redelivered`, `#dead` and `#w<bucket>`: the last `#` ends the key.
+        const at = field.lastIndexOf('#')
+        const key = field.slice(0, at)
+        const part = field.slice(at + 1)
+        let flow = byKey.get(key)
+        if (!flow) byKey.set(key, flow = emptyFlow())
+        if (part === 'published' || part === 'delivered' || part === 'redelivered' || part === 'dead') flow[part] = Number(value)
+        else flow.wait.set(Number(part.slice(1)), Number(value))
+      }
+      for (const [key, flow] of byKey) flows.push(flowOf(key, minute, flow))
+    }
+    return { flows, until }
   }
 
   async closedTimings(since: string | null, now: Date): Promise<UseCaseTimings> {
@@ -123,6 +154,7 @@ export class RedisMetrics implements Metrics {
 
   private async flush(): Promise<void> {
     await this.flushTimings()
+    await this.flushFlows()
     if (this.pending.size === 0) return
     const pending = this.pending
     this.pending = new Map()
@@ -183,6 +215,41 @@ export class RedisMetrics implements Metrics {
       return
     }
     await this.redis.send('ZREMRANGEBYSCORE', [this.key('uc:minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]).catch(() => undefined)
+  }
+
+  private async flushFlows(): Promise<void> {
+    if (this.pendingFlows.size === 0) return
+    const pending = this.pendingFlows
+    this.pendingFlows = new Map()
+    const writes: Promise<unknown>[] = []
+    for (const [minute, flows] of pending) {
+      const hash = this.key(`q:${minute}`)
+      for (const [key, flow] of flows) {
+        for (const part of ['published', 'delivered', 'redelivered', 'dead'] as const) {
+          if (flow[part] > 0) writes.push(this.redis.hincrby(hash, `${key}#${part}`, flow[part]))
+        }
+        for (const [bucket, count] of flow.wait) writes.push(this.redis.hincrby(hash, `${key}#w${bucket}`, count))
+      }
+      writes.push(this.redis.expire(hash, this.keepSeconds), this.redis.zadd(this.key('q:minutes'), Date.parse(minute), minute))
+    }
+    try {
+      await Promise.all(writes)
+    } catch (error) {
+      for (const [minute, flows] of pending) {
+        for (const [key, flow] of flows) this.addFlowAt(minute, key, flow)
+      }
+      console.error(`[newt metrics] Redis did not take the queue flows, they wait: ${(error as Error).message}`)
+      return
+    }
+    await this.redis.send('ZREMRANGEBYSCORE', [this.key('q:minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]).catch(() => undefined)
+  }
+
+  private addFlowAt(minute: string, key: string, flow: Flow): void {
+    let flows = this.pendingFlows.get(minute)
+    if (!flows) this.pendingFlows.set(minute, flows = new Map())
+    const kept = flows.get(key) ?? emptyFlow()
+    addFlow(kept, flow)
+    flows.set(key, kept)
   }
 
   private addTiming(minute: string, key: string, timing: Timing): void {

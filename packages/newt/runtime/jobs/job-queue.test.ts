@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { currentActor, defineScope, now, runAsActor, type Clock, type DomainEvent, type Span, type SpanAttributes, type Tracer } from '../../core'
 import { Invocations, inWorker } from '../../core/internal'
-import { isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
+import { depthOf, isSameClaim, type Job, type JobClosing, type JobQueueRegistration, type Outbox } from '../../port-outbox'
 import { JobQueue } from './job-queue'
 import type { JobQueueOptions } from './job-queue-options'
 
@@ -70,6 +70,10 @@ class MemoryOutbox implements Outbox {
     const counts = new Map<string, number>()
     for (const job of this.jobs) if (job.status === 'pending' || job.status === 'running') counts.set(job.queue, (counts.get(job.queue) ?? 0) + 1)
     return [...counts].map(([queue, jobs]) => ({ queue, jobs }))
+  }
+
+  async depth(now: string) {
+    return depthOf(this.jobs, now)
   }
 
   async queues() {
