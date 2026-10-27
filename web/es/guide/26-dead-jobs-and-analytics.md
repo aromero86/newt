@@ -1087,39 +1087,10 @@ cooper/
       backoffice-workspace/
 ```
 
-Se construye como las apps del capítulo 23: los componentes de `newt-react-ui`, los stores
-y servicios de `newt-react`, un `app.css` con el tema, y un cliente por módulo en
-`@cooper/api`, cada uno extendiendo `Requester`. Cada cliente
-importa el esquema de su módulo del backend, así que el frontend y la API comparten un
-contrato. Por ejemplo, el cliente de jobs:
+Se construye como las apps del capítulo 23 y, como en ellas, cada cliente de
+`@cooper/api` importa del backend solo el esquema de su módulo: el contrato que comparten.
 
-```ts
-// cooper/libs/api/backoffice-job/backoffice-job.api.ts
-import type { ContextJobDTO, JobContext } from '../../../backend/contexts/backoffice/modules/job/job.schema'
-import type { Page } from 'newt/contract'
-import { type PageRequest, Requester } from 'newt-react'
-
-/** The backoffice's `job` module: the jobs that died in each context. */
-export class BackofficeJobApi extends Requester {
-  protected readonly path = '/jobs'
-
-  /** A context's dead jobs, the newest first. */
-  dead(context: JobContext, page?: PageRequest) {
-    return this.get<Page<ContextJobDTO>>(`/${context}`, page)
-  }
-
-  /** Puts a dead job back to run: a 409 `outbox.job_not_dead` if it is not dead any more. */
-  retry(context: JobContext, jobId: string) {
-    return this.post<void>(`/${context}/${jobId}/retry`)
-  }
-}
-```
-
-El resumen muestra `GET /api/metrics` y los tableros creados más recientemente; la página de
-jobs tiene una pestaña por contexto de `JOB_CONTEXTS`, cada una una lista con un botón de
-reintentar.
-
-El resto está tipado: los tres sitios que nombran las apps aprenden la tercera. En
+El resto se escribe a mano: los tres sitios que nombran las apps aprenden la tercera. En
 desarrollo el backoffice la sirve desde su código fuente, en
 `cooper/backend/frontend-sources.ts`:
 

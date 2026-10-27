@@ -1084,36 +1084,8 @@ cooper/
       backoffice-workspace/
 ```
 
-It is built as chapter 23's apps are: `newt-react-ui`'s components, `newt-react`'s
-stores and services, an `app.css` with the theme, and a client per module in
-`@cooper/api`, each extending `Requester`. Each client imports its module's schema
-from the backend, so the frontend and the API share one contract. For instance, the
-jobs' client:
-
-```ts
-// cooper/libs/api/backoffice-job/backoffice-job.api.ts
-import type { ContextJobDTO, JobContext } from '../../../backend/contexts/backoffice/modules/job/job.schema'
-import type { Page } from 'newt/contract'
-import { type PageRequest, Requester } from 'newt-react'
-
-/** The backoffice's `job` module: the jobs that died in each context. */
-export class BackofficeJobApi extends Requester {
-  protected readonly path = '/jobs'
-
-  /** A context's dead jobs, the newest first. */
-  dead(context: JobContext, page?: PageRequest) {
-    return this.get<Page<ContextJobDTO>>(`/${context}`, page)
-  }
-
-  /** Puts a dead job back to run: a 409 `outbox.job_not_dead` if it is not dead any more. */
-  retry(context: JobContext, jobId: string) {
-    return this.post<void>(`/${context}/${jobId}/retry`)
-  }
-}
-```
-
-The overview shows `GET /api/metrics` and the boards created last; the jobs page has a
-tab per context in `JOB_CONTEXTS`, each a list with a retry button.
+It is built as chapter 23's apps are, and like theirs, each client in `@cooper/api`
+imports only its module's schema from the backend: the contract they share.
 
 The rest is typed: the three places that name the apps learn the third. In
 development the backoffice serves it from its sources, in
