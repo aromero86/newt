@@ -77,6 +77,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `Heading` | A heading, by `level`. |
 | `Text` | Text: `size`, `tone`, `weight`. |
 | `Emphasis`, `Strong`, `Mono`, `Tone` | Marks inside text. |
+| `CodeBlock` | Text as it was written, its lines kept: a stack, a query. |
 | `TextLink` | A link inside text. |
 | `RelativeTime` | "2 days ago", the exact time on hover. |
 

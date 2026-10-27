@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Alert } from './alert'
 import { Badge } from './badge'
+import { CodeBlock } from './code-block'
 import { Counter } from './counter'
 import { BoxRowMeta } from './box'
 import { Button } from './button'
@@ -112,6 +113,10 @@ describe('newt-react-ui', () => {
     expect(html(<Badge tone="ok">up</Badge>)).toContain('text-ok')
     expect(html(<Counter>145</Counter>)).toContain('>145<')
     expect(html(<Stack gap={2}><span /></Stack>)).toContain('gap-2')
+  })
+
+  test('a code block keeps its lines as they were written', () => {
+    expect(html(<CodeBlock label="Stack">{'TypeError: x\n    at f (a.ts:1)'}</CodeBlock>)).toMatch(/^<pre aria-label="Stack"[^>]*whitespace-pre[^>]*>TypeError: x\n {4}at f/)
   })
 
   test('an empty state says what is missing, and offers what to do', () => {

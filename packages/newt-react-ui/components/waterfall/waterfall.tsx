@@ -40,6 +40,14 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
 }) {
   const total = Math.max(totalMs ?? Math.max(...rows.map(row => row.startMs + row.ms), 0), 0.001)
   const percent = (ms: number) => `${Math.min(100, Math.max(0, (ms / total) * 100))}%`
+  // Its time after its bar; before it when the bar ends near the right; inside it when it fills the line.
+  const placement = (row: WaterfallRow) => (row.startMs + row.ms <= total * 0.8 ? 'after' : row.startMs >= total * 0.2 ? 'before' : 'inside')
+  const labelStyle = (row: WaterfallRow) => {
+    const where = placement(row)
+    if (where === 'after') return { left: `calc(${percent(row.startMs + row.ms)} + 6px)` }
+    if (where === 'before') return { right: `calc(100% - ${percent(row.startMs)} + 6px)` }
+    return { right: `calc(100% - ${percent(row.startMs + row.ms)} + 6px)` }
+  }
 
   return (
     <div role="list" aria-label={label} className="text-sm">
@@ -61,7 +69,7 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
               <span className="absolute inset-y-1.5 rounded-sm" style={{ left: percent(row.startMs), width: `max(2px, ${percent(row.ms)})` }}>
                 <span className={`block h-full rounded-sm ${barClass[row.tone ?? 'brand']}`} />
               </span>
-              <span className="absolute text-xs text-muted-foreground tabular-nums" style={row.startMs + row.ms > total * 0.8 ? { right: `calc(100% - ${percent(row.startMs)} + 6px)` } : { left: `calc(${percent(row.startMs + row.ms)} + 6px)` }}>
+              <span className={`absolute text-xs whitespace-nowrap tabular-nums ${placement(row) === 'inside' ? 'rounded-sm bg-card px-1 text-muted-foreground' : 'text-muted-foreground'}`} style={labelStyle(row)}>
                 {formatMs(row.ms)}
               </span>
             </span>
