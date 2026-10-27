@@ -1,4 +1,5 @@
 import { isSameClaim, type Job, type JobClosing, type JobQuery, type JobQueueRegistration, type Outbox } from '../port-outbox'
+import { depthOf, type QueueDepth } from '../port-outbox'
 import type { FileCollection } from './file-collection'
 import type { FileStore } from './file-store'
 
@@ -90,6 +91,10 @@ export class FileOutbox implements Outbox {
 
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
     return countWaiting(await this.all())
+  }
+
+  async depth(now: string): Promise<QueueDepth[]> {
+    return depthOf(await this.all(), now)
   }
 
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {

@@ -1,4 +1,6 @@
 import type { Job, JobClosing, JobQuery, JobQueueRegistration, Outbox } from '../port-outbox'
+import { DEPTH_SQL } from '../port-outbox/depth-sql'
+import type { QueueDepth } from '../port-outbox'
 import type { SqlServerDialect } from './sql-server-dialect'
 
 const COLUMNS = ['id', 'queue', 'event', 'status', 'attempts', 'run_after', 'locked_by', 'locked_until', 'last_error', 'created_at', 'updated_at']
@@ -80,6 +82,14 @@ export class SqlOutbox implements Outbox {
   async waiting(): Promise<{ queue: string, jobs: number }[]> {
     const rows = await this.read(`SELECT queue, COUNT(*) AS jobs FROM job WHERE status IN ('pending', 'running') GROUP BY queue ORDER BY queue`)
     return rows.map(row => ({ queue: String(row.queue), jobs: Number(row.jobs) }))
+  }
+
+  async depth(now: string): Promise<QueueDepth[]> {
+    const rows = await this.read(DEPTH_SQL(this.dialect.param(1)), [now])
+    return rows.map(row => ({
+      queue: String(row.queue), ready: Number(row.ready), retrying: Number(row.retrying), running: Number(row.running), dead: Number(row.dead),
+      oldestDueAt: row.oldestDueAt === null || row.oldestDueAt === undefined ? null : String(row.oldestDueAt),
+    }))
   }
 
   async queues(): Promise<(JobQueueRegistration & { lastSeenAt: string })[]> {

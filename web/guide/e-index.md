@@ -362,3 +362,6 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/runtime` | `Outcome` |
 | `newt/contract` | `QueueFlow`, `QueueFlows` |
 | `newt/runtime` | `QueueFlow`, `QueueFlows`, `QueueFlowEntry` |
+| `newt/contract` | `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` |
+| `newt/runtime` | `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` |
+| `newt/port-outbox` | `QueueDepth`, `depthOf` |

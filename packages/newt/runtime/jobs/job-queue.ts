@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import type { DeadJobs, QueueState } from '../../core/metrics/outbox-state'
 import { systemClock, type Clock, type DomainEvent, type EventHandler, type Invocations } from '../../core'
 import { currentClock, eventOfQueue, inWorker } from '../../core/internal'
 import { eventNameMatches } from '../events/event-name-matches'
@@ -277,6 +278,35 @@ export class JobQueue {
     return this.invocations.run('job.close', () => this.store.close(claimed, closing))
   }
 
+  /**
+   * How full each queue is now, those with no job too, and which no worker serves (none
+   * seen for five times `seenEveryMs`, as `warnAboutOrphans` says): for whoever monitors it.
+   */
+  async state(): Promise<QueueState[]> {
+    const now = this.clock.now().toISOString()
+    const alive = this.later(-5 * this.options.seenEveryMs)
+    const [depths, queues] = await Promise.all([this.store.depth(now), this.store.queues()])
+    const seen = new Map(queues.map(queue => [queue.name, queue.lastSeenAt]))
+    const names = [...new Set([...queues.map(queue => queue.name), ...depths.map(depth => depth.queue)])].sort()
+    return names.map(queue => {
+      const depth = depths.find(each => each.queue === queue) ?? { ready: 0, retrying: 0, running: 0, dead: 0, oldestDueAt: null }
+      const lastSeenAt = seen.get(queue) ?? null
+      const toRun = depth.ready + depth.retrying + depth.running > 0
+      return { queue, ready: depth.ready, retrying: depth.retrying, running: depth.running, dead: depth.dead, oldestDueAt: depth.oldestDueAt, lastSeenAt, orphan: toRun && !this.registrations.has(queue) && (lastSeenAt === null || lastSeenAt < alive) }
+    })
+  }
+
+  /** A page of its dead jobs, oldest first, after the one `after` says: without their events' payloads. */
+  async dead(after: string | undefined, limit: number): Promise<DeadJobs> {
+    const jobs = await this.store.list({ status: 'dead', after, limit: limit + 1 })
+    return {
+      jobs: jobs.slice(0, limit).map(job => ({
+        id: job.id, queue: job.queue, event: eventNameOf(job.event), attempts: job.attempts, lastError: job.lastError, createdAt: job.createdAt, diedAt: job.updatedAt,
+      })),
+      hasMore: jobs.length > limit,
+    }
+  }
+
   /** Registers the queues this worker runs, as they are now, and says they are alive. */
   private async seen(): Promise<void> {
     if (this.time() - this.seenAt < this.options.seenEveryMs || this.registrations.size === 0) return
@@ -331,4 +361,13 @@ export class JobQueue {
     return new Date(this.time() + ms).toISOString()
   }
 
+}
+
+/** An event's name out of its JSON, and nothing else of it. */
+function eventNameOf(event: string): string {
+  try {
+    return String((JSON.parse(event) as { name?: unknown }).name ?? 'unknown')
+  } catch {
+    return 'unknown'
+  }
 }

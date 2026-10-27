@@ -363,3 +363,6 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `newt/runtime` | `Outcome` |
 | `newt/contract` | `QueueFlow`, `QueueFlows` |
 | `newt/runtime` | `QueueFlow`, `QueueFlows`, `QueueFlowEntry` |
+| `newt/contract` | `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` |
+| `newt/runtime` | `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` |
+| `newt/port-outbox` | `QueueDepth`, `depthOf` |

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { SqliteStore } from '../adapter-sqlite'
 import { ConcurrencyConflict, defineScope, Module, NotFoundError, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
-import { Base, histogramPercentile, MemoryMetrics, type EventCounts, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { Base, histogramPercentile, MemoryMetrics, type DeadJobs, type EventCounts, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
 import { MemoryNonces } from './nonce-store'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
@@ -170,6 +170,34 @@ describe('serveMonitor, with queue flows', () => {
     expect(flows[0]).toMatchObject({ context: 'shop', queue: 'invoice.open.on.order.placed', published: 1, redelivered: 1, delivered: 1, dead: 0 })
     // Taken twice, each time once it was ready: two waits.
     expect(Object.values(flows[0]!.wait).reduce((sum, count) => sum + count, 0)).toBe(2)
+  })
+})
+
+describe('serveMonitor, with its outbox', () => {
+  test('says how full each queue is now, and lists its dead jobs without their payloads', async () => {
+    const origin = await serve({ jobs: { backoffMs: 0, pollMs: 5 } })
+    base!.bus.subscribe('order.placed', async () => {
+      throw new Error('the mailer is down')
+    }, { mode: 'handler', name: 'invoice.open.on.order.placed', attempts: 1 })
+    await tell('order.placed')
+    await tell('order.placed')
+
+    // Not started yet: both wait, ready.
+    const waiting = await (await signed(`${origin}/v1/outbox`)).json() as OutboxState
+    expect(waiting.contexts).toEqual([{ context: 'shop', queues: [expect.objectContaining({ queue: 'invoice.open.on.order.placed', ready: 2, dead: 0, orphan: false, oldestDueAt: expect.any(String) })] }])
+
+    base!.jobs.start()
+    await base!.jobs.idle()
+    await base!.jobs.stop()
+    const after = await (await signed(`${origin}/v1/outbox`)).json() as OutboxState
+    expect(after.contexts[0]!.queues[0]).toMatchObject({ ready: 0, retrying: 0, running: 0, dead: 2, oldestDueAt: null })
+
+    const page = await (await signed(`${origin}/v1/outbox/dead?context=shop&limit=1`)).json() as DeadJobs
+    expect(page.hasMore).toBe(true)
+    expect(page.jobs[0]).toMatchObject({ queue: 'invoice.open.on.order.placed', event: 'order.placed', attempts: 1 })
+    expect(page.jobs[0]!.lastError).toContain('the mailer is down')
+    expect(Object.keys(page.jobs[0]!)).not.toContain('payload')
+    expect((await signed(`${origin}/v1/outbox/dead?context=nowhere`)).status).toBe(404)
   })
 })
 

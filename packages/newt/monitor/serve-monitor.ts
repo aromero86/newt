@@ -1,7 +1,7 @@
 import type { Server } from 'bun'
 import { hostname } from 'node:os'
 import { systemClock } from '../core'
-import { describeApplication, type Base, type BoundedContext, type EventCounts, type Metrics, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { describeApplication, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
 import manifest from '../package.json'
 import { MIN_KEY_LENGTH } from './monitor-signature'
 import type { MonitorIdentity } from './monitor-identity'
@@ -17,7 +17,9 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * `describeApplication` says it while it runs), how many times each event was told
  * minute by minute (`GET /v1/metrics/events?since=<minute>`, the minutes closed since),
  * how long each use case's calls took, minute by minute (`GET /v1/metrics/use-cases?since=`),
- * and the events live (`GET /v1/metrics/live`, server-sent events). Read only, and never its
+ * the events live (`GET /v1/metrics/live`, server-sent events), how full its queues are
+ * now (`GET /v1/outbox`) and its dead jobs without their payloads
+ * (`GET /v1/outbox/dead?context=&after=&limit=`). Read only, and never its
  * data: serving it starts every context's counting (`Base.metrics`).
  *
  * Only to a request signed with the key it shares with the monitor
@@ -60,6 +62,13 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
       if (url.pathname === '/v1/identity') return json(identity)
       if (url.pathname === '/v1/structure') return json(describeApplication(contexts))
       if (url.pathname === '/v1/metrics/events') return json(await closedCounts(metricsOf(), url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/outbox') return json(await outboxState(contexts, clock.now()))
+      if (url.pathname === '/v1/outbox/dead') {
+        const base = baseOf(contexts, url.searchParams.get('context'))
+        if (!base) return new Response(null, { status: 404 })
+        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? 50) || 50))
+        return json(await base.jobs.dead(url.searchParams.get('after') ?? undefined, limit))
+      }
       if (url.pathname === '/v1/metrics/queues') return json(await closedFlows(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/use-cases') return json(await closedTimings(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/live') return liveCounts(metricsOf(), request.signal)
@@ -83,6 +92,18 @@ async function closedTimings(metrics: Metrics[], since: string | null, now: Date
   const each = await Promise.all(metrics.map(one => one.closedTimings(valid, now)))
   const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
   return { timings: each.flatMap(one => one.timings).filter(timing => timing.minute <= until), until }
+}
+
+const basesOf = (contexts: readonly (Base | BoundedContext)[]) => contexts.map(context => ('base' in context ? context.base : context) as Base)
+
+/** The base of the context of that name, if there is one. */
+function baseOf(contexts: readonly (Base | BoundedContext)[], name: string | null): Base | undefined {
+  return basesOf(contexts).find(base => base.name === name)
+}
+
+/** Every context's queues as they are now: read from its own outbox, by itself. */
+async function outboxState(contexts: readonly (Base | BoundedContext)[], now: Date): Promise<OutboxState> {
+  return { at: now.toISOString(), contexts: await Promise.all(basesOf(contexts).map(async base => ({ context: base.name, queues: await base.jobs.state() }))) }
 }
 
 /** Every context's queue flows of the minutes closed since a minute, and the last one closed. */

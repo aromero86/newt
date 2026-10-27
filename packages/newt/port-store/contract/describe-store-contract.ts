@@ -845,6 +845,26 @@ export function describeStoreContract<S extends Store>(name: string, fixture: St
         expect(await store.outbox.waiting()).toEqual([{ queue: 'a.b.on.c', jobs: 2 }, { queue: 'd.e.on.f', jobs: 1 }])
       })
 
+      test('says how full each queue is: ready, retrying, running, dead, and its oldest job due', async () => {
+        const early = { ...job('a.b.on.c'), runAfter: '2026-01-01T09:00:00.000Z' }
+        const later = { ...job('a.b.on.c'), runAfter: '2026-01-01T11:00:00.000Z' }
+        await store.outbox.add([early, later, job('d.e.on.f'), job('d.e.on.f'), job('g.h.on.i'), job('g.h.on.i')])
+        const lease = new Date(Date.now() + 60_000).toISOString()
+        const [failed] = await store.outbox.claim(['d.e.on.f'], 1, 'w1', lease)
+        await store.outbox.close(failed!, { status: 'pending', lastError: 'not yet', runAfter: '2099-01-01T00:00:00.000Z' })
+        await store.outbox.claim(['d.e.on.f'], 1, 'w2', lease)
+        const [done, dead] = await store.outbox.claim(['g.h.on.i'], 2, 'w3', lease)
+        await store.outbox.close(done!, { status: 'done', lastError: null })
+        await store.outbox.close(dead!, { status: 'dead', lastError: 'out of attempts' })
+
+        // As of 10:00, one of a's is due: the earliest; the later one is not yet.
+        expect(await store.outbox.depth('2026-01-01T10:00:00.000Z')).toEqual([
+          { queue: 'a.b.on.c', ready: 2, retrying: 0, running: 0, dead: 0, oldestDueAt: '2026-01-01T09:00:00.000Z' },
+          { queue: 'd.e.on.f', ready: 0, retrying: 1, running: 1, dead: 0, oldestDueAt: null },
+          { queue: 'g.h.on.i', ready: 0, retrying: 0, running: 0, dead: 1, oldestDueAt: null },
+        ])
+      })
+
       test('puts a dead job back to wait, as new, and leaves any other as it is', async () => {
         const dead = job('a.b.on.c')
         const alive = job('a.b.on.c')

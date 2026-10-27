@@ -20,6 +20,7 @@ export type { EventCount, EventCounts } from '../core/metrics/event-count'
 export type { UseCaseTiming, UseCaseTimings } from '../core/metrics/use-case-timing'
 export type { Outcome } from '../core/metrics/outcome'
 export type { QueueFlow, QueueFlows } from '../core/metrics/queue-flow'
+export type { DeadJob, DeadJobs, OutboxState, QueueState } from '../core/metrics/outbox-state'
 export { histogramBucketMs, histogramBucketOf, histogramPercentile, HISTOGRAM_FLOOR_MS, HISTOGRAM_GROWTH } from '../core/metrics/histogram'
 export type {
   ApplicationDescription,
