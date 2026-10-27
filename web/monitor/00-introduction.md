@@ -50,5 +50,6 @@ newt it uses, and points at the chapter of the guide that teaches it.
 7. [Not saving what does not connect](./07-not-saving-what-does-not-connect): ask first, and keep what worked.
 8. [Versions of the structure](./08-versions-of-the-structure): a new one only when it changes.
 9. [Every hour, and a button](./09-every-hour-and-a-button): a schedule, workers, and a route.
+10. [The catalog](./10-the-catalog): every part any version had, when it came, and when it went.
 
 Next: [a monitor built with newt](./01-a-monitor-built-with-newt).

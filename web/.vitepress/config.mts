@@ -57,6 +57,7 @@ const MONITOR: [string, string, string][] = [
   ['07-not-saving-what-does-not-connect', 'Not saving what does not connect', 'No guardar lo que no conecta'],
   ['08-versions-of-the-structure', 'Versions of the structure', 'Versiones de la estructura'],
   ['09-every-hour-and-a-button', 'Every hour, and a button', 'Cada hora, y un botón'],
+  ['10-the-catalog', 'The catalog', 'El catálogo'],
 ]
 
 const REFERENCE: [string, string, string][] = [

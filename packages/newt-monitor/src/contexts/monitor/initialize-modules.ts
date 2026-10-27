@@ -4,6 +4,7 @@ import type { AppClient } from '../../shared/app-client/app-client'
 import { HttpAppClient } from '../../shared/app-client/http-app-client'
 import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
+import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
 import { Session_Module } from './modules/session/session.module'
 import { Structure_Module } from './modules/structure/structure.module'
@@ -22,7 +23,8 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const app = App_Module.initialize(base, { client }, { cipher: new KeyCipher(config.secret) })
   const connection = Connection_Module.initialize(base, { app, client })
   const structure = Structure_Module.initialize(base, { app, connection })
-  return { session, app, connection, structure }
+  const catalog = Catalog_Module.initialize(base, { app, structure })
+  return { session, app, connection, structure, catalog }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

@@ -148,4 +148,4 @@ curl -s -b cookies.txt -X POST localhost:4800/api/apps/<id>/structure/refresh
   reacts, with what, to which event; `when` keeps a job from being written for nothing.
 - A job may run twice: make it find nothing to do the second time.
 
-Next: the catalog.
+Next: [the catalog](./10-the-catalog).
