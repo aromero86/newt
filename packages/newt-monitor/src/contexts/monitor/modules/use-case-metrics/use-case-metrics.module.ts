@@ -127,12 +127,12 @@ export class UseCaseMetrics_Module extends Module {
     return (await this.queries(appId)).series(filter, query.window, query.bucket ?? DEFAULT_BUCKET[query.window], query.compare, now())
   }
 
-  /** Who called a use case most in a window, and how their calls went: its actors, or the ids of one of its scopes. */
+  /** Who called a use case most in a window, or made it run again most, and how their calls went: its actors, or the ids of one of its scopes. */
   @UseCase()
   async top(appId: string, input: unknown): Promise<UseCaseTopDTO[]> {
     await this.deps.app.get(appId)
     const query = UseCaseTopQuerySchema.parse(input)
-    return (await this.queries(appId)).top({ context: query.context, name: query.useCase }, query.window, query.by, now())
+    return (await this.queries(appId)).top({ context: query.context, name: query.useCase }, query.window, query.by, query.order, now())
   }
 
   /** The scopes a use case was called in, by name, in a window: what its callers can be grouped by. */

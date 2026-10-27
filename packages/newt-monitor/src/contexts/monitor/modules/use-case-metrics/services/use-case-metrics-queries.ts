@@ -73,15 +73,16 @@ export class UseCaseMetricsQueries {
     }).sort((a, b) => b.now.calls - a.now.calls || a.useCase.localeCompare(b.useCase))
   }
 
-  /** Who called it most in the window, the ten first, by actor or by a scope's id, and how their calls went. */
-  async top(filter: MetricsFilter, window: MetricsWindow, by: string, now: Date): Promise<UseCaseTopDTO[]> {
+  /** Who called it most in the window, or made it run again most, the ten first, by actor or by a scope's id, and how their calls went. */
+  async top(filter: MetricsFilter, window: MetricsWindow, by: string, order: 'calls' | 'retries', now: Date): Promise<UseCaseTopDTO[]> {
     const where = whereOf(filter, 'use_case', 3, true)
     const params: DuckDbParam[] = [new Date(now.getTime() - WINDOWS[window].ms).toISOString(), now.toISOString(), ...where.params]
     const value = by === 'actor' ? 'actor' : `json_extract_string(scopes, $${params.length + 1})`
     if (by !== 'actor') params.push(`$."${by.slice('scope:'.length)}"`)
     const rows = await this.analytics.query<{ value: string | null, calls: number, retries: number, total_ms: number }>(`
       SELECT ${value} AS value, sum(calls) AS calls, sum(retries) AS retries, sum(total_ms) AS total_ms FROM use_case_minute
-      WHERE minute >= $1 AND minute < $2 AND ${where.sql} GROUP BY value ORDER BY calls DESC, value LIMIT 10`, params)
+      WHERE minute >= $1 AND minute < $2 AND ${where.sql} GROUP BY value
+      ${order === 'retries' ? 'HAVING sum(retries) > 0 ORDER BY retries DESC, calls DESC' : 'ORDER BY calls DESC'}, value LIMIT 10`, params)
     const histograms = new Map<string | null, Record<string, number>>()
     for (const row of await this.analytics.query<{ value: string | null, bucket: number, count: number }>(`
       SELECT ${value} AS value, bucket, sum(count) AS count FROM use_case_minute_bucket

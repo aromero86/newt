@@ -6,6 +6,7 @@ import { Icon } from 'newt-react-ui/icon'
 import { TextLink } from 'newt-react-ui/link'
 import { SearchField } from 'newt-react-ui/search-field'
 import { Inline } from 'newt-react-ui/inline'
+import { Select } from 'newt-react-ui/select'
 import { Stack } from 'newt-react-ui/stack'
 import { Mono } from 'newt-react-ui/text'
 import { useService, useValue } from 'newt-react'
@@ -24,6 +25,8 @@ export function AppUseCases({ app }: { app: AppDTO }) {
   const [filter, setFilter] = useState('')
   const removed = useRemoved()
   const totals = useTotals(app)
+  const [sort, setSort] = useState<'structure' | 'calls' | 'retries'>('structure')
+  const totalOf = (context: string, useCase: string) => totals?.get(`${context}|${useCase}`)?.now
   if (!structure) return <AppNotRead app={app} />
 
   const gone = removed.filter(item => item.kind === 'useCase' && matches(item.itemId, filter))
@@ -32,7 +35,8 @@ export function AppUseCases({ app }: { app: AppDTO }) {
     .map(context => ({
       ...context,
       gone: gone.filter(item => item.context === context.name),
-      useCases: context.modules.flatMap(module => module.useCases.map(useCase => ({ ...useCase, module }))).filter(useCase => matches(useCase.id, filter)),
+      useCases: context.modules.flatMap(module => module.useCases.map(useCase => ({ ...useCase, module }))).filter(useCase => matches(useCase.id, filter))
+        .sort((a, b) => sort === 'structure' ? 0 : (totalOf(context.name, b.name)?.[sort] ?? 0) - (totalOf(context.name, a.name)?.[sort] ?? 0)),
     }))
     .filter(context => context.useCases.length > 0 || context.gone.length > 0)
 
@@ -40,6 +44,13 @@ export function AppUseCases({ app }: { app: AppDTO }) {
     <Stack gap={4}>
       <Inline gap={2}>
         <SearchField live label="Filter use cases" placeholder="Filter use cases: card create" onSearch={setFilter} />
+        <Select
+          size="compact"
+          label="Sort use cases"
+          value={sort}
+          onValueChange={value => setSort(value as typeof sort)}
+          options={[{ value: 'structure', label: 'As in their modules' }, { value: 'calls', label: 'Most called in 24h' }, { value: 'retries', label: 'Most run again in 24h' }]}
+        />
         <AppRemovedToggle />
       </Inline>
       {contexts.length === 0 && (
@@ -79,8 +90,9 @@ function useTotals(app: AppDTO): Map<string, UseCaseTotalDTO> | null {
   return totals
 }
 
-/** `340 calls in 24h, p90 45 ms`. */
+/** `340 calls in 24h, 12 retries, p90 45 ms`. */
 function describeTotal(total: UseCaseTotalDTO | undefined): string {
   if (!total || total.now.calls === 0) return 'not called in 24h'
-  return `${total.now.calls.toLocaleString('en')} calls in 24h, p90 ${formatMs(total.now.p90)}`
+  const retries = total.now.retries ? `, ${total.now.retries.toLocaleString('en')} ${total.now.retries === 1 ? 'retry' : 'retries'}` : ''
+  return `${total.now.calls.toLocaleString('en')} calls in 24h${retries}, p90 ${formatMs(total.now.p90)}`
 }

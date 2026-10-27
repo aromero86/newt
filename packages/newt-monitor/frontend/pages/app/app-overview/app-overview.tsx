@@ -12,6 +12,7 @@ import { useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
 import { AppNotRead } from '../app-not-read/app-not-read'
+import { AppOverviewRetries } from './app-overview-retries'
 import { AppService } from '../app.service'
 import { AppGraph } from '../app-graph/app-graph'
 import { contextHref, contextsGraph } from '../app-structure'
@@ -41,6 +42,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
         : <AppNotRead app={app} />}
       {/* An archived application is not watched: whether it answers is nobody's concern. */}
       {!app.archivedAt && <AppOverviewConnection />}
+      {structure && <AppOverviewRetries app={app} />}
       {structure && structure.description.contexts.length > 1 && (
         <AppGraph title="How its contexts use each other" graph={() => contextsGraph(app.id, structure.description)} />
       )}

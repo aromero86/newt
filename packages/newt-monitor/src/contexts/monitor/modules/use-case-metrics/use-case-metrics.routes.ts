@@ -13,6 +13,6 @@ export function registerUseCaseMetricsRoutes(base: MonitorBase, useCaseMetrics: 
   // `?context=boards&useCase=card.create&window=7d`: the names of the scopes it was called in.
   base.http.get('/apps/:id/metrics/use-cases/scopes', async request => Response.json(await useCaseMetrics.scopes(request.params.id, query(request))))
 
-  // `?context=boards&useCase=card.create&window=7d&by=actor` (or `by=scope:workspace`)
+  // `?context=boards&useCase=card.create&window=7d&by=actor` (or `by=scope:workspace`), `&order=retries` for where it is fought over
   base.http.get('/apps/:id/metrics/use-cases/top', async request => Response.json(await useCaseMetrics.top(request.params.id, query(request))))
 }

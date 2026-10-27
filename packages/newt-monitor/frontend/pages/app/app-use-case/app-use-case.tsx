@@ -23,7 +23,7 @@ import type { LatencyDTO } from '../../../api/use-case-metrics'
 import { BUCKET_LABELS, changeOf, formatMs, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
 import { AppService } from '../app.service'
 import { findModule, moduleHref } from '../app-structure'
-import { AppUseCaseService, type Compare } from './app-use-case.service'
+import { AppUseCaseService, type Compare, type TopOrder } from './app-use-case.service'
 
 /** One use case: how its calls went over a window, beside the one before; and who calls it most. With its own AppUseCaseService. */
 export function AppUseCase({ app }: { app: AppDTO }) {
@@ -43,6 +43,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
   const compare = useValue(service.compare)
   const scope = useValue(service.scope)
   const actor = useValue(service.actor)
+  const order = useValue(service.order)
   const series = useValue(service.series)
   const tops = useValue(service.tops)
   const failure = useValue(service.failure)
@@ -60,8 +61,12 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
     const change = changeOf(value, was)
     return { label, value, hint: series?.comparedTotal ? `${show(was)} ${before}${change ? ` (${change})` : ''}` : undefined, show }
   }
+  const rate = (latency: LatencyDTO) => (latency.calls ? (latency.retries / latency.calls) * 100 : null)
+  const ratePer100 = (latency: LatencyDTO | null | undefined) => (latency && rate(latency) !== null ? `${rate(latency)!.toLocaleString('en', { maximumFractionDigits: 1 })} per 100 calls` : 'no calls')
+  const retriesHint = series ? `${ratePer100(series.total)}${series.comparedTotal ? `; ${series.comparedTotal.retries.toLocaleString('en')} ${before}${changeOf(series.total.retries, series.comparedTotal.retries) ? ` (${changeOf(series.total.retries, series.comparedTotal.retries)})` : ''}` : ''}` : undefined
   const stats = [
     stat('Calls', latency => latency.calls, value => (value ?? 0).toLocaleString('en')),
+    { label: 'Retries', value: series?.total.retries ?? 0, hint: retriesHint, show: (value: number | null) => (value ?? 0).toLocaleString('en') },
     stat('Mean', latency => latency.meanMs, formatMs),
     stat('p90', latency => latency.p90, formatMs),
     stat('p99', latency => latency.p99, formatMs),
@@ -88,16 +93,16 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
       {series
         ? (
             <>
-              <Grid columns={{ base: 2, md: 4 }}>
+              <Grid columns={{ base: 2, md: 3 }}>
                 {stats.map(each => (
-                  <Stat key={each.label} label={each.label === 'Calls' ? `Calls in ${WINDOW_LABELS[window]}` : each.label} value={each.label === 'Calls' ? each.value ?? 0 : each.show(each.value)} hint={each.hint} />
+                  <Stat
+                    key={each.label}
+                    label={each.label === 'Calls' ? `Calls in ${WINDOW_LABELS[window]}` : each.label === 'Retries' ? 'Runs more after a conflict' : each.label}
+                    value={each.label === 'Calls' || each.label === 'Retries' ? each.value ?? 0 : each.show(each.value)}
+                    hint={each.hint}
+                  />
                 ))}
               </Grid>
-              {series.total.retries > 0 && (
-                <Alert tone="warn" title={`${series.total.retries.toLocaleString('en')} runs more after a conflict`}>
-                  Its calls ran again, together, that many times: someone saved what they had read meanwhile.
-                </Alert>
-              )}
               <Box label="How long">
                 <BoxHeader>How long, every {BUCKET_LABELS[bucket]}, {when(series.from)} to {when(series.to)}</BoxHeader>
                 <BoxRow>
@@ -112,6 +117,18 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                       { key: 'p99', label: 'p99', tone: 'bad', values: series.points.map(point => point.p99) },
                       { key: 'mean', label: 'Mean', tone: 'brand', dashed: true, values: series.points.map(point => point.meanMs) },
                     ]}
+                  />
+                </BoxRow>
+              </Box>
+              <Box label="Retries">
+                <BoxHeader>Runs more after a conflict, every {BUCKET_LABELS[bucket]}: when its rows are fought over</BoxHeader>
+                <BoxRow>
+                  <TimeSeries
+                    label={`${useCase}: runs more after a conflict, every ${BUCKET_LABELS[bucket]}`}
+                    points={series.points.map(point => ({ at: point.at, count: point.retries }))}
+                    compared={series.compared?.map(point => ({ at: point.at, count: point.retries })) ?? null}
+                    names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
+                    formatTime={format}
                   />
                 </BoxRow>
               </Box>
@@ -130,17 +147,27 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
             </>
           )
         : <Skeleton lines={6} />}
+      <Inline gap={2} justify="end">
+        <Select
+          size="compact"
+          label="Order who"
+          value={order}
+          onValueChange={value => void service.orderBy(value as TopOrder)}
+          options={[{ value: 'calls', label: 'Who calls it most' }, { value: 'retries', label: 'Who makes it run again most' }]}
+        />
+      </Inline>
       <Grid columns={{ base: 1, md: 2 }}>
         {tops.map(({ by, top }) => (
-          <Box key={by} label={by === 'actor' ? 'Who calls it most' : `Its ${by.slice(6)}s`}>
-            <BoxHeader>{by === 'actor' ? 'Who calls it most' : <>By {by.slice(6)}</>}</BoxHeader>
-            {top.length === 0 && <BoxEmpty icon={UserIcon} title="Nobody in this window" />}
+          <Box key={by} label={by === 'actor' ? 'By actor' : `By ${by.slice(6)}`}>
+            <BoxHeader>{by === 'actor' ? (order === 'retries' ? 'Who makes it run again most' : 'Who calls it most') : <>By {by.slice(6)}</>}</BoxHeader>
+            {top.length === 0 && <BoxEmpty icon={UserIcon} title={order === 'retries' ? 'Nobody made it run again' : 'Nobody in this window'} />}
             {top.map(row => (
-              <BoxRow key={row.value ?? 'none'} trailing={<Text size="sm" tone="muted">{row.calls.toLocaleString('en')} calls</Text>}>
+              <BoxRow key={row.value ?? 'none'} trailing={<Text size="sm" tone="muted">{order === 'retries' ? `${row.retries.toLocaleString('en')} retries` : `${row.calls.toLocaleString('en')} calls`}</Text>}>
                 {row.value === null
                   ? <Text size="sm" tone="muted">{by === 'actor' ? 'No one (a worker, a schedule)' : 'Outside any'}</Text>
                   : <Button size="sm" variant="link" onClick={() => void service.filter(by === 'actor' ? { actor: row.value } : { scope: `${by.slice(6)}:${row.value}` })}><Mono>{row.value}</Mono></Button>}
                 <BoxRowMeta>
+                  {order === 'retries' ? <>{row.calls.toLocaleString('en')} calls, {ratePer100(row)}</> : row.retries > 0 && <>{row.retries.toLocaleString('en')} retries</>}
                   <>p50 {formatMs(row.p50)}</>
                   <>p90 {formatMs(row.p90)}</>
                   <>p99 {formatMs(row.p99)}</>

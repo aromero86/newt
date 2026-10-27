@@ -71,6 +71,9 @@ describe('use case metrics', () => {
     const top = await json<UseCaseTopDTO[]>(`/api/apps/${id}/metrics/use-cases/top?context=boards&useCase=card.create&window=1h&by=actor`)
     expect(top.map(each => [each.value, each.calls])).toEqual([['ana', 90], ['bea', 10]])
     near(top[1]!.p50, 100)
+    // Who makes it run again: bea alone, ana never.
+    const fought = await json<UseCaseTopDTO[]>(`/api/apps/${id}/metrics/use-cases/top?context=boards&useCase=card.create&window=1h&by=actor&order=retries`)
+    expect(fought.map(each => [each.value, each.retries])).toEqual([['bea', 9]])
   })
 
   test('keeps the days without actor, with their percentiles, and forgets what is old', async () => {

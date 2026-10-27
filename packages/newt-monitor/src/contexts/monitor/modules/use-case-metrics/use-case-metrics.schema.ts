@@ -48,6 +48,8 @@ export const UseCaseTopQuerySchema = z.object({
   window: windowSchema,
   /** `actor`, or `scope:<name>`. */
   by: z.string().regex(/^(actor|scope:[A-Za-z_][A-Za-z0-9_ ]*)$/, 'By actor, or scope:<name>'),
+  /** Most calls first, or most runs more after a conflict: where it is fought over. */
+  order: z.enum(['calls', 'retries']).default('calls'),
 })
 
 export type UseCaseSeriesQueryDTO = z.input<typeof UseCaseSeriesQuerySchema>
