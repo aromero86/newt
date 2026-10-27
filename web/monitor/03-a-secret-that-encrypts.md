@@ -130,4 +130,4 @@ bun test packages/newt-monitor
   bound to it, so it cannot be moved.
 - The secret lives in the environment only; without it the database opens nothing.
 
-Next: the applications.
+Next: [the applications](./04-the-applications).
