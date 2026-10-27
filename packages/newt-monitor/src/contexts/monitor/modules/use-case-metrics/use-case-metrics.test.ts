@@ -44,8 +44,10 @@ describe('use case metrics', () => {
     app.call('boards', 'card.create', { at: ago(20 * MINUTE), ms: 10, times: 90, actor: 'ana', scopes: { workspace: 'acme' } })
     app.call('boards', 'card.create', { at: ago(20 * MINUTE), ms: 100, times: 9, retries: 1, actor: 'bea', scopes: { workspace: 'acme' } })
     app.call('boards', 'card.create', { at: ago(10 * MINUTE), ms: 1000, actor: 'bea', scopes: { workspace: 'globex' } })
+    // The hour before: slower.
+    app.call('boards', 'card.create', { at: ago(90 * MINUTE), ms: 200, times: 10 })
 
-    expect(await collect()).toMatchObject({ outcome: 'collected', timings: 3 })
+    expect(await collect()).toMatchObject({ outcome: 'collected', timings: 4 })
     expect(await collect()).toMatchObject({ outcome: 'collected', timings: 0 })
 
     const hour = await series('window=1h&bucket=5m')
@@ -62,7 +64,10 @@ describe('use case metrics', () => {
     expect((await series('window=1h&scope=workspace:globex')).total.calls).toBe(1)
 
     const [total] = await json<UseCaseTotalDTO[]>(`/api/apps/${id}/metrics/use-cases?window=1h`)
-    expect(total).toMatchObject({ context: 'boards', useCase: 'card.create', now: { calls: 100 }, previous: { calls: 0, p90: null } })
+    expect(total).toMatchObject({ context: 'boards', useCase: 'card.create', now: { calls: 100 }, previous: { calls: 10 } })
+    near(total!.now.p90, 10)
+    near(total!.previous.p90, 200)
+    expect(await json<string[]>(`/api/apps/${id}/metrics/use-cases/scopes?context=boards&useCase=card.create&window=1h`)).toEqual(['workspace'])
     const top = await json<UseCaseTopDTO[]>(`/api/apps/${id}/metrics/use-cases/top?context=boards&useCase=card.create&window=1h&by=actor`)
     expect(top.map(each => [each.value, each.calls])).toEqual([['ana', 90], ['bea', 10]])
     near(top[1]!.p50, 100)

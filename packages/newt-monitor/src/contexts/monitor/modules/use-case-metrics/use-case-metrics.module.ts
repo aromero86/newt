@@ -4,7 +4,7 @@ import type { MonitorBase } from '../../../../monitor-base'
 import { scopesText } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import {
-  UseCaseMetricsFeed, UseCaseSeriesQuerySchema, UseCaseTopQuerySchema, UseCaseTotalsQuerySchema,
+  UseCaseMetricsFeed, UseCaseScopesQuerySchema, UseCaseSeriesQuerySchema, UseCaseTopQuerySchema, UseCaseTotalsQuerySchema,
   type CollectTimingsDTO, type UseCaseSeriesDTO, type UseCaseTopDTO, type UseCaseTotalDTO,
 } from './use-case-metrics'
 import type { UseCaseMetrics_Deps } from './use-case-metrics.deps'
@@ -133,6 +133,14 @@ export class UseCaseMetrics_Module extends Module {
     await this.deps.app.get(appId)
     const query = UseCaseTopQuerySchema.parse(input)
     return (await this.queries(appId)).top({ context: query.context, name: query.useCase }, query.window, query.by, now())
+  }
+
+  /** The scopes a use case was called in, by name, in a window: what its callers can be grouped by. */
+  @UseCase()
+  async scopes(appId: string, input: unknown): Promise<string[]> {
+    await this.deps.app.get(appId)
+    const query = UseCaseScopesQuerySchema.parse(input)
+    return (await this.queries(appId)).scopeNames({ context: query.context, name: query.useCase }, query.window, now())
   }
 
   /** Forgets everything of an application deleted: its feed, and its rows; its DuckDB too, once nothing else is in it. */

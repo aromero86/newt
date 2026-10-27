@@ -93,6 +93,16 @@ export class UseCaseMetricsQueries {
     return rows.map(row => ({ value: row.value, ...latencyOf({ calls: row.calls, retries: row.retries, totalMs: row.total_ms, histogram: histograms.get(row.value) ?? {} }) }))
   }
 
+  /** The names of the scopes it was called in, in the window. */
+  async scopeNames(filter: MetricsFilter, window: MetricsWindow, now: Date): Promise<string[]> {
+    const where = whereOf(filter, 'use_case', 3, false)
+    const rows = await this.analytics.query<{ name: string }>(`
+      SELECT DISTINCT unnest(json_keys(scopes)) AS name FROM use_case_minute
+      WHERE minute >= $1 AND minute < $2 AND ${where.sql} ORDER BY name`,
+    [new Date(now.getTime() - WINDOWS[window].ms).toISOString(), now.toISOString(), ...where.params])
+    return rows.map(row => row.name)
+  }
+
   /** Every bucket from `from` to `to`, those with no call empty, and their sum. */
   private async points(filter: MetricsFilter, from: number, to: number, size: number): Promise<[LatencyPointDTO[], Sum]> {
     const seconds = size / 1000

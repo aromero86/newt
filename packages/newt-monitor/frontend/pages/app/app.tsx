@@ -11,6 +11,7 @@ import { AppEvent } from './app-event/app-event'
 import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
 import { AppSettings } from './app-settings/app-settings'
+import { AppUseCase } from './app-use-case/app-use-case'
 import { AppUseCases } from './app-use-cases/app-use-cases'
 import { AppVersions } from './app-versions/app-versions'
 import { AppService } from './app.service'
@@ -45,6 +46,7 @@ function AppWrapped() {
           <Route index element={<AppOverview app={app} />} />
           <Route path="contexts/*" element={<AppContexts app={app} />} />
           <Route path="use-cases" element={<AppUseCases app={app} />} />
+          <Route path="use-cases/:context/:useCase" element={<AppUseCase app={app} />} />
           <Route path="events" element={<AppEvents app={app} />} />
           <Route path="events/:context/:event" element={<AppEvent app={app} />} />
           <Route path="versions/*" element={<AppVersions app={app} />} />

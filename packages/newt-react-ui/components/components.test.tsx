@@ -11,6 +11,7 @@ import { Field } from './field'
 import { Input } from './input'
 import { LinkProvider, TextLink, type LinkComponent } from './link'
 import { Graph } from './graph'
+import { LineChart } from './line-chart'
 import { TimeSeries } from './time-series'
 import { RelativeTime } from './relative-time'
 import { SideNav, SideNavItem } from './side-nav'
@@ -45,6 +46,14 @@ describe('newt-react-ui', () => {
 
     expect(chart).toContain('aria-label="card.created"')
     expect(chart).toContain('--color-now:var(--brand)')
+  })
+
+  test('a line chart colours each line by its tone', () => {
+    const chart = html(<LineChart label="card.create latency" times={['2026-01-01T10:00:00Z']} series={[{ key: 'p50', label: 'p50', tone: 'ok', values: [12] }, { key: 'p99', label: 'p99', tone: 'bad', values: [null] }]} />)
+
+    expect(chart).toContain('aria-label="card.create latency"')
+    expect(chart).toContain('--color-p50:var(--ok)')
+    expect(chart).toContain('--color-p99:var(--bad)')
   })
 
   test('a graph draws its nodes as links, and an arrow for each use', () => {

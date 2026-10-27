@@ -36,6 +36,12 @@ export const UseCaseSeriesQuerySchema = z.object({
 
 export const UseCaseTotalsQuerySchema = z.object({ window: windowSchema })
 
+export const UseCaseScopesQuerySchema = z.object({
+  context: z.string().min(1),
+  useCase: z.string().min(1),
+  window: windowSchema,
+})
+
 export const UseCaseTopQuerySchema = z.object({
   context: z.string().min(1),
   useCase: z.string().min(1),

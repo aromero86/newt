@@ -18,23 +18,11 @@ import { TimeSeries } from 'newt-react-ui/time-series'
 import { Provide, useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { WINDOWS, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
+import { BUCKET_LABELS, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
 import { AppService } from '../app.service'
 import { findModule, moduleHref } from '../app-structure'
 import { AppEventLive } from './app-event-live'
 import { AppEventService, type Compare } from './app-event.service'
-
-const WINDOW_LABELS: Record<MetricsWindow, string> = { '1h': '1 hour', '24h': '24 hours', '7d': '7 days', '30d': '30 days', '90d': '90 days', '365d': '1 year' }
-const BUCKET_LABELS: Record<MetricsBucket, string> = { '1m': '1 minute', '5m': '5 minutes', '15m': '15 minutes', '1h': '1 hour', '1d': '1 day' }
-
-/** How a bucket's time reads: its hour within a day or two, its day beyond. */
-function timeFormat(window: MetricsWindow, bucket: MetricsBucket): (at: string) => string {
-  if (bucket === '1d') return at => new Date(at).toLocaleDateString('en', { month: 'short', day: 'numeric' })
-  if (window === '1h' || window === '24h') return at => new Date(at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
-  return at => new Date(at).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-/** A moment, whole: its day and its time. */
-const when = (at: string) => new Date(at).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** One event: how many times it was told, over a window, beside the one before; and who tells it most. With its own AppEventService. */
 export function AppEvent({ app }: { app: AppDTO }) {
