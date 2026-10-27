@@ -134,4 +134,4 @@ bun test packages/newt-monitor
 - A job may come late: it asks whether there is still something to do, and does
   nothing, rather than fail.
 
-Next: against cooper.
+Next: [against cooper](./12-against-cooper).

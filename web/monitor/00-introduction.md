@@ -52,5 +52,6 @@ newt it uses, and points at the chapter of the guide that teaches it.
 9. [Every hour, and a button](./09-every-hour-and-a-button): a schedule, workers, and a route.
 10. [The catalog](./10-the-catalog): every part any version had, when it came, and when it went.
 11. [Deleting for real](./11-deleting-for-real): each module forgets its own; a job told late does nothing.
+12. [Against cooper](./12-against-cooper): the real thing, end to end; its image and its command.
 
 Next: [a monitor built with newt](./01-a-monitor-built-with-newt).
