@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ApplicationDescription } from '../../api/structure'
-import { findModule, matches, moduleHref, moduleOfEvent, reactionsOf, writtenModuleId } from './app-structure'
+import { differenceOf, findModule, matches, moduleHref, moduleOfEvent, reactionsOf, writtenModuleId } from './app-structure'
 
 const module = (context: string, name: string, useCases: string[], events: string[] = []) => ({
   id: `${context}/${name}`, context, name, className: `${name}_Module`, deps: [],
@@ -39,5 +39,20 @@ describe('reading a description', () => {
     expect(matches('card.notifyAssignee', 'card NOTIFY')).toBe(true)
     expect(matches('card.notifyAssignee', 'card purge')).toBe(false)
     expect(matches('anything', '')).toBe(true)
+  })
+
+  test('tells what a version added and what it took away', () => {
+    const after: ApplicationDescription = {
+      ...description,
+      contexts: [
+        { ...description.contexts[0]!, modules: [module('auth', 'tenant', ['create', 'rename'], ['deleted'])] },
+        description.contexts[1]!,
+      ],
+    }
+
+    const { added, removed } = differenceOf(description, after)
+    expect(added.map(part => part.id)).toEqual(['auth/tenant.rename'])
+    expect(removed.map(part => `${part.kind} ${part.id}`)).toEqual(['context backoffice', 'module backoffice/workspace', 'useCase backoffice/workspace.list'])
+    expect(differenceOf(null, after).removed).toEqual([])
   })
 })

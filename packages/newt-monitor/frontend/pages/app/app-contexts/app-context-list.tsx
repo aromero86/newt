@@ -4,14 +4,21 @@ import { Box, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/b
 import { Counter } from 'newt-react-ui/counter'
 import { Icon } from 'newt-react-ui/icon'
 import { TextLink } from 'newt-react-ui/link'
+import { Inline } from 'newt-react-ui/inline'
 import { Stack } from 'newt-react-ui/stack'
 import type { ApplicationDescription } from '../../../api/structure'
+import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
 import { contextHref, moduleHref } from '../app-structure'
 
 /** Every context, each with its modules. */
 export function AppContextList({ appId, description }: { appId: string, description: ApplicationDescription }) {
+  const removed = useRemoved()
+  const gone = (context: string) => removed.filter(item => item.kind === 'module' && item.context === context)
+  const goneContexts = removed.filter(item => item.kind === 'context')
+
   return (
     <Stack gap={4}>
+      <Inline justify="end"><AppRemovedToggle /></Inline>
       {description.contexts.map(context => (
         <Box key={context.name} label={context.name}>
           <BoxHeader actions={context.uses.length ? <>uses {context.uses.map((used, index) => <Fragment key={used}>{index > 0 && ', '}<TextLink href={contextHref(appId, used)}>{used}</TextLink></Fragment>)}</> : undefined}>
@@ -27,8 +34,15 @@ export function AppContextList({ appId, description }: { appId: string, descript
               </BoxRowMeta>
             </BoxRow>
           ))}
+          {gone(context.name).map(item => <AppRemovedRow key={item.id} item={item} href={moduleHref(appId, item.itemId)} />)}
         </Box>
       ))}
+      {goneContexts.length > 0 && (
+        <Box label="Removed contexts">
+          <BoxHeader>Removed contexts <Counter>{goneContexts.length}</Counter></BoxHeader>
+          {goneContexts.map(item => <AppRemovedRow key={item.id} item={item} href={contextHref(appId, item.itemId)} />)}
+        </Box>
+      )}
     </Stack>
   )
 }

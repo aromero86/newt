@@ -10,6 +10,7 @@ import { AppContexts } from './app-contexts/app-contexts'
 import { AppEvents } from './app-events/app-events'
 import { AppOverview } from './app-overview/app-overview'
 import { AppUseCases } from './app-use-cases/app-use-cases'
+import { AppVersions } from './app-versions/app-versions'
 import { AppService } from './app.service'
 
 /** One application, under /apps/:appId: its band and its tabs. With its own AppService. */
@@ -43,6 +44,7 @@ function AppWrapped() {
           <Route path="contexts/*" element={<AppContexts app={app} />} />
           <Route path="use-cases" element={<AppUseCases app={app} />} />
           <Route path="events" element={<AppEvents app={app} />} />
+          <Route path="versions/*" element={<AppVersions app={app} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </PageBody>

@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { useParams } from 'react-router'
 import { CableIcon, ClockIcon, EarIcon, MegaphoneIcon, PlayIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
@@ -6,18 +6,24 @@ import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-
 import { Counter } from 'newt-react-ui/counter'
 import { Icon } from 'newt-react-ui/icon'
 import { TextLink } from 'newt-react-ui/link'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Spinner } from 'newt-react-ui/spinner'
 import { Stack } from 'newt-react-ui/stack'
 import { Subhead } from 'newt-react-ui/subhead'
 import { Mono } from 'newt-react-ui/text'
+import { useService, useValue } from 'newt-react'
 import type { ApplicationDescription, ModuleDependency } from '../../../api/structure'
 import { NotFound } from '../../not-found/not-found'
+import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
+import { AppService } from '../app.service'
 import { contextHref, findModule, moduleHref, reactionsOf, writtenModuleId } from '../app-structure'
 
 /** A module: its use cases, the events it tells, what it depends on and what it reacts to. */
 export function AppModule({ appId, description }: { appId: string, description: ApplicationDescription }) {
   const { context, module: name } = useParams()
   const module = findModule(description, context!, name!)
-  if (!module) return <NotFound />
+  const removed = useRemoved().filter(item => item.context === context && item.module === name)
+  if (!module) return <AppGoneModule appId={appId} context={context!} name={name!} />
   const reactions = reactionsOf(description)
   const heard = (eventId: string) => reactions.filter(reaction => reaction.event === eventId)
   const reactsTo = reactions.filter(reaction => reaction.handlerModule?.id === module.id)
@@ -28,6 +34,7 @@ export function AppModule({ appId, description }: { appId: string, description: 
       <Subhead
         title={module.name}
         description={<><Mono>{module.className}</Mono>, a module of <TextLink href={contextHref(appId, module.context)}>{module.context}</TextLink></>}
+        actions={<AppRemovedToggle />}
       />
       <Box label="Use cases">
         <BoxHeader>Use cases <Counter>{module.useCases.length}</Counter></BoxHeader>
@@ -41,6 +48,7 @@ export function AppModule({ appId, description }: { appId: string, description: 
             </BoxRowMeta>
           </BoxRow>
         ))}
+        {removed.filter(item => item.kind === 'useCase').map(item => <AppRemovedRow key={item.id} item={item} />)}
       </Box>
       <Box label="Events it tells">
         <BoxHeader>Events it tells <Counter>{module.events.length}</Counter></BoxHeader>
@@ -59,6 +67,7 @@ export function AppModule({ appId, description }: { appId: string, description: 
             </BoxRow>
           )
         })}
+        {removed.filter(item => item.kind === 'event').map(item => <AppRemovedRow key={item.id} item={item} />)}
       </Box>
       <Box label="Depends on">
         <BoxHeader>Depends on <Counter>{module.deps.length}</Counter></BoxHeader>
@@ -96,4 +105,35 @@ function AppModuleDependency({ appId, dep }: { appId: string, dep: ModuleDepende
     return <>the events {dep.events.join(', ')} of {dep.target ? <TextLink href={moduleHref(appId, dep.target)}>{dep.target}</TextLink> : 'a context not described'}</>
   }
   return <>a port: an object in its own words</>
+}
+
+/** A module the last version has not: its use cases and events, kept. */
+function AppGoneModule({ appId, context, name }: { appId: string, context: string, name: string }) {
+  const service = useService(AppService)
+  const removed = useValue(service.removed)
+
+  useEffect(() => {
+    void service.loadRemoved()
+  }, [service])
+
+  if (removed === null) return <Spinner label="Loading what was removed" />
+  const items = removed.filter(item => item.context === context && item.module === name)
+  const module = items.find(item => item.kind === 'module')
+  if (!module) return <NotFound />
+  return (
+    <Stack gap={4}>
+      <Subhead
+        title={<>{name} <Badge tone="warn">Removed</Badge></>}
+        description={<>A module of <TextLink href={contextHref(appId, context)}>{context}</TextLink>, gone <RelativeTime date={module.archivedAt!} />: what it had is kept.</>}
+      />
+      <Box label="Its use cases">
+        <BoxHeader>Its use cases <Counter>{items.filter(item => item.kind === 'useCase').length}</Counter></BoxHeader>
+        {items.filter(item => item.kind === 'useCase').map(item => <AppRemovedRow key={item.id} item={item} />)}
+      </Box>
+      <Box label="Its events">
+        <BoxHeader>Its events <Counter>{items.filter(item => item.kind === 'event').length}</Counter></BoxHeader>
+        {items.filter(item => item.kind === 'event').map(item => <AppRemovedRow key={item.id} item={item} />)}
+      </Box>
+    </Stack>
+  )
 }
