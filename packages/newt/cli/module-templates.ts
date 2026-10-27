@@ -118,8 +118,9 @@ export class ${M}_Module extends Module {
 `,
 
     [`${n.folder}.deps.ts`]: `/**
- * What the ${n.words}s need: the modules of its context it calls, and ports in its own
- * words for what it needs of other contexts. Types only (\`import type\`).
+ * What the ${n.words}s need: the modules it calls, of its context or of another (under
+ * that context's name: \`auth: { access: Access_Module }\`), and ports in its own words
+ * for what is no module of the application (a mailer). Types only (\`import type\`).
  */
 export interface ${M}_Deps {}
 `,
