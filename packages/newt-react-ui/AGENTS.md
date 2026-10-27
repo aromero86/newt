@@ -66,7 +66,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `PageBand` | The band at the top of a page about one thing: its name, facts and tabs. |
 | `NarrowPage` | One narrow column, for focused pages: signing in. |
 | `SidebarLayout`, `SidebarSection` | Content with an aside: settings menus, details. |
-| `SideNav`, `SideNavHeading`, `SideNavItem`, `NavItem` | The menu at the side, one link per section. |
+| `SideNav`, `SideNavHeading`, `SideNavItem`, `NavItem` | The menu at the side, one link per section; `level={1}` for one inside the item above. |
 | `UnderlineNav`, `UnderlineNavItem` | Tabs that are links: the parts of the same thing. |
 | `Breadcrumbs` | Where you are, down to this page. |
 | `Subhead` | A section's heading within a page; `danger` for what can break things. |
@@ -102,7 +102,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `Input`, `Textarea` | Text. |
 | `Select` | One of a few options. |
 | `Checkbox` | Yes or no. |
-| `SearchField` | A search, with its accessible name. |
+| `SearchField` | A search, with its accessible name; `live` filters what the page shows as it is written. |
 
 ### Layers
 | Component | For |

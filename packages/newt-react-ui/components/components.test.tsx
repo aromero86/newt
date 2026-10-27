@@ -11,6 +11,7 @@ import { Field } from './field'
 import { Input } from './input'
 import { LinkProvider, TextLink, type LinkComponent } from './link'
 import { RelativeTime } from './relative-time'
+import { SideNav, SideNavItem } from './side-nav'
 import { Stack } from './stack'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
 
@@ -33,6 +34,13 @@ describe('newt-react-ui', () => {
     expect(loading).toContain('disabled=""')
     expect(loading).toContain('aria-busy="true"')
     expect(loading).toContain('animate-spin')
+  })
+
+  test('a side menu\'s item inside another one is indented under it', () => {
+    const menu = html(<SideNav label="Contexts"><SideNavItem href="/boards">boards</SideNavItem><SideNavItem href="/boards/card" level={1}>card</SideNavItem></SideNav>)
+
+    expect(menu).toMatch(/href="\/boards"[^>]*pl-3/)
+    expect(menu).toMatch(/href="\/boards\/card"[^>]*pl-8/)
   })
 
   test('a button with only an icon has the name it is given', () => {

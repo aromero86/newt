@@ -8,8 +8,10 @@ type SearchFieldProps = {
   placeholder?: string
   /** What it starts with: a new value starts it again. */
   defaultValue?: string
-  /** On Enter, with what was written, trimmed; never empty. */
+  /** On Enter, with what was written, trimmed; never empty. With `live`, as it is written, empty too. */
   onSearch: (query: string) => void
+  /** A filter of what the page already shows: it filters as it is written, like GitHub's "Filter" boxes. */
+  live?: boolean
   /** `md` to lead a page of results; `sm` in a header. */
   size?: 'sm' | 'md'
 }
@@ -19,7 +21,7 @@ export function SearchField(props: SearchFieldProps) {
   return <SearchFieldInner key={props.defaultValue ?? ''} {...props} />
 }
 
-function SearchFieldInner({ label, placeholder, defaultValue = '', onSearch, size = 'md' }: SearchFieldProps) {
+function SearchFieldInner({ label, placeholder, defaultValue = '', onSearch, live = false, size = 'md' }: SearchFieldProps) {
   const [value, setValue] = useState(defaultValue)
 
   function onSubmit(event: FormEvent) {
@@ -34,7 +36,10 @@ function SearchFieldInner({ label, placeholder, defaultValue = '', onSearch, siz
         type="search"
         aria-label={label}
         value={value}
-        onChange={event => setValue(event.target.value)}
+        onChange={event => {
+          setValue(event.target.value)
+          if (live) onSearch(event.target.value.trim())
+        }}
         placeholder={placeholder}
         className={cn(
           'w-full rounded-md border bg-background text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30',
