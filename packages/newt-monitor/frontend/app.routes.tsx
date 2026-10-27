@@ -26,6 +26,7 @@ export const router = createBrowserRouter([
             HydrateFallback: () => <Spinner label="Loading page" />,
             children: [
               { index: true, lazy: () => import('./pages/apps/apps').then(page => ({ Component: page.Apps })) },
+              { path: 'apps/:appId/*', lazy: () => import('./pages/app/app').then(page => ({ Component: page.App })) },
               // Not lazy: the zones and the error page use it too, so it ships with the shell.
               { path: '*', Component: NotFound },
             ],
