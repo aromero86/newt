@@ -1,0 +1,33 @@
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { freePort } from 'newt/testing'
+import { serveTestApp, type TestApp } from '../../testing/serve-test-app'
+import { AppCallFailed } from './app-call-failed'
+import { HttpAppClient } from './http-app-client'
+
+const client = new HttpAppClient()
+let app: TestApp
+
+beforeEach(() => {
+  app = serveTestApp()
+  app.add('shop', { order: { useCases: ['place'], events: ['placed'] } })
+})
+
+afterEach(() => app.stop())
+
+const failure = (call: Promise<unknown>) => call.then(() => null, (error: AppCallFailed) => error.reason)
+
+describe('HttpAppClient', () => {
+  test('asks an application which it is, and what it is made of, signing each request', async () => {
+    expect(await client.identity(app)).toMatchObject({ name: 'shop' })
+    expect((await client.structure(app)).contexts[0]!.modules[0]!.id).toBe('shop/order')
+  })
+
+  test('says why it got no answer: nobody there, a key refused, no monitor endpoint', async () => {
+    expect(await failure(client.identity({ url: `http://127.0.0.1:${freePort()}`, key: app.key }))).toBe('unreachable')
+    expect(await failure(client.identity({ url: app.url, key: 'another key, as long as the right one' }))).toBe('key_rejected')
+
+    const other = Bun.serve({ port: 0, fetch: () => Response.json({ hello: 'world' }) })
+    expect(await failure(client.identity({ url: other.url.origin, key: app.key }))).toBe('bad_answer')
+    await other.stop(true)
+  })
+})

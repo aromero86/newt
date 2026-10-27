@@ -53,6 +53,7 @@ const MONITOR: [string, string, string][] = [
   ['03-a-secret-that-encrypts', 'A secret that encrypts', 'Un secreto que cifra'],
   ['04-the-applications', 'The applications', 'Las aplicaciones'],
   ['05-archive-restore-delete', 'Archive, restore, delete', 'Archivar, restaurar, borrar'],
+  ['06-talking-to-an-application', 'Talking to an application', 'Hablar con una aplicación'],
 ]
 
 const REFERENCE: [string, string, string][] = [

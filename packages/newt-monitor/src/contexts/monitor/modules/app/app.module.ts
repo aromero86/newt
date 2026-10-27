@@ -1,5 +1,6 @@
 import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import type { Endpoint } from '../../../../shared/app-client/app-client'
 import { App, AppListSchema, AppRegisterSchema, AppUpdateSchema, type AppDTO } from './app'
 import type { App_Options } from './app-options'
 import { App_Repository } from './app.repository'
@@ -83,6 +84,16 @@ export class App_Module extends Module {
     const app = await this.load(id)
     app.delete()
     await this.repo.persist(app)
+  }
+
+  /**
+   * Where an application is, and its key, opened: for the module that signs its
+   * requests (`connection`). No route answers it.
+   */
+  @UseCase()
+  async endpointOf(id: string): Promise<Endpoint> {
+    const app = await this.load(id)
+    return { url: app.url, key: app.key(this.options.cipher) }
   }
 
   private load(id: string): Promise<App> {

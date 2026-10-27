@@ -1,0 +1,55 @@
+import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
+import type { ApplicationDescription } from 'newt/runtime'
+import { z } from 'zod'
+import { AppCallFailed } from './app-call-failed'
+import type { AppClient, Endpoint } from './app-client'
+
+/** How long it waits for an answer. */
+const TIMEOUT_MS = 5_000
+
+/** Enough of an identity to know it is one. */
+const IdentitySchema = z.object({
+  name: z.string(),
+  newt: z.string(),
+  instance: z.object({ id: z.string(), host: z.string(), pid: z.number() }),
+  startedAt: z.string(),
+})
+
+/** Enough of a description to know it is one, and of the version the monitor reads. */
+const StructureSchema = z.looseObject({ version: z.literal(1), contexts: z.array(z.looseObject({ name: z.string() })) })
+
+/** `AppClient` over HTTP: each request signed with the endpoint's key, which never travels. */
+export class HttpAppClient implements AppClient {
+
+  async identity(endpoint: Endpoint): Promise<MonitorIdentity> {
+    return this.read(endpoint, '/v1/identity', IdentitySchema)
+  }
+
+  async structure(endpoint: Endpoint): Promise<ApplicationDescription> {
+    return this.read(endpoint, '/v1/structure', StructureSchema) as Promise<unknown> as Promise<ApplicationDescription>
+  }
+
+  /** What `path` answers, if it is what `schema` says: anything else is no monitor endpoint's. */
+  private async read<T>(endpoint: Endpoint, path: string, schema: z.ZodType<T>): Promise<T> {
+    const parsed = schema.safeParse(await this.get(endpoint, path))
+    if (!parsed.success) throw new AppCallFailed('bad_answer', `${endpoint.url}${path} answered something that is not a monitor endpoint's`)
+    return parsed.data
+  }
+
+  private async get(endpoint: Endpoint, path: string): Promise<unknown> {
+    const url = `${endpoint.url}${path}`
+    let response: Response
+    try {
+      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal: AbortSignal.timeout(TIMEOUT_MS) })
+    } catch (error) {
+      throw new AppCallFailed('unreachable', `Nobody answered at ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    if (response.status === 401) throw new AppCallFailed('key_rejected', `${endpoint.url} refused the signature: the key is not the application's`)
+    if (!response.ok) throw new AppCallFailed('bad_answer', `${endpoint.url} answered ${response.status}: is it a monitor endpoint?`)
+    try {
+      return await response.json()
+    } catch {
+      throw new AppCallFailed('bad_answer', `${endpoint.url} answered something that is not JSON: is it a monitor endpoint?`)
+    }
+  }
+}

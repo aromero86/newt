@@ -150,4 +150,4 @@ bun test packages/newt-monitor
   is no change, and tells nothing.
 - A step that cannot be undone asks for the one before it: archive, then delete.
 
-Next: talking to an application.
+Next: [talking to an application](./06-talking-to-an-application).
