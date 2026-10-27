@@ -17,15 +17,22 @@ const env = process.env
 /** `COOPER_SESSION_DAYS`: how long a browser session lasts without signing in again, in every context. */
 const sessionDays = Number(env.COOPER_SESSION_DAYS ?? 30)
 
+/** `COOPER_<CONTEXT>_PORT`: where each context listens, its API and its pages. */
+const ports = {
+  auth: Number(env.COOPER_AUTH_PORT ?? 3001),
+  boards: Number(env.COOPER_BOARDS_PORT ?? 3002),
+  backoffice: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+}
+
 /**
- * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. In development it is
- * its frontend's Vite server, which sends the API's addresses on to the context's port;
- * in production, the context's own domain, in front of its port.
+ * `COOPER_<CONTEXT>_PUBLIC_URL`: where people open each context. Each context serves
+ * its pages and its API on its own port, so in development it is that port; in
+ * production, the context's own domain, in front of it.
  */
 const publicUrls = {
-  auth: env.COOPER_AUTH_PUBLIC_URL ?? 'http://localhost:5171',
-  boards: env.COOPER_BOARDS_PUBLIC_URL ?? 'http://localhost:5172',
-  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? 'http://localhost:5173',
+  auth: env.COOPER_AUTH_PUBLIC_URL ?? `http://localhost:${ports.auth}`,
+  boards: env.COOPER_BOARDS_PUBLIC_URL ?? `http://localhost:${ports.boards}`,
+  backoffice: env.COOPER_BACKOFFICE_PUBLIC_URL ?? `http://localhost:${ports.backoffice}`,
 }
 
 /**
@@ -52,8 +59,8 @@ export const config = {
   },
   /** Who someone is: accounts, workspaces, who may enter what, and the OAuth server every app signs in with. */
   auth: {
-    /** `COOPER_AUTH_PORT`: where it listens. */
-    port: Number(env.COOPER_AUTH_PORT ?? 3001),
+    /** Where it listens (`COOPER_AUTH_PORT`). */
+    port: ports.auth,
     /** `COOPER_AUTH_DATABASE`: its database, a SQLite file or a Postgres address. */
     database: database(env.COOPER_AUTH_DATABASE ?? 'data/cooper-auth.db'),
     publicUrl: publicUrls.auth,
@@ -76,8 +83,8 @@ export const config = {
   },
   /** The SaaS: workspaces' boards, columns and cards, on the web and through MCP. */
   boards: {
-    /** `COOPER_BOARDS_PORT`: where it listens. */
-    port: Number(env.COOPER_BOARDS_PORT ?? 3002),
+    /** Where it listens (`COOPER_BOARDS_PORT`). */
+    port: ports.boards,
     /** `COOPER_BOARDS_DATABASE`: its database, a SQLite file or a Postgres address. */
     database: database(env.COOPER_BOARDS_DATABASE ?? 'data/cooper-boards.db'),
     publicUrl: publicUrls.boards,
@@ -91,8 +98,8 @@ export const config = {
   },
   /** The staff's console. */
   backoffice: {
-    /** `COOPER_BACKOFFICE_PORT`: where it listens. */
-    port: Number(env.COOPER_BACKOFFICE_PORT ?? 3003),
+    /** Where it listens (`COOPER_BACKOFFICE_PORT`). */
+    port: ports.backoffice,
     /** `COOPER_BACKOFFICE_DATABASE`: its database, a SQLite file or a Postgres address. */
     database: database(env.COOPER_BACKOFFICE_DATABASE ?? 'data/cooper-backoffice.db'),
     publicUrl: publicUrls.backoffice,
@@ -104,6 +111,12 @@ export const config = {
     /** `COOPER_BACKOFFICE_FRONTEND`: its built frontend. */
     frontendFolder: fromRoot(env.COOPER_BACKOFFICE_FRONTEND ?? 'dist/cooper/backoffice'),
   },
+  /**
+   * `COOPER_FRONTEND_SOURCES=1` (`bun run cooper` sets it): each context serves its
+   * frontend from its sources, which Bun builds as it serves them and reloads as they
+   * change, instead of its built folder.
+   */
+  frontendSources: env.COOPER_FRONTEND_SOURCES === '1',
   /**
    * `COOPER_TRACE=1`: each use case any context runs written to the console, with
    * those it calls, in its context or another, and how long each took.

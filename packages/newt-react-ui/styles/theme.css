@@ -1,8 +1,6 @@
 @import "tailwindcss";
 /* The enter and leave animations shadcn components use (dialog, menu, select). */
 @import "tw-animate-css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
 
 /* The library's own components, wherever the app that imports this theme lives. */
 @source "../";
@@ -68,8 +66,10 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* The system's own fonts, as GitHub uses them: nothing to download, and each
+     platform's native text. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -117,6 +117,5 @@
   }
   body {
     @apply bg-background text-foreground font-sans text-sm antialiased;
-    font-feature-settings: "cv11", "ss01";
   }
 }

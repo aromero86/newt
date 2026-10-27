@@ -1,5 +1,5 @@
 {
-  // The tools around the application: cooper's scripts and its frontends' Vite configs.
+  // The tools around the application: cooper's scripts.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
@@ -8,11 +8,9 @@
     "types": ["bun"],
     "moduleDetection": "force",
     "noEmit": true,
-    // A Vite config imports its neighbour as Node would load it: with its extension.
-    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["cooper/scripts/**/*.ts", "cooper/frontend/*/vite.config.ts"],
+  "include": ["cooper/scripts/**/*.ts"],
   "exclude": ["**/node_modules"]
 }

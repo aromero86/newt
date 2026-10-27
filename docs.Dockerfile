@@ -7,6 +7,8 @@ COPY packages/newt/package.json packages/newt/
 COPY packages/newt-eslint/package.json packages/newt-eslint/
 COPY packages/newt-graph/package.json packages/newt-graph/
 COPY packages/newt-monitor/package.json packages/newt-monitor/
+COPY packages/newt-react/package.json packages/newt-react/
+COPY packages/newt-react-ui/package.json packages/newt-react-ui/
 RUN bun install --frozen-lockfile --linker hoisted
 
 COPY . .
