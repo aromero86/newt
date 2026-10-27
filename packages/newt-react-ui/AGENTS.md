@@ -108,7 +108,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | Component | For |
 |---|---|
 | `Dialog` | A question or a small form over the page. |
-| `ConfirmDialog` | "Are you sure?": what happens, and one button; `destructive` for what cannot be undone. |
+| `ConfirmDialog` | "Are you sure?": what happens, and one button; `destructive` for what cannot be undone; `confirmWith` asks to type a name first. |
 
 ### Data
 | Component | For |
