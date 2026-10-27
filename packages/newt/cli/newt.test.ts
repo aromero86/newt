@@ -83,6 +83,22 @@ describe('newt init', () => {
   })
 })
 
+describe('newt init, for the newt packages an application uses', () => {
+  test('imports their rules in CLAUDE.md, and copies their skills into .claude/skills', async () => {
+    const web = join(app, 'with-ui')
+    await mkdir(web, { recursive: true })
+    await linkModules(web)
+    await Bun.write(join(web, 'package.json'), JSON.stringify({ name: 'web', private: true, dependencies: { 'newt-react-ui': 'workspace:*' } }))
+
+    const { lines, code } = await run(['init'], web)
+
+    expect(code).toBe(0)
+    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt/AGENTS.md\n@node_modules/newt-react-ui/AGENTS.md\n')
+    expect(lines).toContain('wrote    .claude/skills/newt-react-ui/SKILL.md')
+    expect(await Bun.file(join(web, '.claude/skills/newt-react-ui/SKILL.md')).text()).toContain('name: newt-react-ui')
+  })
+})
+
 describe('newt add module', () => {
   test('names everything after the folder, as the lint does', () => {
     expect(moduleNames('price-change')).toEqual({ folder: 'price-change', module: 'priceChange', entity: 'PriceChange', table: 'price_change', words: 'price change', plural: 'priceChanges', path: 'price-changes' })
