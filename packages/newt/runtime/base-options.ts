@@ -1,6 +1,7 @@
 import type { Clock, GuardRule, Tracer, WriteRule } from '../core'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
+import type { EventMetrics } from './metrics/event-metrics'
 
 export type BaseOptions<S extends Store> = {
   /** The context's name: `auth`, `shop`… Every span of its invocations says it. */
@@ -27,4 +28,10 @@ export type BaseOptions<S extends Store> = {
    * error by default; `warn` while an application adds its guards, `off` never.
    */
   guardRule?: GuardRule
+  /**
+   * Where it counts its events for whoever monitors it: its own memory by default (one
+   * instance); `RedisEventMetrics` when several instances share the work. Counting
+   * starts once `serveMonitor` serves it. Contexts may share one.
+   */
+  metrics?: EventMetrics
 }

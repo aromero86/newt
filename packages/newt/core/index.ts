@@ -25,6 +25,7 @@ export { findCurrentActor } from './context/find-current-actor'
 export { runAsActor } from './context/run-as-actor'
 export { NoActor } from './context/errors/no-actor'
 export { defineScope } from './scope/define-scope'
+export type { DefineScopeOptions } from './scope/define-scope'
 export type { Scope } from './scope/scope'
 
 // What time it is

@@ -1,4 +1,5 @@
 import type { Clock } from '../core'
+import type { NonceStore } from './nonce-store'
 
 export type MonitorOptions = {
   /** The application's name, as the monitor shows it: `cooper`. */
@@ -14,4 +15,9 @@ export type MonitorOptions = {
   key: string
   /** What tells it the time, to check a request was made now: the real one unless a test gives another. */
   clock?: Clock
+  /**
+   * Where it keeps the nonces it has seen: its memory unless told. With several
+   * instances, `RedisNonces`, so a request is refused by all once any saw it.
+   */
+  nonces?: NonceStore
 }

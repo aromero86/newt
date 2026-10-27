@@ -348,3 +348,12 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `browser` | valor | [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice) | [21](./21-oauth-server), [24](./24-mcp-server), [29](./29-shipping), [C](./c-common-problems) |
 | `Browser` | tipo | [20](./20-wiring-contexts), [25](./25-backoffice) |   |
 | `BrowserRequest` | tipo |   | — |
+
+## Aún fuera de la guía
+
+| Entrada | Exports |
+|---|---|
+| `newt/contract` | `EventCount`, `EventCounts` |
+| `newt/core` | `DefineScopeOptions` |
+| `newt/monitor` | `MemoryNonces`, `NonceStore`, `RedisNonces` |
+| `newt/runtime` | `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |

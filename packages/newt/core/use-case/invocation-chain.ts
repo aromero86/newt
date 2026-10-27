@@ -9,7 +9,7 @@ type Link = { context: string, module: string, useCase: string }
  * one may run it all again on a conflict (`retry`, shared by the whole chain: one
  * that says `retryOnConflict: false` turns it off for every one above it).
  */
-export const invocationChain = defineScope<{ root: Link & { writesTo: string[] }, current: Link, retry: { allowed: boolean } }>('invocation')
+export const invocationChain = defineScope<{ root: Link & { writesTo: string[] }, current: Link, retry: { allowed: boolean } }>('invocation', { counted: false })
 
 /** Marks the work of a job: a worker may write to any module, since a failure halfway is retried; still one module per transaction. */
-export const inWorker = defineScope<true>('worker')
+export const inWorker = defineScope<true>('worker', { counted: false })

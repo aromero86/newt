@@ -1,5 +1,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { registerScope } from './registered-scopes'
 import type { Scope } from './scope'
+
+export type DefineScopeOptions = {
+  /** The error `current` throws outside the scope. */
+  missing?: () => Error
+  /** Whether the application's metrics say which value of it an event was told in: yes, unless it is newt's own. */
+  counted?: boolean
+}
 
 /**
  * A value that travels with the work in progress, as the actor does: set once where
@@ -13,10 +21,12 @@ import type { Scope } from './scope'
  * workspace.current().workspaceId
  * ```
  *
- * A worker never inherits one: it runs on its own, and enters what it needs.
+ * A worker never inherits one: it runs on its own, and enters what it needs. Its name
+ * is how the application's metrics say which scope an event was told in.
  */
-export function defineScope<T>(name: string, options: { missing?: () => Error } = {}): Scope<T> {
+export function defineScope<T>(name: string, options: DefineScopeOptions = {}): Scope<T> {
   const storage = new AsyncLocalStorage<T>()
+  if (options.counted !== false) registerScope(name, () => storage.getStore())
   return {
     run: (value, fn) => storage.run(value, fn),
     current: () => {

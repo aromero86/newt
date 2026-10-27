@@ -31,3 +31,4 @@ export type {
   ModuleDependency,
   SubscriptionDescription,
 } from '../core/description/application-description'
+export type { EventCount, EventCounts } from '../core/metrics/event-count'

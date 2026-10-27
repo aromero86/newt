@@ -347,3 +347,12 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `browser` | value | [20](./20-wiring-contexts), [22](./22-web-session), [25](./25-backoffice) | [21](./21-oauth-server), [24](./24-mcp-server), [29](./29-shipping), [C](./c-common-problems) |
 | `Browser` | type | [20](./20-wiring-contexts), [25](./25-backoffice) |   |
 | `BrowserRequest` | type |   | — |
+
+## Not in the guide yet
+
+| Entry | Exports |
+|---|---|
+| `newt/contract` | `EventCount`, `EventCounts` |
+| `newt/core` | `DefineScopeOptions` |
+| `newt/monitor` | `MemoryNonces`, `NonceStore`, `RedisNonces` |
+| `newt/runtime` | `CountedEvent`, `EventCount`, `EventCounts`, `EventMetrics`, `MemoryEventMetrics`, `MemoryEventMetricsOptions`, `RedisEventMetrics`, `RedisEventMetricsOptions` |

@@ -10,6 +10,12 @@ export type { JobQueueOptions } from './jobs/job-queue-options'
 export type { Schedules } from './schedules/schedules'
 export type { ScheduleTick } from './schedules/schedule-tick'
 export { describeApplication } from './description/describe-application'
+export type { EventMetrics, CountedEvent } from './metrics/event-metrics'
+export { MemoryEventMetrics } from './metrics/memory-event-metrics'
+export type { MemoryEventMetricsOptions } from './metrics/memory-event-metrics'
+export { RedisEventMetrics } from './metrics/redis-event-metrics'
+export type { RedisEventMetricsOptions } from './metrics/redis-event-metrics'
+export type { EventCount, EventCounts } from '../core/metrics/event-count'
 export type {
   ApplicationDescription,
   ContextDescription,

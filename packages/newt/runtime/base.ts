@@ -1,10 +1,12 @@
-import { systemClock, type EventBus, type EventPublisher } from '../core'
-import { Invocations } from '../core/internal'
+import { findCurrentActor, systemClock, type EventBus, type EventPublisher } from '../core'
+import { activeScopes, Invocations } from '../core/internal'
 import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
 import { withId } from './events/with-id'
 import { JobQueue } from './jobs/job-queue'
+import type { EventMetrics } from './metrics/event-metrics'
+import { MemoryEventMetrics } from './metrics/memory-event-metrics'
 import { Schedules } from './schedules/schedules'
 
 /**
@@ -30,11 +32,14 @@ export class Base<S extends Store = Store> {
   readonly jobs: JobQueue
   /** Its schedules, each an event told as a cron expression says: they start and stop with its jobs. */
   readonly schedules: Schedules
+  /** Where it counts its events for whoever monitors it (`serveMonitor` starts it). */
+  readonly metrics: EventMetrics
 
   constructor(options: BaseOptions<S>) {
     const clock = options.clock ?? systemClock
     this.name = options.name
     this.store = options.store
+    this.metrics = options.metrics ?? new MemoryEventMetrics()
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     const memory = new InMemoryEventBus()
     const { registry } = this.invocations
@@ -57,8 +62,11 @@ export class Base<S extends Store = Store> {
     this.publisher = {
       publish: async event => {
         const told = withId(event)
+        // Who told it and in which scopes, as it is told: counted once it is saved.
+        const counted = { context: this.name, event: told.name, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() }
         await this.jobs.enqueue(told)
         this.store.afterCommit(() => {
+          this.metrics.count(counted)
           memory.publish(told)
           this.jobs.wake()
         })

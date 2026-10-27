@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { Clock } from '../core'
 import { MONITOR_HEADERS, monitorSignature } from './monitor-signature'
+import type { NonceStore } from './nonce-store'
 
 /** How far a request's time may be from the application's, either way. */
 const WINDOW_MS = 30_000
@@ -16,15 +17,13 @@ const SIGNATURE = /^[0-9a-f]{64}$/
  */
 export class MonitorVerifier {
 
-  /** Each nonce seen, until when it is kept. */
-  private readonly seen = new Map<string, number>()
-
   constructor(
     private readonly key: string,
     private readonly clock: Clock,
+    private readonly nonces: NonceStore,
   ) {}
 
-  verify(request: Request): boolean {
+  async verify(request: Request): Promise<boolean> {
     const timestamp = request.headers.get(MONITOR_HEADERS.timestamp) ?? ''
     const nonce = request.headers.get(MONITOR_HEADERS.nonce) ?? ''
     const signature = request.headers.get(MONITOR_HEADERS.signature) ?? ''
@@ -38,13 +37,6 @@ export class MonitorVerifier {
     if (!timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) return false
 
     // Only a request signed with the key gets this far: nobody else can fill what it keeps.
-    this.forgetBefore(now)
-    if (this.seen.has(nonce)) return false
-    this.seen.set(nonce, Number(timestamp) + WINDOW_MS)
-    return true
-  }
-
-  private forgetBefore(now: number): void {
-    for (const [nonce, until] of this.seen) if (until < now) this.seen.delete(nonce)
+    return this.nonces.remember(nonce, Number(timestamp) + WINDOW_MS, now)
   }
 }

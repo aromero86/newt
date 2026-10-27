@@ -24,3 +24,5 @@ export { currentClock } from './clock/current-clock'
 export { message } from './messages/message'
 /** HTTP starts each request's span on the application's tracer. */
 export { applicationTracer } from './observability/application-tracer'
+// runtime's Base: which scopes an event is told in, for its metrics.
+export { activeScopes, scopeId } from './scope/registered-scopes'
