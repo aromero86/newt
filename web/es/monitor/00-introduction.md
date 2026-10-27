@@ -22,8 +22,8 @@ comparten los dos. La clave nunca viaja.
 - Su catálogo guarda cada contexto, módulo, caso de uso y evento que tuvo alguna
   versión: cuándo apareció, cuándo se vio por última vez, y cuándo se fue.
 
-Todavía no tiene pantalla: estos capítulos construyen su API. Sus páginas vienen
-después.
+Estos capítulos construyen su API; el último, cómo se construyen y se sirven sus
+páginas.
 
 ## Cómo funciona la guía
 
@@ -54,5 +54,6 @@ newt usa, y señala el capítulo del tutorial que la enseña.
 10. [El catálogo](./10-the-catalog): cada parte que tuvo alguna versión, cuándo llegó y cuándo se fue.
 11. [Borrar de verdad](./11-deleting-for-real): cada módulo olvida lo suyo; un job avisado tarde no hace nada.
 12. [Contra cooper](./12-against-cooper): lo de verdad, de principio a fin; su imagen y su comando.
+13. [Sus páginas](./13-its-pages): su frontend, construido y servido por el propio monitor.
 
 Siguiente: [un monitor hecho con newt](./01-a-monitor-built-with-newt).

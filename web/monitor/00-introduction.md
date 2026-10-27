@@ -22,7 +22,7 @@ share. The key never travels.
 - Its catalog keeps every context, module, use case and event any version had: when
   it first appeared, when it was last seen, and when it went.
 
-There is no screen yet: these chapters build its API. Its pages come after.
+These chapters build its API; the last one, how its pages are built and served.
 
 ## How the guide works
 
@@ -53,5 +53,6 @@ newt it uses, and points at the chapter of the guide that teaches it.
 10. [The catalog](./10-the-catalog): every part any version had, when it came, and when it went.
 11. [Deleting for real](./11-deleting-for-real): each module forgets its own; a job told late does nothing.
 12. [Against cooper](./12-against-cooper): the real thing, end to end; its image and its command.
+13. [Its pages](./13-its-pages): its frontend, built and served by the monitor itself.
 
 Next: [a monitor built with newt](./01-a-monitor-built-with-newt).

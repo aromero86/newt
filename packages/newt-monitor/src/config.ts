@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { z } from 'zod'
 import { MIN_SECRET_LENGTH } from './shared/key-cipher'
 
@@ -17,6 +18,10 @@ const EnvSchema = z.object({
   NEWT_MONITOR_SESSION_HOURS: z.coerce.number().int().min(1).default(12),
   /** What it encrypts the applications' keys with: no default, 32 characters or more. */
   NEWT_MONITOR_SECRET: z.string().min(MIN_SECRET_LENGTH),
+  /** Its built frontend (`bun run monitor:build`). */
+  NEWT_MONITOR_FRONTEND: z.string().trim().min(1).default(join(import.meta.dir, '../dist/frontend')),
+  /** `1` (`bun run monitor` sets it): the frontend from its sources, which Bun builds as it serves them. */
+  NEWT_MONITOR_FRONTEND_SOURCES: z.enum(['0', '1']).default('0'),
 })
 
 export type MonitorConfig = {
@@ -28,6 +33,10 @@ export type MonitorConfig = {
   sessionHours: number
   /** What the applications' keys are encrypted with (`KeyCipher`). */
   secret: string
+  /** The built frontend it hands out for every address its API does not take. */
+  frontend: string
+  /** Its frontend from its sources instead, rebuilt as they change: development only. */
+  frontendSources: boolean
 }
 
 /**
@@ -49,5 +58,7 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
     admin: { user: data.NEWT_MONITOR_USER, password: data.NEWT_MONITOR_PASSWORD },
     sessionHours: data.NEWT_MONITOR_SESSION_HOURS,
     secret: data.NEWT_MONITOR_SECRET,
+    frontend: data.NEWT_MONITOR_FRONTEND,
+    frontendSources: data.NEWT_MONITOR_FRONTEND_SOURCES === '1',
   }
 }

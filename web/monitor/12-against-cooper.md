@@ -136,7 +136,7 @@ without ever opening their data:
 | `structure` | What each one is made of, a version each time it changes. |
 | `catalog` | Every part any version had, when it came and when it went. |
 
-Its pages come next.
+Next: [its pages](./13-its-pages).
 
 ## What to remember
 

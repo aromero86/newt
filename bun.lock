@@ -92,6 +92,15 @@
         "newt": "workspace:*",
         "zod": "4.3.6",
       },
+      "devDependencies": {
+        "bun-plugin-tailwind": "0.1.2",
+        "lucide-react": "1.48.0",
+        "newt-react": "workspace:*",
+        "newt-react-ui": "workspace:*",
+        "react": "19.3.0",
+        "react-dom": "19.3.0",
+        "react-router": "8.4.0",
+      },
     },
     "packages/newt-react": {
       "name": "newt-react",

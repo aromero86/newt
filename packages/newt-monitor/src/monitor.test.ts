@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { join } from 'node:path'
 import { readConfig } from './config'
 import { openTestMonitor, type TestMonitor } from './testing/open-test-monitor'
 
@@ -21,6 +22,14 @@ describe('the monitor', () => {
 
     expect((await monitor.fetch('/api/nowhere')).status).toBe(404)
   })
+
+  test('hands its frontend every other address, and says so while it is not built', async () => {
+    monitor = await openTestMonitor()
+
+    const page = await monitor.fetch('/apps/cooper')
+    expect(page.status).toBe(503)
+    expect(await page.text()).toContain('not built')
+  })
 })
 
 describe('its settings', () => {
@@ -34,6 +43,8 @@ describe('its settings', () => {
       admin: { user: 'ana', password: 'twelve chars at least' },
       sessionHours: 12,
       secret: 'a secret of thirty-two characters',
+      frontend: join(import.meta.dir, '../dist/frontend'),
+      frontendSources: false,
     })
   })
 

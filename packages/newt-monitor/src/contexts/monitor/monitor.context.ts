@@ -25,8 +25,11 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
     return new Monitor_Context(base, initializeModules(base, config), config)
   }
 
-  /** How it is served (`runContexts`): its modules' API under `/api`, and `GET /api/health` for whoever watches it is up. */
+  /**
+   * How it is served (`runContexts`): its modules' API under `/api`, `GET /api/health`
+   * for whoever watches it is up, and its built frontend for any other address.
+   */
   serving(): ServeOptions {
-    return { port: this.config.port, router: this.base.http, health: true }
+    return { port: this.config.port, router: this.base.http, health: true, frontend: this.config.frontend }
   }
 }

@@ -136,7 +136,7 @@ abrir nunca sus datos:
 | `structure` | De qué está hecha cada una, una versión cada vez que cambia. |
 | `catalog` | Cada parte que tuvo alguna versión, cuándo llegó y cuándo se fue. |
 
-Sus páginas vienen a continuación.
+Siguiente: [sus páginas](./13-its-pages).
 
 ## Lo que hay que recordar
 

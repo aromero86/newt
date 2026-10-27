@@ -17,7 +17,8 @@
     "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     "cooper:build": "bun cooper/scripts/build.ts",
     "cooper:graph": "newt-graph --root cooper/backend",
-    "monitor": "bun packages/newt-monitor/bin/newt-monitor.ts",
+    "monitor": "bun --watch packages/newt-monitor/scripts/dev.ts",
+    "monitor:build": "bun packages/newt-monitor/scripts/build.ts",
     "ui": "bun packages/newt-react-ui/gallery/serve.ts"
   },
   "dependencies": {

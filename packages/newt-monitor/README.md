@@ -25,11 +25,16 @@ bunx newt-monitor
 | `NEWT_MONITOR_DATA` | Its SQLite database: `data/newt-monitor.db`. |
 | `NEWT_MONITOR_PUBLIC_URL` | Where it is opened: its cookie is `Secure` when this is `https`. |
 | `NEWT_MONITOR_SESSION_HOURS` | How long a session lasts: 12. |
+| `NEWT_MONITOR_FRONTEND` | Its built pages: the package's `dist/frontend`. |
 
 Without a user, a password or a secret, it does not start, and says which are missing.
 
 In a container: `monitor.Dockerfile`, at the repository's root, with `/app/data` a
 persistent volume.
+
+Its pages are built first, with `bun run monitor:build` at the repository's root (the
+image does it). In development, `bun run monitor` serves them from their sources and
+reloads them as they change.
 
 ## Watching an application
 

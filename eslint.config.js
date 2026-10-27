@@ -13,8 +13,19 @@ const BACKEND = newt({
 
 // newt-monitor is an application built with newt too, so it keeps the same lint.
 const MONITOR = newt({
-  files: ['packages/newt-monitor/**/*.ts'],
+  files: ['packages/newt-monitor/{bin,scripts,src}/**/*.ts'],
   contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
+})
+
+// Its frontend composes newt-react-ui's components, as cooper's do. Of the backend it
+// imports only its modules' contracts (their *.schema.ts), and only its API clients do.
+const MONITOR_FRONTEND = newtReactUi({
+  files: ['packages/newt-monitor/frontend/**/*.{ts,tsx}'],
+  components: ['packages/newt-monitor/frontend/components/**'],
+  imports: [{
+    regex: '(^|/)src(/|$)',
+    message: 'The monitor\'s pages never import its backend: use its client in frontend/api.',
+  }],
 })
 
 // newt-react-ui's gallery is an app like any other: it keeps the library's lint.
@@ -33,6 +44,12 @@ const API_BACKEND_IMPORTS = {
   message: '@cooper/api may only import a backend module\'s *.schema.ts (its contract).',
 }
 
+// The same for the monitor's clients: of its backend, only its modules' schemas.
+const MONITOR_API_BACKEND_IMPORTS = {
+  regex: '(^|/)src(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$)|$)',
+  message: 'The monitor\'s API clients may only import a module\'s *.schema.ts (its contract).',
+}
+
 // cooper's frontends compose newt-react-ui's components and style nothing: only cooper's
 // own components (cooper/libs/ui, each app's components/) style, wrapping the library's.
 const FRONTEND = newtReactUi({
@@ -45,6 +62,7 @@ export default [
   { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
   ...MONITOR,
+  ...MONITOR_FRONTEND,
   ...UI_GALLERY,
   ...FRONTEND,
   {
@@ -52,6 +70,13 @@ export default [
     languageOptions: { parser: tseslint.parser },
     rules: {
       'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
+    },
+  },
+  {
+    files: ['packages/newt-monitor/frontend/api/**/*.ts'],
+    languageOptions: { parser: tseslint.parser },
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [MONITOR_API_BACKEND_IMPORTS] }],
     },
   },
 ]

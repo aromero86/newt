@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { runContexts } from 'newt/application'
 import type { Clock } from 'newt/core'
 import { browser } from 'newt/testing'
@@ -15,6 +16,9 @@ const TEST_CONFIG: MonitorConfig = {
   admin: TEST_ADMIN,
   sessionHours: 12,
   secret: 'a secret only tests encrypt with',
+  // No build: its pages answer that it is not built; its API, as always.
+  frontend: join(import.meta.dir, 'no-frontend'),
+  frontendSources: false,
 }
 
 /** What a test changes of the monitor's settings (everything else is a test's), and the clock it tells the time by. */

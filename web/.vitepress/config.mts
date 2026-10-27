@@ -60,6 +60,7 @@ const MONITOR: [string, string, string][] = [
   ['10-the-catalog', 'The catalog', 'El catálogo'],
   ['11-deleting-for-real', 'Deleting for real', 'Borrar de verdad'],
   ['12-against-cooper', 'Against cooper', 'Contra cooper'],
+  ['13-its-pages', 'Its pages', 'Sus páginas'],
 ]
 
 const REFERENCE: [string, string, string][] = [
