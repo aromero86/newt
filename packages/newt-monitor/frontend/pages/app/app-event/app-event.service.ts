@@ -1,5 +1,5 @@
 import { inject, Store } from 'newt-react'
-import { DEFAULT_BUCKET, MetricsApi, type MetricsBucket, type MetricsWindow, type SeriesDTO, type TopDTO } from '../../../api/metrics'
+import { DEFAULT_BUCKET, EventMetricsApi, type MetricsBucket, type MetricsWindow, type SeriesDTO, type TopDTO } from '../../../api/event-metrics'
 import { AppService } from '../app.service'
 
 export type Compare = 'previous' | 'week' | 'none'
@@ -24,7 +24,7 @@ type EventState = {
 /** One event of the application: its series as asked for, and who tells it most. */
 export class AppEventService {
 
-  private readonly api = inject(MetricsApi)
+  private readonly api = inject(EventMetricsApi)
   private readonly app = inject(AppService)
   private readonly store = new Store<EventState>({
     context: '', event: '', window: '24h', bucket: DEFAULT_BUCKET['24h'], compare: 'previous',

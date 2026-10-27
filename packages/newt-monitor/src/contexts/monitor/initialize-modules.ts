@@ -6,8 +6,9 @@ import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
 import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
-import { Metrics_Module } from './modules/metrics/metrics.module'
-import { MetricsStore } from './modules/metrics/services/metrics-store'
+import { MetricsStore } from '../../shared/metrics-store/metrics-store'
+import { EventMetrics_Module } from './modules/event-metrics/event-metrics.module'
+import { Retention_Module } from './modules/retention/retention.module'
 import { Session_Module } from './modules/session/session.module'
 import { Structure_Module } from './modules/structure/structure.module'
 
@@ -26,8 +27,10 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const connection = Connection_Module.initialize(base, { app, client })
   const structure = Structure_Module.initialize(base, { app, connection })
   const catalog = Catalog_Module.initialize(base, { app, structure })
-  const metrics = Metrics_Module.initialize(base, { app, connection }, { store: new MetricsStore(config.metricsFolder) })
-  return { session, app, connection, structure, catalog, metrics }
+  const metrics = new MetricsStore(config.metricsFolder)
+  const retention = Retention_Module.initialize(base, { app })
+  const eventMetrics = EventMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
+  return { session, app, connection, structure, catalog, retention, eventMetrics }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

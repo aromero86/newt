@@ -1,5 +1,5 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
-import { BUCKETS, WINDOWS, type EventTotalDTO, type MetricsBucket, type MetricsWindow, type SeriesDTO, type SeriesPointDTO, type TopDTO } from '../metrics.schema'
+import { BUCKETS, WINDOWS, type EventTotalDTO, type MetricsBucket, type MetricsWindow, type SeriesDTO, type SeriesPointDTO, type TopDTO } from '../event-metrics.schema'
 
 type Filter = { context: string, event: string, scope?: string, actor?: string }
 
@@ -26,7 +26,7 @@ function whereOf(filter: Filter, first: number, withActor: boolean): { sql: stri
  * as it is read. Days older than the summary's newest come from it; the rest, and
  * anything filtered by actor (which the summary has not), from the minutes.
  */
-export class MetricsQueries {
+export class EventMetricsQueries {
 
   constructor(private readonly analytics: DuckDbAnalytics) {}
 

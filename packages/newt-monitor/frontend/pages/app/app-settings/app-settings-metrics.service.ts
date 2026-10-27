@@ -1,7 +1,7 @@
 import { FormStore, inject } from 'newt-react'
 import { toast } from 'newt-react-ui/toast'
 import { z } from 'zod'
-import { MetricsApi, MIN_MINUTE_DAYS } from '../../../api/metrics'
+import { MIN_MINUTE_DAYS, RetentionApi } from '../../../api/retention'
 import { AppService } from '../app.service'
 
 const days = (most: number) => z.coerce.number<string>().int('Whole days').min(MIN_MINUTE_DAYS, `At least ${MIN_MINUTE_DAYS} days`).max(most, `At most ${most} days`)
@@ -15,7 +15,7 @@ const RetentionSchema = z.object({
 /** How long an application's metrics are kept: changed here, applied at the next nightly keep. */
 export class AppSettingsMetricsService {
 
-  private readonly api = inject(MetricsApi)
+  private readonly api = inject(RetentionApi)
   private readonly app = inject(AppService)
 
   readonly form = new FormStore(RetentionSchema, { minuteDays: '', dayDays: '' })
@@ -27,7 +27,7 @@ export class AppSettingsMetricsService {
 
   async save(): Promise<void> {
     await this.form.submit(async retention => {
-      await this.api.changeRetention(this.app.appId, retention)
+      await this.api.change(this.app.appId, retention)
       toast.success('Saved: what is older goes tonight')
     })
   }

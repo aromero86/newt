@@ -10,7 +10,7 @@ import { Inline } from 'newt-react-ui/inline'
 import { Stack } from 'newt-react-ui/stack'
 import { Mono } from 'newt-react-ui/text'
 import { useService, useValue } from 'newt-react'
-import { MetricsApi, type EventTotalDTO } from '../../../api/metrics'
+import { EventMetricsApi, type EventTotalDTO } from '../../../api/event-metrics'
 import type { AppDTO } from '../../../api/app'
 import { AppNotRead } from '../app-not-read/app-not-read'
 import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
@@ -77,7 +77,7 @@ export function AppEvents({ app }: { app: AppDTO }) {
 
 /** Each event's total in the last 24 hours, beside the 24 before: null until known. */
 function useTotals(app: AppDTO): Map<string, EventTotalDTO> | null {
-  const api = useService(MetricsApi)
+  const api = useService(EventMetricsApi)
   const [totals, setTotals] = useState<Map<string, EventTotalDTO> | null>(null)
   useEffect(() => {
     api.totals(app.id, '24h')

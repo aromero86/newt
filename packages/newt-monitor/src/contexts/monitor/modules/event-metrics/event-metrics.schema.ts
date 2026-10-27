@@ -1,32 +1,16 @@
 import { z } from 'zod'
 
-/** The fewest days the minute detail is kept: the daily summary is made of days at least two days old. */
-export const MIN_MINUTE_DAYS = 3
-
-/**
- * What the monitor collects of an application's metrics: up to which minute it has
- * them, and how long it keeps them.
- */
-export const MetricsFeedSchema = z.object({
+/** What the monitor has collected of an application's events: up to which minute. */
+export const EventMetricsFeedSchema = z.object({
   id: z.uuidv7(),
   appId: z.uuidv7(),
   /** The last minute collected: the next collection asks from it. Null before the first. */
   until: z.iso.datetime().nullable().default(null),
-  /** How many days each minute is kept, with its actor: 30 by default. */
-  minuteDays: z.number().int().min(MIN_MINUTE_DAYS).max(3650).default(30),
-  /** How many days each day's summary, without actor, is kept: null for ever. */
-  dayDays: z.number().int().min(MIN_MINUTE_DAYS).max(36500).nullable().default(null),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
 })
 
-/** How long an application's metrics are kept, as a client changes it. */
-export const MetricsRetentionSchema = MetricsFeedSchema.pick({ minuteDays: true, dayDays: true }).partial()
-  .refine(change => change.minuteDays !== undefined || change.dayDays !== undefined, 'Say what changes: minuteDays or dayDays')
-
-export type MetricsFeedDTO = z.infer<typeof MetricsFeedSchema>
-export type MetricsRetentionDTO = Pick<MetricsFeedDTO, 'minuteDays' | 'dayDays'>
-export type MetricsRetentionChangeDTO = z.input<typeof MetricsRetentionSchema>
+export type EventMetricsFeedDTO = z.infer<typeof EventMetricsFeedSchema>
 
 /** What one collection came to: how many counts, up to which minute; or why nothing. */
 export type CollectDTO =
