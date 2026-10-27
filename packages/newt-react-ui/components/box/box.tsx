@@ -1,4 +1,4 @@
-import { useContext, type ReactNode } from 'react'
+import { Children, Fragment, useContext, type ReactNode } from 'react'
 import { cn } from 'cn'
 import { LinkComponentContext } from '../link/link-component'
 
@@ -57,9 +57,23 @@ export function BoxRowTitle({ href, children }: { href?: string, children: React
   )
 }
 
-/** The small line under a row's title: key, who, when. */
+/**
+ * The small line under a row's title: key, who, when. Each child is one part, and a
+ * `·` goes between them; one that renders nothing (`false`, `null`) takes no place:
+ * `<BoxRowMeta>{user.email}<>signed up <RelativeTime date={…} /></></BoxRowMeta>`.
+ */
 export function BoxRowMeta({ children }: { children: ReactNode }) {
-  return <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">{children}</div>
+  const parts = Children.toArray(children)
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && <span aria-hidden>·</span>}
+          <span>{part}</span>
+        </Fragment>
+      ))}
+    </div>
+  )
 }
 
 /** Content that is not a list, inside the box; several are divided by a line. `flush` drops the padding, for content that fills the box. */

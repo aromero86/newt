@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Alert } from './alert'
 import { Badge } from './badge'
+import { BoxRowMeta } from './box'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { Field } from './field'
@@ -87,5 +88,13 @@ describe('newt-react-ui', () => {
 
     expect(table).toContain('<caption')
     expect(table).toMatch(/<th[^>]*scope="col"[^>]*>Name<\/th>/)
+  })
+
+  test('a row\'s meta puts a dot between its parts, and none for a part that is not there', () => {
+    const meta = html(<BoxRowMeta>{'ana@acme.test'}{false}<>signed up</></BoxRowMeta>)
+
+    expect(meta.match(/<span>/g)).toHaveLength(2)
+    expect(meta).toContain('<span aria-hidden="true">·</span>')
+    expect(meta).toContain('<span>ana@acme.test</span>')
   })
 })
