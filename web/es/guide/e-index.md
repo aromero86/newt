@@ -178,6 +178,16 @@ base de un error de `newt/contract`; en cualquier otro sitio, de cualquiera de l
 | `AnalyticsFixture` | tipo |   | — |
 | `MemoryAnalytics` | valor |   | [26](./26-dead-jobs-and-analytics) |
 
+## `newt/adapter-duckdb`
+
+| Export | Tipo | Se importa en | También en |
+|---|---|---|---|
+| `DuckDbAnalytics` | valor |   | — |
+| `DuckDbAnalyticsOptions` | tipo |   | — |
+| `DuckDbColumnType` | tipo |   | — |
+| `DuckDbDataset` | tipo |   | — |
+| `DuckDbParam` | tipo |   | — |
+
 ## `newt/repository`
 
 | Export | Tipo | Se importa en | También en |

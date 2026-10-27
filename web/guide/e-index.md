@@ -177,6 +177,16 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `AnalyticsFixture` | type |   | — |
 | `MemoryAnalytics` | value |   | [26](./26-dead-jobs-and-analytics) |
 
+## `newt/adapter-duckdb`
+
+| Export | Kind | Imported in | Also in |
+|---|---|---|---|
+| `DuckDbAnalytics` | value |   | — |
+| `DuckDbAnalyticsOptions` | type |   | — |
+| `DuckDbColumnType` | type |   | — |
+| `DuckDbDataset` | type |   | — |
+| `DuckDbParam` | type |   | — |
+
 ## `newt/repository`
 
 | Export | Kind | Imported in | Also in |
