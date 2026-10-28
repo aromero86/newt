@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { TextLink } from '../link'
 
 export type WaterfallTone = 'brand' | 'ok' | 'warn' | 'bad' | 'muted'
 
@@ -10,8 +12,19 @@ export type WaterfallRow = {
   /** What it says beside its name, smaller: the rows a query read, its shape. */
   detail?: ReactNode
   startMs: number
+  /** 0 with `instant`: a moment, drawn as a mark. */
   ms: number
   tone?: WaterfallTone
+  /** A moment, not a step: an event told. */
+  instant?: boolean
+  /** Since when it waited before it started, drawn dotted: a job in its queue. */
+  waitFromMs?: number
+  /** Steps of its own it can show: shown or not, and how to switch. */
+  expandable?: { expanded: boolean, onToggle: () => void, label: string }
+  /** Where it is whole, as a link beside its name. */
+  link?: { href: string, label: string }
+  /** Stands out: the one the page is about. */
+  highlighted?: boolean
 }
 
 const barClass: Record<WaterfallTone, string> = {
@@ -22,17 +35,26 @@ const barClass: Record<WaterfallTone, string> = {
   muted: 'bg-muted-foreground/40',
 }
 
+const markClass: Record<WaterfallTone, string> = {
+  brand: 'border-brand',
+  ok: 'border-ok',
+  warn: 'border-warn',
+  bad: 'border-bad',
+  muted: 'border-muted-foreground',
+}
+
 const defaultFormat = (ms: number) => (ms < 1000 ? `${ms.toLocaleString('en', { maximumFractionDigits: ms < 10 ? 1 : 0 })} ms` : `${(ms / 1000).toLocaleString('en', { maximumFractionDigits: 2 })} s`)
 
 /**
  * Steps on a timeline, each inside the one above it, as GitHub shows a job's steps:
  * its name indented by how deep it is, and a bar from when it started for as long as it
- * took. Pressing a row selects it (`onSelect`), for the page to say more of it.
+ * took; a moment as a mark, and a wait before a step dotted. A row may unfold steps of
+ * its own and link to where it is whole. Pressing a row selects it (`onSelect`).
  */
 export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, selected, onSelect }: {
   label: string
   rows: WaterfallRow[]
-  /** The whole timeline: the first's time, unless told. */
+  /** The whole timeline: as far as its rows reach, unless told. */
   totalMs?: number
   formatMs?: (ms: number) => string
   selected?: string | null
@@ -40,7 +62,7 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
 }) {
   const total = Math.max(totalMs ?? Math.max(...rows.map(row => row.startMs + row.ms), 0), 0.001)
   const percent = (ms: number) => `${Math.min(100, Math.max(0, (ms / total) * 100))}%`
-  // Its time after its bar; before it when the bar ends near the right; inside it when it fills the line.
+  // Its time after its bar; before it when the bar ends near the right; on its end when it fills the line.
   const placement = (row: WaterfallRow) => (row.startMs + row.ms <= total * 0.8 ? 'after' : row.startMs >= total * 0.2 ? 'before' : 'inside')
   const labelStyle = (row: WaterfallRow) => {
     const where = placement(row)
@@ -59,28 +81,49 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
       </div>
       {rows.map(row => {
         const isSelected = row.id === selected
-        const content = (
+        const tone = row.tone ?? 'brand'
+        const name = (
           <>
-            <span className="flex min-w-0 items-baseline gap-2" style={{ paddingLeft: `${row.depth * 16}px` }}>
-              <span className="truncate font-mono text-[13px] text-foreground">{row.label}</span>
-              {row.detail && <span className="truncate text-xs text-muted-foreground">{row.detail}</span>}
-            </span>
-            <span className="relative mt-1 flex h-5 items-center md:mt-0">
-              <span className="absolute inset-y-1.5 rounded-sm" style={{ left: percent(row.startMs), width: `max(2px, ${percent(row.ms)})` }}>
-                <span className={`block h-full rounded-sm ${barClass[row.tone ?? 'brand']}`} />
-              </span>
-              <span className={`absolute text-xs whitespace-nowrap tabular-nums ${placement(row) === 'inside' ? 'rounded-sm bg-card px-1 text-muted-foreground' : 'text-muted-foreground'}`} style={labelStyle(row)}>
-                {formatMs(row.ms)}
-              </span>
-            </span>
+            <span className="truncate font-mono text-[13px] text-foreground">{row.label}</span>
+            {row.detail && <span className="truncate text-xs text-muted-foreground">{row.detail}</span>}
           </>
         )
-        const rowClass = `block w-full border-b border-border px-4 py-1.5 text-left last:border-b-0 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-center md:gap-4 ${isSelected ? 'bg-muted' : ''}`
         return (
-          <div role="listitem" key={row.id}>
-            {onSelect
-              ? <button type="button" aria-pressed={isSelected} onClick={() => onSelect(row.id)} className={`${rowClass} cursor-pointer hover:bg-muted/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand`}>{content}</button>
-              : <div className={rowClass}>{content}</div>}
+          <div
+            role="listitem"
+            key={row.id}
+            className={`border-b border-border px-4 py-1.5 last:border-b-0 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-center md:gap-4 ${isSelected ? 'bg-muted' : row.highlighted ? 'bg-brand/10' : ''}`}
+          >
+            <span className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${row.depth * 16}px` }}>
+              {row.expandable
+                ? (
+                    <button type="button" aria-expanded={row.expandable.expanded} aria-label={row.expandable.label} onClick={row.expandable.onToggle} className="-ml-1 flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-brand">
+                      {row.expandable.expanded ? <ChevronDownIcon aria-hidden className="size-4" /> : <ChevronRightIcon aria-hidden className="size-4" />}
+                    </button>
+                  )
+                : row.instant && <span aria-hidden className={`ml-0.5 size-2 shrink-0 rotate-45 border-2 ${markClass[tone]}`} />}
+              {onSelect
+                ? <button type="button" aria-pressed={isSelected} onClick={() => onSelect(row.id)} className="flex min-w-0 cursor-pointer items-baseline gap-2 rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-brand">{name}</button>
+                : <span className="flex min-w-0 items-baseline gap-2">{name}</span>}
+              {row.link && <span className="shrink-0 text-xs"><TextLink href={row.link.href}>{row.link.label}</TextLink></span>}
+            </span>
+            <span className="relative mt-1 flex h-5 items-center md:mt-0">
+              {row.waitFromMs !== undefined && row.waitFromMs < row.startMs && (
+                <span aria-hidden className="absolute inset-y-[9px] border-t border-dashed border-muted-foreground/60" style={{ left: percent(row.waitFromMs), width: percent(row.startMs - row.waitFromMs) }} />
+              )}
+              {row.instant
+                ? <span aria-hidden className={`absolute size-2.5 -translate-x-1/2 rotate-45 border-2 bg-card ${markClass[tone]}`} style={{ left: percent(row.startMs) }} />
+                : (
+                    <span className="absolute inset-y-1.5 rounded-sm" style={{ left: percent(row.startMs), width: `max(2px, ${percent(row.ms)})` }}>
+                      <span className={`block h-full rounded-sm ${barClass[tone]}`} />
+                    </span>
+                  )}
+              {!row.instant && (
+                <span className={`absolute text-xs whitespace-nowrap text-muted-foreground tabular-nums ${placement(row) === 'inside' || row.waitFromMs !== undefined ? 'rounded-sm bg-card px-1' : ''}`} style={labelStyle(row)}>
+                  {formatMs(row.ms)}
+                </span>
+              )}
+            </span>
           </div>
         )
       })}
