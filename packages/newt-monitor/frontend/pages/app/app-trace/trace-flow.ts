@@ -1,14 +1,19 @@
 import { PlayIcon } from 'lucide-react'
-import type { WaterfallRow, WaterfallTone } from 'newt-react-ui/waterfall'
+import type { WaterfallMark, WaterfallRow, WaterfallTone } from 'newt-react-ui/waterfall'
 import type { TraceDTO, TraceSummaryDTO } from '../../../api/traces'
 import { formatMs } from '../app-metrics/metrics-format'
 
 export type Span = TraceDTO['spans'][number]
+export type LogLine = TraceDTO['logs'][number]
+
+/** A log line's tone, by how much it matters. */
+export const LOG_TONES: Record<LogLine['level'], WaterfallTone> = { debug: 'muted', info: 'brand', warn: 'warn', error: 'bad' }
 
 /**
  * The rows of a flow, from the trace on top: each trace's spans under the one they ran
  * in, and under each event told, the runs of the jobs it caused, at their own time, with
  * how long they waited dotted. A run unfolded shows its steps, a run folded only itself.
+ * Each step's log lines are dots on its line.
  * Every row's id is `<trace id>:<span id>`; the timeline starts at the top trace's start.
  */
 export function flowRows(flow: { appId: string, top: TraceDTO, focus: string, traces: Record<string, TraceDTO>, unfolded: string[], loading: string[], toggle: (traceId: string) => void }): WaterfallRow[] {
@@ -27,6 +32,7 @@ export function flowRows(flow: { appId: string, top: TraceDTO, focus: string, tr
       rows.push({
         id: `${trace.id}:${span.id}`, depth, label: span.name, detail: detailOf(span), startMs: offset + span.startMs, ms: span.ms, tone: toneOf(span),
         instant: span.kind === 'event', icon: span.kind === 'use-case' ? PlayIcon : undefined, highlighted: span.parentId === null && trace.id === flow.focus && flow.top.id !== flow.focus,
+        marks: marksOf(trace, span.id, offset),
       })
       walk(trace, span.id, depth + 1, offset)
       if (span.kind === 'event') for (const run of trace.caused.filter(each => each.job?.eventId === span.attributes.eventId)) runRow(run, depth + 1, offset + span.startMs)
@@ -46,12 +52,25 @@ export function flowRows(flow: { appId: string, top: TraceDTO, focus: string, tr
       expandable: { expanded: Boolean(unfolded), onToggle: () => flow.toggle(run.id), label: `${unfolded ? 'Hide' : 'Show'} the steps of ${run.name}, run ${run.job!.run}` },
       link: { href: `/apps/${flow.appId}/traces/${run.id}`, label: 'Open' },
       highlighted: run.id === flow.focus,
+      marks: flow.traces[run.id] && root ? marksOf(flow.traces[run.id]!, root.id, Date.parse(run.startedAt) - origin) : undefined,
     })
     if (unfolded) walk(flow.traces[run.id]!, null, depth + 1, Date.parse(run.startedAt) - origin)
   }
 
   walk(flow.top, null, 0, 0)
   return rows
+}
+
+/** A step's log lines, as dots at their time: each says its level, its message and its fields. */
+function marksOf(trace: TraceDTO, spanId: string, offset: number): WaterfallMark[] | undefined {
+  const lines = trace.logs.filter(line => line.spanId === spanId)
+  if (lines.length === 0) return undefined
+  return lines.map((line, index) => ({ id: `${trace.id}:log:${spanId}:${index}`, atMs: offset + line.atMs, tone: LOG_TONES[line.level], label: describeLog(line) }))
+}
+
+/** A log line as one text: `warn: slow board {"boardId":"b-1"}`. */
+export function describeLog(line: LogLine): string {
+  return `${line.level}: ${line.message}${Object.keys(line.fields).length ? ` ${JSON.stringify(line.fields)}` : ''}`
 }
 
 function detailOf(span: Span): string | undefined {

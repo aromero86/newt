@@ -95,8 +95,16 @@ const TracesSchema = z.object({
       failure: z.object({ message: z.string(), stack: z.string().nullable() }).nullable(),
     })).min(1),
     dropped: z.number().int().min(0),
-    // An application on a newt before it kept why: none.
+    // An application on a newt before it kept why, or its log lines: none.
     forced: z.string().nullable().default(null),
+    logs: z.array(z.object({
+      spanId: z.string(),
+      atMs: z.number(),
+      level: z.enum(['debug', 'info', 'warn', 'error']),
+      message: z.string(),
+      fields: z.record(z.string(), z.unknown()),
+    })).default([]),
+    droppedLogs: z.number().int().min(0).default(0),
   })),
   until: z.iso.datetime(),
 })

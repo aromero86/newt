@@ -1,4 +1,4 @@
-import { allPages, currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { allPages, currentActor, eventsOf, log, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import type { ColumnDTO } from '../column/column.schema'
@@ -121,8 +121,12 @@ export class Card_Module extends Module {
   async create(boardId: string, input: unknown): Promise<CardDTO> {
     const card = await this.newCard(boardId, input, actingAuthor())
     // For a clear answer in the usual case: the save counts again, where nothing slips in.
-    if (await this.repo.count({ boardId }) >= MAX_CARDS) throw new TooManyCards(boardId)
+    if (await this.repo.count({ boardId }) >= MAX_CARDS) {
+      log.warn('a board is full', { boardId, max: MAX_CARDS })
+      throw new TooManyCards(boardId)
+    }
     await this.repo.persistNew(card)
+    log.info('card created', { cardId: card.id, boardId, number: card.toDTO().number })
     return card.toDTO()
   }
 
@@ -168,6 +172,7 @@ export class Card_Module extends Module {
     if (target !== left) left.forEach((each, index) => each.reposition(index))
     target.forEach((each, index) => each === card ? card.moveTo(columnId, index, actingAuthor()) : each.reposition(index))
     await this.repo.persistOrder(target === left ? target : [...left, ...target], [from, columnId])
+    log.info('card moved', { cardId: id, from, to: columnId, position: at, reordered: target.length + (target === left ? 0 : left.length) })
     return card.toDTO()
   }
 
@@ -255,7 +260,10 @@ export class Card_Module extends Module {
     const current = await runInWorkspace(card.workspaceId, () => this.repo.first({ id: card.id }))
     if (current?.assigneeId !== card.assigneeId) return
     const member = await this.deps.member.find(card.workspaceId, card.assigneeId)
-    if (!member) return
+    if (!member) {
+      log.debug('the assignee left the workspace: nobody told', { cardId: card.id, assigneeId: card.assigneeId })
+      return
+    }
     // Where boards' UI opens the card: on its board's screen, by its id.
     const link = new URL(`/w/${card.workspaceId}/boards/${card.boardId}?card=${card.id}`, this.options.publicUrl)
     await this.options.mailer.send({
@@ -264,6 +272,7 @@ export class Card_Module extends Module {
       text: [`Hi ${member.name},`, '', `Card #${card.number}, "${card.title}", is assigned to you.`, '', link.toString()].join('\n'),
       key: `card.notifyAssignee:${eventId}`,
     })
+    log.info('assignee told', { cardId: card.id, assigneeId: card.assigneeId })
   }
 
   /**
@@ -309,6 +318,7 @@ export class Card_Module extends Module {
     const card = await runInWorkspace(workspaceId, () => this.repo.first({ id }))
     if (card) await this.options.search.index(card.toDTO())
     else await this.options.search.remove(id)
+    log.debug(card ? 'card indexed' : 'card out of the search', { cardId: id })
   }
 
   /**

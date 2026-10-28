@@ -11,6 +11,8 @@ export type SetTracesOptions = {
    * the one here: to change it without changing the code.
    */
   sampleRate?: TraceSampling
+  /** The most log lines a trace keeps: 200 by default. Those past it are counted. */
+  maxLogs?: number
 }
 
 /**
@@ -23,8 +25,11 @@ export function setTraces(traces: Traces, options: SetTracesOptions = {}): void 
   const sampleRate = withDefault(options.sampleRate ?? 0.01, process.env.NEWT_TRACE_SAMPLE_RATE)
   const wrong = ratesOf(sampleRate).find(rate => !(rate >= 0 && rate <= 1))
   if (wrong !== undefined) throw new Error(`A sample rate is a share, from 0 to 1, not ${wrong}`)
+  const maxLogs = options.maxLogs ?? 200
+  if (!Number.isInteger(maxLogs) || maxLogs < 0) throw new Error(`The most log lines a trace keeps is a whole number, not ${maxLogs}`)
   applicationTraces.sink = traces
   applicationTraces.sampleRate = sampleRate
+  applicationTraces.maxLogs = maxLogs
 }
 
 /** The sampling with the environment's default share in place of its own, when there is one. */
@@ -36,7 +41,7 @@ function withDefault(sampling: TraceSampling, env: string | undefined): TraceSam
 
 /** The application's traces, turned on: the ones set, or its memory's. What `serveMonitor` does. */
 export function enableTraces(): Traces {
-  if (!applicationTraces.sink) setTraces(new MemoryTraces(), { sampleRate: applicationTraces.sampleRate })
+  if (!applicationTraces.sink) setTraces(new MemoryTraces(), { sampleRate: applicationTraces.sampleRate, maxLogs: applicationTraces.maxLogs })
   applicationTraces.enabled = true
   return applicationTraces.sink as Traces
 }

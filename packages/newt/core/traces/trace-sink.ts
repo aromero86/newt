@@ -15,11 +15,12 @@ export interface TraceSink {
  * (`serveMonitor` turns them on), so an application nobody watches traces nothing.
  * `sampleRate` is the share of traces kept that went well and ran once. `forcing` says
  * whether a request's `x-newt-trace` header was signed by who may ask for its trace:
- * what `serveMonitor` sets, with its key.
+ * what `serveMonitor` sets, with its key. `maxLogs`, the most log lines a trace keeps.
  */
-export const applicationTraces: { sink: TraceSink | null, sampleRate: TraceSampling, enabled: boolean, forcing: ((header: string) => boolean) | null } = {
+export const applicationTraces: { sink: TraceSink | null, sampleRate: TraceSampling, enabled: boolean, forcing: ((header: string) => boolean) | null, maxLogs: number } = {
   sink: null,
   sampleRate: 0.01,
   enabled: false,
   forcing: null,
+  maxLogs: 200,
 }

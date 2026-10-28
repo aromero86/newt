@@ -101,6 +101,15 @@ describe('newt-react-ui', () => {
     expect(html(<Waterfall label="Steps" rows={[{ id: 'u', depth: 0, label: 'card.create', startMs: 0, ms: 5, icon: PlayIcon }]} />)).toContain('lucide-play')
   })
 
+  test('a waterfall\'s marks are dots on their row\'s line, each named by what it says', () => {
+    const rows = [{ id: 'u', depth: 0, label: 'card.create', startMs: 0, ms: 10, marks: [{ id: 'l1', atMs: 5, tone: 'bad' as const, label: 'error: the provider did not answer' }] }]
+    const waterfall = html(<Waterfall label="Steps" rows={rows} />)
+
+    expect(waterfall).toContain('aria-label="error: the provider did not answer"')
+    expect(waterfall).toContain('left:50%')
+    expect(waterfall).toContain('rounded-full')
+  })
+
   test('a graph draws its nodes as links, and an arrow for each use', () => {
     const graph = html(<Graph label="Contexts" nodes={[{ id: 'auth', label: 'auth', href: '/auth' }, { id: 'boards', label: 'boards' }]} edges={[{ from: 'boards', to: 'auth' }]} />)
 
