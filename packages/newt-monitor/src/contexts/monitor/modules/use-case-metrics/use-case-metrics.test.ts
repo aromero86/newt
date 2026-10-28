@@ -62,6 +62,9 @@ describe('use case metrics', () => {
 
     near((await series('window=1h&actor=bea')).total.p50, 100)
     expect((await series('window=1h&scope=workspace:globex')).total.calls).toBe(1)
+    // Every use case of the application: the same, here, with one.
+    expect((await json<UseCaseSeriesDTO>(`/api/apps/${id}/metrics/use-cases/series?window=1h`)).total).toMatchObject({ calls: 100, retries: 9 })
+    expect((await as(`/api/apps/${id}/metrics/use-cases/series?useCase=card.create&window=1h`)).status).toBe(400)
 
     const [total] = await json<UseCaseTotalDTO[]>(`/api/apps/${id}/metrics/use-cases?window=1h`)
     expect(total).toMatchObject({ context: 'boards', useCase: 'card.create', now: { calls: 100 }, previous: { calls: 10 } })

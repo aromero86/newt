@@ -7,7 +7,6 @@ import { Box, BoxEmpty, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } 
 import { Button } from 'newt-react-ui/button'
 import { Grid } from 'newt-react-ui/grid'
 import { Inline } from 'newt-react-ui/inline'
-import { LineChart } from 'newt-react-ui/line-chart'
 import { TextLink } from 'newt-react-ui/link'
 import { RelativeTime } from 'newt-react-ui/relative-time'
 import { Select } from 'newt-react-ui/select'
@@ -19,9 +18,10 @@ import { Mono, Text } from 'newt-react-ui/text'
 import { Provide, useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { WINDOWS, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
-import { BUCKET_LABELS, changeOf, formatMs, handlerOf, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { BUCKET_LABELS, formatMs, handlerOf, WINDOW_LABELS } from '../app-metrics/metrics-format'
 import { TraceList } from '../app-traces/trace-list'
 import { AppQueueService, type Compare } from './app-queue.service'
+import { QueueCharts } from './queue-charts'
 
 /** One queue: how full it is and was, what went in and out, how long its jobs waited, and its dead jobs. With its own AppQueueService. */
 export function AppQueue({ app }: { app: AppDTO }) {
@@ -47,10 +47,7 @@ function AppQueueWrapped({ app }: { app: AppDTO }) {
     void service.open(context, queue)
   }, [service, context, queue])
 
-  const format = timeFormat(window, bucket)
   const handler = handlerOf(queue)
-  const before = compare === 'week' ? 'a week before' : 'the window before'
-  const hint = (now: number, was: number | undefined) => (flow?.comparedTotal && was !== undefined ? `${was.toLocaleString('en')} ${before}${changeOf(now, was) ? ` (${changeOf(now, was)})` : ''}` : undefined)
 
   return (
     <Stack gap={4}>
@@ -76,64 +73,7 @@ function AppQueueWrapped({ app }: { app: AppDTO }) {
       </Inline>
       {failure && <Alert tone="bad" title="Could not load the queue">{failure}</Alert>}
       {flow && depth
-        ? (
-            <>
-              <Grid columns={{ base: 2, md: 4 }}>
-                <Stat label={`In, ${WINDOW_LABELS[window]}`} value={flow.total.published} hint={hint(flow.total.published, flow.comparedTotal?.published)} />
-                <Stat label="Out" value={flow.total.delivered} hint={hint(flow.total.delivered, flow.comparedTotal?.delivered)} />
-                <Stat label="Run again, and dead" value={`${flow.total.redelivered.toLocaleString('en')} · ${flow.total.dead.toLocaleString('en')}`} hint={flow.comparedTotal ? `${flow.comparedTotal.redelivered} · ${flow.comparedTotal.dead} ${before}` : undefined} />
-                <Stat label="Wait p90" value={formatMs(flow.total.waitP90)} hint={flow.comparedTotal ? `${formatMs(flow.comparedTotal.waitP90)} ${before}` : undefined} />
-              </Grid>
-              <Box label="How full">
-                <BoxHeader>How full, every {BUCKET_LABELS[bucket]} (the most it reached), {when(depth.from)} to {when(depth.to)}</BoxHeader>
-                <BoxRow>
-                  <LineChart
-                    label={`${queue}: jobs ready, to run again, running and dead`}
-                    times={depth.points.map(point => point.at)}
-                    formatTime={format}
-                    series={[
-                      { key: 'ready', label: 'Ready', tone: 'brand', values: depth.points.map(point => point.ready) },
-                      { key: 'retrying', label: 'To run again', tone: 'warn', values: depth.points.map(point => point.retrying) },
-                      { key: 'running', label: 'Running', tone: 'ok', values: depth.points.map(point => point.running) },
-                      { key: 'dead', label: 'Dead', tone: 'bad', values: depth.points.map(point => point.dead) },
-                    ]}
-                  />
-                </BoxRow>
-              </Box>
-              <Box label="In and out">
-                <BoxHeader>In and out, every {BUCKET_LABELS[bucket]}</BoxHeader>
-                <BoxRow>
-                  <LineChart
-                    label={`${queue}: jobs in, out, run again and dead`}
-                    times={flow.points.map(point => point.at)}
-                    formatTime={format}
-                    series={[
-                      { key: 'published', label: 'In', tone: 'brand', values: flow.points.map(point => point.published) },
-                      { key: 'delivered', label: 'Out', tone: 'ok', values: flow.points.map(point => point.delivered) },
-                      { key: 'redelivered', label: 'Run again', tone: 'warn', values: flow.points.map(point => point.redelivered) },
-                      { key: 'dead', label: 'Dead', tone: 'bad', values: flow.points.map(point => point.dead) },
-                    ]}
-                  />
-                </BoxRow>
-              </Box>
-              <Box label="Wait">
-                <BoxHeader>How long jobs waited before a worker took them, every {BUCKET_LABELS[bucket]}</BoxHeader>
-                <BoxRow>
-                  <LineChart
-                    label={`${queue}: wait p50, p90 and p99`}
-                    times={flow.points.map(point => point.at)}
-                    formatTime={format}
-                    formatValue={value => formatMs(value)}
-                    series={[
-                      { key: 'p50', label: 'p50', tone: 'ok', values: flow.points.map(point => point.waitP50) },
-                      { key: 'p90', label: 'p90', tone: 'warn', values: flow.points.map(point => point.waitP90) },
-                      { key: 'p99', label: 'p99', tone: 'bad', values: flow.points.map(point => point.waitP99) },
-                    ]}
-                  />
-                </BoxRow>
-              </Box>
-            </>
-          )
+        ? <QueueCharts name={queue} flow={flow} depth={depth} window={window} bucket={bucket} compare={compare} />
         : <Skeleton lines={6} />}
       <AppQueueDead appId={app.id} />
       <TraceList appId={app.id} title="Runs" query={{ queue }} window={window} />

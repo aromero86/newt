@@ -52,7 +52,7 @@ export function ChartTooltipContent({ active, payload, label, labelFormatter, va
   payload?: TooltipItem[]
   label?: unknown
   labelFormatter?: (label: unknown) => ReactNode
-  valueFormatter?: (value: number) => ReactNode
+  valueFormatter?: (value: number, key: string) => ReactNode
 }) {
   const { config } = useChart()
   if (!active || !payload?.length) return null
@@ -68,7 +68,7 @@ export function ChartTooltipContent({ active, payload, label, labelFormatter, va
               <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: `var(--color-${key})` }} />
               <span className="text-muted-foreground">{config[key]?.label ?? key}</span>
               <span className="ml-auto font-mono font-medium text-foreground tabular-nums">
-                {typeof item.value === 'number' ? (valueFormatter ? valueFormatter(item.value) : item.value.toLocaleString('en')) : item.value}
+                {typeof item.value === 'number' ? (valueFormatter ? valueFormatter(item.value, key) : item.value.toLocaleString('en')) : item.value}
               </span>
             </div>
           )

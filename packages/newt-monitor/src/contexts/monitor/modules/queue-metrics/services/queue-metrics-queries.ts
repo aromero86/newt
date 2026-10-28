@@ -34,7 +34,7 @@ export class QueueMetricsQueries {
 
   constructor(private readonly analytics: DuckDbAnalytics) {}
 
-  async series(context: string, queue: string, window: MetricsWindow, bucket: MetricsBucket, compare: 'previous' | 'week' | 'none', now: Date): Promise<QueueSeriesDTO> {
+  async series(context: string | undefined, queue: string | undefined, window: MetricsWindow, bucket: MetricsBucket, compare: 'previous' | 'week' | 'none', now: Date): Promise<QueueSeriesDTO> {
     const size = BUCKETS[bucket]
     const length = WINDOWS[window].ms
     const to = floor(now.getTime(), size) + size
@@ -78,7 +78,7 @@ export class QueueMetricsQueries {
   }
 
   /** Every bucket from `from` to `to`, those with nothing empty, and their sum. */
-  private async points(context: string, queue: string, from: number, to: number, size: number): Promise<[FlowPointDTO[], Sum]> {
+  private async points(context: string | undefined, queue: string | undefined, from: number, to: number, size: number): Promise<[FlowPointDTO[], Sum]> {
     const seconds = size / 1000
     const sums = new Map<number, Sum>()
     const sumAt = (at: number) => {
@@ -87,9 +87,9 @@ export class QueueMetricsQueries {
     }
     const read = async (table: 'queue_minute' | 'queue_day', time: string, start: number, end: number) => {
       if (end <= start) return
-      const params: DuckDbParam[] = [new Date(start).toISOString(), new Date(end).toISOString(), context, queue]
+      const params: DuckDbParam[] = [new Date(start).toISOString(), new Date(end).toISOString(), context ?? null, queue ?? null]
       const slot = `CAST(floor(epoch(CAST(${time} AS TIMESTAMP)) / ${seconds}) * ${seconds} AS BIGINT)`
-      const range = `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($2 AS TIMESTAMP) AND context = $3 AND queue = $4`
+      const range = `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($2 AS TIMESTAMP) AND (CAST($3 AS VARCHAR) IS NULL OR context = $3) AND (CAST($4 AS VARCHAR) IS NULL OR queue = $4)`
       for (const row of await this.analytics.query<{ slot: number, published: number, delivered: number, redelivered: number, dead: number }>(
         `SELECT ${slot} AS slot, sum(published) AS published, sum(delivered) AS delivered, sum(redelivered) AS redelivered, sum(dead) AS dead FROM ${table} WHERE ${range} GROUP BY slot`, params)) {
         add(sumAt(row.slot * 1000), { ...row, wait: {} })

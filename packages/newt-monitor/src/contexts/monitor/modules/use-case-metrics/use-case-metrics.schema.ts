@@ -21,15 +21,18 @@ export type CollectTimingsDTO =
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 
 /** What a client asks of a use case's series. */
+/** Of one use case, or of every one of the application (neither `context` nor `useCase`). */
 export const UseCaseSeriesQuerySchema = z.object({
-  context: z.string().min(1),
-  useCase: z.string().min(1),
+  context: z.string().min(1).optional(),
+  useCase: z.string().min(1).optional(),
   window: windowSchema,
   bucket: z.enum(Object.keys(BUCKETS) as [MetricsBucket, ...MetricsBucket[]]).optional(),
   /** Beside it, the same length just before (`previous`), or a week before (`week`). */
   compare: z.enum(['previous', 'week', 'none']).default('previous'),
   scope: z.string().regex(/^[A-Za-z_][A-Za-z0-9_ ]*:.+$/, 'A scope is <name>:<id>').optional(),
   actor: z.string().min(1).optional(),
+}).refine(query => (query.context === undefined) === (query.useCase === undefined), {
+  message: 'A use case is asked with its context', path: ['useCase'],
 }).refine(query => query.bucket === undefined || (WINDOWS[query.window].buckets as readonly string[]).includes(query.bucket), {
   message: 'That bucket is not one of its window\'s', path: ['bucket'],
 })

@@ -25,11 +25,14 @@ export type OutboxNowDTO = { at: string | null, queues: OutboxQueueDTO[] }
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 
 /** What a client asks of a queue's depth over time. */
+/** Of one queue, or every queue of the application summed (neither `context` nor `queue`): each queue's most in a bucket. */
 export const DepthQuerySchema = z.object({
-  context: z.string().min(1),
-  queue: z.string().min(1),
+  context: z.string().min(1).optional(),
+  queue: z.string().min(1).optional(),
   window: windowSchema,
   bucket: z.enum(Object.keys(BUCKETS) as [MetricsBucket, ...MetricsBucket[]]).optional(),
+}).refine(query => (query.context === undefined) === (query.queue === undefined), {
+  message: 'A queue is asked with its context', path: ['queue'],
 }).refine(query => query.bucket === undefined || (WINDOWS[query.window].buckets as readonly string[]).includes(query.bucket), {
   message: 'That bucket is not one of its window\'s', path: ['bucket'],
 })
