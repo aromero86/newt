@@ -123,7 +123,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `ChartPanel` | A chart in its box, under what it shows, with a button that zooms it into a dialog as big as the screen. |
 | `ChartRow` | Several `ChartPanel`s side by side, one under another on a phone. |
 | `Graph` | A few boxes and what uses what, in columns: one piece of a structure, never all of it. |
-| `Waterfall` | Steps on a timeline, each inside the one above: a trace's spans; a row pressed is selected. |
+| `Waterfall` | Steps on a timeline, each inside the one above: a trace's spans; a row pressed is selected; `marks`, moments in a step as dots with a tooltip (its log lines). |
 
 ### Links
 | Component | For |

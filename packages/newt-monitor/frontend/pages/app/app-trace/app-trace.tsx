@@ -22,7 +22,7 @@ import type { TraceDTO } from '../../../api/traces'
 import { formatMs } from '../app-metrics/metrics-format'
 import { TraceRow } from '../app-traces/trace-list'
 import { AppTraceService } from './app-trace.service'
-import { flowRows, type Span } from './trace-flow'
+import { flowRows, type LogLine, type Span } from './trace-flow'
 
 /**
  * One trace, and the flow it is part of: its steps on a timeline, the jobs its events
@@ -158,9 +158,30 @@ function SpanDetail({ app, span, trace }: { app: AppDTO, span: Span, trace: Trac
           </Stack>
         </BoxBody>
       )}
+      <SpanLogs lines={trace.logs.filter(line => line.spanId === span.id)} dropped={span.parentId === null ? trace.droppedLogs : 0} />
     </Box>
   )
 }
+
+/** The log lines written in a step: each its level, when, its message, and its fields. */
+function SpanLogs({ lines, dropped }: { lines: LogLine[], dropped: number }) {
+  if (lines.length === 0 && dropped === 0) return null
+  return (
+    <>
+      {lines.map((line, index) => (
+        <BoxRow key={index} leading={<Badge tone={LOG_BADGES[line.level]}>{line.level}</Badge>} trailing={<Mono>{formatMs(line.atMs)}</Mono>}>
+          <Stack gap={2}>
+            <Text size="sm">{line.message}</Text>
+            {Object.keys(line.fields).length > 0 && <CodeBlock label="Its fields">{JSON.stringify(line.fields, null, 2)}</CodeBlock>}
+          </Stack>
+        </BoxRow>
+      ))}
+      {dropped > 0 && <BoxRow><Text size="sm" tone="muted">{dropped.toLocaleString('en')} more lines past the most a trace keeps</Text></BoxRow>}
+    </>
+  )
+}
+
+const LOG_BADGES = { debug: 'muted', info: 'info', warn: 'warn', error: 'bad' } as const satisfies Record<LogLine['level'], string>
 
 const KIND_LABELS: Record<Span['kind'], string> = {
   'http': 'A request',

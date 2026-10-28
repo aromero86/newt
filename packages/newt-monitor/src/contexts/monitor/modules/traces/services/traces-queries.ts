@@ -49,6 +49,7 @@ export class TracesQueries {
     if (query.show === 'failures') where.push('t.outcome_kind = \'failure\'')
     if (query.show === 'errors') where.push('t.outcome_kind = \'error\'')
     if (query.show === 'retried') where.push('t.retried')
+    if (query.show === 'logged') where.push('t.id IN (SELECT trace_id FROM trace_log WHERE level IN (\'warn\', \'error\'))')
     if (query.show === 'forced') where.push('(t.body->>\'$.forced\') IS NOT NULL')
     const time = query.useCase ? 'c.call_ms' : 't.ms'
     const byTime = query.nearMs !== undefined || query.show === 'slow'

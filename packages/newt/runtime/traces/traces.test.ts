@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { SqliteStore } from '../../adapter-sqlite'
 import { ConcurrencyConflict, defineScope, Module, runAsActor, UseCase, type Actor } from '../../core'
 import { applicationTraces, TRACE_HEADER } from '../../core/internal'
-import { keepTrace } from '../../core'
+import { keepTrace, log, setLogger, ConsoleLogger, type LogLine } from '../../core'
 import { rateOf } from '../../core/traces/trace-sampling'
 import { signTraceHeader } from '../../monitor/trace-header'
 import type { Trace } from '../../core/traces/trace'
@@ -31,7 +31,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false, forcing: null })
+  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false, forcing: null, maxLogs: 200 })
   await base.close()
 })
 
@@ -183,6 +183,64 @@ describe('traces', () => {
       expect(kept.map(trace => trace.forced)).toEqual([`${TRACE_HEADER} header`])
     } finally {
       await server.stop(true)
+    }
+  })
+
+  test('keeps the log lines written as it ran, at their step, and passes them on where the logger says', async () => {
+    applicationTraces.sampleRate = 0
+    const written: LogLine[] = []
+    setLogger({ write: line => written.push(line) })
+    try {
+      const card = cards()
+      await enableAndRoot(async () => {
+        log.info('before the call', { n: 1 })
+        await card.create({ title: 'a' })
+        log.warn('odd', { error: new TypeError('nope'), big: 10n })
+      })
+      expect(kept).toEqual([])
+      log.info('outside any trace')
+
+      await enableAndRoot(async () => {
+        log.error('the provider did not answer', { orderId: 'o-1' })
+      })
+      const [trace] = kept
+      expect(trace!.forced).toBe('error log')
+      expect(trace!.logs).toMatchObject([{ spanId: trace!.spans[0]!.id, level: 'error', message: 'the provider did not answer', fields: { orderId: 'o-1' } }])
+      expect(written.map(line => [line.level, line.message, line.traceId !== null])).toEqual([
+        ['info', 'before the call', true], ['warn', 'odd', true], ['info', 'outside any trace', false], ['error', 'the provider did not answer', true],
+      ])
+      expect(written[1]!.fields.error).toBeInstanceOf(TypeError)
+    } finally {
+      setLogger(new ConsoleLogger())
+    }
+  })
+
+  test('a line written in a call that ran once is the call\'s; its fields as JSON keeps them; past the most, counted', async () => {
+    setLogger({ write: () => {} })
+    try {
+      class Logs_Module extends Module {
+        constructor() {
+          super('logs', base.invocations)
+        }
+
+        @UseCase()
+        async note() {
+          log.info('in the call', { error: new TypeError('nope'), big: 10n })
+          for (let i = 0; i < 5; i++) log.debug('again')
+        }
+      }
+      applicationTraces.maxLogs = 3
+      const logs = new Logs_Module()
+      await enableAndRoot(() => logs.note())
+      const [trace] = kept
+      const call = trace!.spans.find(span => span.name === 'logs.note')!
+
+      expect(trace!.spans.some(span => span.kind === 'attempt')).toBe(false)
+      expect(trace!.logs.map(line => line.spanId)).toEqual([call.id, call.id, call.id])
+      expect(trace!.logs[0]!.fields).toEqual({ error: { name: 'TypeError', message: 'nope', stack: expect.any(String) }, big: '10' })
+      expect(trace!.droppedLogs).toBe(3)
+    } finally {
+      setLogger(new ConsoleLogger())
     }
   })
 

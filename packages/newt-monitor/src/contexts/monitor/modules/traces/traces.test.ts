@@ -77,6 +77,16 @@ describe('traces', () => {
     expect(forced.traces.map(trace => [trace.id, trace.forced])).toEqual([[asked, 'a large order']])
   })
 
+  test('keeps each trace\'s log lines: whole in the trace, and finds those that warned or failed', async () => {
+    const warned = app.trace({ at: ago(5 * MINUTE), logs: [{ spanId: '1', atMs: 2, level: 'info', message: 'moved', fields: { cardId: 'c-1' } }, { spanId: '1', atMs: 3, level: 'warn', message: 'slow board', fields: {} }] })
+    app.trace({ at: ago(5 * MINUTE), logs: [{ spanId: '1', atMs: 1, level: 'info', message: 'fine', fields: {} }] })
+    await collect()
+
+    expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?show=logged`))).toEqual([warned])
+    const trace = await json<TraceDTO>(`/api/apps/${id}/traces/${warned}`)
+    expect(trace.logs.map(line => [line.level, line.message, line.fields])).toEqual([['info', 'moved', { cardId: 'c-1' }], ['warn', 'slow board', {}]])
+  })
+
   test('gives the header that keeps a request\'s trace: signed with the application\'s key, for an hour unless asked', async () => {
     const header = await (await as(`/api/apps/${id}/traces/header`, { method: 'POST', json: {} })).json() as TraceHeaderDTO
     const inAnHour = new Date(header.expiresAt).getTime() - Date.now()

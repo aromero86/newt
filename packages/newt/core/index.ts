@@ -98,4 +98,11 @@ export { NoopTracer } from './observability/noop-tracer'
 export { setTracer } from './observability/set-tracer'
 export { filterSpans } from './observability/filter-spans'
 export { keepTrace } from './traces/trace-recorder'
+
+// Logs
+export { log } from './logs/log'
+export { setLogger } from './logs/set-logger'
+export { ConsoleLogger } from './logs/console-logger'
+export type { Logger } from './logs/logger'
+export type { LogFields, LogLevel, LogLine } from './logs/log-line'
 export type { TraceSampling, SamplingRules } from './traces/trace-sampling'

@@ -22,7 +22,8 @@ export type CollectTracesDTO =
 /**
  * What a client asks of an application's traces: in a window, of a use case (of a
  * context), of a queue or of one job; those that failed, ended in an error, ran again,
- * were kept because something asked (`keepTrace`, a signed header), the slowest, or those that took about `nearMs` (a percentile's examples). Newest
+ * were kept because something asked (`keepTrace`, a signed header), logged a warning or
+ * an error, the slowest, or those that took about `nearMs` (a percentile's examples). Newest
  * first, a page at a time (`before`), unless sorted by time taken.
  */
 export const TraceListQuerySchema = z.object({
@@ -33,7 +34,7 @@ export const TraceListQuerySchema = z.object({
   job: z.string().min(1).optional(),
   /** Those that told an event, by its name: of its context. */
   told: z.string().min(1).optional(),
-  show: z.enum(['all', 'failures', 'errors', 'retried', 'forced', 'slow']).default('all'),
+  show: z.enum(['all', 'failures', 'errors', 'retried', 'forced', 'logged', 'slow']).default('all'),
   nearMs: z.coerce.number().min(0).optional(),
   before: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),

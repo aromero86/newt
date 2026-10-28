@@ -1,4 +1,4 @@
-import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
+import { type Actor, currentActor, log, Module, now, SecretToken, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import type { UserDTO } from '../user/user.schema'
 import { InvalidCredentials } from './errors/invalid-credentials'
@@ -61,7 +61,10 @@ export class Session_Module extends Module {
   async signIn(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { email, password } = SessionSignInSchema.parse(input)
     const user = await this.deps.user.verifyPassword(email, password)
-    if (!user) throw new InvalidCredentials()
+    if (!user) {
+      log.warn('sign in refused', { email })
+      throw new InvalidCredentials()
+    }
     return { user, token: await this.open(user.id) }
   }
 
