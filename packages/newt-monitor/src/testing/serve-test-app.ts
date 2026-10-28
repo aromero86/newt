@@ -52,7 +52,8 @@ export function serveTestApp(name = 'shop') {
   const contexts: Base[] = []
   const outboxes = new Map<string, TestOutbox>()
   // Its own: the monitor's requests, in the same process, are no trace of this application.
-  const traces = new MemoryTraces({ keepMinutes: 60 * 24 * 30 })
+  // Kept two minutes back: what a test keeps is in a closed minute, the monitor's to collect at once.
+  const traces = new MemoryTraces({ keepMinutes: 60 * 24 * 30, clock: { now: () => new Date(Date.now() - 2 * 60_000) } })
   let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY, traces })
   const port = server.port!
   return {
@@ -97,7 +98,7 @@ export function serveTestApp(name = 'shop') {
      * A trace the application kept, as its root and the calls in it: a request unless a
      * job is given. Each call a use case of a context, inside the root, one after another.
      */
-    trace(kept: { id?: string, at: Date, name?: string, ms?: number, outcome?: Trace['outcome'], retried?: boolean, told?: string[], job?: Trace['job'], calls?: { context: string, useCase: string, ms: number, outcome?: Trace['outcome'] }[] }): string {
+    trace(kept: { id?: string, at: Date, name?: string, ms?: number, outcome?: Trace['outcome'], retried?: boolean, told?: Trace['told'], job?: Trace['job'], calls?: { context: string, useCase: string, ms: number, outcome?: Trace['outcome'] }[] }): string {
       const id = kept.id ?? Bun.randomUUIDv7()
       const ms = kept.ms ?? 10
       const kind = kept.job ? 'job' : 'http'

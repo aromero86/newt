@@ -7,10 +7,10 @@ import type { z } from 'zod'
 /** A row of `traces` as DuckDB gives it. */
 type TraceRow = {
   id: string, started_at: string, kind: 'http' | 'job', name: string, ms: number, outcome_kind: 'error' | 'failure' | null, outcome_code: string | null,
-  retried: boolean, actor: string | null, use_cases: string | string[], job_queue: string | null, job_run: number | null, call_ms?: number | null, body?: string | Trace,
+  retried: boolean, actor: string | null, use_cases: string | string[], job_event?: string | null, job_queue: string | null, job_run: number | null, event_id: string | null, call_ms?: number | null, body?: string | Trace,
 }
 
-const COLUMNS = 't.id, t.started_at, t.kind, t.name, t.ms, t.outcome_kind, t.outcome_code, t.retried, t.actor, t.use_cases, t.job_queue, t.job_run'
+const COLUMNS = 't.id, t.started_at, t.kind, t.name, t.ms, t.outcome_kind, t.outcome_code, t.retried, t.actor, t.use_cases, t.job_queue, t.job_run, t.event_id, t.body->>\'$.job.event\' AS job_event'
 
 const parsed = <T>(value: string | T): T => (typeof value === 'string' ? JSON.parse(value) as T : value)
 
@@ -19,7 +19,7 @@ function summaryOf(row: TraceRow): TraceSummaryDTO {
     id: row.id, kind: row.kind, name: row.name, startedAt: row.started_at, ms: row.ms,
     outcome: row.outcome_kind ? { kind: row.outcome_kind, code: row.outcome_code! } : null,
     retried: row.retried, actor: row.actor, useCases: parsed<string[]>(row.use_cases),
-    job: row.job_queue ? { queue: row.job_queue, run: row.job_run! } : null,
+    job: row.job_queue ? { queue: row.job_queue, run: row.job_run!, event: row.job_event ?? '', eventId: row.event_id! } : null,
     callMs: row.call_ms ?? null,
   }
 }
@@ -45,6 +45,7 @@ export class TracesQueries {
       : 'traces t'
     if (query.queue) where.push(`t.job_queue = ${param(query.queue)}`)
     if (query.job) where.push(`t.job_id = ${param(query.job)}`)
+    if (query.told) where.push(`t.id IN (SELECT trace_id FROM trace_event WHERE context = ${param(query.context!)} AND event = ${param(query.told)})`)
     if (query.show === 'failures') where.push('t.outcome_kind = \'failure\'')
     if (query.show === 'errors') where.push('t.outcome_kind = \'error\'')
     if (query.show === 'retried') where.push('t.retried')
@@ -62,14 +63,14 @@ export class TracesQueries {
   }
 
   async get(traceId: string): Promise<TraceDTO | null> {
-    const [row] = await this.analytics.query<TraceRow & { body: string | Trace, job_id: string | null, event_id: string | null }>(`SELECT ${COLUMNS}, t.body, t.job_id, t.event_id FROM traces t WHERE t.id = $1`, [traceId])
+    const [row] = await this.analytics.query<TraceRow & { body: string | Trace, job_id: string | null }>(`SELECT ${COLUMNS}, t.body, t.job_id FROM traces t WHERE t.id = $1`, [traceId])
     if (!row) return null
     const trace = parsed<Trace>(row.body)
     const [causedBy] = row.event_id
-      ? await this.analytics.query<TraceRow>(`SELECT ${COLUMNS} FROM trace_told r JOIN traces t ON t.id = r.trace_id WHERE r.event_id = $1 LIMIT 1`, [row.event_id])
+      ? await this.analytics.query<TraceRow>(`SELECT ${COLUMNS} FROM trace_event r JOIN traces t ON t.id = r.trace_id WHERE r.event_id = $1 LIMIT 1`, [row.event_id])
       : []
     const caused = trace.told.length
-      ? await this.analytics.query<TraceRow>(`SELECT ${COLUMNS} FROM traces t WHERE t.event_id IN (SELECT event_id FROM trace_told WHERE trace_id = $1) ORDER BY t.started_at LIMIT 50`, [traceId])
+      ? await this.analytics.query<TraceRow>(`SELECT ${COLUMNS} FROM traces t WHERE t.event_id IN (SELECT event_id FROM trace_event WHERE trace_id = $1) ORDER BY t.started_at LIMIT 50`, [traceId])
       : []
     const runs = row.job_id
       ? await this.analytics.query<TraceRow>(`SELECT ${COLUMNS} FROM traces t WHERE t.job_id = $1 ORDER BY t.job_run`, [row.job_id])
