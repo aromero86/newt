@@ -13,7 +13,7 @@ setCooperMessages()
 // Several instances count their events and keep their traces in one Redis; one alone, in its memory.
 if (config.monitor.redisUrl) {
   setMetrics(new RedisMetrics({ url: config.monitor.redisUrl, prefix: 'cooper:metrics' }))
-  setTraces(new RedisTraces({ url: config.monitor.redisUrl, prefix: 'cooper:traces' }), { sampleRate: 0.05 })
+  setTraces(new RedisTraces({ url: config.monitor.redisUrl, prefix: 'cooper:traces' }), { sampleRate: 1 }) // every trace, for the demo to be full
 }
 const contexts = await openContexts(config)
 
