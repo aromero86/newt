@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, PinIcon, RepeatIcon, TimerIcon, WaypointsIcon } from 'lucide-react'
+import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, PinIcon, RepeatIcon, ScrollTextIcon, TimerIcon, WaypointsIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
 import { Badge } from 'newt-react-ui/badge'
 import { Box, BoxEmpty, BoxFilter, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
@@ -22,6 +22,7 @@ const FILTERS: { show: Show, label: string, icon: typeof CircleXIcon }[] = [
   { show: 'errors', label: 'Errors', icon: CircleAlertIcon },
   { show: 'retried', label: 'Ran again', icon: RepeatIcon },
   { show: 'forced', label: 'Asked for', icon: PinIcon },
+  { show: 'logged', label: 'Warned', icon: ScrollTextIcon },
   { show: 'slow', label: 'Slowest', icon: TimerIcon },
 ]
 
@@ -54,7 +55,7 @@ export function TraceRow({ appId, trace }: { appId: string, trace: TraceSummaryD
 /**
  * The traces kept of something (a use case, a queue, the whole application), newest
  * first, with a filter for those that failed, ended in an error, ran again, were asked
- * for (`keepTrace`, a signed header), or the slowest.
+ * for (`keepTrace`, a signed header), logged a warning or an error, or the slowest.
  */
 export function TraceList({ appId, title, query, window = '24h', actions }: { appId: string, title: string, query: Omit<TraceListQueryDTO, 'show' | 'before' | 'window'>, window?: MetricsWindow, actions?: React.ReactNode }) {
   const api = useService(TracesApi)

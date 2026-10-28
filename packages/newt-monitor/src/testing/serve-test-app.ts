@@ -98,7 +98,7 @@ export function serveTestApp(name = 'shop') {
      * A trace the application kept, as its root and the calls in it: a request unless a
      * job is given. Each call a use case of a context, inside the root, one after another.
      */
-    trace(kept: { id?: string, at: Date, name?: string, ms?: number, outcome?: Trace['outcome'], retried?: boolean, forced?: string, told?: Trace['told'], job?: Trace['job'], calls?: { context: string, useCase: string, ms: number, outcome?: Trace['outcome'] }[] }): string {
+    trace(kept: { id?: string, at: Date, name?: string, ms?: number, outcome?: Trace['outcome'], retried?: boolean, forced?: string, logs?: Trace['logs'], told?: Trace['told'], job?: Trace['job'], calls?: { context: string, useCase: string, ms: number, outcome?: Trace['outcome'] }[] }): string {
       const id = kept.id ?? Bun.randomUUIDv7()
       const ms = kept.ms ?? 10
       const kind = kept.job ? 'job' : 'http'
@@ -108,7 +108,7 @@ export function serveTestApp(name = 'shop') {
         id, kind, name: kept.name ?? (kept.job ? kept.job.queue : 'POST /api/test'), startedAt: kept.at.toISOString(), ms,
         outcome: kept.outcome ?? null, retried: kept.retried ?? false, actor: null, scopes: {},
         useCases: [...new Set(calls.map(call => call.name))], told: kept.told ?? [], job: kept.job ?? null,
-        spans: [span({ id: '1', kind, name: kept.name ?? 'POST /api/test', outcome: kept.outcome ?? null }), ...calls], dropped: 0, forced: kept.forced ?? null,
+        spans: [span({ id: '1', kind, name: kept.name ?? 'POST /api/test', outcome: kept.outcome ?? null }), ...calls], dropped: 0, forced: kept.forced ?? null, logs: kept.logs ?? [], droppedLogs: 0,
       })
       return id
     },

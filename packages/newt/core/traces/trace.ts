@@ -1,3 +1,4 @@
+import type { LogFields, LogLevel } from '../logs/log-line'
 import type { Outcome } from '../metrics/outcome'
 
 /** What a span is: a request or a job (a trace's root), a use case's call, one of its runs, a read or write of a table, a transaction, an event told (an instant). */
@@ -26,6 +27,15 @@ export type TraceSpan = {
   attributes: Record<string, SpanAttributeValue>
   /** A failure's message and stack, trimmed. */
   failure: { message: string, stack: string | null } | null
+}
+
+/** A log line written while a trace was recorded: at which step, when (from the trace's start), and what it said. */
+export type TraceLog = {
+  spanId: string
+  atMs: number
+  level: LogLevel
+  message: string
+  fields: LogFields
 }
 
 /** An event a trace told. */
@@ -60,8 +70,12 @@ export type Trace = {
   spans: TraceSpan[]
   /** The spans left out past the most a trace keeps. */
   dropped: number
-  /** Why it was kept whatever its share, when something asked: `keepTrace`'s reason, or a signed header. */
+  /** Why it was kept whatever its share, when something asked: `keepTrace`'s reason, a signed header, an error logged. */
   forced: string | null
+  /** The log lines written while it ran, up to the most a trace keeps (`setTraces`'s `maxLogs`). */
+  logs: TraceLog[]
+  /** The lines left out past that. */
+  droppedLogs: number
 }
 
 /** The traces of the minutes closed since a cursor, and the cursor to ask from next time. */

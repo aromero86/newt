@@ -2,7 +2,8 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { findCurrentActor } from '../context/find-current-actor'
 import { outcomeOf, type Outcome } from '../metrics/outcome'
 import { activeScopes } from '../scope/registered-scopes'
-import type { SpanAttributeValue, SpanKind, Trace, TraceJob, TraceSpan, TracedEvent } from './trace'
+import type { LogFields, LogLevel } from '../logs/log-line'
+import type { SpanAttributeValue, SpanKind, Trace, TraceJob, TraceLog, TraceSpan, TracedEvent } from './trace'
 import { keeps } from './trace-sampling'
 import { applicationTraces } from './trace-sink'
 
@@ -18,7 +19,9 @@ class OpenTrace {
   readonly startedAt = new Date().toISOString()
   readonly spans: TraceSpan[] = []
   readonly told: TracedEvent[] = []
+  readonly logs: TraceLog[] = []
   dropped = 0
+  droppedLogs = 0
   forced: string | null = null
   actor: string | null = null
   scopes: Record<string, string> = {}
@@ -136,6 +139,38 @@ export function traceTold(event: { id: string, name: string }, context: string):
   if (span) span.ms = 0
 }
 
+/**
+ * Notes a log line in the trace in progress, at the step running, and says where it was
+ * written; outside a trace, null. An error keeps the trace whatever its share. Past the
+ * most a trace keeps, a line is counted, not kept.
+ */
+export function traceLog(level: LogLevel, message: string, fields: LogFields): { traceId: string, spanId: string, context: string | null } | null {
+  const current = active.getStore()
+  if (!current) return null
+  const { trace, span } = current
+  if (level === 'error') trace.forced ??= 'error log'
+  if (trace.logs.length >= applicationTraces.maxLogs) trace.droppedLogs++
+  else trace.logs.push({ spanId: span.id, atMs: performance.now() - trace.started, level, message, fields: plain(fields) })
+  return { traceId: trace.id, spanId: span.id, context: contextOf(trace, span) }
+}
+
+/** The context of a step: its own, or the nearest one above it that has one. */
+function contextOf(trace: OpenTrace, span: TraceSpan): string | null {
+  for (let at: TraceSpan | undefined = span; at; at = trace.spans.find(each => each.id === at!.parentId)) if (at.context) return at.context
+  return null
+}
+
+/** Fields as JSON keeps them, as they were when written: an error as its name, message and stack; what cannot be, as text. */
+function plain(fields: LogFields): LogFields {
+  try {
+    return JSON.parse(JSON.stringify(fields, (_, value: unknown) => (
+      value instanceof Error ? { name: value.name, message: value.message, stack: value.stack ?? null } : typeof value === 'bigint' ? value.toString() : value
+    ))) as LogFields
+  } catch (error) {
+    return { unreadable: String(error) }
+  }
+}
+
 /** How a span that threw ended: a failure keeps its message and stack; a validation, the fields it found wrong. */
 function ended(span: TraceSpan, error: unknown): void {
   span.outcome = outcomeOf(error)
@@ -160,7 +195,7 @@ function ended(span: TraceSpan, error: unknown): void {
 function finish(open: OpenTrace): void {
   const sink = applicationTraces.sink
   if (!sink) return
-  const spans = collapsed(open.spans)
+  const spans = collapsed(open.spans, open.logs)
   const root = spans[0]!
   const calls = spans.filter(span => span.kind === 'use-case')
   // A request answers its errors: it ended as its first call did, as bad as its status says.
@@ -175,6 +210,7 @@ function finish(open: OpenTrace): void {
     actor: open.actor, scopes: open.scopes,
     useCases: [...new Set(calls.map(call => call.name))],
     told: open.told, job: open.job, spans, dropped: open.dropped, forced: open.forced,
+    logs: open.logs, droppedLogs: open.droppedLogs,
   }
   try {
     sink.finished(trace, keeps(trace, applicationTraces.sampleRate))
@@ -183,8 +219,8 @@ function finish(open: OpenTrace): void {
   }
 }
 
-/** The spans without the lone run of a call that ran once: its steps, and what it said of how it ended, go to the call. */
-function collapsed(spans: TraceSpan[]): TraceSpan[] {
+/** The spans without the lone run of a call that ran once: its steps, its log lines, and what it said of how it ended, go to the call. */
+function collapsed(spans: TraceSpan[], logs: TraceLog[]): TraceSpan[] {
   const runs = new Map<string, TraceSpan[]>()
   for (const span of spans) if (span.kind === 'attempt') runs.set(span.parentId!, [...runs.get(span.parentId!) ?? [], span])
   const lone = new Map<string, string>()
@@ -199,6 +235,7 @@ function collapsed(spans: TraceSpan[]): TraceSpan[] {
     call.failure ??= run.failure
     call.attributes = { ...run.attributes, ...call.attributes }
   }
+  for (const line of logs) if (lone.has(line.spanId)) line.spanId = lone.get(line.spanId)!
   return spans
     .filter(span => !lone.has(span.id))
     .map(span => (span.parentId && lone.has(span.parentId) ? { ...span, parentId: lone.get(span.parentId)! } : span))

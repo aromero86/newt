@@ -369,3 +369,6 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/runtime` | `setTraces`, `enableTraces`, `SetTracesOptions`, `Traces`, `MemoryTraces`, `MemoryTracesOptions`, `RedisTraces`, `RedisTracesOptions`, `ClosedTraces`, `SpanAttributeValue`, `SpanKind`, `Trace`, `TraceJob`, `TraceSpan`, `TracedEvent` |
 | `newt/monitor` | `signTraceHeader`, `TRACE_HEADER`, `TRACE_HEADER_MAX_MS` |
 | `newt/core` | `keepTrace`, `TraceSampling`, `SamplingRules` |
+| `newt/core` | `log`, `setLogger`, `ConsoleLogger`, `Logger`, `LogFields`, `LogLevel`, `LogLine` |
+| `newt/contract` | `TraceLog`, `LogFields`, `LogLevel` |
+| `newt/runtime` | `TraceLog` |

@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../internal/tooltip'
 import { TextLink } from '../link'
 
 export type WaterfallTone = 'brand' | 'ok' | 'warn' | 'bad' | 'muted'
@@ -28,7 +29,12 @@ export type WaterfallRow = {
   link?: { href: string, label: string }
   /** Stands out: the one the page is about. */
   highlighted?: boolean
+  /** Moments on its line, each a dot of its tone that says what it is when pointed at: the log lines written in a step. */
+  marks?: WaterfallMark[]
 }
+
+/** A moment on a row's line: when, its tone, and what it says (its tooltip, and its name to a screen reader). */
+export type WaterfallMark = { id: string, atMs: number, tone: WaterfallTone, label: string }
 
 const barClass: Record<WaterfallTone, string> = {
   brand: 'bg-brand',
@@ -59,7 +65,8 @@ const defaultFormat = (ms: number) => (ms < 1000 ? `${ms.toLocaleString('en', { 
 /**
  * Steps on a timeline, each inside the one above it, as GitHub shows a job's steps:
  * its name indented by how deep it is, and a bar from when it started for as long as it
- * took; a moment as a mark, and a wait before a step dotted. A row may unfold steps of
+ * took; a moment as a mark, a wait before a step dotted, and moments in a step (its
+ * log lines) as dots that say what they are when pointed at. A row may unfold steps of
  * its own and link to where it is whole. Pressing a row selects it (`onSelect`).
  */
 export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, selected, onSelect }: {
@@ -131,6 +138,14 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
                       <span className={`block h-full rounded-sm ${barClass[tone]}`} />
                     </span>
                   )}
+              {row.marks?.map(mark => (
+                <Tooltip key={mark.id}>
+                  <TooltipTrigger asChild>
+                    <button type="button" aria-label={mark.label} onClick={() => onSelect?.(row.id)} className={`absolute z-10 size-2.5 -translate-x-1/2 cursor-pointer rounded-full border-2 border-card ${barClass[mark.tone]} hover:scale-125 focus-visible:outline-2 focus-visible:outline-brand`} style={{ left: percent(mark.atMs) }} />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm font-mono break-words whitespace-pre-wrap">{mark.label}</TooltipContent>
+                </Tooltip>
+              ))}
               {!row.instant && (
                 <span className={`absolute text-xs whitespace-nowrap text-muted-foreground tabular-nums ${placement(row) === 'inside' || row.waitFromMs !== undefined ? 'rounded-sm bg-card px-1' : ''}`} style={labelStyle(row)}>
                   {formatMs(row.ms)}

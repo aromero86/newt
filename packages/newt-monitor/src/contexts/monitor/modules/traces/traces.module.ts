@@ -11,12 +11,14 @@ import { registerTracesWorkers } from './traces.workers'
 import { TracesQueries } from './services/traces-queries'
 
 const DAY_MS = 24 * 60 * 60_000
+/** Each trace's rows: itself, its calls, the events it told and its log lines. */
+const TABLES = ['traces', 'trace_call', 'trace_event', 'trace_log']
 
 /**
  * The traces each application kept: its requests and jobs that went wrong or ran
  * again, and a share of the rest, each a tree of its use cases, their runs and their
- * queries. Collected every minute into its DuckDB, with each call and each event told
- * apart, to find them by; forgotten as its retention says.
+ * queries, with the log lines written as they ran. Collected every minute into its
+ * DuckDB, with each call, each event told and each log line apart, to find them by; forgotten as its retention says.
  */
 export class Traces_Module extends Module {
 
@@ -30,6 +32,7 @@ export class Traces_Module extends Module {
       },
       trace_call: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', context: 'VARCHAR', use_case: 'VARCHAR', ms: 'DOUBLE', outcome_kind: 'VARCHAR' } },
       trace_event: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', event_id: 'VARCHAR', context: 'VARCHAR', event: 'VARCHAR' } },
+      trace_log: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', span_id: 'VARCHAR', at_ms: 'DOUBLE', level: 'VARCHAR', message: 'VARCHAR', fields: 'JSON' } },
     })
     const module = new Traces_Module(base, new TracesFeed_Repository(base), deps, options)
     registerTracesRoutes(base, module)
@@ -84,7 +87,7 @@ export class Traces_Module extends Module {
     const { traceDays } = await this.deps.retention.of(appId)
     const before = new Date(now().getTime() - traceDays * DAY_MS).toISOString()
     const analytics = await this.options.store.of(appId)
-    for (const table of ['traces', 'trace_call', 'trace_event']) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
+    for (const table of TABLES) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
   }
 
   /** Keeps every application's traces, archived ones too: their retention runs all the same. */
@@ -127,7 +130,7 @@ export class Traces_Module extends Module {
   async forget(appId: string): Promise<void> {
     await this.repo.purgeApp(appId)
     const analytics = await this.options.store.of(appId)
-    for (const table of ['traces', 'trace_call', 'trace_event']) await analytics.run(`DELETE FROM ${table}`)
+    for (const table of TABLES) await analytics.run(`DELETE FROM ${table}`)
     // The events' table before they kept their names: gone with its application.
     await analytics.run('DROP TABLE IF EXISTS trace_told')
     await this.options.store.dropIfEmpty(appId)
@@ -146,6 +149,9 @@ export class Traces_Module extends Module {
       id: `${trace.id}|${span.id}`, trace_id: trace.id, started_at: trace.startedAt, context: span.context, use_case: span.name, ms: span.ms, outcome_kind: span.outcome?.kind ?? null,
     }))))
     await analytics.append('trace_event', traces.flatMap(trace => trace.told.map(event => ({ id: `${trace.id}|${event.id}`, trace_id: trace.id, started_at: trace.startedAt, event_id: event.id, context: event.context, event: event.name }))))
+    await analytics.append('trace_log', traces.flatMap(trace => trace.logs.map((line, index) => ({
+      id: `${trace.id}|${index}`, trace_id: trace.id, started_at: trace.startedAt, span_id: line.spanId, at_ms: line.atMs, level: line.level, message: line.message, fields: line.fields,
+    }))))
   }
 
   private async queries(appId: string): Promise<TracesQueries> {
