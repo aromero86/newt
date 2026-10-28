@@ -56,7 +56,7 @@ function AppVersionList({ app }: { app: AppDTO }) {
             leading={<Icon icon={GitCommitHorizontalIcon} tone="muted" />}
             trailing={index === 0 && !app.archivedAt ? <Badge tone="ok">Latest</Badge> : undefined}
           >
-            <BoxRowTitle href={`/apps/${app.id}/versions/${version.id}`}>Structure read <RelativeTime date={version.takenAt} /></BoxRowTitle>
+            <BoxRowTitle href={`/apps/${app.id}/settings/versions/${version.id}`}>Structure read <RelativeTime date={version.takenAt} /></BoxRowTitle>
             <BoxRowMeta>
               <><Mono>{version.hash.slice(0, 7)}</Mono></>
               <>{new Date(version.takenAt).toLocaleString('en')}</>

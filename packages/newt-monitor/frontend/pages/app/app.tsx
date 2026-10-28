@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Route, Routes, useParams } from 'react-router'
+import { Navigate, Route, Routes, useParams } from 'react-router'
 import { Alert } from 'newt-react-ui/alert'
 import { PageBody } from 'newt-react-ui/page-body'
 import { Spinner } from 'newt-react-ui/spinner'
@@ -8,7 +8,6 @@ import { NotFound } from '../not-found/not-found'
 import { AppBand } from './app-band/app-band'
 import { AppContexts } from './app-contexts/app-contexts'
 import { AppEvent } from './app-event/app-event'
-import { AppEvents } from './app-events/app-events'
 import { AppJob } from './app-job/app-job'
 import { AppOverview } from './app-overview/app-overview'
 import { AppQueue } from './app-queue/app-queue'
@@ -17,8 +16,6 @@ import { AppSettings } from './app-settings/app-settings'
 import { AppTrace } from './app-trace/app-trace'
 import { AppTraces } from './app-traces/app-traces'
 import { AppUseCase } from './app-use-case/app-use-case'
-import { AppUseCases } from './app-use-cases/app-use-cases'
-import { AppVersions } from './app-versions/app-versions'
 import { AppService } from './app.service'
 
 /** One application, under /apps/:appId: its band and its tabs. With its own AppService. */
@@ -50,20 +47,26 @@ function AppWrapped() {
         <Routes>
           <Route index element={<AppOverview app={app} />} />
           <Route path="contexts/*" element={<AppContexts app={app} />} />
-          <Route path="use-cases" element={<AppUseCases app={app} />} />
+          <Route path="use-cases" element={<Navigate to="../contexts" replace />} />
           <Route path="use-cases/:context/:useCase" element={<AppUseCase app={app} />} />
-          <Route path="events" element={<AppEvents app={app} />} />
+          <Route path="events" element={<Navigate to="../contexts" replace />} />
           <Route path="events/:context/:event" element={<AppEvent app={app} />} />
           <Route path="queues" element={<AppQueues app={app} />} />
           <Route path="queues/:context/:queue" element={<AppQueue app={app} />} />
           <Route path="traces" element={<AppTraces app={app} />} />
           <Route path="traces/:traceId" element={<AppTrace app={app} />} />
           <Route path="jobs/:jobId" element={<AppJob app={app} />} />
-          <Route path="versions/*" element={<AppVersions app={app} />} />
-          <Route path="settings" element={<AppSettings app={app} />} />
+          <Route path="versions/*" element={<VersionsMoved />} />
+          <Route path="settings/*" element={<AppSettings app={app} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </PageBody>
     </>
   )
+}
+
+/** Versions are in Settings now: an old address goes where it is. */
+function VersionsMoved() {
+  const rest = useParams()['*'] ?? ''
+  return <Navigate to={`../settings/versions${rest ? `/${rest}` : ''}`} replace />
 }
