@@ -13,6 +13,7 @@ import { Field } from './field'
 import { Input } from './input'
 import { LinkProvider, TextLink, type LinkComponent } from './link'
 import { Graph } from './graph'
+import { ChartPanel, ChartRow } from './chart-panel'
 import { LineChart } from './line-chart'
 import { TimeSeries } from './time-series'
 import { Waterfall } from './waterfall'
@@ -64,6 +65,15 @@ describe('newt-react-ui', () => {
 
     expect(chart.match(/aria-pressed="true"/g)).toHaveLength(2)
     expect(chart).toContain('Mean (right)')
+  })
+
+  test('charts side by side, each in its box with a button that zooms it, and not drawn twice until zoomed', () => {
+    const series = [{ key: 'p50', label: 'p50', tone: 'ok' as const, values: [12] }]
+    const row = html(<ChartRow><ChartPanel title="How long"><LineChart label="Latency" times={['2026-01-01T10:00:00Z']} series={series} /></ChartPanel><ChartPanel title="Calls"><LineChart label="Calls" times={['2026-01-01T10:00:00Z']} series={series} /></ChartPanel></ChartRow>)
+
+    expect(row).toContain('md:grid-cols-2')
+    expect(row.match(/aria-label="Zoom"/g)).toHaveLength(2)
+    expect(row.match(/<figure/g)).toHaveLength(2)
   })
 
   test('a waterfall is a list of steps, each a bar where and as long as it ran, pressed to select it', () => {

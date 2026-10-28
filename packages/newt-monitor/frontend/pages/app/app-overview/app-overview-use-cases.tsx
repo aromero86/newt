@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { PlayIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
-import { Box, BoxHeader, BoxRow } from 'newt-react-ui/box'
 import { Button } from 'newt-react-ui/button'
+import { ChartPanel } from 'newt-react-ui/chart-panel'
 import { Grid } from 'newt-react-ui/grid'
 import { Icon } from 'newt-react-ui/icon'
 import { Inline } from 'newt-react-ui/inline'
@@ -63,24 +63,21 @@ export function AppOverviewUseCases({ app }: { app: AppDTO }) {
                 <Stat label="Failures" value={ended.total.failures} hint="nobody expected" />
                 <Stat label="Mean time" value={formatMs(calls.total.meanMs)} hint={`p90 ${formatMs(calls.total.p90)}`} />
               </Grid>
-              <Box label="Use cases over time">
-                <BoxHeader><Icon icon={PlayIcon} tone="ok" /> Every use case, every {BUCKET_LABELS[calls.bucket]}</BoxHeader>
-                <BoxRow>
-                  <LineChart
-                    label="Every use case: calls, ran again, errors and failures, and their mean time"
-                    times={calls.points.map(point => point.at)}
-                    formatTime={format}
-                    formatRight={value => formatMs(value)}
-                    series={[
-                      { key: 'calls', label: 'Calls', tone: 'brand', values: calls.points.map(point => point.calls) },
-                      { key: 'retries', label: 'Ran again', tone: 'muted', values: calls.points.map(point => point.retries) },
-                      { key: 'errors', label: 'Errors', tone: 'warn', values: calls.points.map(point => endedAt.get(point.at)?.errors ?? 0) },
-                      { key: 'failures', label: 'Failures', tone: 'bad', values: calls.points.map(point => endedAt.get(point.at)?.failures ?? 0) },
-                      { key: 'mean', label: 'Mean time', tone: 'ok', dashed: true, axis: 'right', values: calls.points.map(point => point.meanMs) },
-                    ]}
-                  />
-                </BoxRow>
-              </Box>
+              <ChartPanel title={<><Icon icon={PlayIcon} tone="ok" /> Every use case, every {BUCKET_LABELS[calls.bucket]}</>}>
+                <LineChart
+                  label="Every use case: calls, ran again, errors and failures, and their mean time"
+                  times={calls.points.map(point => point.at)}
+                  formatTime={format}
+                  formatRight={value => formatMs(value)}
+                  series={[
+                    { key: 'calls', label: 'Calls', tone: 'brand', values: calls.points.map(point => point.calls) },
+                    { key: 'retries', label: 'Ran again', tone: 'muted', values: calls.points.map(point => point.retries) },
+                    { key: 'errors', label: 'Errors', tone: 'warn', values: calls.points.map(point => endedAt.get(point.at)?.errors ?? 0) },
+                    { key: 'failures', label: 'Failures', tone: 'bad', values: calls.points.map(point => endedAt.get(point.at)?.failures ?? 0) },
+                    { key: 'mean', label: 'Mean time', tone: 'ok', dashed: true, axis: 'right', values: calls.points.map(point => point.meanMs) },
+                  ]}
+                />
+              </ChartPanel>
             </>
           )
         : !failure && <Skeleton lines={6} />}

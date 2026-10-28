@@ -10,6 +10,9 @@ export type ChartConfig = Record<string, { label?: ReactNode, color?: string }>
 
 const ChartContext = createContext<{ config: ChartConfig } | null>(null)
 
+/** True inside a zoom: a chart fills the height it is given there, instead of its own. */
+export const ChartFillContext = createContext(false)
+
 function useChart() {
   const context = useContext(ChartContext)
   if (!context) throw new Error('useChart must be used within a <ChartContainer />')
