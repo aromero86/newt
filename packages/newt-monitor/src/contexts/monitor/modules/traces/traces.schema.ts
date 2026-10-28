@@ -31,11 +31,13 @@ export const TraceListQuerySchema = z.object({
   useCase: z.string().min(1).optional(),
   queue: z.string().min(1).optional(),
   job: z.string().min(1).optional(),
+  /** Those that told an event, by its name: of its context. */
+  told: z.string().min(1).optional(),
   show: z.enum(['all', 'failures', 'errors', 'retried', 'slow']).default('all'),
   nearMs: z.coerce.number().min(0).optional(),
   before: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-}).refine(query => query.useCase === undefined || query.context !== undefined, { message: 'A use case is asked of its context', path: ['context'] })
+}).refine(query => (query.useCase === undefined && query.told === undefined) || query.context !== undefined, { message: 'A use case or an event is asked of its context', path: ['context'] })
 
 /** As a client asks it: numbers as numbers (the query string makes them text, which the schema reads back). */
 export type TraceListQueryDTO = Omit<z.input<typeof TraceListQuerySchema>, 'nearMs' | 'limit'> & { nearMs?: number, limit?: number }
@@ -51,7 +53,8 @@ export type TraceSummaryDTO = {
   retried: boolean
   actor: string | null
   useCases: string[]
-  job: { queue: string, run: number } | null
+  /** A job's run: of which queue, which run, for which event (by id: the one its teller told). */
+  job: { queue: string, run: number, event: string, eventId: string } | null
   /** The use case asked for's call in it: the longest, if it called it more than once. */
   callMs: number | null
 }

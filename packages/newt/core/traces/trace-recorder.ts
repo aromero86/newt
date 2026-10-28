@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { findCurrentActor } from '../context/find-current-actor'
 import { outcomeOf, type Outcome } from '../metrics/outcome'
 import { activeScopes } from '../scope/registered-scopes'
-import type { SpanAttributeValue, SpanKind, Trace, TraceJob, TraceSpan } from './trace'
+import type { SpanAttributeValue, SpanKind, Trace, TraceJob, TraceSpan, TracedEvent } from './trace'
 import { keeps } from './trace-sampling'
 import { applicationTraces } from './trace-sink'
 
@@ -17,7 +17,7 @@ class OpenTrace {
   readonly started = performance.now()
   readonly startedAt = new Date().toISOString()
   readonly spans: TraceSpan[] = []
-  readonly told: string[] = []
+  readonly told: TracedEvent[] = []
   dropped = 0
   actor: string | null = null
   scopes: Record<string, string> = {}
@@ -104,13 +104,17 @@ async function recordSpan<T>(parent: { trace: OpenTrace, span: TraceSpan }, step
   }
 }
 
-/** Notes an event told in the trace in progress: the trace of a job it causes finds this one by it. */
-export function traceTold(event: { id: string, name: string }): void {
+/**
+ * Notes an event told in the trace in progress, as an instant inside the step that told
+ * it: the traces of the jobs it causes hang from it, found by its id.
+ */
+export function traceTold(event: { id: string, name: string }, context: string): void {
   const current = active.getStore()
   if (!current) return
-  current.trace.told.push(event.id)
-  const told = current.span.attributes.told
-  current.span.attributes.told = told ? `${told}, ${event.name}` : event.name
+  const { trace } = current
+  trace.told.push({ id: event.id, name: event.name, context })
+  const span = trace.open(current.span.id, 'event', event.name, context, { eventId: event.id })
+  if (span) span.ms = 0
 }
 
 /** How a span that threw ended: a failure keeps its message and stack; a validation, the fields it found wrong. */
@@ -153,9 +157,8 @@ function finish(open: OpenTrace): void {
     useCases: [...new Set(calls.map(call => call.name))],
     told: open.told, job: open.job, spans, dropped: open.dropped,
   }
-  if (!keeps(trace, applicationTraces.sampleRate)) return
   try {
-    sink.record(trace)
+    sink.finished(trace, keeps(trace, applicationTraces.sampleRate))
   } catch (error) {
     console.error('[traces] a trace could not be recorded:', error)
   }

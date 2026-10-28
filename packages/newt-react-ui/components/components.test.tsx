@@ -69,6 +69,19 @@ describe('newt-react-ui', () => {
     expect(waterfall).toContain('aria-pressed="true"')
   })
 
+  test('a waterfall marks a moment, dots a wait, unfolds a row and links where it is whole', () => {
+    const rows = [
+      { id: 'e', depth: 1, label: 'card.created', startMs: 10, ms: 0, instant: true },
+      { id: 'j', depth: 2, label: 'card.index.on.card.created', startMs: 60, ms: 40, waitFromMs: 10, expandable: { expanded: false, onToggle: () => {}, label: 'Show its steps' }, link: { href: '/traces/j', label: 'Open' } },
+    ]
+    const waterfall = html(<Waterfall label="Flow" rows={rows} />)
+
+    expect(waterfall).toContain('rotate-45')
+    expect(waterfall).toContain('border-dashed')
+    expect(waterfall).toContain('aria-expanded="false"')
+    expect(waterfall).toContain('href="/traces/j"')
+  })
+
   test('a graph draws its nodes as links, and an arrow for each use', () => {
     const graph = html(<Graph label="Contexts" nodes={[{ id: 'auth', label: 'auth', href: '/auth' }, { id: 'boards', label: 'boards' }]} edges={[{ from: 'boards', to: 'auth' }]} />)
 

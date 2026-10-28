@@ -5,7 +5,7 @@ import { RedisTraces } from './redis-traces'
 // Against a real Redis, when there is one: REDIS_URL=redis://localhost:6390 bun test.
 const url = process.env.REDIS_URL
 const opened: RedisTraces[] = []
-const traceOf = (id: string) => ({ id, startedAt: new Date().toISOString(), ms: 3 }) as Trace
+const traceOf = (id: string, told: string[] = [], eventId?: string) => ({ id, startedAt: new Date().toISOString(), ms: 3, told: told.map(each => ({ id: each, name: 'card.created', context: 'boards' })), job: eventId ? { id: `job-${id}`, queue: 'q', run: 1, event: 'card.created', eventId } : null }) as unknown as Trace
 
 afterEach(async () => {
   await Promise.all(opened.splice(0).map(traces => traces.close()))
@@ -23,8 +23,8 @@ describe.skipIf(!url)('RedisTraces', () => {
     const prefix = `newt:test:${crypto.randomUUID()}`
     const one = instance(prefix)
     const two = instance(prefix)
-    one.record(traceOf('a'))
-    two.record(traceOf('b'))
+    one.finished(traceOf('a'), true)
+    two.finished(traceOf('b'), true)
     await Promise.all([one.close(), two.close()])
     const reader = instance(prefix)
 
@@ -35,9 +35,22 @@ describe.skipIf(!url)('RedisTraces', () => {
     expect((await reader.closed(closed.until, later)).traces).toEqual([])
   })
 
+  test('a job that fails on one instance keeps the request another held', async () => {
+    const prefix = `newt:test:${crypto.randomUUID()}`
+    const one = instance(prefix)
+    const two = instance(prefix)
+    one.finished(traceOf('request', ['e1']), false)
+    await one.close()
+    two.finished(traceOf('failed', [], 'e1'), true)
+    await two.close()
+
+    const closed = await instance(prefix).closed(null, new Date(Date.now() + 70_000))
+    expect(closed.traces.map(trace => trace.id).sort()).toEqual(['failed', 'request'])
+  })
+
   test('keeps at most so many traces a minute', async () => {
     const traces = instance(`newt:test:${crypto.randomUUID()}`, 2)
-    for (const id of ['a', 'b', 'c']) traces.record(traceOf(id))
+    for (const id of ['a', 'b', 'c']) traces.finished(traceOf(id), true)
     await new Promise(resolve => setTimeout(resolve, 100))
 
     expect((await traces.closed(null, new Date(Date.now() + 70_000))).traces.map(trace => trace.id)).toEqual(['a', 'b'])
