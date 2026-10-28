@@ -68,7 +68,7 @@ describe('traces', () => {
   })
 
   test('links a job\'s run to the trace that told its event, to the traces it caused, and to its other runs', async () => {
-    const told = app.trace({ at: ago(20 * MINUTE), told: ['event-1'], calls: [{ context: 'boards', useCase: 'card.create', ms: 3 }] })
+    const told = app.trace({ at: ago(20 * MINUTE), told: [{ id: 'event-1', name: 'card.created', context: 'boards' }], calls: [{ context: 'boards', useCase: 'card.create', ms: 3 }] })
     const job = (run: number, outcome?: { kind: 'failure', code: string }) => app.trace({ at: ago((20 - run) * MINUTE), outcome, retried: run > 1, job: { id: 'job-1', queue: QUEUE, run, event: 'card.created', eventId: 'event-1' } })
     const first = job(1, { kind: 'failure', code: 'Error' })
     const second = job(2)
@@ -80,6 +80,9 @@ describe('traces', () => {
     expect((await json<TraceDTO>(`/api/apps/${id}/traces/${told}`)).caused.map(each => each.id)).toEqual([first, second])
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?job=job-1`))).toEqual([second, first])
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?queue=${QUEUE}&show=failures`))).toEqual([first])
+    expect(trace.job).toMatchObject({ event: 'card.created', eventId: 'event-1' })
+    expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?context=boards&told=card.created`))).toEqual([told])
+    expect((await as(`/api/apps/${id}/traces?told=card.created`)).status).toBe(400)
     expect((await as(`/api/apps/${id}/traces/nothing`)).status).toBe(404)
   })
 

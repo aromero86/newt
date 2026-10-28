@@ -28,7 +28,7 @@ export class Traces_Module extends Module {
         },
       },
       trace_call: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', context: 'VARCHAR', use_case: 'VARCHAR', ms: 'DOUBLE', outcome_kind: 'VARCHAR' } },
-      trace_told: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', event_id: 'VARCHAR' } },
+      trace_event: { columns: { trace_id: 'VARCHAR', started_at: 'TIMESTAMP', event_id: 'VARCHAR', context: 'VARCHAR', event: 'VARCHAR' } },
     })
     const module = new Traces_Module(base, new TracesFeed_Repository(base), deps, options)
     registerTracesRoutes(base, module)
@@ -83,7 +83,7 @@ export class Traces_Module extends Module {
     const { traceDays } = await this.deps.retention.of(appId)
     const before = new Date(now().getTime() - traceDays * DAY_MS).toISOString()
     const analytics = await this.options.store.of(appId)
-    for (const table of ['traces', 'trace_call', 'trace_told']) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
+    for (const table of ['traces', 'trace_call', 'trace_event']) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
   }
 
   /** Keeps every application's traces, archived ones too: their retention runs all the same. */
@@ -113,7 +113,9 @@ export class Traces_Module extends Module {
   async forget(appId: string): Promise<void> {
     await this.repo.purgeApp(appId)
     const analytics = await this.options.store.of(appId)
-    for (const table of ['traces', 'trace_call', 'trace_told']) await analytics.run(`DELETE FROM ${table}`)
+    for (const table of ['traces', 'trace_call', 'trace_event']) await analytics.run(`DELETE FROM ${table}`)
+    // The events' table before they kept their names: gone with its application.
+    await analytics.run('DROP TABLE IF EXISTS trace_told')
     await this.options.store.dropIfEmpty(appId)
   }
 
@@ -129,7 +131,7 @@ export class Traces_Module extends Module {
     await analytics.append('trace_call', traces.flatMap(trace => trace.spans.filter(span => span.kind === 'use-case').map(span => ({
       id: `${trace.id}|${span.id}`, trace_id: trace.id, started_at: trace.startedAt, context: span.context, use_case: span.name, ms: span.ms, outcome_kind: span.outcome?.kind ?? null,
     }))))
-    await analytics.append('trace_told', traces.flatMap(trace => trace.told.map(eventId => ({ id: `${trace.id}|${eventId}`, trace_id: trace.id, started_at: trace.startedAt, event_id: eventId }))))
+    await analytics.append('trace_event', traces.flatMap(trace => trace.told.map(event => ({ id: `${trace.id}|${event.id}`, trace_id: trace.id, started_at: trace.startedAt, event_id: event.id, context: event.context, event: event.name }))))
   }
 
   private async queries(appId: string): Promise<TracesQueries> {

@@ -21,6 +21,7 @@ import { WINDOWS, type MetricsBucket, type MetricsWindow } from '../../../api/ev
 import { BUCKET_LABELS, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
 import { AppService } from '../app.service'
 import { findModule, moduleHref } from '../app-structure'
+import { TraceList } from '../app-traces/trace-list'
 import { AppEventLive } from './app-event-live'
 import { AppEventService, type Compare } from './app-event.service'
 
@@ -122,6 +123,7 @@ function AppEventWrapped({ app }: { app: AppDTO }) {
           </Box>
         ))}
       </Grid>
+      <TraceList appId={app.id} title="Traces that told it" query={{ context, told: event }} window={window} />
     </Stack>
   )
 }
