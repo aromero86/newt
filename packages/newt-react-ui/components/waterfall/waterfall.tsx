@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react'
 import { TextLink } from '../link'
 
@@ -17,6 +17,8 @@ export type WaterfallRow = {
   tone?: WaterfallTone
   /** A moment, not a step: an event told. */
   instant?: boolean
+  /** What kind of step it is, before its name: a use case's. */
+  icon?: ComponentType<{ className?: string }>
   /** Since when it waited before it started, drawn dotted: a job in its queue. */
   waitFromMs?: number
   /** Steps of its own it can show: shown or not, and how to switch. */
@@ -101,7 +103,9 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
                       {row.expandable.expanded ? <ChevronDownIcon aria-hidden className="size-4" /> : <ChevronRightIcon aria-hidden className="size-4" />}
                     </button>
                   )
-                : row.instant && <span aria-hidden className={`ml-0.5 size-2 shrink-0 rotate-45 border-2 ${markClass[tone]}`} />}
+                : row.instant
+                  ? <span aria-hidden className={`ml-0.5 size-2 shrink-0 rotate-45 border-2 ${markClass[tone]}`} />
+                  : row.icon && <row.icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
               {onSelect
                 ? <button type="button" aria-pressed={isSelected} onClick={() => onSelect(row.id)} className="flex min-w-0 cursor-pointer items-baseline gap-2 rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-brand">{name}</button>
                 : <span className="flex min-w-0 items-baseline gap-2">{name}</span>}

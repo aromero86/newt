@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { PlayIcon } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Alert } from './alert'
@@ -80,6 +81,7 @@ describe('newt-react-ui', () => {
     expect(waterfall).toContain('border-dashed')
     expect(waterfall).toContain('aria-expanded="false"')
     expect(waterfall).toContain('href="/traces/j"')
+    expect(html(<Waterfall label="Steps" rows={[{ id: 'u', depth: 0, label: 'card.create', startMs: 0, ms: 5, icon: PlayIcon }]} />)).toContain('lucide-play')
   })
 
   test('a graph draws its nodes as links, and an arrow for each use', () => {

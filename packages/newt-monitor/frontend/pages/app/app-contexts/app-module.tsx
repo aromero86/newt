@@ -14,14 +14,18 @@ import { Mono } from 'newt-react-ui/text'
 import { useService, useValue } from 'newt-react'
 import type { ApplicationDescription, ModuleDependency } from '../../../api/structure'
 import { NotFound } from '../../not-found/not-found'
+import { describeEnded, describeEventTotal, describeUseCaseTotal, useEventTotals, useUseCaseEnded, useUseCaseTotals } from '../app-metrics/metrics-totals'
 import { AppRemovedRow, AppRemovedToggle, useRemoved } from '../app-removed/app-removed'
 import { AppService } from '../app.service'
 import { AppGraph } from '../app-graph/app-graph'
 import { contextHref, findModule, moduleHref, moduleNeighbourhood, reactionsOf, writtenModuleId } from '../app-structure'
 
-/** A module: its use cases, the events it tells, what it depends on and what it reacts to. */
+/** A module: its use cases and the events it tells, each with its last 24 hours and a link to its metrics; what it depends on and what it reacts to. */
 export function AppModule({ appId, description }: { appId: string, description: ApplicationDescription }) {
   const { context, module: name } = useParams()
+  const totals = useUseCaseTotals(appId)
+  const ended = useUseCaseEnded(appId)
+  const told = useEventTotals(appId)
   const module = findModule(description, context!, name!)
   const removed = useRemoved().filter(item => item.context === context && item.module === name)
   if (!module) return <AppGoneModule appId={appId} context={context!} name={name!} />
@@ -43,8 +47,10 @@ export function AppModule({ appId, description }: { appId: string, description: 
         {module.useCases.length === 0 && <BoxEmpty icon={PlayIcon} title="No use cases" />}
         {module.useCases.map(useCase => (
           <BoxRow key={useCase.id} leading={<Icon icon={PlayIcon} tone="muted" />}>
-            <BoxRowTitle><Mono>{useCase.name}</Mono></BoxRowTitle>
+            <BoxRowTitle href={`/apps/${appId}/use-cases/${module.context}/${useCase.name}`}><Mono>{useCase.name}</Mono></BoxRowTitle>
             <BoxRowMeta>
+              {totals && <>{describeUseCaseTotal(totals.get(`${module.context}|${useCase.name}`))}</>}
+              {ended && describeEnded(ended.get(`${module.context}|${useCase.name}`)) && <>{describeEnded(ended.get(`${module.context}|${useCase.name}`))}</>}
               <>{useCase.writesTo.length ? <>writes also to {useCase.writesTo.map((target, index) => <Fragment key={target}>{index > 0 && ', '}{link(writtenModuleId(module.context, target))}</Fragment>)}</> : 'writes only to its own module'}</>
               <>{useCase.retryOnConflict ? 'retried on a conflict' : 'never retried on a conflict'}</>
             </BoxRowMeta>
@@ -59,9 +65,10 @@ export function AppModule({ appId, description }: { appId: string, description: 
           const listeners = heard(event.id)
           return (
             <BoxRow key={event.id} leading={<Icon icon={event.schedule ? ClockIcon : MegaphoneIcon} tone="muted" />} trailing={event.schedule ? <Badge tone="info">{event.schedule.cron}</Badge> : undefined}>
-              <BoxRowTitle><Mono>{event.name}</Mono></BoxRowTitle>
+              <BoxRowTitle href={`/apps/${appId}/events/${module.context}/${event.name}`}><Mono>{event.name}</Mono></BoxRowTitle>
               <BoxRowMeta>
                 {event.schedule && <>a schedule</>}
+                {told && <>{describeEventTotal(told.get(`${module.context}|${event.name}`))}</>}
                 <>{listeners.length
                   ? <>heard by {listeners.map((listener, index) => <Fragment key={listener.queue ?? index}>{index > 0 && ', '}{listener.handlerModule ? <TextLink href={moduleHref(appId, listener.handlerModule.id)}>{listener.handler}</TextLink> : (listener.handler ?? 'a fire-and-forget handler')}</Fragment>)}</>
                   : 'heard by nobody'}</>

@@ -40,7 +40,7 @@ export function AppVersion({ app }: { app: AppDTO }) {
   if (version === undefined) return <Spinner label="Loading the version" />
   if (version === null) return <NotFound />
 
-  const versions = <TextLink href={`/apps/${app.id}/versions`}>its versions</TextLink>
+  const versions = <TextLink href={`/apps/${app.id}/settings/versions`}>its versions</TextLink>
   const title = <>Structure read <RelativeTime date={version.takenAt} /></>
   if (!previous) {
     const parts = partsOf(version.description)
