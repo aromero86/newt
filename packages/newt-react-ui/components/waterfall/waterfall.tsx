@@ -141,7 +141,7 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
               {row.marks?.map(mark => (
                 <Tooltip key={mark.id}>
                   <TooltipTrigger asChild>
-                    <button type="button" aria-label={mark.label} onClick={() => onSelect?.(row.id)} className={`absolute z-10 size-2.5 -translate-x-1/2 cursor-pointer rounded-full border-2 border-card ${barClass[mark.tone]} hover:scale-125 focus-visible:outline-2 focus-visible:outline-brand`} style={{ left: percent(mark.atMs) }} />
+                    <button type="button" aria-label={mark.label} onClick={() => onSelect?.(row.id)} className={`absolute z-10 size-3 -translate-x-1/2 cursor-pointer rounded-full border-2 border-card ${barClass[mark.tone]} hover:scale-125 focus-visible:outline-2 focus-visible:outline-brand`} style={{ left: percent(mark.atMs) }} />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-sm font-mono break-words whitespace-pre-wrap">{mark.label}</TooltipContent>
                 </Tooltip>
