@@ -17,8 +17,9 @@ export type WaterfallRow = {
   tone?: WaterfallTone
   /** A moment, not a step: an event told. */
   instant?: boolean
-  /** What kind of step it is, before its name: a use case's. */
+  /** What kind of step it is, before its name: a use case's; in its tone, muted unless told. */
   icon?: ComponentType<{ className?: string }>
+  iconTone?: WaterfallTone
   /** Since when it waited before it started, drawn dotted: a job in its queue. */
   waitFromMs?: number
   /** Steps of its own it can show: shown or not, and how to switch. */
@@ -35,6 +36,14 @@ const barClass: Record<WaterfallTone, string> = {
   warn: 'bg-warn',
   bad: 'bg-bad',
   muted: 'bg-muted-foreground/40',
+}
+
+const iconClass: Record<WaterfallTone, string> = {
+  brand: 'text-brand',
+  ok: 'text-ok',
+  warn: 'text-warn',
+  bad: 'text-bad',
+  muted: 'text-muted-foreground',
 }
 
 const markClass: Record<WaterfallTone, string> = {
@@ -105,7 +114,7 @@ export function Waterfall({ label, rows, totalMs, formatMs = defaultFormat, sele
                   )
                 : row.instant
                   ? <span aria-hidden className={`ml-0.5 size-2 shrink-0 rotate-45 border-2 ${markClass[tone]}`} />
-                  : row.icon && <row.icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
+                  : row.icon && <row.icon aria-hidden className={`size-3.5 shrink-0 ${iconClass[row.iconTone ?? 'muted']}`} />}
               {onSelect
                 ? <button type="button" aria-pressed={isSelected} onClick={() => onSelect(row.id)} className="flex min-w-0 cursor-pointer items-baseline gap-2 rounded-sm text-left hover:underline focus-visible:outline-2 focus-visible:outline-brand">{name}</button>
                 : <span className="flex min-w-0 items-baseline gap-2">{name}</span>}

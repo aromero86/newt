@@ -26,7 +26,7 @@ export function flowRows(flow: { appId: string, top: TraceDTO, focus: string, tr
       }
       rows.push({
         id: `${trace.id}:${span.id}`, depth, label: span.name, detail: detailOf(span), startMs: offset + span.startMs, ms: span.ms, tone: toneOf(span),
-        instant: span.kind === 'event', icon: span.kind === 'use-case' ? PlayIcon : undefined, highlighted: span.parentId === null && trace.id === flow.focus && flow.top.id !== flow.focus,
+        instant: span.kind === 'event', icon: span.kind === 'use-case' ? PlayIcon : undefined, iconTone: 'ok', highlighted: span.parentId === null && trace.id === flow.focus && flow.top.id !== flow.focus,
       })
       walk(trace, span.id, depth + 1, offset)
       if (span.kind === 'event') for (const run of trace.caused.filter(each => each.job?.eventId === span.attributes.eventId)) runRow(run, depth + 1, offset + span.startMs)

@@ -46,7 +46,7 @@ export function AppModule({ appId, description }: { appId: string, description: 
         <BoxHeader>Use cases <Counter>{module.useCases.length}</Counter></BoxHeader>
         {module.useCases.length === 0 && <BoxEmpty icon={PlayIcon} title="No use cases" />}
         {module.useCases.map(useCase => (
-          <BoxRow key={useCase.id} leading={<Icon icon={PlayIcon} tone="muted" />}>
+          <BoxRow key={useCase.id} leading={<Icon icon={PlayIcon} tone="ok" />}>
             <BoxRowTitle href={`/apps/${appId}/use-cases/${module.context}/${useCase.name}`}><Mono>{useCase.name}</Mono></BoxRowTitle>
             <BoxRowMeta>
               {totals && <>{describeUseCaseTotal(totals.get(`${module.context}|${useCase.name}`))}</>}
