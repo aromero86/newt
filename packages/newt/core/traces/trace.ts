@@ -60,6 +60,8 @@ export type Trace = {
   spans: TraceSpan[]
   /** The spans left out past the most a trace keeps. */
   dropped: number
+  /** Why it was kept whatever its share, when something asked: `keepTrace`'s reason, or a signed header. */
+  forced: string | null
 }
 
 /** The traces of the minutes closed since a cursor, and the cursor to ask from next time. */

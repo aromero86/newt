@@ -19,6 +19,7 @@ class OpenTrace {
   readonly spans: TraceSpan[] = []
   readonly told: TracedEvent[] = []
   dropped = 0
+  forced: string | null = null
   actor: string | null = null
   scopes: Record<string, string> = {}
   private next = 0
@@ -48,19 +49,37 @@ export function isTracing(): boolean {
   return active.getStore() !== undefined
 }
 
+/** What a trace starts from: a request or a job, and why it is kept whatever its share, when something asked already (a signed header). */
+type TraceRoot = { kind: 'http' | 'job', name: string, job?: TraceJob, forced?: string | null }
+
+/**
+ * Keeps the trace in progress whatever its share, and says why: a request worth seeing
+ * whole (a payment, a customer being helped). The jobs its events cause are kept with
+ * it. Outside a trace, or with traces off, it does nothing. The first reason stays.
+ *
+ * ```ts
+ * if (order.total > 10_000) keepTrace('a large order')
+ * ```
+ */
+export function keepTrace(reason = 'kept by the code'): void {
+  const current = active.getStore()
+  if (current) current.trace.forced ??= reason
+}
+
 /**
  * Runs a request or a job as the root of a trace, when the application records them
  * (`serveMonitor` turns it on). `outcomeOf` says how a request that answered ended: a
  * router answers an error instead of throwing it.
  */
-export function traceRoot<T>(root: { kind: 'http' | 'job', name: string, job?: TraceJob }, fn: () => T | Promise<T>, outcomeOfResult?: (result: T) => Outcome | null): T | Promise<T> {
+export function traceRoot<T>(root: TraceRoot, fn: () => T | Promise<T>, outcomeOfResult?: (result: T) => Outcome | null): T | Promise<T> {
   // Off, it is the call as it was: not even a turn of the event loop more.
   if (!applicationTraces.enabled || !applicationTraces.sink) return fn()
   return recordRoot(root, fn, outcomeOfResult)
 }
 
-async function recordRoot<T>(root: { kind: 'http' | 'job', name: string, job?: TraceJob }, fn: () => T | Promise<T>, outcomeOfResult?: (result: T) => Outcome | null): Promise<T> {
+async function recordRoot<T>(root: TraceRoot, fn: () => T | Promise<T>, outcomeOfResult?: (result: T) => Outcome | null): Promise<T> {
   const trace = new OpenTrace(root.kind, root.name, root.job ?? null)
+  trace.forced = root.forced ?? null
   const span = trace.open(null, root.kind, root.name, null, {})!
   try {
     const result = await active.run({ trace, span }, fn)
@@ -155,7 +174,7 @@ function finish(open: OpenTrace): void {
     retried: calls.some(call => Number(call.attributes.runs ?? 1) > 1) || (open.job?.run ?? 1) > 1,
     actor: open.actor, scopes: open.scopes,
     useCases: [...new Set(calls.map(call => call.name))],
-    told: open.told, job: open.job, spans, dropped: open.dropped,
+    told: open.told, job: open.job, spans, dropped: open.dropped, forced: open.forced,
   }
   try {
     sink.finished(trace, keeps(trace, applicationTraces.sampleRate))

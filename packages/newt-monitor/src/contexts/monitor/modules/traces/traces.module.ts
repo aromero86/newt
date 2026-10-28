@@ -1,7 +1,8 @@
 import type { Trace } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
+import { signTraceHeader, TRACE_HEADER } from 'newt/monitor'
 import type { MonitorBase } from '../../../../monitor-base'
-import { TraceListQuerySchema, TraceNotFound, TracesFeed, type CollectTracesDTO, type TraceDTO, type TraceListDTO } from './traces'
+import { TraceHeaderSchema, TraceListQuerySchema, TraceNotFound, TracesFeed, type CollectTracesDTO, type TraceDTO, type TraceHeaderDTO, type TraceListDTO } from './traces'
 import type { Traces_Deps } from './traces.deps'
 import type { Traces_Options } from './traces-options'
 import { TracesFeed_Repository } from './traces.repository'
@@ -106,6 +107,19 @@ export class Traces_Module extends Module {
     const trace = await (await this.queries(appId)).get(traceId)
     if (!trace) throw new TraceNotFound(traceId)
     return trace
+  }
+
+  /**
+   * The header that keeps whole the trace of every request to the application carrying
+   * it, for a while: signed with the key it shares with the monitor, which it checks.
+   * To look at a request in production, whatever its share.
+   */
+  @UseCase()
+  async header(appId: string, input: unknown): Promise<TraceHeaderDTO> {
+    const { hours } = TraceHeaderSchema.parse(input)
+    const { key } = await this.deps.app.endpointOf(appId)
+    const expiresAt = new Date(now().getTime() + hours * 60 * 60_000)
+    return { name: TRACE_HEADER, value: signTraceHeader(key, expiresAt), expiresAt: expiresAt.toISOString() }
   }
 
   /** Forgets everything of an application deleted: its feed, and its rows; its DuckDB too, once nothing else is in it. */

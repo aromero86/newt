@@ -7,10 +7,10 @@ import type { z } from 'zod'
 /** A row of `traces` as DuckDB gives it. */
 type TraceRow = {
   id: string, started_at: string, kind: 'http' | 'job', name: string, ms: number, outcome_kind: 'error' | 'failure' | null, outcome_code: string | null,
-  retried: boolean, actor: string | null, use_cases: string | string[], job_event?: string | null, job_queue: string | null, job_run: number | null, event_id: string | null, call_ms?: number | null, body?: string | Trace,
+  retried: boolean, forced: string | null, actor: string | null, use_cases: string | string[], job_event?: string | null, job_queue: string | null, job_run: number | null, event_id: string | null, call_ms?: number | null, body?: string | Trace,
 }
 
-const COLUMNS = 't.id, t.started_at, t.kind, t.name, t.ms, t.outcome_kind, t.outcome_code, t.retried, t.actor, t.use_cases, t.job_queue, t.job_run, t.event_id, t.body->>\'$.job.event\' AS job_event'
+const COLUMNS = 't.id, t.started_at, t.kind, t.name, t.ms, t.outcome_kind, t.outcome_code, t.retried, t.body->>\'$.forced\' AS forced, t.actor, t.use_cases, t.job_queue, t.job_run, t.event_id, t.body->>\'$.job.event\' AS job_event'
 
 const parsed = <T>(value: string | T): T => (typeof value === 'string' ? JSON.parse(value) as T : value)
 
@@ -18,7 +18,7 @@ function summaryOf(row: TraceRow): TraceSummaryDTO {
   return {
     id: row.id, kind: row.kind, name: row.name, startedAt: row.started_at, ms: row.ms,
     outcome: row.outcome_kind ? { kind: row.outcome_kind, code: row.outcome_code! } : null,
-    retried: row.retried, actor: row.actor, useCases: parsed<string[]>(row.use_cases),
+    retried: row.retried, forced: row.forced ?? null, actor: row.actor, useCases: parsed<string[]>(row.use_cases),
     job: row.job_queue ? { queue: row.job_queue, run: row.job_run!, event: row.job_event ?? '', eventId: row.event_id! } : null,
     callMs: row.call_ms ?? null,
   }
@@ -49,6 +49,7 @@ export class TracesQueries {
     if (query.show === 'failures') where.push('t.outcome_kind = \'failure\'')
     if (query.show === 'errors') where.push('t.outcome_kind = \'error\'')
     if (query.show === 'retried') where.push('t.retried')
+    if (query.show === 'forced') where.push('(t.body->>\'$.forced\') IS NOT NULL')
     const time = query.useCase ? 'c.call_ms' : 't.ms'
     const byTime = query.nearMs !== undefined || query.show === 'slow'
     if (!byTime && query.before) {
