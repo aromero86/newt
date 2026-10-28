@@ -1,7 +1,7 @@
 import type { Outcome } from '../metrics/outcome'
 
-/** What a span is: a request or a job (a trace's root), a use case's call, one of its runs, a read or write of a table, a transaction. */
-export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction'
+/** What a span is: a request or a job (a trace's root), a use case's call, one of its runs, a read or write of a table, a transaction, an event told (an instant). */
+export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction' | 'event'
 
 /** What a span says of itself: a query's shape, the rows it read, the runs of a call. Never a value it was given. */
 export type SpanAttributeValue = string | number | boolean
@@ -28,6 +28,9 @@ export type TraceSpan = {
   failure: { message: string, stack: string | null } | null
 }
 
+/** An event a trace told. */
+export type TracedEvent = { id: string, name: string, context: string }
+
 /** The job a trace ran: which run of it, of which queue, for which event. */
 export type TraceJob = { id: string, queue: string, run: number, event: string, eventId: string }
 
@@ -51,8 +54,8 @@ export type Trace = {
   scopes: Record<string, string>
   /** The use cases it called, each once: what it is searched by. */
   useCases: string[]
-  /** The ids of the events it told. */
-  told: string[]
+  /** The events it told: by id, which a job's trace has as its `job.eventId`, and by name, in the context that told it. */
+  told: TracedEvent[]
   job: TraceJob | null
   spans: TraceSpan[]
   /** The spans left out past the most a trace keeps. */

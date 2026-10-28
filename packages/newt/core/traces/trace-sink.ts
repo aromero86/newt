@@ -1,8 +1,12 @@
 import type { Trace } from './trace'
 
-/** Where finished traces go, once kept: `MemoryTraces`, `RedisTraces` (`newt/runtime`). */
+/**
+ * Where finished traces go: `MemoryTraces`, `RedisTraces` (`newt/runtime`). `wanted` says
+ * whether the trace is kept on its own (it went wrong, ran again, or fell in the share);
+ * one that is not may still be, with the chain of traces its events make.
+ */
 export interface TraceSink {
-  record(trace: Trace): void
+  finished(trace: Trace, wanted: boolean): void
 }
 
 /**

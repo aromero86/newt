@@ -74,7 +74,7 @@ export class Base<S extends Store = Store> {
         // Who told it and in which scopes, as it is told: counted once it is saved.
         const counted = { context: this.name, event: told.name, scopes: activeScopes(), actor: findCurrentActor()?.userId ?? null, at: clock.now() }
         const queues = await this.jobs.enqueue(told)
-        traceTold(told)
+        traceTold(told, this.name)
         this.store.afterCommit(() => {
           this.metrics.count(counted)
           for (const queue of queues) this.metrics.flow({ context: this.name, queue, kind: 'published', at: counted.at })

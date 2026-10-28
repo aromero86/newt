@@ -20,7 +20,7 @@ let base: Base<SqliteStore>
 
 beforeEach(async () => {
   kept = []
-  setTraces({ record: trace => kept.push(trace), closed: async () => ({ traces: [], until: '' }), close: async () => {} }, { sampleRate: 1 })
+  setTraces({ finished: (trace, wanted) => { if (wanted) kept.push(trace) }, closed: async () => ({ traces: [], until: '' }), close: async () => {} }, { sampleRate: 1 })
   applicationTraces.enabled = true
   const store = await SqliteStore.open({ path: ':memory:' })
   await store.transaction(() => store.connection.run('CREATE TABLE card (id TEXT PRIMARY KEY, board_id TEXT NOT NULL, title TEXT NOT NULL, version INTEGER NOT NULL)'))
@@ -138,8 +138,12 @@ describe('traces', () => {
     await base.jobs.idle()
 
     const [publishing, first, second] = kept
-    expect(publishing!.told).toHaveLength(1)
-    expect(first).toMatchObject({ kind: 'job', name: 'card.create.on.card.created', outcome: { kind: 'failure', code: 'Error' }, job: { run: 1, event: 'card.created', eventId: publishing!.told[0] } })
+    expect(publishing!.told).toEqual([{ id: expect.any(String), name: 'card.created', context: 'boards' }])
+    // Told inside the transaction that saved it, as an instant.
+    const event = publishing!.spans.find(span => span.kind === 'event')!
+    expect(event).toMatchObject({ name: 'card.created', ms: 0, attributes: { eventId: publishing!.told[0]!.id } })
+    expect(publishing!.spans.find(span => span.id === event.parentId)!.kind).toBe('transaction')
+    expect(first).toMatchObject({ kind: 'job', name: 'card.create.on.card.created', outcome: { kind: 'failure', code: 'Error' }, job: { run: 1, event: 'card.created', eventId: publishing!.told[0]!.id } })
     expect(second).toMatchObject({ kind: 'job', retried: true, outcome: null, job: { run: 2 } })
   })
 
@@ -149,6 +153,40 @@ describe('traces', () => {
     await enableAndRoot(() => card.create({ title: 'a' }), false)
 
     expect(kept).toEqual([])
+  })
+})
+
+describe('a chain of traces', () => {
+  const at = new Date().toISOString()
+  const request = (id: string, told: string[]) => ({ id, kind: 'http', startedAt: at, ms: 1, told: told.map(each => ({ id: each, name: 'card.created', context: 'boards' })), job: null }) as unknown as Trace
+  const job = (id: string, eventId: string, told: string[] = []) => ({ ...request(id, told), kind: 'job', job: { id: `job-${id}`, queue: 'q', run: 1, event: 'card.created', eventId } }) as unknown as Trace
+  const keptOf = async (traces: MemoryTraces) => (await traces.closed(null, new Date(Date.now() + 60_000))).traces.map(trace => trace.id).sort()
+  const settled = () => Bun.sleep(5)
+
+  test('a request kept keeps the jobs its events cause, and theirs', async () => {
+    const traces = new MemoryTraces()
+    traces.finished(request('r', ['e1']), true)
+    await settled()
+    traces.finished(job('j', 'e1', ['e2']), false)
+    await settled()
+    traces.finished(job('k', 'e2'), false)
+    traces.finished(job('other', 'e9'), false)
+    await settled()
+
+    expect(await keptOf(traces)).toEqual(['j', 'k', 'r'])
+  })
+
+  test('a job that fails keeps the request that told its event, and the jobs held beside it', async () => {
+    const traces = new MemoryTraces()
+    traces.finished(request('r', ['e1']), false)
+    traces.finished(job('sibling', 'e1'), false)
+    traces.finished(request('unrelated', ['e5']), false)
+    await settled()
+    expect(await keptOf(traces)).toEqual([])
+
+    traces.finished(job('failed', 'e1'), true)
+    await settled()
+    expect(await keptOf(traces)).toEqual(['failed', 'r', 'sibling'])
   })
 })
 
