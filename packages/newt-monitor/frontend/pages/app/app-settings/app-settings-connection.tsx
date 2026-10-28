@@ -1,0 +1,39 @@
+import { PlugZapIcon } from 'lucide-react'
+import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
+import { Icon } from 'newt-react-ui/icon'
+import { RelativeTime } from 'newt-react-ui/relative-time'
+import { Stack } from 'newt-react-ui/stack'
+import { Subhead } from 'newt-react-ui/subhead'
+import { useService, useValue } from 'newt-react'
+import type { AppDTO } from '../../../api/app'
+import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
+import { AppService } from '../app.service'
+
+/** Settings' Connection: whether it answers, on which newt, and which process of it answered when it was last asked who it is. */
+export function AppSettingsConnection({ app }: { app: AppDTO }) {
+  const connection = useValue(useService(AppService).connection)
+
+  return (
+    <Stack gap={0}>
+      <Subhead title="Connection" description={app.archivedAt ? 'It is archived: nobody asks it whether it answers.' : 'The monitor asks it who it is before every read of its structure.'} />
+      {connection && (
+        <Box label="Connection">
+          <BoxHeader actions={<ConnectionBadge status={connection.status} />}>Last check</BoxHeader>
+          {connection.status === 'unknown'
+            ? <BoxEmpty icon={PlugZapIcon} title="Not checked yet" description="The monitor asks it before every read of its structure." />
+            : (
+                <BoxRow leading={<Icon icon={PlugZapIcon} tone={connection.status === 'up' ? 'ok' : 'bad'} />}>
+                  <BoxRowTitle>{connection.failure ? 'It does not answer' : connection.identity ? `${connection.identity.name} answers, on newt ${connection.identity.newt}` : 'It answers'}</BoxRowTitle>
+                  <BoxRowMeta>
+                    {connection.failure && <>{connection.failure.message}</>}
+                    {connection.identity && <>{connection.identity.instance.host}, process {connection.identity.instance.pid}, started <RelativeTime date={connection.identity.startedAt} /></>}
+                    <>checked <RelativeTime date={connection.checkedAt} /></>
+                    {connection.failure && <>{connection.lastSeenAt ? <>last answered <RelativeTime date={connection.lastSeenAt} /></> : 'it never answered'}</>}
+                  </BoxRowMeta>
+                </BoxRow>
+              )}
+        </Box>
+      )}
+    </Stack>
+  )
+}

@@ -10,6 +10,7 @@ import { Inline } from 'newt-react-ui/inline'
 import { TextLink } from 'newt-react-ui/link'
 import { Select } from 'newt-react-ui/select'
 import { Skeleton } from 'newt-react-ui/skeleton'
+import { ChartPanel } from 'newt-react-ui/chart-panel'
 import { Stack } from 'newt-react-ui/stack'
 import { Stat } from 'newt-react-ui/stat'
 import { Subhead } from 'newt-react-ui/subhead'
@@ -93,18 +94,15 @@ function AppEventWrapped({ app }: { app: AppDTO }) {
               <Grid columns={{ base: 1, md: 3 }}>
                 <Stat label={`Told in ${WINDOW_LABELS[window]}`} value={series.total} hint={series.comparedTotal !== null ? <>{series.comparedTotal.toLocaleString('en')} {compare === 'week' ? 'a week before' : 'the window before'}{change !== null && ` (${change > 0 ? '+' : ''}${change}%)`}</> : undefined} />
               </Grid>
-              <Box label="Over time">
-                <BoxHeader>Every {BUCKET_LABELS[bucket]}, {when(series.from)} to {when(series.to)}</BoxHeader>
-                <BoxRow>
-                  <TimeSeries
-                    label={`${event}, every ${BUCKET_LABELS[bucket]}, over ${WINDOW_LABELS[window]}`}
-                    points={series.points}
-                    compared={series.compared}
-                    names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: comparedName }}
-                    formatTime={format}
-                  />
-                </BoxRow>
-              </Box>
+              <ChartPanel title={<>Every {BUCKET_LABELS[bucket]}, {when(series.from)} to {when(series.to)}</>}>
+                <TimeSeries
+                  label={`${event}, every ${BUCKET_LABELS[bucket]}, over ${WINDOW_LABELS[window]}`}
+                  points={series.points}
+                  compared={series.compared}
+                  names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: comparedName }}
+                  formatTime={format}
+                />
+              </ChartPanel>
             </>
           )
         : <Skeleton lines={6} />}

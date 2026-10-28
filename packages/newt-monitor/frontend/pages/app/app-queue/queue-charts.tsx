@@ -1,11 +1,11 @@
-import { Box, BoxHeader, BoxRow } from 'newt-react-ui/box'
+import { ChartPanel, ChartRow } from 'newt-react-ui/chart-panel'
 import { Grid } from 'newt-react-ui/grid'
 import { LineChart } from 'newt-react-ui/line-chart'
 import { Stat } from 'newt-react-ui/stat'
 import type { MetricsBucket, MetricsWindow } from '../../../api/event-metrics'
 import type { DepthSeriesDTO } from '../../../api/outbox'
 import type { QueueSeriesDTO } from '../../../api/queue-metrics'
-import { BUCKET_LABELS, changeOf, formatMs, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { BUCKET_LABELS, changeOf, formatMs, timeFormat, WINDOW_LABELS } from '../app-metrics/metrics-format'
 
 /**
  * How a queue went over a window, or every queue at once: what went in and out, how
@@ -24,9 +24,8 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
         <Stat label="Run again, and dead" value={`${flow.total.redelivered.toLocaleString('en')} · ${flow.total.dead.toLocaleString('en')}`} hint={flow.comparedTotal ? `${flow.comparedTotal.redelivered} · ${flow.comparedTotal.dead} ${before}` : undefined} />
         <Stat label="Wait p90" value={formatMs(flow.total.waitP90)} hint={flow.comparedTotal ? `${formatMs(flow.comparedTotal.waitP90)} ${before}` : undefined} />
       </Grid>
-      <Box label="How full">
-        <BoxHeader>How full, every {BUCKET_LABELS[bucket]} (the most it reached), {when(depth.from)} to {when(depth.to)}</BoxHeader>
-        <BoxRow>
+      <ChartRow>
+        <ChartPanel title={<>How full (the most it reached), every {BUCKET_LABELS[bucket]}</>}>
           <LineChart
             label={`${name}: jobs ready, to run again, running and dead`}
             times={depth.points.map(point => point.at)}
@@ -38,11 +37,8 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
               { key: 'dead', label: 'Dead', tone: 'bad', values: depth.points.map(point => point.dead) },
             ]}
           />
-        </BoxRow>
-      </Box>
-      <Box label="In and out">
-        <BoxHeader>In and out, every {BUCKET_LABELS[bucket]}</BoxHeader>
-        <BoxRow>
+        </ChartPanel>
+        <ChartPanel title={<>In and out, every {BUCKET_LABELS[bucket]}</>}>
           <LineChart
             label={`${name}: jobs in, out, run again and dead`}
             times={flow.points.map(point => point.at)}
@@ -54,11 +50,8 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
               { key: 'dead', label: 'Dead', tone: 'bad', values: flow.points.map(point => point.dead) },
             ]}
           />
-        </BoxRow>
-      </Box>
-      <Box label="Wait">
-        <BoxHeader>How long jobs waited before a worker took them, every {BUCKET_LABELS[bucket]}</BoxHeader>
-        <BoxRow>
+        </ChartPanel>
+        <ChartPanel title={<>How long jobs waited, every {BUCKET_LABELS[bucket]}</>}>
           <LineChart
             label={`${name}: wait p50, p90 and p99`}
             times={flow.points.map(point => point.at)}
@@ -70,8 +63,8 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
               { key: 'p99', label: 'p99', tone: 'bad', values: flow.points.map(point => point.waitP99) },
             ]}
           />
-        </BoxRow>
-      </Box>
+        </ChartPanel>
+      </ChartRow>
     </>
   )
 }
