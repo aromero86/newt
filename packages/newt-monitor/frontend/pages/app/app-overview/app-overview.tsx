@@ -14,6 +14,7 @@ import { ConnectionBadge } from '../../../components/connection-badge/connection
 import { AppNotRead } from '../app-not-read/app-not-read'
 import { AppOverviewFailures } from './app-overview-failures'
 import { AppOverviewQueues } from './app-overview-queues'
+import { AppOverviewUseCases } from './app-overview-use-cases'
 import { AppOverviewRetries } from './app-overview-retries'
 import { AppService } from '../app.service'
 import { AppGraph } from '../app-graph/app-graph'
@@ -44,6 +45,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
         : <AppNotRead app={app} />}
       {/* An archived application is not watched: whether it answers is nobody's concern. */}
       {!app.archivedAt && <AppOverviewConnection />}
+      {structure && <AppOverviewUseCases app={app} />}
       {structure && <AppOverviewFailures app={app} />}
       {structure && <AppOverviewRetries app={app} />}
       {structure && <AppOverviewQueues app={app} />}

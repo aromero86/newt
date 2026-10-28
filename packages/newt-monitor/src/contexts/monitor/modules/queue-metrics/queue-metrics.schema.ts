@@ -21,12 +21,15 @@ export type CollectFlowsDTO =
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 
 /** What a client asks of a queue's flow over time. */
+/** Of one queue, or every queue of the application (neither `context` nor `queue`). */
 export const QueueSeriesQuerySchema = z.object({
-  context: z.string().min(1),
-  queue: z.string().min(1),
+  context: z.string().min(1).optional(),
+  queue: z.string().min(1).optional(),
   window: windowSchema,
   bucket: z.enum(Object.keys(BUCKETS) as [MetricsBucket, ...MetricsBucket[]]).optional(),
   compare: z.enum(['previous', 'week', 'none']).default('previous'),
+}).refine(query => (query.context === undefined) === (query.queue === undefined), {
+  message: 'A queue is asked with its context', path: ['queue'],
 }).refine(query => query.bucket === undefined || (WINDOWS[query.window].buckets as readonly string[]).includes(query.bucket), {
   message: 'That bucket is not one of its window\'s', path: ['bucket'],
 })

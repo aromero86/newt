@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BlocksIcon, InboxIcon, ListOrderedIcon } from 'lucide-react'
+import { BlocksIcon, InboxIcon, ListOrderedIcon, SearchXIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
 import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
 import { Counter } from 'newt-react-ui/counter'
@@ -7,19 +7,27 @@ import { Icon } from 'newt-react-ui/icon'
 import { Inline } from 'newt-react-ui/inline'
 import { Skeleton } from 'newt-react-ui/skeleton'
 import { Stack } from 'newt-react-ui/stack'
+import { SearchField } from 'newt-react-ui/search-field'
 import { Mono, Text } from 'newt-react-ui/text'
 import { useService } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { OutboxApi, type OutboxNowDTO, type OutboxQueueDTO } from '../../../api/outbox'
 import { QueueMetricsApi, type QueueTotalDTO } from '../../../api/queue-metrics'
 import { formatMs, handlerOf } from '../app-metrics/metrics-format'
+import { matches } from '../app-structure'
+import { AppQueuesAll } from './app-queues-all'
 
-/** The Queues tab: every queue of the application, by context, how full it is now and how it flowed in 24 hours. */
+/**
+ * The Queues tab: every queue of the application together, over a window, as one queue's
+ * page shows one; then each queue, by context, found by a search, how full it is now and
+ * how it flowed in 24 hours.
+ */
 export function AppQueues({ app }: { app: AppDTO }) {
   const outboxApi = useService(OutboxApi)
   const queueApi = useService(QueueMetricsApi)
   const [current, setCurrent] = useState<OutboxNowDTO | null>(null)
   const [totals, setTotals] = useState<Map<string, QueueTotalDTO> | null>(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     outboxApi.current(app.id).then(setCurrent).catch(() => setCurrent({ at: null, queues: [] }))
@@ -43,9 +51,20 @@ export function AppQueues({ app }: { app: AppDTO }) {
     )
   }
 
+  const found = [...byContext]
+    .map(([context, queues]) => [context, new Map([...queues].filter(([name]) => matches(`${context} ${name}`, search)))] as const)
+    .filter(([, queues]) => queues.size > 0)
+
   return (
     <Stack gap={4}>
-      {[...byContext].sort(([a], [b]) => a.localeCompare(b)).map(([context, queues]) => (
+      <AppQueuesAll app={app} current={current} />
+      <SearchField live label="Search queues" placeholder="Search queues: card index" onSearch={setSearch} />
+      {found.length === 0 && (
+        <Box label="Queues">
+          <BoxEmpty icon={SearchXIcon} title="No queue matches" description="Every word is looked for in its context and its name." />
+        </Box>
+      )}
+      {found.sort(([a], [b]) => a.localeCompare(b)).map(([context, queues]) => (
         <Box key={context} label={`Queues of ${context}`}>
           <BoxHeader><Icon icon={BlocksIcon} tone="muted" /> {context} <Counter>{queues.size}</Counter></BoxHeader>
           {[...queues].sort(([a], [b]) => a.localeCompare(b)).map(([name, queue]) => {

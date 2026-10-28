@@ -100,9 +100,12 @@ export class Outbox_Module extends Module {
     const to = at - (at % size) + size
     const from = to - WINDOWS[query.window].ms
     const rows = await (await this.options.store.of(appId)).query<{ slot: number, ready: number, retrying: number, running: number, dead: number }>(`
-      SELECT CAST(floor(epoch(minute) / ${seconds}) * ${seconds} AS BIGINT) AS slot, max(ready) AS ready, max(retrying) AS retrying, max(running) AS running, max(dead) AS dead
-      FROM queue_depth WHERE minute >= CAST($1 AS TIMESTAMP) AND minute < CAST($2 AS TIMESTAMP) AND context = $3 AND queue = $4 GROUP BY slot`,
-    [new Date(from).toISOString(), new Date(to).toISOString(), query.context, query.queue])
+      SELECT slot, sum(ready) AS ready, sum(retrying) AS retrying, sum(running) AS running, sum(dead) AS dead FROM (
+        SELECT CAST(floor(epoch(minute) / ${seconds}) * ${seconds} AS BIGINT) AS slot, context, queue, max(ready) AS ready, max(retrying) AS retrying, max(running) AS running, max(dead) AS dead
+        FROM queue_depth WHERE minute >= CAST($1 AS TIMESTAMP) AND minute < CAST($2 AS TIMESTAMP) AND (CAST($3 AS VARCHAR) IS NULL OR context = $3) AND (CAST($4 AS VARCHAR) IS NULL OR queue = $4)
+        GROUP BY slot, context, queue
+      ) GROUP BY slot`,
+    [new Date(from).toISOString(), new Date(to).toISOString(), query.context ?? null, query.queue ?? null])
     const bySlot = new Map(rows.map(row => [row.slot * 1000, row]))
     const points: DepthPointDTO[] = []
     for (let slot = from; slot < to; slot += size) {

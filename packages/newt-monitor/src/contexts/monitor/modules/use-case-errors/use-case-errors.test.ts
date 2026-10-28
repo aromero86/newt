@@ -48,6 +48,9 @@ describe('use case errors', () => {
     expect(series.total).toEqual({ errors: 4, failures: 2 })
     expect(series.points.filter(point => point.errors + point.failures > 0).map(point => [point.errors, point.failures])).toEqual([[4, 0], [0, 2]])
     expect((await json<ErrorsSeriesDTO>(`/api/apps/${id}/metrics/errors/series?${query}&actor=bea`)).total).toEqual({ errors: 0, failures: 2 })
+    // Of every use case of the application: the same, here, with one.
+    expect((await json<ErrorsSeriesDTO>(`/api/apps/${id}/metrics/errors/series?window=1h`)).total).toEqual({ errors: 4, failures: 2 })
+    expect((await as(`/api/apps/${id}/metrics/errors/series?context=boards&window=1h`)).status).toBe(400)
 
     expect(await json<ErrorsTotalDTO[]>(`/api/apps/${id}/metrics/errors?window=1h`)).toEqual([
       { context: 'boards', useCase: 'card.get', now: { errors: 4, failures: 2 }, previous: { errors: 1, failures: 0 } },

@@ -59,6 +59,13 @@ describe('newt-react-ui', () => {
     expect(chart).toContain('--color-p99:var(--bad)')
   })
 
+  test('a line chart\'s legend shows or hides each line, and a line of another unit reads on a right axis', () => {
+    const chart = html(<LineChart label="Use cases" times={['2026-01-01T10:00:00Z']} series={[{ key: 'calls', label: 'Calls', tone: 'brand', values: [12] }, { key: 'mean', label: 'Mean', tone: 'muted', axis: 'right', values: [40] }]} />)
+
+    expect(chart.match(/aria-pressed="true"/g)).toHaveLength(2)
+    expect(chart).toContain('Mean (right)')
+  })
+
   test('a waterfall is a list of steps, each a bar where and as long as it ran, pressed to select it', () => {
     const rows = [{ id: '1', depth: 0, label: 'POST /cards', startMs: 0, ms: 100 }, { id: '2', depth: 1, label: 'card.create', startMs: 50, ms: 25, tone: 'bad' as const }]
     const waterfall = html(<Waterfall label="Trace" rows={rows} selected="2" onSelect={() => {}} />)

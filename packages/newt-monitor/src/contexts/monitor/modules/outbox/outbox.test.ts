@@ -54,6 +54,18 @@ describe('outbox', () => {
     expect(series.points.filter(point => point.ready !== null)).toEqual([expect.objectContaining({ ready: 7, dead: 1 })])
   })
 
+  test('sums every queue of the application, each at its most in a bucket', async () => {
+    app.queues('boards', [depth(7, 1), { ...depth(3), queue: 'card.notify.on.card.created' }])
+    await monitor.modules.outbox.snapshot(id)
+    app.queues('boards', [depth(2, 1), { ...depth(5), queue: 'card.notify.on.card.created' }])
+    // Another snapshot in the same minute is not kept: the first stands.
+    await monitor.modules.outbox.snapshot(id)
+
+    const all = await json<DepthSeriesDTO>(`/api/apps/${id}/outbox/depth?window=1h&bucket=5m`)
+    expect(all.points.filter(point => point.ready !== null)).toEqual([expect.objectContaining({ ready: 10, retrying: 2, running: 4, dead: 1 })])
+    expect((await as(`/api/apps/${id}/outbox/depth?context=boards&window=1h`)).status).toBe(400)
+  })
+
   test('lists a context\'s dead jobs as the application says them, never their payloads', async () => {
     app.queues('boards', [depth(0, 2)], [deadJob('j1'), deadJob('j2')])
 

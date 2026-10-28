@@ -51,6 +51,14 @@ describe('queue metrics', () => {
     expect(series.comparedTotal).toMatchObject({ published: 3, delivered: 0 })
     expect(series.points.filter(point => point.published + point.dead > 0).map(point => [point.published, point.dead])).toEqual([[12, 0], [0, 1]])
 
+    // Every queue of the application, summed: another one's jobs add to these.
+    app.flow('boards', 'card.notify.on.card.created', { at: ago(20 * MINUTE), kind: 'published', times: 5 })
+    await monitor.monitor.base.jobs.idle()
+    expect(await collect()).toMatchObject({ outcome: 'collected' })
+    const all = await json<QueueSeriesDTO>(`/api/apps/${id}/metrics/queues/series?window=1h&bucket=5m`)
+    expect(all.total).toMatchObject({ published: 12, delivered: 9, dead: 1 })
+    expect((await as(`/api/apps/${id}/metrics/queues/series?queue=${QUEUE}&window=1h`)).status).toBe(400)
+
     const [total] = await json<QueueTotalDTO[]>(`/api/apps/${id}/metrics/queues?window=1h`)
     expect(total).toMatchObject({ context: 'boards', queue: QUEUE, now: { published: 12, delivered: 9, dead: 1 }, previous: { published: 3 } })
     near(total!.now.waitP90, 40)
