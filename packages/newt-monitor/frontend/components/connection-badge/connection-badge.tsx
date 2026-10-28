@@ -7,8 +7,8 @@ const LOOKS = {
   unknown: { tone: 'muted', label: 'Not checked' },
 } as const
 
-/** Whether an application answers, as the monitor last found it. */
-export function ConnectionBadge({ status }: { status: ConnectionStatusDTO['status'] }) {
+/** Whether an application answers, as the monitor last found it; with `href`, a link to where it is told in full. */
+export function ConnectionBadge({ status, href }: { status: ConnectionStatusDTO['status'], href?: string }) {
   const look = LOOKS[status]
-  return <Badge tone={look.tone}>{look.label}</Badge>
+  return <Badge tone={look.tone} href={href} label={href ? `Connection: ${look.label}. See its details` : undefined}>{look.label}</Badge>
 }

@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useParams } from 'react-router'
 import { XIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
-import { Box, BoxHeader, BoxRow } from 'newt-react-ui/box'
 import { Button } from 'newt-react-ui/button'
+import { ChartPanel, ChartRow } from 'newt-react-ui/chart-panel'
 import { Grid } from 'newt-react-ui/grid'
 import { Icon } from 'newt-react-ui/icon'
 import { Inline } from 'newt-react-ui/inline'
@@ -20,7 +20,7 @@ import { Provide, useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { WINDOWS, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
 import type { LatencyDTO } from '../../../api/use-case-metrics'
-import { BUCKET_LABELS, changeOf, formatMs, timeFormat, when, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { BUCKET_LABELS, changeOf, formatMs, timeFormat, WINDOW_LABELS } from '../app-metrics/metrics-format'
 import { AppService } from '../app.service'
 import { findModule, moduleHref } from '../app-structure'
 import { AppUseCaseErrors } from './app-use-case-errors'
@@ -102,9 +102,8 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
               <Grid columns={{ base: 1, md: 3 }}>
                 {time.map(each => <Stat key={each.label} label={each.label} value={each.show(each.value)} hint={each.hint} />)}
               </Grid>
-              <Box label="How long">
-                <BoxHeader>How long, every {BUCKET_LABELS[bucket]}, {when(series.from)} to {when(series.to)}</BoxHeader>
-                <BoxRow>
+              <ChartRow>
+                <ChartPanel title={<>How long, every {BUCKET_LABELS[bucket]}</>}>
                   <LineChart
                     label={`${useCase}: mean, p50, p90 and p99, every ${BUCKET_LABELS[bucket]}`}
                     times={series.points.map(point => point.at)}
@@ -117,24 +116,8 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                       { key: 'mean', label: 'Mean', tone: 'brand', dashed: true, values: series.points.map(point => point.meanMs) },
                     ]}
                   />
-                </BoxRow>
-              </Box>
-              <Box label="Retries">
-                <BoxHeader>Runs more after a conflict, every {BUCKET_LABELS[bucket]}: when its rows are fought over</BoxHeader>
-                <BoxRow>
-                  <TimeSeries
-                    label={`${useCase}: runs more after a conflict, every ${BUCKET_LABELS[bucket]}`}
-                    points={series.points.map(point => ({ at: point.at, count: point.retries }))}
-                    compared={series.compared?.map(point => ({ at: point.at, count: point.retries })) ?? null}
-                    names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
-                    formatTime={format}
-                  />
-                </BoxRow>
-              </Box>
-              <AppUseCaseErrors useCase={useCase} />
-              <Box label="Calls">
-                <BoxHeader>Calls, every {BUCKET_LABELS[bucket]}</BoxHeader>
-                <BoxRow>
+                </ChartPanel>
+                <ChartPanel title={<>Calls, every {BUCKET_LABELS[bucket]}</>}>
                   <TimeSeries
                     label={`${useCase}: calls, every ${BUCKET_LABELS[bucket]}`}
                     points={series.points.map(point => ({ at: point.at, count: point.calls }))}
@@ -142,8 +125,31 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                     names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
                     formatTime={format}
                   />
-                </BoxRow>
-              </Box>
+                </ChartPanel>
+                <ChartPanel title={<>Runs more after a conflict, every {BUCKET_LABELS[bucket]}</>}>
+                  <TimeSeries
+                    label={`${useCase}: runs more after a conflict, every ${BUCKET_LABELS[bucket]}`}
+                    points={series.points.map(point => ({ at: point.at, count: point.retries }))}
+                    compared={series.compared?.map(point => ({ at: point.at, count: point.retries })) ?? null}
+                    names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
+                    formatTime={format}
+                  />
+                </ChartPanel>
+                {errors && (
+                  <ChartPanel title={<>How its calls ended badly, every {BUCKET_LABELS[bucket]}</>}>
+                    <LineChart
+                      label={`${useCase}: errors and failures, every ${BUCKET_LABELS[bucket]}`}
+                      times={errors.points.map(point => point.at)}
+                      formatTime={format}
+                      series={[
+                        { key: 'errors', label: 'Errors', tone: 'warn', values: errors.points.map(point => point.errors) },
+                        { key: 'failures', label: 'Failures', tone: 'bad', values: errors.points.map(point => point.failures) },
+                      ]}
+                    />
+                  </ChartPanel>
+                )}
+              </ChartRow>
+              <AppUseCaseErrors />
             </>
           )
         : <Skeleton lines={6} />}

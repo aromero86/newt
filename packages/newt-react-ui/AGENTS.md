@@ -86,7 +86,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 |---|---|
 | `Button` | Every action; with `href` it is a link; `loading` disables it while it works; `size="icon"` needs a `label`. |
 | `Menu` | Actions behind a `Button`. |
-| `Badge` | A short state: `tone` `ok`, `warn`, `bad`, `info`, `muted`, `brand`. |
+| `Badge` | A short state: `tone` `ok`, `warn`, `bad`, `info`, `muted`, `brand`; with `href`, a link to where it is told in full. |
 | `Counter` | How many there are, in a pill: after a box's title or a tab's label. |
 | `Alert` | A message about the page: `info`, `ok`, `warn`, `bad`. |
 | `EmptyState` | What a list or a page with nothing shows, and what to do. |
@@ -108,7 +108,7 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 ### Layers
 | Component | For |
 |---|---|
-| `Dialog` | A question or a small form over the page. |
+| `Dialog` | A question or a small form over the page; `size="full"` for something to look at big, all of a phone's screen. |
 | `ConfirmDialog` | "Are you sure?": what happens, and one button; `destructive` for what cannot be undone; `confirmWith` asks to type a name first. |
 
 ### Data
@@ -120,6 +120,8 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | `BarChart` | A few values as bars. |
 | `LineChart` | A few lines over the same times, each in a tone that says what it is: a latency's percentiles. |
 | `TimeSeries` | A count over time as a line, beside the window it is compared with (dashed). |
+| `ChartPanel` | A chart in its box, under what it shows, with a button that zooms it into a dialog as big as the screen. |
+| `ChartRow` | Several `ChartPanel`s side by side, one under another on a phone. |
 | `Graph` | A few boxes and what uses what, in columns: one piece of a structure, never all of it. |
 | `Waterfall` | Steps on a timeline, each inside the one above: a trace's spans; a row pressed is selected. |
 

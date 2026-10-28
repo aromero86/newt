@@ -45,9 +45,9 @@ function cards(options: { conflicts?: number } = {}) {
     async create(input: unknown) {
       const { title } = z.object({ title: z.string().min(1) }).parse(input)
       await base.store.transaction(async () => {
-        await this.table.find({ boardId: 'b1', title: { ne: '' } }, { orderBy: [{ field: 'title', direction: 'desc' }], limit: 50 })
+        await this.table.find({ boardId: 'board-of-ana', title: { ne: '' } }, { orderBy: [{ field: 'title', direction: 'desc' }], limit: 50 })
         if (conflicts-- > 0) throw new ConcurrencyConflict()
-        await this.table.insert({ id: crypto.randomUUID(), boardId: 'b1', title })
+        await this.table.insert({ id: crypto.randomUUID(), boardId: 'board-of-ana', title })
       })
     }
 
@@ -87,7 +87,7 @@ describe('traces', () => {
     const find = trace!.spans.find(span => span.name === 'card.find')!
     expect(find).toMatchObject({ kind: 'query', context: 'boards', attributes: { query: '{boardId, title ne} order title desc limit 50', rows: 0 } })
     expect(JSON.stringify(trace)).not.toContain('secret title')
-    expect(JSON.stringify(trace)).not.toContain('b1')
+    expect(JSON.stringify(trace)).not.toContain('board-of-ana')
   })
 
   test('a call that ran again after a conflict keeps each run, and says so, kept whatever the share', async () => {

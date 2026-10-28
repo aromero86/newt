@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { CartesianGrid, Line, LineChart as Lines, XAxis, YAxis } from 'recharts'
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../../internal/chart'
+import { cn } from 'cn'
+import { ChartContainer, ChartFillContext, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../../internal/chart'
 
 /** One line: its name, its tone, the axis it is read on, and a value (or none) at each time. */
 export type LineSeries = {
@@ -37,6 +38,7 @@ const TONES = { brand: 'var(--brand)', ok: 'var(--ok)', warn: 'var(--warn)', bad
  * axis, at the right. shadcn's chart, on Recharts.
  */
 export function LineChart({ label, times, series, formatTime = at => new Date(at).toLocaleString(), formatValue = value => value.toLocaleString('en'), formatRight = formatValue, height = 220 }: LineChartProps) {
+  const fill = useContext(ChartFillContext)
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const config = Object.fromEntries(series.map(each => [each.key, { label: each.label, color: TONES[each.tone] }])) satisfies ChartConfig
   const data = times.map((at, index) => ({ at, ...Object.fromEntries(series.map(each => [each.key, each.values[index] ?? null])) }))
@@ -50,8 +52,8 @@ export function LineChart({ label, times, series, formatTime = at => new Date(at
   })
 
   return (
-    <figure aria-label={label} className="m-0">
-      <ChartContainer config={config} style={{ height }} className="w-full">
+    <figure aria-label={label} className={cn('m-0', fill && 'flex h-full flex-col')}>
+      <ChartContainer config={config} style={fill ? undefined : { height }} className={cn('w-full', fill && 'min-h-0 flex-1')}>
         <Lines data={data} margin={{ top: 8, right: right ? 0 : 8, bottom: 0, left: 0 }} accessibilityLayer>
           <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="at" tickLine={false} axisLine={false} tickMargin={8} minTickGap={48} tickFormatter={formatTime} />
