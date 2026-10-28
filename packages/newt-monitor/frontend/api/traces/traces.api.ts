@@ -1,7 +1,7 @@
-import type { TraceDTO, TraceListDTO, TraceListQueryDTO } from '../../../src/contexts/monitor/modules/traces/traces.schema'
+import type { TraceDTO, TraceHeaderDTO, TraceListDTO, TraceListQueryDTO } from '../../../src/contexts/monitor/modules/traces/traces.schema'
 import { Requester } from 'newt-react'
 
-/** The monitor's `traces` module: an application's traces, listed and whole. */
+/** The monitor's `traces` module: an application's traces, listed and whole; and the header that keeps a request's. */
 export class TracesApi extends Requester {
   protected readonly path = '/apps'
 
@@ -11,5 +11,9 @@ export class TracesApi extends Requester {
 
   trace(appId: string, traceId: string) {
     return this.get<TraceDTO>(`/${appId}/traces/${traceId}`)
+  }
+
+  header(appId: string, hours: number) {
+    return this.post<TraceHeaderDTO>(`/${appId}/traces/header`, { hours })
   }
 }

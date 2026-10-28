@@ -6,6 +6,7 @@ import { applicationTraces, traceRoot } from '../core/internal'
 import { Base, MemoryTraces, setTraces, type ClosedTraces } from '../runtime'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
+import { signTraceHeader } from './trace-header'
 
 const KEY = 'a key both sides share, long enough'
 let server: Server<undefined> | undefined
@@ -14,7 +15,7 @@ let base: Base | undefined
 afterEach(async () => {
   await server?.stop(true)
   await base?.close()
-  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false })
+  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false, forcing: null })
 })
 
 describe('serveMonitor, with traces', () => {
@@ -44,5 +45,8 @@ describe('serveMonitor, with traces', () => {
     expect(now.traces).toEqual([])
     const closed = await (applicationTraces.sink as MemoryTraces).closed(null, later)
     expect(closed.traces.map(trace => [trace.name, trace.useCases])).toEqual([['POST /orders', ['order.place']]])
+    // A request's trace is kept with a header signed with its key; not with another's.
+    expect(applicationTraces.forcing!(signTraceHeader(KEY, new Date(Date.now() + 60_000)))).toBe(true)
+    expect(applicationTraces.forcing!(signTraceHeader('another key, just as long as that one', new Date(Date.now() + 60_000)))).toBe(false)
   })
 })

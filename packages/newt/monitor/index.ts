@@ -3,6 +3,8 @@
 
 export { serveMonitor } from './serve-monitor'
 export { signMonitorRequest } from './sign-monitor-request'
+export { signTraceHeader, TRACE_HEADER_MAX_MS } from './trace-header'
+export { TRACE_HEADER } from '../core/traces/trace-forcing'
 export type { MonitorOptions } from './monitor-options'
 export type { MonitorIdentity } from './monitor-identity'
 export { MemoryNonces, RedisNonces } from './nonce-store'

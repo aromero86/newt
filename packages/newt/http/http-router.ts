@@ -1,6 +1,6 @@
 import type { BunRequest } from 'bun'
 import { runAsActor } from '../core'
-import { applicationTracer, traceRoot } from '../core/internal'
+import { applicationTracer, applicationTraces, TRACE_HEADER, traceRoot } from '../core/internal'
 import type { Authenticator } from './authenticator'
 import type { Cors } from './cors'
 import { corsHeaders } from './cors-headers'
@@ -190,10 +190,16 @@ function withCors(answer: Answer, cors: Cors | undefined): Answer {
  * An answer in a span of its own, an error when it is a 5xx: the root of the trace of
  * a request, the application's tracer's and the monitor's (an error under 500, a failure from it).
  */
+/** Why a request's trace is kept whatever its share: it carries a header signed by who may ask for it. */
+function forcedBy(request: Request): string | null {
+  const header = request.headers.get(TRACE_HEADER)
+  return header && applicationTraces.forcing?.(header) ? `${TRACE_HEADER} header` : null
+}
+
 function traced(method: string, path: string, answer: Answer): Answer {
   const name = `${method} ${path}`
   const outcome = (response: Response) => (response.status >= 500 ? { kind: 'failure' as const, code: `http.${response.status}` } : response.status >= 400 ? { kind: 'error' as const, code: `http.${response.status}` } : null)
-  return request => Promise.resolve(traceRoot({ kind: 'http', name }, () => applicationTracer.value.startActiveSpan(name, { 'http.method': method, 'http.route': path }, async span => {
+  return request => Promise.resolve(traceRoot({ kind: 'http', name, forced: forcedBy(request) }, () => applicationTracer.value.startActiveSpan(name, { 'http.method': method, 'http.route': path }, async span => {
     try {
       const response = await answer(request)
       if (response.status >= 500) span.setError(new Error(`${name} answered ${response.status}`))

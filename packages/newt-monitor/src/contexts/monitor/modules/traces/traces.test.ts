@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Browser } from 'newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
-import type { TraceDTO, TraceListDTO } from './traces'
+import { signTraceHeader } from 'newt/monitor'
+import type { TraceDTO, TraceHeaderDTO, TraceListDTO } from './traces'
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
@@ -65,6 +66,26 @@ describe('traces', () => {
     expect(ids(await of('nearMs=6&limit=1'))).toEqual([fast])
     expect((await of('show=slow&limit=1')).traces[0]!.callMs).toBe(900)
     expect((await as(`/api/apps/${id}/traces?useCase=card.create`)).status).toBe(400)
+  })
+
+  test('finds those kept because something asked, and says why', async () => {
+    const asked = app.trace({ at: ago(5 * MINUTE), forced: 'a large order', calls: [{ context: 'boards', useCase: 'card.create', ms: 3 }] })
+    app.trace({ at: ago(5 * MINUTE), calls: [{ context: 'boards', useCase: 'card.create', ms: 3 }] })
+    await collect()
+
+    const forced = await json<TraceListDTO>(`/api/apps/${id}/traces?show=forced`)
+    expect(forced.traces.map(trace => [trace.id, trace.forced])).toEqual([[asked, 'a large order']])
+  })
+
+  test('gives the header that keeps a request\'s trace: signed with the application\'s key, for an hour unless asked', async () => {
+    const header = await (await as(`/api/apps/${id}/traces/header`, { method: 'POST', json: {} })).json() as TraceHeaderDTO
+    const inAnHour = new Date(header.expiresAt).getTime() - Date.now()
+
+    expect(header.name).toBe('x-newt-trace')
+    expect(header.value).toBe(signTraceHeader(app.key, new Date(header.expiresAt)))
+    expect(inAnHour).toBeGreaterThan(59 * MINUTE)
+    expect(inAnHour).toBeLessThanOrEqual(60 * MINUTE)
+    expect((await as(`/api/apps/${id}/traces/header`, { method: 'POST', json: { hours: 48 } })).status).toBe(400)
   })
 
   test('links a job\'s run to the trace that told its event, to the traces it caused, and to its other runs', async () => {

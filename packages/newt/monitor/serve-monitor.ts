@@ -1,6 +1,7 @@
 import type { Server } from 'bun'
 import { hostname } from 'node:os'
 import { systemClock } from '../core'
+import { applicationTraces } from '../core/internal'
 import { describeApplication, enableTraces, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
 import manifest from '../package.json'
 import { MIN_KEY_LENGTH } from './monitor-signature'
@@ -8,6 +9,7 @@ import type { MonitorIdentity } from './monitor-identity'
 import type { MonitorOptions } from './monitor-options'
 import { MonitorVerifier } from './monitor-verifier'
 import { MemoryNonces } from './nonce-store'
+import { verifyTraceHeader } from './trace-header'
 
 const json = (body: unknown) => Response.json(body, { headers: { 'cache-control': 'no-store' } })
 
@@ -22,7 +24,9 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * (`GET /v1/outbox/dead?context=&after=&limit=`), and the traces it kept, by the minute
  * they ended (`GET /v1/traces?since=<minute>`, whole minutes, about 2,000 traces a page).
  * Read only, and never its data: serving it starts every context's counting
- * (`Base.metrics`) and the application's traces (`setTraces`; in its memory unless set).
+ * (`Base.metrics`) and the application's traces (`setTraces`; in its memory unless set),
+ * and keeps whole the trace of every request with an `x-newt-trace` header signed with
+ * its key (`signTraceHeader`).
  *
  * Only to a request signed with the key it shares with the monitor
  * (`signMonitorRequest`): any other gets a 401, the same whatever was wrong, and
@@ -46,6 +50,8 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   }
   metricsOf()
   const traces = options.traces ?? enableTraces()
+  // A request that carries a header signed with its key has its trace kept: `signTraceHeader`.
+  applicationTraces.forcing = header => verifyTraceHeader(options.key, header, clock.now())
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,
