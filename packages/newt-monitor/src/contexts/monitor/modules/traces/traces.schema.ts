@@ -22,7 +22,7 @@ export type CollectTracesDTO =
 /**
  * What a client asks of an application's traces: in a window, of a use case (of a
  * context), of a queue or of one job; those that failed, ended in an error, ran again,
- * the slowest, or those that took about `nearMs` (a percentile's examples). Newest
+ * were kept because something asked (`keepTrace`, a signed header), the slowest, or those that took about `nearMs` (a percentile's examples). Newest
  * first, a page at a time (`before`), unless sorted by time taken.
  */
 export const TraceListQuerySchema = z.object({
@@ -33,7 +33,7 @@ export const TraceListQuerySchema = z.object({
   job: z.string().min(1).optional(),
   /** Those that told an event, by its name: of its context. */
   told: z.string().min(1).optional(),
-  show: z.enum(['all', 'failures', 'errors', 'retried', 'slow']).default('all'),
+  show: z.enum(['all', 'failures', 'errors', 'retried', 'forced', 'slow']).default('all'),
   nearMs: z.coerce.number().min(0).optional(),
   before: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -51,6 +51,8 @@ export type TraceSummaryDTO = {
   ms: number
   outcome: Outcome | null
   retried: boolean
+  /** Why it was kept whatever its share, when something asked. */
+  forced: string | null
   actor: string | null
   useCases: string[]
   /** A job's run: of which queue, which run, for which event (by id: the one its teller told). */
@@ -74,3 +76,11 @@ export type TraceDTO = Trace & {
   caused: TraceSummaryDTO[]
   runs: TraceSummaryDTO[]
 }
+
+/** How long the header that keeps a request's trace is good for: an hour unless asked, a day at most. */
+export const TraceHeaderSchema = z.object({
+  hours: z.coerce.number().int().min(1).max(24).default(1),
+})
+
+/** The header that keeps the trace of every request carrying it, until it ends: its name and value. */
+export type TraceHeaderDTO = { name: string, value: string, expiresAt: string }

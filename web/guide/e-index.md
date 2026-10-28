@@ -367,3 +367,5 @@ adapter re-exports `SqlTable`. Import a value object or an error's base class fr
 | `newt/port-outbox` | `QueueDepth`, `depthOf` |
 | `newt/contract` | `ClosedTraces`, `SpanAttributeValue`, `SpanKind`, `Trace`, `TraceJob`, `TraceSpan`, `TracedEvent` |
 | `newt/runtime` | `setTraces`, `enableTraces`, `SetTracesOptions`, `Traces`, `MemoryTraces`, `MemoryTracesOptions`, `RedisTraces`, `RedisTracesOptions`, `ClosedTraces`, `SpanAttributeValue`, `SpanKind`, `Trace`, `TraceJob`, `TraceSpan`, `TracedEvent` |
+| `newt/monitor` | `signTraceHeader`, `TRACE_HEADER`, `TRACE_HEADER_MAX_MS` |
+| `newt/core` | `keepTrace`, `TraceSampling`, `SamplingRules` |

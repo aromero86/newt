@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, RepeatIcon, TimerIcon, WaypointsIcon } from 'lucide-react'
+import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, PinIcon, RepeatIcon, TimerIcon, WaypointsIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
 import { Badge } from 'newt-react-ui/badge'
 import { Box, BoxEmpty, BoxFilter, BoxFooter, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
@@ -21,6 +21,7 @@ const FILTERS: { show: Show, label: string, icon: typeof CircleXIcon }[] = [
   { show: 'failures', label: 'Failures', icon: CircleXIcon },
   { show: 'errors', label: 'Errors', icon: CircleAlertIcon },
   { show: 'retried', label: 'Ran again', icon: RepeatIcon },
+  { show: 'forced', label: 'Asked for', icon: PinIcon },
   { show: 'slow', label: 'Slowest', icon: TimerIcon },
 ]
 
@@ -44,6 +45,7 @@ export function TraceRow({ appId, trace }: { appId: string, trace: TraceSummaryD
         {trace.callMs !== null && <>whole {formatMs(trace.ms)}</>}
         {trace.useCases.length > 0 && <>{trace.useCases.slice(0, 3).join(', ')}{trace.useCases.length > 3 ? `, ${trace.useCases.length - 3} more` : ''}</>}
         {trace.actor && <>by {trace.actor}</>}
+        {trace.forced && <>kept: {trace.forced}</>}
       </BoxRowMeta>
     </BoxRow>
   )
@@ -51,7 +53,8 @@ export function TraceRow({ appId, trace }: { appId: string, trace: TraceSummaryD
 
 /**
  * The traces kept of something (a use case, a queue, the whole application), newest
- * first, with a filter for those that failed, ended in an error, ran again, or the slowest.
+ * first, with a filter for those that failed, ended in an error, ran again, were asked
+ * for (`keepTrace`, a signed header), or the slowest.
  */
 export function TraceList({ appId, title, query, window = '24h', actions }: { appId: string, title: string, query: Omit<TraceListQueryDTO, 'show' | 'before' | 'window'>, window?: MetricsWindow, actions?: React.ReactNode }) {
   const api = useService(TracesApi)

@@ -95,6 +95,8 @@ const TracesSchema = z.object({
       failure: z.object({ message: z.string(), stack: z.string().nullable() }).nullable(),
     })).min(1),
     dropped: z.number().int().min(0),
+    // An application on a newt before it kept why: none.
+    forced: z.string().nullable().default(null),
   })),
   until: z.iso.datetime(),
 })

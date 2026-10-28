@@ -64,7 +64,7 @@ function AppTraceWrapped({ app }: { app: AppDTO }) {
 
   return (
     <Stack gap={4}>
-      <Subhead title={<Mono>{trace.name}</Mono>} description={<TraceOrigin app={app} trace={trace} />} actions={<TraceBadge trace={trace} />} />
+      <Subhead title={<Mono>{trace.name}</Mono>} description={<TraceOrigin app={app} trace={trace} />} actions={<Inline gap={2} wrap>{trace.forced && <Badge tone="info">Kept: {trace.forced}</Badge>}<TraceBadge trace={trace} /></Inline>} />
       {failure && <Alert tone="bad" title="Could not load a trace of its flow">{failure}</Alert>}
       <Box label="Steps">
         <BoxHeader

@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { z } from 'zod'
 import { SqliteStore } from '../../adapter-sqlite'
 import { ConcurrencyConflict, defineScope, Module, runAsActor, UseCase, type Actor } from '../../core'
-import { applicationTraces } from '../../core/internal'
+import { applicationTraces, TRACE_HEADER } from '../../core/internal'
+import { keepTrace } from '../../core'
+import { rateOf } from '../../core/traces/trace-sampling'
+import { signTraceHeader } from '../../monitor/trace-header'
 import type { Trace } from '../../core/traces/trace'
 import { HttpRouter } from '../../http'
 import type { StoredRow } from '../../port-store'
@@ -28,7 +31,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false })
+  Object.assign(applicationTraces, { sink: null, sampleRate: 0.01, enabled: false, forcing: null })
   await base.close()
 })
 
@@ -122,6 +125,65 @@ describe('traces', () => {
     await enableAndRoot(() => card.create({ title: 'a' }))
 
     expect(kept).toEqual([])
+  })
+
+  test('the most concrete rule says the share: its use cases, then its route or queue, then its contexts, then the default', async () => {
+    const card = cards()
+    await enableAndRoot(() => card.create({ title: 'a' }))
+    const [trace] = kept
+    const rules = { default: 0.01, routes: { 'POST /api/x': 0.5 }, contexts: { boards: 0.2 } }
+
+    expect(rateOf(trace!, 0.3)).toBe(0.3)
+    expect(rateOf(trace!, rules)).toBe(0.2)
+    expect(rateOf({ ...trace!, name: 'POST /api/x' }, rules)).toBe(0.5)
+    expect(rateOf({ ...trace!, name: 'POST /api/x' }, { ...rules, useCases: { 'card.create': 1, 'card.other': 0 } })).toBe(1)
+    expect(rateOf(trace!, { default: 0.07 })).toBe(0.07)
+    expect(() => setTraces(applicationTraces.sink as never, { sampleRate: { default: 0.1, useCases: { 'card.create': 2 } } })).toThrow('not 2')
+  })
+
+  test('the environment\'s share is the default, without changing the code', () => {
+    process.env.NEWT_TRACE_SAMPLE_RATE = '0.25'
+    try {
+      setTraces(applicationTraces.sink as never, { sampleRate: { default: 0.01, useCases: { 'card.create': 1 } } })
+      expect(applicationTraces.sampleRate).toEqual({ default: 0.25, useCases: { 'card.create': 1 } })
+    } finally {
+      delete process.env.NEWT_TRACE_SAMPLE_RATE
+    }
+  })
+
+  test('keepTrace keeps a trace whatever its share, and says why', async () => {
+    applicationTraces.sampleRate = 0
+    const card = cards()
+    await enableAndRoot(async () => {
+      await card.create({ title: 'a' })
+      keepTrace('a large order')
+      keepTrace('another reason')
+    })
+
+    expect(kept.map(trace => trace.forced)).toEqual(['a large order'])
+    keepTrace('outside any trace: nothing')
+  })
+
+  test('a request with a header signed with the key has its trace kept; one not signed, or past its time, does not', async () => {
+    applicationTraces.sampleRate = 0
+    const key = 'a key both sides share, long enough'
+    applicationTraces.forcing = header => header === signTraceHeader(key, new Date(Date.now() + 60_000)) || header.startsWith('ok')
+    const card = cards()
+    const router = new HttpRouter()
+    router.post('/cards', async () => {
+      await card.create({ title: 'a' })
+      return new Response(null, { status: 201 })
+    }, { public: true })
+    const server = Bun.serve({ port: 0, routes: router.routes(), fetch: () => new Response(null, { status: 404 }) })
+    try {
+      const post = (header?: string) => fetch(new URL('/api/cards', server.url), { method: 'POST', headers: header ? { [TRACE_HEADER]: header } : {} })
+      await post()
+      await post('not signed')
+      await post('ok')
+      expect(kept.map(trace => trace.forced)).toEqual([`${TRACE_HEADER} header`])
+    } finally {
+      await server.stop(true)
+    }
   })
 
   test('a job\'s run is a trace that says which run, and finds the trace that told its event by its id', async () => {
