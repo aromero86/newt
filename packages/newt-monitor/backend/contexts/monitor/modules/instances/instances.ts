@@ -57,10 +57,6 @@ export class Instance extends Entity<typeof InstanceSchema> {
     return this.data.instanceId
   }
 
-  get server(): string {
-    return this.data.server.name
-  }
-
   /** Gone since: when it stopped, or was last heard of; null while alive. */
   goneSince(now: Date): string | null {
     const status = this.statusAt(now)
@@ -85,13 +81,18 @@ export class Instance extends Entity<typeof InstanceSchema> {
 
   /** For a client, with its status now. */
   view(now: Date): InstanceDTO {
-    const { instanceId, pid, startedAt, lastSeenAt, stoppedAt, process, server } = this.data
-    return { instanceId, pid, startedAt, lastSeenAt, status: this.statusAt(now), stoppedAt, process, server: server.name }
+    const { instanceId, pid, startedAt, lastSeenAt, stoppedAt, process } = this.data
+    return { instanceId, pid, startedAt, lastSeenAt, status: this.statusAt(now), stoppedAt, process }
   }
 
-  /** Its last reading of its server. */
+  /** Its last reading of the machine it runs on. */
   get reading(): InstanceRowDTO['server'] {
     return this.data.server
+  }
+
+  /** Its last reading of its own process. */
+  get process(): InstanceRowDTO['process'] {
+    return this.data.process
   }
 
   get lastSeenAt(): string {

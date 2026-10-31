@@ -23,9 +23,8 @@ export const ProcessReadingSchema = z.object({
   loopMaxMs: z.number(),
 })
 
-/** The server a process runs on, as it read it. */
+/** The machine a process runs on, as it read it: never named, a container's name being new at each deployment. */
 export const ServerReadingSchema = z.object({
-  name: z.string(),
   disks: z.array(z.object({ path: z.string(), totalBytes: z.number(), freeBytes: z.number() })),
   memory: z.object({ totalBytes: z.number(), freeBytes: z.number() }),
   cpu: z.object({ cores: z.number(), load: z.tuple([z.number(), z.number(), z.number()]), usage: z.number().nullable() }),
@@ -58,27 +57,28 @@ export const InstanceSchema = z.object({
 export type InstanceRowDTO = z.infer<typeof InstanceSchema>
 
 /** An instance, for a client: its status as it is now, told by the monitor (lost when it has not been heard of). */
-export type InstanceDTO = Pick<InstanceRowDTO, 'instanceId' | 'pid' | 'startedAt' | 'lastSeenAt' | 'status' | 'stoppedAt' | 'process'> & {
-  /** Its server's name. */
-  server: string
-}
+export type InstanceDTO = Pick<InstanceRowDTO, 'instanceId' | 'pid' | 'startedAt' | 'lastSeenAt' | 'status' | 'stoppedAt' | 'process'>
 
-/** A disk of a server as last read: and, if it fills, in how many days at the pace it has filled lately. */
+/** A disk of the system as last read: and, if it fills, in how many days at the pace it has filled lately. */
 export type DiskDTO = { path: string, totalBytes: number, freeBytes: number, fullInDays: number | null }
 
-/** A server, as the last of its instances read it: and how many of them are alive. */
-export type ServerDTO = {
-  name: string
+/**
+ * The system now, as its instances alive last read it: the application (its
+ * processes added up, its worst event loop) and the machines it runs on (the fullest
+ * memory, the busiest processors, each disk at its fullest).
+ */
+export type SystemDTO = {
   /** When it was last read. */
   at: string
-  disks: DiskDTO[]
+  instances: number
+  process: { rssBytes: number, heapUsedBytes: number, cpu: number, loopMaxMs: number }
   memory: { totalBytes: number, freeBytes: number }
-  cpu: ServerReadingDTO['cpu']
-  instances: { alive: number, total: number }
+  cpu: { cores: number, usage: number | null, load: number }
+  disks: DiskDTO[]
 }
 
-/** An application's servers and instances now: the alive first, then the newest. */
-export type InstancesDTO = { servers: ServerDTO[], instances: InstanceDTO[] }
+/** An application's system now (null with no instance alive), and its instances: those alive first, then those gone lately. */
+export type InstancesDTO = { system: SystemDTO | null, instances: InstanceDTO[] }
 
 /** What one collection came to: how many instances and minutes, up to which minute; or why nothing. */
 export type CollectInstancesDTO =
@@ -93,12 +93,12 @@ const bucketOfItsWindow = (query: { window: MetricsWindow, bucket?: MetricsBucke
 export const InstanceCountQuerySchema = z.object({ window: windowSchema, bucket: bucketSchema })
   .refine(bucketOfItsWindow, { message: 'That bucket is not one of its window\'s', path: ['bucket'] })
 
-/** What a client asks of a server over time. */
-export const ServerSeriesQuerySchema = z.object({ server: z.string().min(1), window: windowSchema, bucket: bucketSchema })
+/** What a client asks of the system over time. */
+export const SystemSeriesQuerySchema = z.object({ window: windowSchema, bucket: bucketSchema })
   .refine(bucketOfItsWindow, { message: 'That bucket is not one of its window\'s', path: ['bucket'] })
 
 export type InstanceCountQueryDTO = z.input<typeof InstanceCountQuerySchema>
-export type ServerSeriesQueryDTO = z.input<typeof ServerSeriesQuerySchema>
+export type SystemSeriesQueryDTO = z.input<typeof SystemSeriesQuerySchema>
 
 /** How many instances were alive in a bucket: at its emptiest and at its fullest; null in one with none collected. */
 export type InstanceCountPointDTO = { at: string, min: number | null, max: number | null }
@@ -106,12 +106,19 @@ export type InstanceCountPointDTO = { at: string, min: number | null, max: numbe
 export type InstanceCountSeriesDTO = { window: MetricsWindow, bucket: MetricsBucket, from: string, to: string, points: InstanceCountPointDTO[] }
 
 /**
- * A server in a bucket: its free memory at the lowest, its processors' usage on
- * average and at the highest, its load at the highest, and each disk's free space at
- * the lowest. Null where nothing was read.
+ * The system in a bucket, whatever instances and machines it ran on. The application:
+ * its processes' memory and processor added up (on average and at the most), its event
+ * loop at the worst. The machines: the least free memory, the processors' usage on
+ * average and at the most, the load at the most, and each disk's free space at the
+ * least. Null where nothing was read.
  */
-export type ServerPointDTO = {
+export type SystemPointDTO = {
   at: string
+  rssBytes: number | null
+  rssMaxBytes: number | null
+  cpu: number | null
+  cpuMax: number | null
+  loopMaxMs: number | null
   memoryTotalBytes: number | null
   memoryFreeBytes: number | null
   cpuUsage: number | null
@@ -120,13 +127,12 @@ export type ServerPointDTO = {
   disks: Record<string, number | null>
 }
 
-export type ServerSeriesDTO = {
-  server: string
+export type SystemSeriesDTO = {
   window: MetricsWindow
   bucket: MetricsBucket
   from: string
   to: string
   /** Each disk's size, by path, as last read. */
   disks: Record<string, number>
-  points: ServerPointDTO[]
+  points: SystemPointDTO[]
 }

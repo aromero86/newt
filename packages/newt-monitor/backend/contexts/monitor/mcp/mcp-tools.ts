@@ -144,17 +144,17 @@ export function registerMcpTools(server: McpServer, modules: Monitor_Modules): v
     annotations: READ_ONLY,
   }, async args => answer(await traces.get(args.appId, args.traceId)))
 
-  server.registerTool('servers_and_instances', {
-    title: 'Servers and instances now',
-    description: 'The servers an application runs on (disks, with in how many days each fills; memory; processors) and its instances (alive, stopped or lost; memory, processor and event loop of each), as last collected.',
+  server.registerTool('system_and_instances', {
+    title: 'The system and its instances now',
+    description: 'How an application\'s system is now, whatever machines it runs on: its instances alive, the memory and processor its processes take added up, its worst event loop, the fullest memory and busiest processors of its machines, and each disk with in how many days it fills. Then its instances: alive, or gone in the last day.',
     inputSchema: { appId },
     annotations: READ_ONLY,
   }, async args => answer(await instances.list(args.appId)))
 
-  server.registerTool('server_series', {
-    title: 'A server over time',
-    description: 'A server of an application in each bucket of a window: its memory, its processors\' usage and load, and each disk\'s free space.',
-    inputSchema: { appId, server: z.string().describe('The server\'s name, from servers_and_instances'), window, bucket },
+  server.registerTool('system_series', {
+    title: 'The system over time',
+    description: 'An application\'s system in each bucket of a window, the same line across deployments: the memory and processor its processes took, its worst event loop, and its machines\' memory, processors\' usage and load, and each disk\'s free space.',
+    inputSchema: { appId, window, bucket },
     annotations: READ_ONLY,
-  }, async ({ appId: id, ...query }) => answer(await instances.server(id, query)))
+  }, async ({ appId: id, ...query }) => answer(await instances.system(id, query)))
 }

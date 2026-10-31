@@ -31,6 +31,6 @@ for (const [name, server] of Object.entries(app.servers)) console.log(`${name} l
 // What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
 if (config.monitor.key) {
   const nonces = config.monitor.redisUrl ? new RedisNonces({ url: config.monitor.redisUrl, prefix: 'cooper:monitor:nonce' }) : undefined
-  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key, nonces, server: config.monitor.server, disks: config.monitor.disks })
+  const monitor = serveMonitor(contexts.all, { name: 'cooper', port: config.monitor.port, hostname: config.monitor.hostname, key: config.monitor.key, nonces, disks: config.monitor.disks })
   console.log(`monitor listening on ${monitor.url}`)
 }

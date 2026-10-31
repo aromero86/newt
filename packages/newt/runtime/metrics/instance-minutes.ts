@@ -28,7 +28,6 @@ export function instanceMinuteOf(minute: string, samples: InstanceSample[]): Ins
       loopMaxMs: Math.max(...samples.map(sample => sample.process.loopMaxMs)),
     },
     server: {
-      name: last.server.name,
       // The paths of its last sample: one dropped meanwhile is no longer watched.
       disks: last.server.disks.map(disk => ({
         path: disk.path,

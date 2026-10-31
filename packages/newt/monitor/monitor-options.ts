@@ -15,12 +15,6 @@ export type MonitorOptions = {
    * characters. With none it does not start.
    */
   key: string
-  /**
-   * The server it runs on, as the monitor groups instances: `NEWT_SERVER`, else the
-   * machine's name. In a container that is the container's, new at each deployment:
-   * give the server's.
-   */
-  server?: string
   /** The paths whose disks it watches, as space left on them: `['/']` unless told; `['/app/data']` where it keeps its data. */
   disks?: string[]
   /** What tells it the time, to check a request was made now: the real one unless a test gives another. */

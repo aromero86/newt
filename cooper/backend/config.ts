@@ -149,8 +149,6 @@ export const config = {
     port: Number(env.COOPER_MONITOR_PORT ?? 3010),
     /** `COOPER_MONITOR_HOSTNAME`: this machine only, unless told; the image says `0.0.0.0`, for the monitor's container. */
     hostname: env.COOPER_MONITOR_HOSTNAME ?? '127.0.0.1',
-    /** `COOPER_SERVER`: the name of the server this instance runs on, as the monitor shows it: `NEWT_SERVER`, or the machine's, unless told. */
-    server: env.COOPER_SERVER,
     /** `COOPER_DISKS`: the disks the monitor is told of, by path, comma separated: `/` unless told. */
     disks: env.COOPER_DISKS?.split(',').map(path => path.trim()).filter(Boolean),
   },

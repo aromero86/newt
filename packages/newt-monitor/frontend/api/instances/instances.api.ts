@@ -1,11 +1,11 @@
-import type { InstanceCountQueryDTO, InstanceCountSeriesDTO, InstancesDTO, ServerSeriesDTO, ServerSeriesQueryDTO } from '../../../backend/contexts/monitor/modules/instances/instances.schema'
+import type { InstanceCountQueryDTO, InstanceCountSeriesDTO, InstancesDTO, SystemSeriesDTO, SystemSeriesQueryDTO } from '../../../backend/contexts/monitor/modules/instances/instances.schema'
 import { Requester } from 'newt-react'
 
-/** The monitor's `instances` module: an application's instances and the servers they run on. */
+/** The monitor's `instances` module: an application's instances and its system. */
 export class InstancesApi extends Requester {
   protected readonly path = '/apps'
 
-  /** Its servers and instances now. */
+  /** Its system and instances now. */
   list(appId: string) {
     return this.get<InstancesDTO>(`/${appId}/instances`)
   }
@@ -15,8 +15,8 @@ export class InstancesApi extends Requester {
     return this.get<InstanceCountSeriesDTO>(`/${appId}/instances/count`, query)
   }
 
-  /** A server's memory, processors and disks over a window, by bucket. */
-  server(appId: string, query: ServerSeriesQueryDTO) {
-    return this.get<ServerSeriesDTO>(`/${appId}/servers/series`, query)
+  /** Its system over a window, by bucket: its instances added up and the machines they ran on. */
+  system(appId: string, query: SystemSeriesQueryDTO) {
+    return this.get<SystemSeriesDTO>(`/${appId}/system/series`, query)
   }
 }

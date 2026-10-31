@@ -11,7 +11,7 @@ afterEach(async () => {
   sampler = undefined
 })
 
-function sampled(options: { server?: string, disks?: string[] } = {}) {
+function sampled(options: { disks?: string[] } = {}) {
   const metrics = new MemoryMetrics()
   metrics.enable()
   sampler = new InstanceSampler(metrics, { instance: 'i-1', startedAt: '2026-01-01T10:00:00.000Z', clock, everyMs: 60_000, ...options })
@@ -20,7 +20,7 @@ function sampled(options: { server?: string, disks?: string[] } = {}) {
 
 describe('InstanceSampler', () => {
   test('reads its process and its server, as they are', async () => {
-    const metrics = sampled({ server: 'web-1', disks: ['/', import.meta.dir] })
+    const metrics = sampled({ disks: ['/', import.meta.dir] })
     await sampler!.take()
     const [state] = (await metrics.instances(null, clock.now())).instances
     expect(state).toMatchObject({ instance: 'i-1', pid: process.pid, startedAt: '2026-01-01T10:00:00.000Z', status: 'alive', lastSeenAt: '2026-01-01T10:00:05.000Z' })
@@ -28,7 +28,6 @@ describe('InstanceSampler', () => {
     expect(state!.process.heapUsedBytes).toBeGreaterThan(0)
     expect(state!.process.cpu).toBeGreaterThanOrEqual(0)
     expect(state!.process.loopMaxMs).toBeGreaterThanOrEqual(0)
-    expect(state!.server.name).toBe('web-1')
     expect(state!.server.disks.map(disk => disk.path)).toEqual(['/', import.meta.dir])
     for (const disk of state!.server.disks) expect(disk.freeBytes).toBeLessThanOrEqual(disk.totalBytes)
     expect(state!.server.memory.freeBytes).toBeLessThanOrEqual(state!.server.memory.totalBytes)

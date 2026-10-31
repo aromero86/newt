@@ -90,7 +90,7 @@ function sample(instance: string, at: string, rssBytes = 100): InstanceSample {
   return {
     instance, pid: 7, startedAt: '2026-01-01T09:00:00.000Z', at: new Date(at),
     process: { rssBytes, heapUsedBytes: 50, cpu: 10, loopMeanMs: 1, loopMaxMs: 2 },
-    server: { name: 's1', disks: [{ path: '/', totalBytes: 1000, freeBytes: 400 }], memory: { totalBytes: 800, freeBytes: 400 }, cpu: { cores: 4, load: [1, 1, 1], usage: 20 } },
+    server: { disks: [{ path: '/', totalBytes: 1000, freeBytes: 400 }], memory: { totalBytes: 800, freeBytes: 400 }, cpu: { cores: 4, load: [1, 1, 1], usage: 20 } },
   }
 }
 

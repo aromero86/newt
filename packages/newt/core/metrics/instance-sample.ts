@@ -4,10 +4,12 @@ export const SAMPLE_EVERY_MS = 10_000
 /** How long an instance goes without a sample before it is taken for lost: three samples. */
 export const LOST_AFTER_MS = 3 * SAMPLE_EVERY_MS
 
-/** The server an instance runs on, as it read it: its disks, its memory and its processors. */
+/**
+ * The machine an instance runs on, as it read it: its disks, its memory and its
+ * processors. Never named: in a container the name is the container's, new at each
+ * deployment, and what matters is how the system goes, not which machine.
+ */
 export type ServerReading = {
-  /** The name it was given (`server`, `NEWT_SERVER`), else the machine's: instances on one server share it. */
-  name: string
   /** Each path it watches, and the file system it is on: `/app/data`. */
   disks: { path: string, totalBytes: number, freeBytes: number }[]
   memory: { totalBytes: number, freeBytes: number }
@@ -66,7 +68,6 @@ export type InstanceMinute = {
     loopMaxMs: number
   }
   server: {
-    name: string
     disks: { path: string, totalBytes: number, freeBytes: MeanMin }[]
     memory: { totalBytes: number, freeBytes: MeanMin }
     /** `load`: the last minute's load average, as each sample read it. */

@@ -24,4 +24,4 @@ RUN bun run monitor:build
 ENV NODE_ENV=production
 ENV NEWT_MONITOR_DATA=/app/data/newt-monitor.db
 EXPOSE 4800
-CMD ["bun", "packages/newt-monitor/bin/newt-monitor.ts"]
+CMD ["bun", "packages/newt-monitor/backend/index.ts"]

@@ -1,5 +1,5 @@
 import { readFile, statfs } from 'node:fs/promises'
-import { availableParallelism, freemem, hostname, loadavg, totalmem } from 'node:os'
+import { availableParallelism, freemem, loadavg, totalmem } from 'node:os'
 import { monitorEventLoopDelay } from 'node:perf_hooks'
 import type { Clock } from '../../core'
 import { SAMPLE_EVERY_MS, type InstanceSample, type ProcessReading, type ServerReading } from '../../core/metrics/instance-sample'
@@ -9,8 +9,6 @@ export type InstanceSamplerOptions = {
   /** Which instance it is: a new id each time the process starts. */
   instance: string
   startedAt: string
-  /** The server's name, as instances on it share it: `NEWT_SERVER`, else the machine's. */
-  server?: string
   /** The paths whose file systems it watches: `/` unless told. */
   disks?: string[]
   clock: Clock
@@ -34,7 +32,6 @@ export class InstanceSampler {
 
   private readonly metrics: Metrics
   private readonly options: InstanceSamplerOptions
-  private readonly server: string
   private readonly disks: string[]
   /** How late the event loop ran what was due, in nanoseconds, since the last reading. */
   private readonly loop = monitorEventLoopDelay({ resolution: 10 })
@@ -47,7 +44,6 @@ export class InstanceSampler {
   constructor(metrics: Metrics, options: InstanceSamplerOptions) {
     this.metrics = metrics
     this.options = options
-    this.server = options.server ?? process.env.NEWT_SERVER ?? hostname()
     this.disks = options.disks ?? ['/']
   }
 
@@ -115,7 +111,6 @@ export class InstanceSampler {
   private async readServer(): Promise<ServerReading> {
     const load = loadavg()
     return {
-      name: this.server,
       disks: await Promise.all(this.disks.map(async path => {
         const disk = await statfs(path)
         // `bavail`: what a process that is not root may still write.

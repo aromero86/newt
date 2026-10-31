@@ -34,7 +34,7 @@ const event = (name: string): DomainEvent => ({ name, occurredAt: clock.now().to
 const ana = { userId: 'ana' } as Actor
 
 /** A context `shop` whose events are counted, served on a free port. */
-async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}, monitor: { server?: string, disks?: string[] } = {}) {
+async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}, monitor: { disks?: string[] } = {}) {
   base = new Base({ name: 'shop', store: await SqliteStore.open({ path: ':memory:' }), clock, ...options })
   server = serveMonitor([base], { name: 'shop-app', port: 0, key: KEY, clock, ...monitor })
   return server.url.origin
@@ -215,15 +215,14 @@ describe('MemoryNonces', () => {
 })
 
 describe('serveMonitor, with instances', () => {
-  test('tells its instance and its server, as they are now and minute by minute', async () => {
+  test('tells its instance and the machine it runs on, as they are now and minute by minute', async () => {
     time = Date.parse('2026-01-01T10:00:20Z')
-    const origin = await serve({}, { server: 'web-1', disks: ['/'] })
+    const origin = await serve({}, { disks: ['/'] })
     const identity = await (await signed(`${origin}/v1/identity`)).json() as MonitorIdentity
-    expect(identity.instance.server).toBe('web-1')
     await applicationSampler.value!.take()
 
     const now = await (await signed(`${origin}/v1/instances`)).json() as Instances
-    expect(now.instances).toMatchObject([{ instance: identity.instance.id, pid: process.pid, status: 'alive', server: { name: 'web-1' } }])
+    expect(now.instances).toMatchObject([{ instance: identity.instance.id, pid: process.pid, status: 'alive', server: { disks: [{ path: '/' }] } }])
     // Its minute is still open.
     expect(now.minutes).toEqual([])
 
