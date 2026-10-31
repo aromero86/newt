@@ -12,8 +12,9 @@ const SIGNATURE = /^[0-9a-f]{64}$/
 /**
  * Tells a request signed with the key (`signMonitorRequest`) from any other: its
  * signature is the key's for this very request, it was made within the window of
- * now, and its nonce was not seen before. A nonce is kept until its request could no
- * longer be on time, so the same request twice is refused the second time.
+ * now, and its nonce was not seen before. A nonce is kept for twice the window from
+ * now, so the same request twice is refused the second time, by any instance whose
+ * clock is less than a window apart from this one's.
  */
 export class MonitorVerifier {
 
@@ -37,6 +38,7 @@ export class MonitorVerifier {
     if (!timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) return false
 
     // Only a request signed with the key gets this far: nobody else can fill what it keeps.
-    return this.nonces.remember(nonce, Number(timestamp) + WINDOW_MS, now)
+    // Kept from now, not from its timestamp: an instance whose clock lags still takes it as on time.
+    return this.nonces.remember(nonce, now + 2 * WINDOW_MS, now)
   }
 }
