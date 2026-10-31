@@ -11,7 +11,7 @@ afterEach(async () => {
   sampler = undefined
 })
 
-function sampled(options: { disks?: string[] } = {}) {
+function sampled(options: { disks?: string[], commit?: string | null } = {}) {
   const metrics = new MemoryMetrics()
   metrics.enable()
   sampler = new InstanceSampler(metrics, { instance: 'i-1', startedAt: '2026-01-01T10:00:00.000Z', clock, everyMs: 60_000, ...options })
@@ -34,6 +34,13 @@ describe('InstanceSampler', () => {
     expect(state!.server.cpu.cores).toBeGreaterThan(0)
     // The processors' usage is of the time between two readings: none on the first.
     expect(state!.server.cpu.usage).toBeNull()
+    expect(state!.commit).toBeNull()
+  })
+
+  test('tells the commit it was built from with every reading', async () => {
+    const metrics = sampled({ commit: 'abc123' })
+    await sampler!.take()
+    expect((await metrics.instances(null, clock.now())).instances[0]!.commit).toBe('abc123')
   })
 
   test('reads the processors\' usage from the second reading on, where /proc/stat is', async () => {

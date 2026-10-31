@@ -13,6 +13,8 @@ const IdentitySchema = z.object({
   newt: z.string(),
   instance: z.object({ id: z.string(), host: z.string(), pid: z.number() }),
   startedAt: z.string(),
+  // An application on a newt before it told its commit tells none.
+  commit: z.string().min(1).nullable().default(null),
 })
 
 /** Enough of a description to know it is one, and of the version the monitor reads. */
@@ -81,6 +83,7 @@ const InstancesSchema = z.object({
     instance: z.string().min(1),
     pid: z.number().int(),
     startedAt: z.iso.datetime(),
+    commit: z.string().min(1).nullable().default(null),
     lastSeenAt: z.iso.datetime(),
     status: z.enum(['alive', 'stopped', 'lost']),
     stoppedAt: z.iso.datetime().nullable(),

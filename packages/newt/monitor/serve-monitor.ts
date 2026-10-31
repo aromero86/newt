@@ -62,6 +62,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
     newt: manifest.version,
     instance: { id: crypto.randomUUID(), host: hostname(), pid: process.pid },
     startedAt: clock.now().toISOString(),
+    commit: options.commit !== undefined ? options.commit : (process.env.SOURCE_COMMIT?.trim() || null),
   }
   // The instance reads itself and its server into the application's metrics (`setMetrics`): else the first
   // context's, or its own memory with none. A test's own are served as they are.
@@ -69,7 +70,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   instanceMetrics.enable()
   if (!options.instances) {
     void applicationSampler.value?.stop()
-    applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, disks: options.disks, clock })
+    applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, commit: identity.commit, disks: options.disks, clock })
     applicationSampler.value.start()
   }
 

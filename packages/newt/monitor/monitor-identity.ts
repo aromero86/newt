@@ -11,4 +11,6 @@ export type MonitorIdentity = {
     pid: number
   }
   startedAt: string
+  /** The commit it was built from (`MonitorOptions.commit`): null when it does not know it. */
+  commit: string | null
 }

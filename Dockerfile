@@ -19,4 +19,9 @@ ENV NODE_ENV=production
 # The monitor's port (3010, with COOPER_MONITOR_KEY) is reached over the container's network only: it is not exposed.
 ENV COOPER_MONITOR_HOSTNAME=0.0.0.0
 EXPOSE 3001 3002 3003
+# The commit it was built from, for newt-monitor to tell what is deployed: Coolify passes
+# it as it builds (Include Source Commit in Build). Last, so a new commit rebuilds nothing.
+ARG SOURCE_COMMIT=""
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
+
 CMD ["bun", "cooper/backend/index.ts"]

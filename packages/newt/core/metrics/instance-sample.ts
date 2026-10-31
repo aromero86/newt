@@ -39,6 +39,8 @@ export type InstanceSample = {
   instance: string
   pid: number
   startedAt: string
+  /** The commit it was built from, when it knows it (`MonitorOptions.commit`): null when it does not. */
+  commit: string | null
   at: Date
   process: ProcessReading
   server: ServerReading
@@ -83,6 +85,8 @@ export type InstanceState = {
   instance: string
   pid: number
   startedAt: string
+  /** The commit it was built from: null when it does not know it. */
+  commit: string | null
   lastSeenAt: string
   status: 'alive' | 'stopped' | 'lost'
   stoppedAt: string | null
