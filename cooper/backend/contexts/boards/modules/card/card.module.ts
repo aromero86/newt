@@ -282,10 +282,12 @@ export class Card_Module extends Module {
    * or assigned): they were checked before its save, and may have left in between,
    * auth's worker finding no card of theirs yet. Each runs after its own save and
    * looks at the other's, so whichever runs last finds the card. Asked again here,
-   * someone let in again since keeps their cards. Safe to run again.
+   * someone let in again since keeps their cards. Safe to run again. A workspace auth
+   * deleted is left alone: its purge removes its cards, and nothing is told of them.
    */
   @UseCase()
   async unassignMember(workspaceId: string, userId: string): Promise<void> {
+    if (!await this.deps.member.exists(workspaceId)) return
     if (await this.deps.member.find(workspaceId, userId)) return
     await runInWorkspace(workspaceId, async () => {
       const cards = await this.repo.find({ assigneeId: userId })

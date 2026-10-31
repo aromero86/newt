@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { BoardsBase } from '../../boards-base'
 import { openTestBoards, type TestBoards } from '../../testing/open-test-boards'
 
 describe('activity', () => {
@@ -70,6 +71,20 @@ describe('activity', () => {
     await t.modules.activity.recordCreated(told, event)
 
     expect((await activityOf(card.id)).total).toBe(2)
+  })
+
+  test('records nothing of a workspace auth deleted, for an event whose job runs late', async () => {
+    const card = await inAcme(() => t.modules.card.create(boardId, { columnId: todo, title: 'Plan' }))
+    await t.settled()
+    await t.auth.deleteWorkspace('acme')
+    await t.settled()
+
+    // A job of the card's, run after the workspace's log was purged.
+    const event = { id: Bun.randomUUIDv7(), name: 'card.edited', occurredAt: new Date().toISOString() }
+    await t.modules.activity.recordEdited({ dto: card, changes: { title: 'Plan it' }, previous: { title: 'Plan' }, by: 'ana', via: 'web' }, event)
+
+    const { db } = t.boards.base as BoardsBase
+    expect(await db.selectFrom('activity').select('id').where('workspaceId', '=', 'acme').execute()).toEqual([])
   })
 
   test('shows a workspace\'s activity only in it', async () => {
