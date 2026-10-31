@@ -39,7 +39,10 @@ export class InstanceSampler {
   private cpu = process.cpuUsage()
   private cpuAt = performance.now()
   private serverCpu: CpuTimes | null = null
+  /** Set once `stop` is called: a reading that ends after it is not given to the metrics. */
   private stopping: Promise<void> | null = null
+  /** The last reading begun, for `stop` to wait for: none until the first. */
+  private taking: Promise<void> | null = null
 
   constructor(metrics: Metrics, options: InstanceSamplerOptions) {
     this.metrics = metrics
@@ -60,6 +63,8 @@ export class InstanceSampler {
   stop(): Promise<void> {
     this.stopping ??= (async () => {
       if (this.timer) clearInterval(this.timer)
+      // A reading that ends after the instance said it stopped would say it is alive again.
+      await this.taking
       this.loop.disable()
       try {
         await this.metrics.stopped(this.options.instance, this.options.clock.now())
@@ -71,8 +76,13 @@ export class InstanceSampler {
     return this.stopping
   }
 
-  /** One reading, given to the metrics: a reading that fails is skipped, and said. */
-  async take(): Promise<void> {
+  /** One reading, given to the metrics unless it is stopping: a reading that fails is skipped, and said. */
+  take(): Promise<void> {
+    this.taking = this.read()
+    return this.taking
+  }
+
+  private async read(): Promise<void> {
     try {
       const sample: InstanceSample = {
         instance: this.options.instance,
@@ -82,6 +92,7 @@ export class InstanceSampler {
         process: this.readProcess(),
         server: await this.readServer(),
       }
+      if (this.stopping) return
       this.metrics.sample(sample)
     } catch (error) {
       console.error(`[newt metrics] The instance could not be read: ${(error as Error).message}`)
