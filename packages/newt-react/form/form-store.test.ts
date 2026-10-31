@@ -32,6 +32,17 @@ describe('FormStore', () => {
     expect(signup.error('email').value).toBe('Not an email')
   })
 
+  test('an invalid form as a whole becomes the form\'s failure', async () => {
+    const passwords = z.object({ password: z.string(), repeat: z.string() })
+      .refine(values => values.password === values.repeat, 'The passwords differ')
+    const change = new FormStore(passwords, { password: 'secret', repeat: 'secreto' })
+
+    expect(await change.submit(async () => {})).toBe(false)
+
+    expect(change.failure.value).toBe('The passwords differ')
+    expect(change.error('password').value).toBeUndefined()
+  })
+
   test('typing in a field clears its error', async () => {
     const signup = form()
     await signup.submit(async () => {})
