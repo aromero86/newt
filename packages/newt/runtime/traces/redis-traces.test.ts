@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, setSystemTime, spyOn, test } from 'bun:test'
 import type { Trace } from '../../core/traces/trace'
 import { RedisTraces } from './redis-traces'
 
@@ -8,6 +8,7 @@ const opened: RedisTraces[] = []
 const traceOf = (id: string, told: string[] = [], eventId?: string) => ({ id, startedAt: new Date().toISOString(), ms: 3, told: told.map(each => ({ id: each, name: 'card.created', context: 'boards' })), job: eventId ? { id: `job-${id}`, queue: 'q', run: 1, event: 'card.created', eventId } : null }) as unknown as Trace
 
 afterEach(async () => {
+  setSystemTime()
   await Promise.all(opened.splice(0).map(traces => traces.close()))
 })
 
@@ -54,5 +55,25 @@ describe.skipIf(!url)('RedisTraces', () => {
     await new Promise(resolve => setTimeout(resolve, 100))
 
     expect((await traces.closed(null, new Date(Date.now() + 70_000))).traces.map(trace => trace.id)).toEqual(['a', 'b'])
+  })
+
+  test('reads only the minutes that fit in the page', async () => {
+    const prefix = `newt:test:${crypto.randomUUID()}`
+    const first = Math.floor(Date.now() / 60_000) * 60_000 - 10 * 60_000
+    for (const minute of [0, 1, 2]) {
+      setSystemTime(first + minute * 60_000 + 1_000)
+      const writer = instance(prefix)
+      for (const n of [0, 1, 2]) writer.finished(traceOf(`${minute}-${n}`), true)
+      await writer.close()
+    }
+    setSystemTime()
+    const reader = instance(prefix)
+    const send = spyOn((reader as unknown as { redis: { send: (command: string, args: string[]) => Promise<unknown> } }).redis, 'send')
+
+    const closed = await reader.closed(null, new Date(), 6)
+    expect(closed.traces.map(trace => trace.id)).toEqual(['0-0', '0-1', '0-2', '1-0', '1-1', '1-2'])
+    expect(closed.until).toBe(new Date(first + 60_000).toISOString())
+    const ranged = send.mock.calls.filter(([command]) => command === 'LRANGE').map(([, args]) => args[0])
+    expect(ranged).toEqual([`${prefix}:${new Date(first).toISOString()}`, `${prefix}:${new Date(first + 60_000).toISOString()}`])
   })
 })
