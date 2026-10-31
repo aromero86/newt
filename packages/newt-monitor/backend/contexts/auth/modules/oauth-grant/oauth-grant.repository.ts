@@ -14,4 +14,9 @@ export class OauthGrant_Repository extends TableRepository<OauthGrant, OauthGran
   protected toEntity(row: OauthGrantRow): OauthGrant {
     return OauthGrant.fromDTO(row)
   }
+
+  /** Removes for good the grants never redeemed whose time was up by `at`: how many it removed. */
+  purgeExpired(at: Date): Promise<number> {
+    return this.purge({ status: { in: ['pending', 'approved', 'denied'] }, expiresAt: { lte: at.toISOString() } })
+  }
 }
