@@ -45,6 +45,8 @@ describe('traces', () => {
     const first = await json<TraceListDTO>(`/api/apps/${id}/traces?limit=1`)
     expect(ids(first)).toEqual([newer])
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?limit=1&before=${encodeURIComponent(first.next!)}`))).toEqual([older])
+    expect((await as(`/api/apps/${id}/traces?before=nope`)).status).toBe(400)
+    expect((await as(`/api/apps/${id}/traces?before=nope%7C${older}`)).status).toBe(400)
   })
 
   test('finds a use case\'s, by how they went or how long its call took: a percentile\'s examples', async () => {
