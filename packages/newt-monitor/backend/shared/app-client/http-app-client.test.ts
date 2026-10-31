@@ -30,4 +30,19 @@ describe('HttpAppClient', () => {
     expect(await failure(client.identity({ url: other.url.origin, key: app.key }))).toBe('bad_answer')
     await other.stop(true)
   })
+
+  test('a body that does not arrive in time is no answer, not a wrong one', async () => {
+    const stalled = Bun.serve({
+      port: 0,
+      fetch: () => new Response(new ReadableStream({
+        async start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"name":'))
+          await Bun.sleep(500)
+          controller.close()
+        },
+      }), { headers: { 'content-type': 'application/json' } }),
+    })
+    expect(await failure(new HttpAppClient(100).identity({ url: stalled.url.origin, key: app.key }))).toBe('unreachable')
+    await stalled.stop(true)
+  })
 })
