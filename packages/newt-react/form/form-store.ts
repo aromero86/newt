@@ -72,11 +72,14 @@ export class FormStore<TValues extends Record<string, string>, TOutput> {
     const parsed = this.schema.safeParse(this.store.value.values)
     if (!parsed.success) {
       const errors: Partial<Record<keyof TValues, string>> = {}
+      let failure: string | null = null
       for (const issue of parsed.error.issues) {
-        const field = issue.path[0] as keyof TValues | undefined
-        if (field !== undefined && errors[field] === undefined) errors[field] = issue.message
+        const field = issue.path[0]
+        // An issue about the form as a whole, or about no field it shows, is the form's failure.
+        if (field === undefined || !Object.hasOwn(this.store.value.values, field)) failure ??= issue.message
+        else if (errors[field as keyof TValues] === undefined) errors[field as keyof TValues] = issue.message
       }
-      this.store.patch({ errors, failure: null })
+      this.store.patch({ errors, failure })
       return false
     }
 
