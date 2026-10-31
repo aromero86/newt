@@ -1,6 +1,7 @@
 import { createContext, useContext, useId, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
 import * as Recharts from 'recharts'
 import { cn } from 'cn'
+import { MARK_TONES, type ChartMark } from './chart-marks'
 
 // shadcn/ui's chart: Recharts, coloured by the theme's tokens. Each series of a chart
 // has a key in its config, with a label and a colour; the container sets it as
@@ -49,19 +50,21 @@ export const ChartTooltip = Recharts.Tooltip
 
 type TooltipItem = { dataKey?: string | number, name?: string | number, value?: number | string, color?: string, payload?: Record<string, unknown> }
 
-/** The tooltip's box: the label, and each series' colour, name and value. */
-export function ChartTooltipContent({ active, payload, label, labelFormatter, valueFormatter }: {
+/** The tooltip's box: the label, each series' colour, name and value, and what was marked then. */
+export function ChartTooltipContent({ active, payload, label, labelFormatter, valueFormatter, marks = [] }: {
   active?: boolean
   payload?: TooltipItem[]
   label?: unknown
   labelFormatter?: (label: unknown) => ReactNode
   valueFormatter?: (value: number, key: string) => ReactNode
+  marks?: readonly ChartMark[]
 }) {
   const { config } = useChart()
   if (!active || !payload?.length) return null
+  const marked = marks.filter(mark => mark.at === label)
 
   return (
-    <div className="grid min-w-32 gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl">
+    <div className="grid max-w-96 min-w-32 gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl">
       <div className="font-medium text-foreground">{labelFormatter ? labelFormatter(label) : String(label ?? '')}</div>
       <div className="grid gap-1">
         {payload.map(item => {
@@ -77,6 +80,16 @@ export function ChartTooltipContent({ active, payload, label, labelFormatter, va
           )
         })}
       </div>
+      {marked.length > 0 && (
+        <div className="grid gap-2 border-t pt-1.5">
+          {marked.map((mark, index) => (
+            <div key={index} className="grid gap-0.5 border-l-2 pl-2" style={{ borderColor: MARK_TONES[mark.tone ?? 'muted'] }}>
+              <span className="font-medium text-foreground">{mark.label}</span>
+              {mark.detail && <span className="line-clamp-6 whitespace-pre-line text-muted-foreground">{mark.detail}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -6,10 +6,12 @@ export type ChartMark = {
   at: string
   /** What happened, shown as the mark is hovered. */
   label: string
+  /** More of it, shown below its label in the chart's tooltip: lines kept. */
+  detail?: string | null
   tone?: 'brand' | 'ok' | 'warn' | 'bad' | 'muted'
 }
 
-const TONES = { brand: 'var(--brand)', ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted-foreground)' } as const
+export const MARK_TONES = { brand: 'var(--brand)', ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted-foreground)' } as const
 
 /** A small flag at the top of a mark, which tells what it is as it is hovered. */
 function Flag({ viewBox, label, color }: { viewBox?: { x?: number, y?: number }, label: string, color: string }) {
@@ -32,7 +34,7 @@ export function chartMarks(marks: readonly ChartMark[], yAxisId?: string) {
   const byTime = new Map<string, ChartMark[]>()
   for (const mark of marks) byTime.set(mark.at, [...byTime.get(mark.at) ?? [], mark])
   return [...byTime].map(([at, same]) => {
-    const color = TONES[same[0]!.tone ?? 'muted']
+    const color = MARK_TONES[same[0]!.tone ?? 'muted']
     return (
       <ReferenceLine
         key={at}
@@ -42,7 +44,7 @@ export function chartMarks(marks: readonly ChartMark[], yAxisId?: string) {
         strokeDasharray="2 3"
         strokeOpacity={0.8}
         ifOverflow="hidden"
-        label={<Flag label={same.map(mark => mark.label).join('\n')} color={color} />}
+        label={<Flag label={same.map(mark => (mark.detail ? `${mark.label}\n${mark.detail}` : mark.label)).join('\n\n')} color={color} />}
       />
     )
   })

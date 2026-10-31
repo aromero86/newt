@@ -64,7 +64,7 @@ export function LineChart({ label, times, series, formatTime = at => new Date(at
           <XAxis dataKey="at" tickLine={false} axisLine={false} tickMargin={8} minTickGap={48} tickFormatter={formatTime} />
           <YAxis yAxisId="left" tickLine={false} axisLine={false} width={56} tickFormatter={formatValue} />
           {right && <YAxis yAxisId="right" orientation="right" hide={!shownRight} tickLine={false} axisLine={false} width={64} tickFormatter={formatRight} />}
-          <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent labelFormatter={at => formatTime(String(at))} valueFormatter={(value, key) => (axisOf.get(key) === 'right' ? formatRight : formatValue)(value)} />} />
+          <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent marks={marks} labelFormatter={at => formatTime(String(at))} valueFormatter={(value, key) => (axisOf.get(key) === 'right' ? formatRight : formatValue)(value)} />} />
           {chartMarks(marks, 'left')}
           {series.map(each => (
             <Line

@@ -1,4 +1,5 @@
 import { Entity, type EntityInput } from 'newt/core'
+import type { CommitMessage } from '../../../../shared/commit-messages/commit-messages'
 import { DeploymentSchema, type DeploymentDTO } from './deployment.schema'
 import { Deployment_Recorded } from './events/deployment-recorded'
 
@@ -17,7 +18,7 @@ export class Deployment extends Entity<typeof DeploymentSchema> {
 
   /** Its first instance heard of. */
   static record(appId: string, commit: string, deployedAt: string): Deployment {
-    const deployment = new Deployment({ appId, commit, title: null, deployedAt }, true)
+    const deployment = new Deployment({ appId, commit, title: null, description: null, deployedAt }, true)
     deployment.trackEvent(new Deployment_Recorded(deployment.toDTO()))
     return deployment
   }
@@ -39,8 +40,8 @@ export class Deployment extends Entity<typeof DeploymentSchema> {
     if (startedAt < this.data.deployedAt) this.change({ deployedAt: startedAt })
   }
 
-  /** Its title, as its repository tells it. */
-  described(title: string): void {
-    if (title !== this.data.title) this.change({ title })
+  /** Its message, as its repository tells it. */
+  described({ title, description }: CommitMessage): void {
+    if (title !== this.data.title || description !== this.data.description) this.change({ title, description })
   }
 }

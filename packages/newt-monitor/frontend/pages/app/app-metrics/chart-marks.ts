@@ -14,7 +14,7 @@ export function marksOn(times: readonly string[], marks: readonly AppMark[]): Ch
     const at = Date.parse(mark.at)
     if (at < starts[0]! || at >= starts.at(-1)! + size) return []
     const index = Math.min(starts.length - 1, Math.floor((at - starts[0]!) / size))
-    return [{ at: times[index]!, label: `${mark.label}, ${new Date(at).toLocaleString()}`, tone: mark.tone }]
+    return [{ at: times[index]!, label: `${mark.label}, ${new Date(at).toLocaleString()}`, detail: mark.detail, tone: mark.tone }]
   })
 }
 
