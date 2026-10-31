@@ -16,6 +16,7 @@
     "cooper:seed": "bun run cooper/scripts/seed.ts",
     "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     "cooper:build": "bun cooper/scripts/build.ts",
+    "cooper:replicas": "bun run cooper/scripts/replicas.ts",
     "monitor": "bun --watch packages/newt-monitor/scripts/dev.ts",
     "monitor:build": "bun packages/newt-monitor/scripts/build.ts",
     "ui": "bun packages/newt-react-ui/gallery/serve.ts"
