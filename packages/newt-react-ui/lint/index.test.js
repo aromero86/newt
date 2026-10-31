@@ -39,6 +39,9 @@ describe("newt-react-ui's lint", () => {
     expect(await complaints('web/pages/a.tsx', 'export const A = () => <Card className="mt-4" />\n')).toEqual([STYLES])
     expect(await complaints('web/pages/b.tsx', 'export const B = () => <Card style={{ margin: 4 }} />\n')).toEqual([STYLES])
     expect(await complaints('web/pages/c.tsx', 'export const C = () => <style>{"a {}"}</style>\n')).toEqual([STYLES])
+    // Nor through an object spread onto a component.
+    expect(await complaints('web/pages/s.tsx', "export const S = () => <Button {...{ className: 'x' }} />\n")).toEqual([STYLES])
+    expect(await complaints('web/pages/t.tsx', "export const T = () => <Button {...{ 'style': { margin: 4 } }} />\n")).toEqual([STYLES])
   })
 
   test('refuses an HTML element in a page: it is made of components', async () => {
