@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import type { Server } from 'bun'
 import { serve } from 'newt/http'
 import { browser, freePort, type Browser } from 'newt/testing'
@@ -130,6 +130,58 @@ describe('the OAuth server', () => {
     expect(await again.json()).toMatchObject({ error: 'invalid_grant' })
     await auth.base.jobs.idle()
     expect(await auth.modules.token.verify(first.access_token)).toBeNull()
+  })
+
+  test('trades a code brought twice at once for one pair of tokens, revoked from a worker', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const exchange = () => token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })
+
+    // Both read the grant before either has spent its code.
+    const grants = (auth.modules.oauthGrant as unknown as { repo: { first: (criteria: unknown) => Promise<unknown> } }).repo
+    const first = grants.first.bind(grants)
+    const read = spyOn(grants, 'first').mockImplementation(async criteria => {
+      const grant = await first(criteria)
+      await Bun.sleep(50)
+      return grant
+    })
+    const answers = await Promise.all([exchange(), exchange()])
+    read.mockRestore()
+
+    const bodies = (await Promise.all(answers.map(each => each.json()))) as { access_token?: string, error?: string }[]
+    expect(answers.map(each => each.status).sort()).toEqual([200, 400])
+    expect(bodies.find(each => each.error)).toMatchObject({ error: 'invalid_grant' })
+    await auth.base.jobs.idle()
+    expect(await auth.modules.token.verify(bodies.find(each => each.access_token)!.access_token!)).toBeNull()
+  })
+
+  test('revokes the tokens of a code brought again before they were saved', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const exchange = () => token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })
+
+    // The code is spent, its tokens not yet saved, when the copy comes and its worker runs.
+    const tokens = (auth.modules.token as unknown as { repo: { persist: (...entities: unknown[]) => Promise<void> } }).repo
+    const persist = tokens.persist.bind(tokens)
+    let copied!: () => void
+    const copiedThen = new Promise<void>(resolve => (copied = resolve))
+    const save = spyOn(tokens, 'persist').mockImplementationOnce(async (...entities) => {
+      await copiedThen
+      return persist(...entities)
+    })
+    const traded = exchange()
+    while (save.mock.calls.length === 0) await Bun.sleep(5)
+    const again = await exchange()
+    expect(again.status).toBe(400)
+    await auth.base.jobs.idle()
+    copied()
+
+    // The tokens, saved after the worker found none, are revoked and never given.
+    const answer = await traded
+    expect(answer.status).toBe(400)
+    expect(await answer.json()).toMatchObject({ error: 'invalid_grant' })
   })
 
   test('refuses a code without its PKCE verifier, and a request it cannot answer', async () => {
