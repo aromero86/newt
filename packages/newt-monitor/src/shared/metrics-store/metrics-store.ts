@@ -25,13 +25,21 @@ export class MetricsStore {
     Object.assign(this.datasets, datasets)
   }
 
-  /** An application's DuckDB, opened the first time it is asked for. */
+  /**
+   * An application's DuckDB, opened the first time it is asked for. One that could not
+   * be opened is tried again the next time: while a deployment replaces the monitor, the
+   * one going away still holds its file's lock.
+   */
   of(appId: string): Promise<DuckDbAnalytics> {
     if (this.closed) return Promise.reject(new Error('The metrics store is closed'))
     let analytics = this.opened.get(appId)
     if (!analytics) {
       analytics = DuckDbAnalytics.open({ path: this.pathOf(appId), datasets: this.datasets })
       this.opened.set(appId, analytics)
+      const opening = analytics
+      opening.catch(() => {
+        if (this.opened.get(appId) === opening) this.opened.delete(appId)
+      })
     }
     return analytics
   }
@@ -57,7 +65,8 @@ export class MetricsStore {
     this.closed = true
     const all = [...this.opened.values()]
     this.opened.clear()
-    for (const analytics of all) await (await analytics).close()
+    // One that never opened has nothing to close.
+    for (const analytics of all) await (await analytics.catch(() => null))?.close()
   }
 
   private pathOf(appId: string): string {
