@@ -68,6 +68,15 @@ describe('Requester', () => {
     expect(failure).toMatchObject({ status: 404, code: 'note.not_found', message: 'Note x not found' })
   })
 
+  test('a failed answer without a JSON body or a status text still says what failed', async () => {
+    answer(new Response('<html>Bad Gateway</html>', { status: 502, statusText: '', headers: { 'content-type': 'text/html' } }))
+
+    const failure = await new NotesApi().list().catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ApiError)
+    expect(failure).toMatchObject({ status: 502, message: 'Request failed (502)' })
+  })
+
   test('no answer at all is an ApiError with status 0', async () => {
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
 

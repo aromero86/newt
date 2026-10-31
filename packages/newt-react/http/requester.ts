@@ -55,7 +55,7 @@ export abstract class Requester {
     if (!response.ok) {
       if (response.status === 401) Requester.onUnauthorized?.()
       const failure = (await response.json().catch(() => null)) as Partial<ErrorBody> | null
-      throw new ApiError(response.status, failure?.error ?? response.statusText ?? 'Request failed', failure?.code)
+      throw new ApiError(response.status, failure?.error || response.statusText || `Request failed (${response.status})`, failure?.code)
     }
 
     return (response.status === 204 ? undefined : await response.json()) as T
