@@ -37,6 +37,7 @@ function UsersDetailWrapped() {
   const loaded = useValue(detail.workspaces.loaded)
   const hasMore = useValue(detail.workspaces.hasMore)
   const loadingMore = useValue(detail.workspaces.loadingMore)
+  const workspacesFailure = useValue(detail.workspaces.failure)
 
   useEffect(() => {
     void detail.load(userId)
@@ -57,7 +58,8 @@ function UsersDetailWrapped() {
           />
           <Box label="Workspaces">
             <BoxHeader>Workspaces {loaded && <Counter>{total}</Counter>}</BoxHeader>
-            {!loaded && <BoxRow><Skeleton lines={2} /></BoxRow>}
+            {workspacesFailure && <Alert tone="bad" title="Could not load the workspaces">{workspacesFailure}</Alert>}
+            {!loaded && !workspacesFailure && <BoxRow><Skeleton lines={2} /></BoxRow>}
             {loaded && items.length === 0 && <BoxEmpty icon={LayersIcon} title="In no workspace" />}
             {items.map(workspace => (
               <BoxRow key={workspace.id} leading={<Icon icon={LayersIcon} tone="muted" />} trailing={<Badge tone={workspace.role === 'admin' ? 'brand' : 'muted'}>{workspace.role}</Badge>}>
