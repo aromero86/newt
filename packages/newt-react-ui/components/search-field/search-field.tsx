@@ -17,12 +17,14 @@ type SearchFieldProps = {
 }
 
 /** A box to search in, like the one at the top of a repository on GitHub. */
-export function SearchField(props: SearchFieldProps) {
-  return <SearchFieldInner key={props.defaultValue ?? ''} {...props} />
-}
-
-function SearchFieldInner({ label, placeholder, defaultValue = '', onSearch, live = false, size = 'md' }: SearchFieldProps) {
+export function SearchField({ label, placeholder, defaultValue = '', onSearch, live = false, size = 'md' }: SearchFieldProps) {
   const [value, setValue] = useState(defaultValue)
+  // A new value starts it again in place: the input stays mounted, so it keeps the focus after a search.
+  const [previous, setPrevious] = useState(defaultValue)
+  if (defaultValue !== previous) {
+    setPrevious(defaultValue)
+    setValue(defaultValue)
+  }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
