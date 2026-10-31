@@ -7,6 +7,7 @@ import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { RetentionDTO } from '../retention/retention.schema'
 import type { EventTotalDTO, SeriesDTO, TopDTO } from './event-metrics'
+import type { EventMetricsFeedRow } from './event-metrics.repository'
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
@@ -162,5 +163,36 @@ describe('event metrics', () => {
     await as(`/api/apps/${id}`, { method: 'DELETE' })
     await monitor.monitor.base.jobs.idle()
     expect(await collect()).toEqual({ appId: id, outcome: 'gone' })
+  })
+
+  test('keeps nothing of an application deleted while it was asked: neither its DuckDB nor a feed', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'event-metrics-'))
+    const filed = await openTestMonitor({ clock, metricsFolder: folder })
+    const fetching = globalThis.fetch
+    try {
+      const signed = await filed.signedIn()
+      const shop = (await (await signed('/api/apps', { method: 'POST', json: { name: 'shop', url: app.url, key: app.key } })).json() as { id: string }).id
+      await filed.monitor.base.jobs.idle()
+      app.tell('boards', 'card.created', { at: ago(10 * MINUTE), actor: 'ana', times: 2 })
+      // The application answers, but it is deleted, and forgotten, before the answer is kept.
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const answer = await fetching(input, init)
+        if (String(input instanceof Request ? input.url : input).includes('/v1/metrics/events')) {
+          globalThis.fetch = fetching
+          await signed(`/api/apps/${shop}/archive`, { method: 'POST' })
+          await signed(`/api/apps/${shop}`, { method: 'DELETE' })
+          await filed.monitor.base.jobs.idle()
+        }
+        return answer
+      }) as typeof fetch
+
+      expect(await filed.modules.eventMetrics.collect(shop)).toEqual({ appId: shop, outcome: 'gone' })
+      expect(await Bun.file(join(folder, `${shop}.duckdb`)).exists()).toBe(false)
+      expect(await filed.monitor.base.store.table<EventMetricsFeedRow>('event_metrics_feed').count({ appId: shop })).toBe(0)
+    } finally {
+      globalThis.fetch = fetching
+      await filed.close()
+      await rm(folder, { recursive: true, force: true })
+    }
   })
 })

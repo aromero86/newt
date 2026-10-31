@@ -3,6 +3,7 @@ import { Module, now, UseCase } from 'newt/core'
 import { signTraceHeader, TRACE_HEADER } from 'newt/monitor'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
+import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { TraceHeaderSchema, TraceListQuerySchema, TraceNotFound, TracesFeed, type CollectTracesDTO, type TraceDTO, type TraceHeaderDTO, type TraceListDTO } from './traces'
 import type { Traces_Deps } from './traces.deps'
 import type { Traces_Options } from './traces-options'
@@ -65,10 +66,19 @@ export class Traces_Module extends Module {
     for (;;) {
       const read = await this.deps.connection.fetchTraces(appId, feed.until)
       if (!read.answered) return traces ? { appId, outcome: 'collected', traces, until: feed.until! } : { appId, outcome: 'unreachable' }
-      await this.append(appId, read.value.traces)
+      // Deleted while it was asked: what it answered is not kept, nor its DuckDB opened again.
+      if (!await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
+      try {
+        await this.append(appId, read.value.traces)
+      } catch (error) {
+        if (error instanceof AppGone) return { appId, outcome: 'gone' }
+        throw error
+      }
       traces += read.value.traces.length
       const moved = feed.until !== read.value.until
       feed.collectedUntil(read.value.until)
+      // A first feed is kept only for an application still there.
+      if (feed.isNew && !await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
       await this.repo.persist(feed)
       if (!moved || read.value.traces.length === 0) return { appId, outcome: 'collected', traces, until: read.value.until }
     }
@@ -85,7 +95,9 @@ export class Traces_Module extends Module {
   async keep(appId: string): Promise<void> {
     const { traceDays } = await this.deps.retention.of(appId)
     const before = new Date(now().getTime() - traceDays * DAY_MS).toISOString()
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Deleted while its retention ran, its DuckDB dropped: nothing is left to keep.
+    if (!analytics) return
     for (const table of TABLES) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
   }
 
@@ -128,7 +140,9 @@ export class Traces_Module extends Module {
   @UseCase()
   async forget(appId: string): Promise<void> {
     await this.repo.purgeApp(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Another module dropped its DuckDB already: nothing of it is left.
+    if (!analytics) return
     for (const table of TABLES) await analytics.run(`DELETE FROM ${table}`)
     // The events' table before they kept their names: gone with its application.
     await analytics.run('DROP TABLE IF EXISTS trace_told')
