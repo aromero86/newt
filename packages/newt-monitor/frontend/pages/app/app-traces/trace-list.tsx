@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, PinIcon, RepeatIcon, ScrollTextIcon, TimerIcon, WaypointsIcon } from 'lucide-react'
 import { Alert } from 'newt-react-ui/alert'
 import { Badge } from 'newt-react-ui/badge'
@@ -64,21 +64,27 @@ export function TraceList({ appId, title, query, window = '24h', actions }: { ap
   const [next, setNext] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const key = JSON.stringify(query)
+  /** Changes with the filter, window or query: a page asked for before answers into nothing. */
+  const asked = useRef(0)
 
   const load = useCallback(async (before?: string) => {
+    const token = asked.current
     try {
       const page = await api.list(appId, { ...JSON.parse(key) as typeof query, window, show, before, limit: 20 })
+      if (token !== asked.current) return
       setTraces(current => (before ? [...current ?? [], ...page.traces] : page.traces))
       setNext(page.next)
       setFailure(null)
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : 'Could not load the traces')
+      if (token === asked.current) setFailure(error instanceof Error ? error.message : 'Could not load the traces')
     }
   }, [api, appId, key, window, show])
 
   useEffect(() => {
     setTraces(null)
+    setNext(null)
     void load()
+    return () => { asked.current++ }
   }, [load])
 
   return (
