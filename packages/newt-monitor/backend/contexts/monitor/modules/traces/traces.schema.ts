@@ -18,6 +18,7 @@ export type TracesFeedDTO = z.infer<typeof TracesFeedSchema>
 export type CollectTracesDTO =
   | { appId: string, outcome: 'collected', traces: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 /** Where a page of traces starts: a list's `next`, as `<started at>|<id>`. */
 export const TraceCursorSchema = z.string()

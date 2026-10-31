@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Browser } from 'newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
@@ -112,6 +115,32 @@ describe('event metrics', () => {
     expect(days.points.filter(point => point.count > 0).map(point => point.count)).toEqual([4, 1])
     // By actor only what the minutes keep: three days.
     expect(await json<TopDTO[]>(`/api/apps/${id}/metrics/events/top?context=boards&event=card.created&window=30d&by=actor`)).toEqual([{ value: 'ana', count: 1 }])
+  })
+
+  test('collects every application watched, even after one that fails', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'monitor-metrics-'))
+    const other = await openTestMonitor({ clock, metricsFolder: folder })
+    const apps = [serveTestApp(), serveTestApp()]
+    try {
+      const signedIn = await other.signedIn()
+      for (const [index, each] of apps.entries()) {
+        each.add('boards', { card: { useCases: ['create'], events: ['created'] } })
+        each.tell('boards', 'card.created', { at: ago(10 * MINUTE) })
+        await signedIn('/api/apps', { method: 'POST', json: { name: `shop ${index}`, url: each.url, key: each.key } })
+      }
+      await other.monitor.base.jobs.idle()
+      const [broken, fine] = await other.modules.app.watchedIds()
+      // Its DuckDB unreadable: not an application that does not answer, a failure of the monitor's own.
+      await writeFile(join(folder, `${broken}.duckdb`), 'not a DuckDB file '.repeat(1000))
+
+      const collected = await other.modules.eventMetrics.collectAll()
+
+      expect(collected).toMatchObject([{ appId: broken, outcome: 'failed' }, { appId: fine, outcome: 'collected', counts: 1 }])
+    } finally {
+      for (const each of apps) await each.stop()
+      await other.close()
+      await rm(folder, { recursive: true, force: true })
+    }
   })
 
   test('collects nothing of an archived application, and forgets everything of a deleted one', async () => {

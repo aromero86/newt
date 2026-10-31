@@ -1,6 +1,7 @@
 import type { UseCaseTiming } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import { eachApp } from '../../../../shared/each-app'
 import { scopesText } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import {
@@ -70,12 +71,10 @@ export class UseCaseMetrics_Module extends Module {
     return { appId, outcome: 'collected', timings: read.value.timings.length, until: read.value.until }
   }
 
-  /** Collects every application watched, one after another: one that does not answer is recorded so. */
+  /** Collects every application watched, one after another: one that does not answer is recorded so, one that fails too, and the others go on. */
   @UseCase({ writesTo: ['connection'] })
   async collectAll(): Promise<CollectTimingsDTO[]> {
-    const collected: CollectTimingsDTO[] = []
-    for (const appId of await this.deps.app.watchedIds()) collected.push(await this.collect(appId))
-    return collected
+    return eachApp(await this.deps.app.watchedIds(), appId => this.collect(appId), (appId, message) => ({ appId, outcome: 'failed', message }))
   }
 
   /** Sums each whole day at least two days old, and forgets what its retention says is old. */
@@ -104,10 +103,10 @@ export class UseCaseMetrics_Module extends Module {
     }
   }
 
-  /** Keeps every application's timings, archived ones too: their retention runs all the same. */
+  /** Keeps every application's timings, archived ones too: their retention runs all the same, and one that fails keeps none of the others from it. */
   @UseCase()
   async keepAll(): Promise<void> {
-    for (const feed of await this.repo.find({})) await this.keep(feed.appId)
+    await eachApp((await this.repo.find({})).map(feed => feed.appId), appId => this.keep(appId), () => undefined)
   }
 
   /** Each of its use cases' calls in a window, beside the window before: the most called first. */
