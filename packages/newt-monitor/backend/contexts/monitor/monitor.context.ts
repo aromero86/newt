@@ -7,6 +7,7 @@ import { BoundedContext } from 'newt/runtime'
 import type { MonitorConfig } from '../../config'
 import { MonitorBase } from '../../monitor-base'
 import { MetricsStore } from '../../shared/metrics-store/metrics-store'
+import { mcpRoutes } from './mcp/mcp'
 import { initializeModules, type Monitor_ModuleDeps, type Monitor_Modules } from './initialize-modules'
 
 /**
@@ -20,6 +21,7 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
     readonly modules: Monitor_Modules,
     private readonly config: MonitorConfig,
     private readonly metrics: MetricsStore,
+    private readonly deps: Monitor_ModuleDeps,
   ) {
     super('monitor', base)
   }
@@ -30,7 +32,7 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
     const store = await SqliteStore.open({ path: config.database, migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new MonitorBase({ name: 'monitor', store, clock })
     const metrics = new MetricsStore(config.metricsFolder)
-    return new Monitor_Context(base, initializeModules(base, config, metrics, deps), config, metrics)
+    return new Monitor_Context(base, initializeModules(base, config, metrics, deps), config, metrics, deps)
   }
 
   /** Its jobs end and its store closes, then every application's DuckDB: none is left open, with a query on its way, as the process ends. */
@@ -41,9 +43,11 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
 
   /**
    * How it is served (`runContexts`): its modules' API under `/api`, `GET /api/health`
-   * for whoever watches it is up, and its built frontend for any other address.
+   * for whoever watches it is up, its MCP server at `/mcp`, the routes it is handed
+   * beside them (auth's), and its built frontend for any other address.
    */
-  serving(): ServeOptions {
-    return { port: this.config.port, router: this.base.http, health: true, frontend: this.config.frontend }
+  serving(beside: Bun.Serve.Routes<undefined, string> = {}): ServeOptions {
+    const routes = { ...mcpRoutes(this.modules, this.deps.auth, this.config.publicUrl), ...beside }
+    return { port: this.config.port, router: this.base.http, health: true, frontend: this.config.frontend, routes }
   }
 }

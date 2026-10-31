@@ -35,7 +35,7 @@ export async function openTestMonitor({ clock, ...options }: TestMonitorOptions 
   const config = { ...TEST_CONFIG, ...options }
   const auth = await Auth_Context.open(config, clock)
   const monitor = await Monitor_Context.open(config, { auth: auth.modules }, clock)
-  const app = runContexts([{ context: auth }, { context: monitor, serve: { ...monitor.serving(), routes: auth.routes() } }], { signals: false })
+  const app = runContexts([{ context: auth }, { context: monitor, serve: monitor.serving(auth.routes()) }], { signals: false })
   const url = app.servers.monitor!.url.origin
   return {
     monitor,

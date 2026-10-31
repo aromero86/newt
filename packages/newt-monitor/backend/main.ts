@@ -14,7 +14,7 @@ export async function main(env: Record<string, string | undefined>): Promise<Run
   // In development its frontend comes from its sources, as Bun builds them; imported
   // only then, so production never builds it as it starts.
   const sources = config.frontendSources ? { frontend: (await import('../frontend/index.html')).default, development: true } : {}
-  const app = runContexts([{ context: auth }, { context: monitor, serve: { ...monitor.serving(), routes: auth.routes(), ...sources } }])
+  const app = runContexts([{ context: auth }, { context: monitor, serve: { ...monitor.serving(auth.routes()), ...sources } }])
   console.log(`newt-monitor listening on ${app.servers.monitor!.url}`)
   return app
 }
