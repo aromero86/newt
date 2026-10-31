@@ -1,9 +1,9 @@
-import type { MonitorBase } from '../../../../monitor-base'
+import type { AuthBase } from '../../auth-base'
 import { SESSION_COOKIE } from './session.schema'
 import type { Session_Module } from './session.module'
 import type { Session_Options } from './session-options'
 
-export function registerSessionRoutes(base: MonitorBase, sessions: Session_Module, options: Session_Options): void {
+export function registerSessionRoutes(base: AuthBase, sessions: Session_Module, options: Session_Options): void {
   // Every route of the context runs as whoever its session cookie says: none, a 401.
   base.http.authenticateWith(request => sessions.authenticate(request.cookies.get(SESSION_COOKIE) ?? undefined))
 

@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { currentActor, Module, SecretToken, UseCase, type Actor } from 'newt/core'
-import type { MonitorBase } from '../../../../monitor-base'
+import type { AuthBase } from '../../auth-base'
 import { WrongCredentials } from './errors/wrong-credentials'
 import { Session, SignInSchema, type MeDTO } from './session'
 import type { Session_Options } from './session-options'
@@ -22,13 +22,13 @@ function same(given: string, expected: string): boolean {
  */
 export class Session_Module extends Module {
 
-  static initialize(base: MonitorBase, options: Session_Options): Session_Module {
+  static initialize(base: AuthBase, options: Session_Options): Session_Module {
     const module = new Session_Module(base, new Session_Repository(base), options)
     registerSessionRoutes(base, module, options)
     return module
   }
 
-  private constructor(base: MonitorBase, private readonly repo: Session_Repository, private readonly options: Session_Options) {
+  private constructor(base: AuthBase, private readonly repo: Session_Repository, private readonly options: Session_Options) {
     super('session', base.invocations)
   }
 

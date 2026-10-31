@@ -1,12 +1,12 @@
 import { TableRepository } from 'newt/repository'
-import type { MonitorBase } from '../../../../monitor-base'
+import type { AuthBase } from '../../auth-base'
 import { Session, type SessionDTO } from './session'
 
 export type SessionRow = SessionDTO & { version: number }
 
-export class Session_Repository extends TableRepository<Session, SessionRow, MonitorBase> {
+export class Session_Repository extends TableRepository<Session, SessionRow, AuthBase> {
 
-  constructor(base: MonitorBase) {
+  constructor(base: AuthBase) {
     // No scope: the monitor has no tenants, and a session is found by its token.
     super(base, base.store.table<SessionRow>('session'), { scope: 'none' })
   }
