@@ -119,6 +119,12 @@ describe('the preset of newt', () => {
     expect(await lint('other/modules/order/helpers.ts', 'export const x = 1\n')).toEqual([expect.stringContaining('no matching configuration')])
   })
 
+  test("keeps a context's barrels from handing out a module's own files", async () => {
+    expect(await complaints('src/contexts/ws/index.ts', "export * from './modules/brand/brand.repository'\n")).toEqual(['newt/module-boundaries'])
+    expect(await complaints('src/contexts/ws/index.ts', "export * from './modules/brand/brand.module'\n")).toEqual([])
+    expect(await complaints('src/contexts/ws/ws.context.ts', "import { x } from './modules/brand/brand.repository'\nexport const y = x\n")).toEqual([])
+  })
+
   test('finds the modules of an application without contexts the same way', async () => {
     expect(await complaints('shop/modules/order/helpers.ts', 'export const x = 1\n')).toEqual(['newt/module-anatomy'])
   })

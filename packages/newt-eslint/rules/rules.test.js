@@ -45,6 +45,9 @@ tester.run('module-boundaries', moduleBoundaries, {
     { code: "import type { ProductDTO } from '../product/product.schema.js'", filename: `${MODULE}/price-change.ts` },
     { code: "import { Product_Created } from '../product/events/product-created.js'", filename: `${MODULE}/price-change.workers.ts` },
     { code: "type M = import('../product/product.module').Product_Module", filename: `${MODULE}/price-change.ts` },
+    { code: "export * from './modules/product/product.module'", filename: '/repo/src/contexts/ws/index.ts' },
+    { code: "export { ProductNotFound } from './product/errors/product-not-found'", filename: '/repo/src/contexts/ws/modules/index.ts' },
+    { code: "import { Product_Repository } from './modules/product/product.repository'", filename: '/repo/src/contexts/ws/ws.context.ts' },
   ],
   invalid: [
     { code: "import { Product_Repository } from '../product/product.repository'", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
@@ -57,6 +60,8 @@ tester.run('module-boundaries', moduleBoundaries, {
     { code: "type R = import('../product/product.repository').Product_Repository", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "import R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "const R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
+    { code: "export * from './modules/product/product.repository'", filename: '/repo/src/contexts/ws/index.ts', errors: [{ messageId: 'barrel' }] },
+    { code: "export { Product_Repository } from './product/product.repository'", filename: '/repo/src/contexts/ws/modules/index.ts', errors: [{ messageId: 'barrel' }] },
   ],
 })
 
