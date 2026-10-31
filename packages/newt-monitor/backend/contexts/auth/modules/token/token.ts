@@ -8,7 +8,7 @@ export * from './token.schema'
 const TokenEntitySchema = TokenSchema.extend({
   accessTokenHash: z.string().min(1),
   refreshTokenHash: z.string().min(1),
-  /** The refresh token this one replaced: brought again, it was copied. */
+  /** The refresh token this one replaced: kept among the spent ones, as each before it. */
   previousRefreshTokenHash: z.string().nullable(),
 })
 
@@ -59,8 +59,17 @@ export class Token extends Entity<typeof TokenEntitySchema, typeof TokenSchema> 
     return parsed.success ? SecretToken.hash(parsed.data) : null
   }
 
+  get grantId(): string {
+    return this.data.grantId
+  }
+
   get clientId(): string {
     return this.data.clientId
+  }
+
+  /** The refresh token its last change replaced, still to be kept among the spent ones; null when it replaced none. */
+  get refreshTokenSpent(): string | null {
+    return this.getChanges()?.previousRefreshTokenHash ?? null
   }
 
   isAccessValid(at = now()): boolean {

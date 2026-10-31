@@ -59,8 +59,8 @@ export class Token_Module extends Module {
   }
 
   /**
-   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). The one it
-   * replaced, brought again, was copied: the tokens are revoked.
+   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). Any one it
+   * replaced, however long ago, brought again, was copied: the tokens are revoked.
    */
   @UseCase()
   async refresh(input: TokenRefreshDTO): Promise<TokenPairDTO> {
@@ -71,7 +71,8 @@ export class Token_Module extends Module {
 
     const token = await this.repo.first({ refreshTokenHash: hash })
     if (!token) {
-      const copied = await this.repo.first({ previousRefreshTokenHash: hash })
+      const grantId = await this.repo.grantThatSpent(hash)
+      const copied = grantId ? await this.repo.first({ grantId }) : undefined
       if (copied) {
         copied.revoke()
         await this.repo.persist(copied)

@@ -118,6 +118,22 @@ describe('the OAuth server', () => {
     expect(await auth.modules.token.verify(second.access_token)).toBeNull()
   })
 
+  test('revokes the tokens of a refresh token brought again however many times it was replaced since', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const first = (await (await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).json()) as { refresh_token: string }
+    const second = (await (await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })).json()) as { refresh_token: string }
+    const third = (await (await token({ grant_type: 'refresh_token', refresh_token: second.refresh_token, client_id: clientId })).json()) as { access_token: string, refresh_token: string }
+
+    const replayed = await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })
+    expect(replayed.status).toBe(400)
+    expect(await auth.modules.token.verify(third.access_token)).toBeNull()
+    expect((await token({ grant_type: 'refresh_token', refresh_token: third.refresh_token, client_id: clientId })).status).toBe(400)
+    // The token gone, the refresh tokens it spent go with it.
+    expect(await auth.base.store.table('token_spent_refresh').count()).toBe(0)
+  })
+
   test('trades a code once: brought again, the tokens it gave are revoked, from a worker', async () => {
     const clientId = await register()
     const { verifier, challenge } = pkce()
