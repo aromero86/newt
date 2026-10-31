@@ -1,5 +1,7 @@
-import { Module, UseCase } from 'newt/core'
+import { ConcurrencyConflict, Module, now, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
+import { InvalidGrant } from '../oauth-grant/errors/invalid-grant'
+import type { OauthGrantRedeemDTO, OauthGrantRedeemedDTO } from '../oauth-grant/oauth-grant.schema'
 import { InvalidRefreshToken } from './errors/invalid-refresh-token'
 import {
   Token,
@@ -32,6 +34,9 @@ export class Token_Module extends Module {
     return module
   }
 
+  /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
+
   private constructor(
     base: AuthBase,
     private readonly repo: Token_Repository,
@@ -39,6 +44,7 @@ export class Token_Module extends Module {
     private readonly options: Token_Options,
   ) {
     super('token', base.invocations, deps)
+    this.nightly = base.schedules.define('token.nightly', '0 3 * * *')
   }
 
   /**
@@ -46,21 +52,32 @@ export class Token_Module extends Module {
    * worker, on purpose: the client waits for its tokens in this answer. The code is
    * spent first, then the tokens saved; should that fail, the client signs the person
    * in again. It never runs again on a conflict: the code it spent would look copied.
+   * A copy that came before the tokens were saved found none to revoke: they are
+   * revoked here, and never given.
    */
   @UseCase({ writesTo: ['oauthGrant'], retryOnConflict: false })
   async exchange(input: TokenExchangeDTO): Promise<TokenPairDTO> {
     const { clientId, clientSecret, code, codeVerifier, redirectUri } = TokenExchangeSchema.parse(input)
     const client = await this.deps.oauthClient.authenticate(clientId, clientSecret)
-    const grant = await this.deps.oauthGrant.redeem({ code, codeVerifier, clientId: client.clientId, redirectUri })
+    const grant = await this.redeem({ code, codeVerifier, clientId: client.clientId, redirectUri })
 
     const { token, pair } = Token.issue(grant, this.options)
     await this.repo.persist(token)
+    if (await this.deps.oauthGrant.isReplayed(grant.grantId)) {
+      try {
+        await this.revokeGrant(grant.grantId)
+      } catch (error) {
+        // The worker revoked them meanwhile.
+        if (!(error instanceof ConcurrencyConflict)) throw error
+      }
+      throw new InvalidGrant()
+    }
     return pair
   }
 
   /**
-   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). The one it
-   * replaced, brought again, was copied: the tokens are revoked.
+   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). Any one it
+   * replaced, however long ago, brought again, was copied: the tokens are revoked.
    */
   @UseCase()
   async refresh(input: TokenRefreshDTO): Promise<TokenPairDTO> {
@@ -71,7 +88,8 @@ export class Token_Module extends Module {
 
     const token = await this.repo.first({ refreshTokenHash: hash })
     if (!token) {
-      const copied = await this.repo.first({ previousRefreshTokenHash: hash })
+      const grantId = await this.repo.grantThatSpent(hash)
+      const copied = grantId ? await this.repo.first({ grantId }) : undefined
       if (copied) {
         copied.revoke()
         await this.repo.persist(copied)
@@ -119,5 +137,34 @@ export class Token_Module extends Module {
     if (!token) return
     token.revoke()
     await this.repo.persist(token)
+  }
+
+  /**
+   * Spends the code. Brought twice at once, the one that read it before the other spent
+   * it meets a conflict: it is the copy, and reading the grant again marks it replayed,
+   * so its worker revokes the tokens the other was given.
+   */
+  private async redeem(input: OauthGrantRedeemDTO): Promise<OauthGrantRedeemedDTO> {
+    try {
+      return await this.deps.oauthGrant.redeem(input)
+    } catch (error) {
+      if (!(error instanceof ConcurrencyConflict)) throw error
+    }
+    try {
+      return await this.deps.oauthGrant.redeem(input)
+    } catch (error) {
+      // A third copy marked it replayed meanwhile.
+      if (error instanceof ConcurrencyConflict) throw new InvalidGrant()
+      throw error
+    }
+  }
+
+  /**
+   * Removes the tokens whose refresh token expired: a client that stopped refreshing
+   * never gives them back. What the nightly worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 }

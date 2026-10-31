@@ -17,6 +17,7 @@ export type QueueMetricsFeedDTO = z.infer<typeof QueueMetricsFeedSchema>
 export type CollectFlowsDTO =
   | { appId: string, outcome: 'collected', flows: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 

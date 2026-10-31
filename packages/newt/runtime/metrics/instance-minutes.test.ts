@@ -96,7 +96,7 @@ describe('MemoryMetrics, with instances', () => {
   test('keeps no sample until it is enabled', async () => {
     const metrics = new MemoryMetrics()
     metrics.sample(sample('2026-01-01T10:00:05Z'))
-    expect(await metrics.instances(null, new Date('2026-01-01T10:05:00Z'))).toEqual({ instances: [], minutes: [], until: '2026-01-01T10:04:00.000Z' })
+    expect(await metrics.instances(null, new Date('2026-01-01T10:05:10Z'))).toEqual({ instances: [], minutes: [], until: '2026-01-01T10:04:00.000Z' })
   })
 
   test('forgets the minutes and the instances older than it keeps', async () => {

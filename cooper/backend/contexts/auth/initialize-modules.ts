@@ -50,7 +50,11 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
 export function initializeModules(base: AuthBase, config: Auth_Config, deps: Auth_ModuleDeps) {
   const product = Product_Module.initialize(base, { products: declaredProducts(config) })
   const user = User_Module.initialize(base)
-  const session = Session_Module.initialize(base, { user, product }, { days: config.sessionDays })
+  const session = Session_Module.initialize(base, { user, product }, {
+    days: config.sessionDays,
+    // HTTPS ends at the proxy before auth: the request's own URL is http.
+    secure: new URL(config.publicUrl).protocol === 'https:',
+  })
   const access = Access_Module.initialize(base, { product })
   const tenant = Tenant_Module.initialize(base, { access }, { productId: WORKSPACES_PRODUCT })
   const invitation = Invitation_Module.initialize(base, { tenant, access, user }, {

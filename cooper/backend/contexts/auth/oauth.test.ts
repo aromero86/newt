@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import type { Server } from 'bun'
 import { serve } from 'newt/http'
 import { browser, freePort, type Browser } from 'newt/testing'
@@ -8,11 +8,14 @@ import { Auth_Context } from './auth.context'
 let auth: Auth_Context
 let server: Server<undefined>
 let url: string
+/** How far auth's clock is ahead of the real one: a test moves it instead of waiting. */
+let ahead: number
 
 beforeEach(async () => {
   const port = freePort()
   url = `http://localhost:${port}`
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
+  ahead = 0
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } }, { now: () => new Date(Date.now() + ahead) })
   server = serve(auth.serving())
   auth.start()
 })
@@ -118,6 +121,22 @@ describe('the OAuth server', () => {
     expect(await auth.modules.token.verify(second.access_token)).toBeNull()
   })
 
+  test('revokes the tokens of a refresh token brought again however many times it was replaced since', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const first = (await (await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).json()) as { refresh_token: string }
+    const second = (await (await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })).json()) as { refresh_token: string }
+    const third = (await (await token({ grant_type: 'refresh_token', refresh_token: second.refresh_token, client_id: clientId })).json()) as { access_token: string, refresh_token: string }
+
+    const replayed = await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })
+    expect(replayed.status).toBe(400)
+    expect(await auth.modules.token.verify(third.access_token)).toBeNull()
+    expect((await token({ grant_type: 'refresh_token', refresh_token: third.refresh_token, client_id: clientId })).status).toBe(400)
+    // The token gone, the refresh tokens it spent go with it.
+    expect(await auth.base.store.table('token_spent_refresh').count()).toBe(0)
+  })
+
   test('trades a code once: brought again, the tokens it gave are revoked, from a worker', async () => {
     const clientId = await register()
     const { verifier, challenge } = pkce()
@@ -130,6 +149,84 @@ describe('the OAuth server', () => {
     expect(await again.json()).toMatchObject({ error: 'invalid_grant' })
     await auth.base.jobs.idle()
     expect(await auth.modules.token.verify(first.access_token)).toBeNull()
+  })
+
+  test('trades a code brought twice at once for one pair of tokens, revoked from a worker', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const exchange = () => token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })
+
+    // Both read the grant before either has spent its code.
+    const grants = (auth.modules.oauthGrant as unknown as { repo: { first: (criteria: unknown) => Promise<unknown> } }).repo
+    const first = grants.first.bind(grants)
+    const read = spyOn(grants, 'first').mockImplementation(async criteria => {
+      const grant = await first(criteria)
+      await Bun.sleep(50)
+      return grant
+    })
+    const answers = await Promise.all([exchange(), exchange()])
+    read.mockRestore()
+
+    const bodies = (await Promise.all(answers.map(each => each.json()))) as { access_token?: string, error?: string }[]
+    expect(answers.map(each => each.status).sort()).toEqual([200, 400])
+    expect(bodies.find(each => each.error)).toMatchObject({ error: 'invalid_grant' })
+    await auth.base.jobs.idle()
+    expect(await auth.modules.token.verify(bodies.find(each => each.access_token)!.access_token!)).toBeNull()
+  })
+
+  test('revokes the tokens of a code brought again before they were saved', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const exchange = () => token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })
+
+    // The code is spent, its tokens not yet saved, when the copy comes and its worker runs.
+    const tokens = (auth.modules.token as unknown as { repo: { persist: (...entities: unknown[]) => Promise<void> } }).repo
+    const persist = tokens.persist.bind(tokens)
+    let copied!: () => void
+    const copiedThen = new Promise<void>(resolve => (copied = resolve))
+    const save = spyOn(tokens, 'persist').mockImplementationOnce(async (...entities) => {
+      await copiedThen
+      return persist(...entities)
+    })
+    const traded = exchange()
+    while (save.mock.calls.length === 0) await Bun.sleep(5)
+    const again = await exchange()
+    expect(again.status).toBe(400)
+    await auth.base.jobs.idle()
+    copied()
+
+    // The tokens, saved after the worker found none, are revoked and never given.
+    const answer = await traded
+    expect(answer.status).toBe(400)
+    expect(await answer.json()).toMatchObject({ error: 'invalid_grant' })
+  })
+
+  test('removes the requests and tokens that expired, with the refresh tokens they replaced, but keeps a redeemed request, which tells a copied code', async () => {
+    const grants = (status: string) => auth.base.store.table<{ id: string, version: number, status: string }>('oauth_grant').count({ status })
+    const tokens = () => auth.base.store.table('token').count({})
+    const spent = () => auth.base.store.table('token_spent_refresh').count({})
+    const clientId = await register()
+    await authorize(browser(url), { client_id: clientId, redirect_uri: CALLBACK, code_challenge: pkce().challenge, resource: MCP })
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const first = (await (await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).json()) as { refresh_token: string }
+    expect((await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })).status).toBe(200)
+    expect(await spent()).toBe(1)
+
+    // Nothing has expired yet: nothing goes.
+    expect(await auth.modules.oauthGrant.purgeExpired()).toBe(0)
+    expect(await auth.modules.token.purgeExpired()).toBe(0)
+
+    ahead = (config.auth.oauth.refreshDays + 1) * 24 * 60 * 60_000
+    expect(await auth.modules.oauthGrant.purgeExpired()).toBe(1)
+    expect(await auth.modules.token.purgeExpired()).toBe(1)
+
+    expect(await grants('pending')).toBe(0)
+    expect(await grants('redeemed')).toBe(1)
+    expect(await tokens()).toBe(0)
+    expect(await spent()).toBe(0)
   })
 
   test('refuses a code without its PKCE verifier, and a request it cannot answer', async () => {

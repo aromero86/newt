@@ -157,7 +157,7 @@ describe('newt-react-ui', () => {
   })
 
   test('a code block keeps its lines as they were written', () => {
-    expect(html(<CodeBlock label="Stack">{'TypeError: x\n    at f (a.ts:1)'}</CodeBlock>)).toMatch(/^<pre aria-label="Stack"[^>]*whitespace-pre[^>]*>TypeError: x\n {4}at f/)
+    expect(html(<CodeBlock label="Stack">{'TypeError: x\n    at f (a.ts:1)'}</CodeBlock>)).toMatch(/^<pre role="region" aria-label="Stack" tabindex="0"[^>]*whitespace-pre[^>]*>TypeError: x\n {4}at f/)
   })
 
   test('an empty state says what is missing, and offers what to do', () => {
@@ -172,6 +172,14 @@ describe('newt-react-ui', () => {
 
     expect(html(<RelativeTime date={at} />)).toContain(`dateTime="${at}"`)
     expect(html(<RelativeTime date={at} />)).toContain('2 days ago')
+  })
+
+  test('a time close to the next unit reads in that unit', () => {
+    const ago = (seconds: number) => html(<RelativeTime date={new Date(Date.now() - seconds * 1000).toISOString()} />)
+
+    expect(ago(59.6 * 60)).toContain('>1 hour ago<')
+    expect(ago(23.6 * 3600)).toContain('>yesterday<')
+    expect(ago(345 * 24 * 3600)).toContain('>last year<')
   })
 
   test('a table has its header cells as headers', () => {

@@ -18,6 +18,12 @@ export type TracesFeedDTO = z.infer<typeof TracesFeedSchema>
 export type CollectTracesDTO =
   | { appId: string, outcome: 'collected', traces: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
+
+/** Where a page of traces starts: a list's `next`, as `<started at>|<id>`. */
+export const TraceCursorSchema = z.string()
+  .regex(/^[^|]+\|[^|]+$/, 'A cursor is a list\'s next')
+  .refine(cursor => !Number.isNaN(Date.parse(cursor.split('|')[0]!)), 'A cursor is a list\'s next')
 
 /**
  * What a client asks of an application's traces: in a window, of a use case (of a
@@ -36,7 +42,7 @@ export const TraceListQuerySchema = z.object({
   told: z.string().min(1).optional(),
   show: z.enum(['all', 'failures', 'errors', 'retried', 'forced', 'logged', 'slow']).default('all'),
   nearMs: z.coerce.number().min(0).optional(),
-  before: z.string().min(1).optional(),
+  before: TraceCursorSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 }).refine(query => (query.useCase === undefined && query.told === undefined) || query.context !== undefined, { message: 'A use case or an event is asked of its context', path: ['context'] })
 

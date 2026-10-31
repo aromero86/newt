@@ -137,6 +137,17 @@ describe('newt add module', () => {
     expect(again.lines.filter(line => line.startsWith('skipped'))).toHaveLength(9)
   })
 
+  test('writes in an absolute context folder, wherever it is run from', async () => {
+    const context = join(await mkdtemp(join(tmpdir(), 'newt-context-')), 'shop')
+    try {
+      const { code, lines } = await run(['add', 'module', context, 'order'], app)
+      expect([code, lines]).toEqual([0, expect.arrayContaining([`wrote    ${join(context, 'modules/order/order.module.ts')}`])])
+      expect(await Bun.file(join(context, 'modules/order/order.module.ts')).exists()).toBe(true)
+    } finally {
+      await rm(join(context, '..'), { recursive: true, force: true })
+    }
+  })
+
   test('says how it is used when it is not', async () => {
     expect(await run(['add', 'thing'], app)).toMatchObject({ code: 1, lines: [expect.stringContaining('newt add module <context-folder> <name>')] })
   })

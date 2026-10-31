@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { ESLint } from 'eslint'
-import { newtReactUi } from './index.js'
+import { newtReactUi, RESTRICTED_IMPORTS } from './index.js'
 
 let root
 let eslint
@@ -39,6 +39,9 @@ describe("newt-react-ui's lint", () => {
     expect(await complaints('web/pages/a.tsx', 'export const A = () => <Card className="mt-4" />\n')).toEqual([STYLES])
     expect(await complaints('web/pages/b.tsx', 'export const B = () => <Card style={{ margin: 4 }} />\n')).toEqual([STYLES])
     expect(await complaints('web/pages/c.tsx', 'export const C = () => <style>{"a {}"}</style>\n')).toEqual([STYLES])
+    // Nor through an object spread onto a component.
+    expect(await complaints('web/pages/s.tsx', "export const S = () => <Button {...{ className: 'x' }} />\n")).toEqual([STYLES])
+    expect(await complaints('web/pages/t.tsx', "export const T = () => <Button {...{ 'style': { margin: 4 } }} />\n")).toEqual([STYLES])
   })
 
   test('refuses an HTML element in a page: it is made of components', async () => {
@@ -66,5 +69,13 @@ describe("newt-react-ui's lint", () => {
     expect(() => newtReactUi({})).toThrow('which files')
     // An app with no components of its own: the pages' rules only.
     expect(newtReactUi({ files: ['web/**'] })).toHaveLength(1)
+  })
+
+  test('exports the imports it refuses, so a config that sets them again keeps them', () => {
+    const [pages] = newtReactUi({ files: ['web/**'], imports: [{ regex: 'mine', message: 'Mine.' }] })
+    const [, { patterns }] = pages.rules['no-restricted-imports']
+
+    expect(RESTRICTED_IMPORTS.length).toBeGreaterThan(0)
+    expect(patterns).toEqual([...RESTRICTED_IMPORTS, { regex: 'mine', message: 'Mine.' }])
   })
 })

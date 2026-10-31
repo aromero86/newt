@@ -7,6 +7,13 @@ export class BoardCardNewService {
 
   private readonly board = inject(BoardService)
   private columnId = ''
+  /**
+   * One `Idempotency-Key` per card being made: a submit again after a failure (its
+   * answer lost on the way) sends the same one, and gets the card the first one made.
+   */
+  private key = crypto.randomUUID()
+  /** What the key was last sent with: the backend refuses it with another body. */
+  private sent: string | null = null
 
   readonly form = new FormStore(CardFormSchema, { title: '', description: '' }, {
     errorFields: { validation: 'title' },
@@ -15,13 +22,24 @@ export class BoardCardNewService {
 
   start(columnId: string): void {
     this.columnId = columnId
+    this.newKey()
     this.form.reset({ title: '', description: '' })
   }
 
   /** Resolves to whether it was created. */
   submit(): Promise<boolean> {
     return this.form.submit(async input => {
-      await this.board.createCard({ ...input, columnId: this.columnId })
+      const card = { ...input, columnId: this.columnId }
+      const body = JSON.stringify(card)
+      if (this.sent !== null && this.sent !== body) this.newKey()
+      this.sent = body
+      await this.board.createCard(card, this.key)
+      this.newKey()
     })
+  }
+
+  private newKey(): void {
+    this.key = crypto.randomUUID()
+    this.sent = null
   }
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import type { Server } from 'bun'
 import { SqliteStore } from '../adapter-sqlite'
 import { ConcurrencyConflict, defineScope, Module, NotFoundError, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
@@ -88,6 +88,36 @@ describe('serveMonitor, with metrics', () => {
     await tell('order.placed')
     expect(await read()).toContain('"event":"order.placed","scopes":{},"actor":null,"count":1')
     await reader.cancel()
+  })
+
+  test('stops listening and beating when the client leaves before every context listens', async () => {
+    const intervals = spyOn(globalThis, 'setInterval')
+    let listen: (() => void) | undefined
+    let stops = 0
+    class SlowMetrics extends MemoryMetrics {
+      // As Redis's: listening takes a round trip, and the client may leave meanwhile.
+      override async live(listener: Parameters<MemoryMetrics['live']>[0]) {
+        await new Promise<void>(resolve => (listen = resolve))
+        const stop = await super.live(listener)
+        return () => {
+          stops++
+          stop()
+        }
+      }
+    }
+    const origin = await serve({ metrics: new SlowMetrics() })
+    const leaving = new AbortController()
+    const url = `${origin}/v1/metrics/live`
+    void fetch(url, { headers: signMonitorRequest(KEY, { url, now: clock.now() }), signal: leaving.signal }).catch(() => undefined)
+    while (!listen) await Bun.sleep(1)
+    leaving.abort()
+    await Bun.sleep(20)
+    listen()
+    await Bun.sleep(20)
+
+    expect(stops).toBe(1)
+    expect(intervals.mock.calls.filter(([, ms]) => ms === 8_000)).toEqual([])
+    intervals.mockRestore()
   })
 
   test('keeps nothing until it is served: an application nobody monitors counts nothing', async () => {

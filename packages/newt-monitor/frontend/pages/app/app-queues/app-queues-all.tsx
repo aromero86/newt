@@ -28,15 +28,19 @@ export function AppQueuesAll({ app, current }: { app: AppDTO, current: OutboxNow
   const [failure, setFailure] = useState<string | null>(null)
 
   useEffect(() => {
+    // Another window, bucket or comparison may be asked for before this answers.
+    let live = true
     setFlow(null)
     setDepth(null)
     Promise.all([queueApi.series(app.id, { window, bucket, compare }), outboxApi.depth(app.id, { window, bucket })])
       .then(([flowSeries, depthSeries]) => {
+        if (!live) return
         setFlow(flowSeries)
         setDepth(depthSeries)
         setFailure(null)
       })
-      .catch(error => setFailure(error instanceof Error ? error.message : 'Could not load the queues\' metrics'))
+      .catch(error => { if (live) setFailure(error instanceof Error ? error.message : 'Could not load the queues\' metrics') })
+    return () => { live = false }
   }, [queueApi, outboxApi, app.id, window, bucket, compare])
 
   const sum = (pick: (queue: OutboxNowDTO['queues'][number]) => number) => current.queues.reduce((total, queue) => total + pick(queue), 0)

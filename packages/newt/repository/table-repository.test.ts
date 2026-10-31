@@ -189,6 +189,18 @@ describe('persist', () => {
     expect(thing[takeEvents]()).toEqual([])
   })
 
+  test('a change undone covers only the save it was undone in, not an event told after it', async () => {
+    const { repo } = world()
+    const thing = Thing.fromRow(stored())
+    thing.rename('two')
+    thing.rename('one')
+    await repo.persist(thing)
+
+    thing.ping()
+
+    await expect(repo.persist(thing)).rejects.toThrow('Thing t1 tells thing.pinged but has nothing to save: change what it tells of')
+  })
+
   test('one that tells something but never changed is refused, and nothing of the save is written', async () => {
     const { log, repo } = world()
     const thing = Thing.fromRow(stored())
@@ -271,6 +283,22 @@ describe('persist', () => {
     }).catch(() => {})
 
     expect([deleted.version, deleted.hasPendingChanges]).toEqual([2, true])
+    expect([created.isNew, created.version]).toEqual([true, 0])
+  })
+
+  test('joined to a transaction, and failing, rolls it all back, even if its error was caught', async () => {
+    const { log, repo, store, failNextWrite } = world()
+    const created = Thing.create('one')
+    const changed = Thing.fromRow(stored())
+    changed.rename('two')
+
+    const spoiled = store.transaction(async () => {
+      failNextWrite()
+      await repo.persist(created, changed).catch(() => {})
+    })
+
+    await expect(spoiled).rejects.toThrow('a save that joined it failed')
+    expect(log).toEqual(['begin', 'checkWrite', expect.stringMatching(/^insert /), 'rollback'])
     expect([created.isNew, created.version]).toEqual([true, 0])
   })
 

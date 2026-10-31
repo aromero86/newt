@@ -1,9 +1,11 @@
 import { WebSessionApi, signInUrl, type SessionUserDTO } from '@cooper/api/web-session'
-import { inject, Store } from 'newt-react'
+import { ApiError, inject, Store } from 'newt-react'
 
 type SessionState =
   | { status: 'checking', user: null }
   | { status: 'signed-out', user: null }
+  /** The check itself failed (boards down, no network): whether there is a session is unknown. */
+  | { status: 'failed', user: null }
   | { status: 'signed-in', user: SessionUserDTO }
 
 /**
@@ -36,8 +38,10 @@ export class SessionService {
     try {
       const { user } = await this.api.me()
       this.store.patch({ status: 'signed-in', user })
-    } catch {
-      this.expired()
+    } catch (error) {
+      // Only a 401 says there is no session; any other failure says nothing of it.
+      if (error instanceof ApiError && error.status === 401) this.expired()
+      else this.store.patch({ status: 'failed', user: null })
     }
   }
 

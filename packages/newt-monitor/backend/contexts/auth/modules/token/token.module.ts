@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { Module, now, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidRefreshToken } from './errors/invalid-refresh-token'
 import {
@@ -31,6 +31,9 @@ export class Token_Module extends Module {
     return module
   }
 
+  /** At ten past three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
+
   private constructor(
     base: AuthBase,
     private readonly repo: Token_Repository,
@@ -38,6 +41,7 @@ export class Token_Module extends Module {
     private readonly options: Token_Options,
   ) {
     super('token', base.invocations, deps)
+    this.nightly = base.schedules.define('token.nightly', '10 3 * * *')
   }
 
   /**
@@ -58,8 +62,8 @@ export class Token_Module extends Module {
   }
 
   /**
-   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). The one it
-   * replaced, brought again, was copied: the tokens are revoked.
+   * New tokens for a refresh token, which is replaced (OAuth 2.1 §4.3.1). Any one it
+   * replaced, however long ago, brought again, was copied: the tokens are revoked.
    */
   @UseCase()
   async refresh(input: TokenRefreshDTO): Promise<TokenPairDTO> {
@@ -70,7 +74,8 @@ export class Token_Module extends Module {
 
     const token = await this.repo.first({ refreshTokenHash: hash })
     if (!token) {
-      const copied = await this.repo.first({ previousRefreshTokenHash: hash })
+      const grantId = await this.repo.grantThatSpent(hash)
+      const copied = grantId ? await this.repo.first({ grantId }) : undefined
       if (copied) {
         copied.revoke()
         await this.repo.persist(copied)
@@ -118,5 +123,14 @@ export class Token_Module extends Module {
     if (!token) return
     token.revoke()
     await this.repo.persist(token)
+  }
+
+  /**
+   * Removes the tokens whose refresh token expired: they open nothing, and nobody gives
+   * back a token they lost. What the nightly worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 }

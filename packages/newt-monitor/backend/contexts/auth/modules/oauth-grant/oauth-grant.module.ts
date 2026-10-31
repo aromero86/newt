@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, UseCase } from 'newt/core'
+import { currentActor, eventsOf, Module, now, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { OauthClientNotFound } from '../oauth-client/errors/oauth-client-not-found'
 import type { OauthClientDTO } from '../oauth-client/oauth-client.schema'
@@ -11,6 +11,7 @@ import {
   OauthGrant,
   OauthGrantRedeemSchema,
   OauthGrantRequestSchema,
+  type AuthorizationRequestProblem,
   type OauthGrantRedeemDTO,
   type OauthGrantRedeemedDTO,
   type OauthGrantRedirectDTO,
@@ -21,9 +22,17 @@ import type { OauthGrant_Deps } from './oauth-grant.deps'
 import type { OauthGrant_Options } from './oauth-grant-options'
 import { OauthGrant_Repository } from './oauth-grant.repository'
 import { registerOauthGrantRoutes } from './oauth-grant.routes'
+import { registerOauthGrantWorkers } from './oauth-grant.workers'
 
 /** A PKCE challenge of S256: the base64url of a SHA-256, 43 characters. */
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/
+
+/** What a request that does not even parse lacks, by the field found wrong first. */
+function problemOf(field: PropertyKey | undefined): AuthorizationRequestProblem {
+  if (field === 'clientId') return 'oauthGrant.missing_client'
+  if (field === 'redirectUri') return 'oauthGrant.missing_redirect'
+  return 'oauthGrant.invalid_request'
+}
 
 /**
  * Authorization requests (OAuth 2.1, authorization code with PKCE): a client asks,
@@ -35,14 +44,18 @@ export class OauthGrant_Module extends Module {
   static initialize(base: AuthBase, deps: OauthGrant_Deps, options: OauthGrant_Options): OauthGrant_Module {
     const module = new OauthGrant_Module(base, new OauthGrant_Repository(base), deps, options)
     registerOauthGrantRoutes(base, module, options)
+    registerOauthGrantWorkers(module)
     return module
   }
 
   readonly events
+  /** At five past three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
 
   private constructor(base: AuthBase, private readonly repo: OauthGrant_Repository, private readonly deps: OauthGrant_Deps, private readonly options: OauthGrant_Options) {
     super('oauthGrant', base.invocations, deps)
     this.events = eventsOf(base.bus, { replayed: OauthGrant_Replayed })
+    this.nightly = base.schedules.define('oauthGrant.nightly', '5 3 * * *')
   }
 
   /**
@@ -53,17 +66,17 @@ export class OauthGrant_Module extends Module {
   @UseCase()
   async request(input: OauthGrantRequestDTO): Promise<{ id: string }> {
     const parsed = OauthGrantRequestSchema.safeParse(input)
-    if (!parsed.success) throw new InvalidAuthorizationRequest(parsed.error.issues[0]?.message ?? 'The request is not a valid one')
+    if (!parsed.success) throw new InvalidAuthorizationRequest(problemOf(parsed.error.issues[0]?.path[0]))
     const request = parsed.data
     const client = await this.clientOf(request.clientId)
-    if (!client.redirectUris.includes(request.redirectUri)) throw new InvalidAuthorizationRequest('The address to go back to is not one of this application')
-    if (request.responseType !== 'code') throw new InvalidAuthorizationRequest('The application asks for a kind of access the monitor does not give')
+    if (!client.redirectUris.includes(request.redirectUri)) throw new InvalidAuthorizationRequest('oauthGrant.redirect_mismatch')
+    if (request.responseType !== 'code') throw new InvalidAuthorizationRequest('oauthGrant.unsupported_response_type')
     if (request.codeChallengeMethod !== 'S256' || !S256_CHALLENGE.test(request.codeChallenge)) {
-      throw new InvalidAuthorizationRequest('The application does not protect its request with PKCE (S256)')
+      throw new InvalidAuthorizationRequest('oauthGrant.pkce_required')
     }
     // The monitor has one server to give access to: one that says another asks for what it does not have.
     if (request.resource !== undefined && request.resource !== this.options.resource) {
-      throw new InvalidAuthorizationRequest('The application asks for access to a server the monitor does not have')
+      throw new InvalidAuthorizationRequest('oauthGrant.unknown_resource')
     }
 
     const grant = OauthGrant.request({
@@ -129,6 +142,16 @@ export class OauthGrant_Module extends Module {
     return { grantId: id, userId: userId!, clientId, resource }
   }
 
+  /**
+   * Removes the requests nobody will finish: unanswered, denied or approved, past their
+   * time. Redeemed ones stay, so a code brought again is still seen as copied. What the
+   * nightly worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
+  }
+
   private load(id: string): Promise<OauthGrant> {
     return this.resolve(() => this.repo.find({ id }), () => new AuthorizationNotFound(id))
   }
@@ -137,7 +160,7 @@ export class OauthGrant_Module extends Module {
     try {
       return await this.deps.oauthClient.get(clientId)
     } catch (error) {
-      if (error instanceof OauthClientNotFound) throw new InvalidAuthorizationRequest('This application is not registered in the monitor')
+      if (error instanceof OauthClientNotFound) throw new InvalidAuthorizationRequest('oauthGrant.unknown_client')
       throw error
     }
   }

@@ -15,6 +15,15 @@ const sizeClass: Record<Size, { box: string; letter: string }> = {
 
 const tones = ['bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-teal-500']
 
+const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : undefined
+
+/** The name's first character as a reader sees it: a whole emoji, not half of one, and never a leading space. */
+function initial(name: string) {
+  const trimmed = name.trim()
+  const first = graphemes ? graphemes.segment(trimmed)[Symbol.iterator]().next().value?.segment : [...trimmed][0]
+  return (first ?? '').toUpperCase()
+}
+
 type AvatarProps = {
   name: string
   /** Width and height, in Tailwind's spacing scale. */
@@ -27,7 +36,7 @@ export function Avatar({ name, size = 6 }: AvatarProps) {
   return (
     <ShadcnAvatar aria-hidden className={sizeClass[size].box}>
       {/* The letter's size goes on the fallback: shadcn sets its own text size there. */}
-      <AvatarFallback className={cn('font-semibold text-white', sizeClass[size].letter, tone)}>{name.slice(0, 1).toUpperCase()}</AvatarFallback>
+      <AvatarFallback className={cn('font-semibold text-white', sizeClass[size].letter, tone)}>{initial(name)}</AvatarFallback>
     </ShadcnAvatar>
   )
 }

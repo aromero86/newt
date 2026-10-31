@@ -13,6 +13,12 @@ rootInjector.get(ThemeService)
 // Whatever request finds the session gone shows the way to sign in again.
 Requester.onUnauthorized = () => rootInjector.get(SessionService).expired()
 
+// Whatever request finds its person no longer of the staff shows them the way out.
+// Other refusals are the page's own to show.
+Requester.onForbidden = (error) => {
+  if (error.code === 'staff.not_staff') rootInjector.get(SessionService).refused()
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouterLinkProvider>

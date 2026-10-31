@@ -3,6 +3,8 @@ import type { Server } from 'bun'
 import { Module, UseCase } from '../core'
 import type { Store } from '../port-store'
 import { Base, type ApplicationDescription } from '../runtime'
+import { MonitorVerifier } from './monitor-verifier'
+import type { NonceStore } from './nonce-store'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
 import type { MonitorIdentity } from './monitor-identity'
@@ -84,5 +86,19 @@ describe('serveMonitor', () => {
 
     expect((await signed(`${origin}/v1/structure`, KEY, 'POST')).status).toBe(405)
     expect((await signed(`${origin}/v2/structure`)).status).toBe(404)
+  })
+})
+
+describe('MonitorVerifier', () => {
+  test('keeps each nonce for twice the window from now, whatever the request\'s time, so it outlives every instance\'s window', async () => {
+    const kept: number[] = []
+    const nonces: NonceStore = { remember: async (_nonce, until) => (kept.push(until), true) }
+    const verifier = new MonitorVerifier(KEY, clock, nonces)
+    const url = 'http://shop/v1/identity'
+
+    for (const made of [time - 25_000, time, time + 25_000]) {
+      expect(await verifier.verify(new Request(url, { headers: signMonitorRequest(KEY, { url, now: new Date(made) }) }))).toBe(true)
+    }
+    expect(kept).toEqual([time + 60_000, time + 60_000, time + 60_000])
   })
 })

@@ -5,13 +5,15 @@ import { SessionCookie } from './session.schema'
 
 export function registerSessionRoutes(base: AuthBase, sessions: Session_Module): void {
   /** The session lives in a cookie the page's scripts cannot read, sent only to auth. */
-  const keep = (request: BunRequest, token: string) => request.cookies.set(SessionCookie, token, {
+  const keep = (request: BunRequest, token: string, maxAge = sessions.options.days * 24 * 60 * 60) => request.cookies.set(SessionCookie, token, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: sessions.options.days * 24 * 60 * 60,
-    secure: new URL(request.url).protocol === 'https:',
+    maxAge,
+    secure: sessions.options.secure,
   })
+  /** Clears it with the attributes it was set with. */
+  const forget = (request: BunRequest) => keep(request, '', 0)
 
   // The use cases validate every body.
   base.http.post('/session/sign-up', async request => {
@@ -29,7 +31,7 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
   // Public: signing out with a session already gone still clears the cookie.
   base.http.post('/session/sign-out', async request => {
     await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
-    request.cookies.delete({ name: SessionCookie, path: '/' })
+    forget(request)
     return new Response(null, { status: 204 })
   }, { public: true })
 
@@ -40,7 +42,7 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
   // if it is an address of one of cooper's products, to auth's start otherwise.
   base.oauth.get('/oauth/logout', async request => {
     await sessions.signOut(request.cookies.get(SessionCookie) ?? undefined)
-    request.cookies.delete({ name: SessionCookie, path: '/' })
+    forget(request)
     const location = await sessions.returnAddress(new URL(request.url).searchParams.get('redirect') ?? undefined)
     return new Response(null, { status: 302, headers: { location } })
   })

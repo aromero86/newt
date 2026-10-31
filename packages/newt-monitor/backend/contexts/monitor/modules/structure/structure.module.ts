@@ -1,5 +1,6 @@
 import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import { eachApp } from '../../../../shared/each-app'
 import { StructureNotRead } from './errors/structure-not-read'
 import { StructureVersionNotFound } from './errors/structure-version-not-found'
 import { Structure_Changed } from './events/structure-changed'
@@ -50,18 +51,18 @@ export class Structure_Module extends Module {
     const hash = hashOf(read.value)
     if (previous?.hash === hash) return { appId, outcome: 'unchanged', version: previous.summary() }
     const version = StructureVersion.take(appId, read.value, hash, previous)
-    await this.repo.persistAfter(version, previous)
+    // Deleted while it was read: what it is made of is forgotten, and stays so.
+    if (!await this.repo.persistAfter(version, previous, async () => await this.deps.app.find(appId) !== null)) return { appId, outcome: 'gone', version: null }
     return { appId, outcome: 'changed', version: version.summary() }
   }
 
   /**
    * Refreshes every application watched, one after another: one that does not answer
-   * is recorded so, and the others go on.
+   * is recorded so, one that fails too, and the others go on.
    */
   @UseCase({ writesTo: ['connection'] })
   async refreshAll(): Promise<RefreshAllDTO> {
-    const refreshed: RefreshDTO[] = []
-    for (const appId of await this.deps.app.watchedIds()) refreshed.push(await this.refresh(appId))
+    const refreshed = await eachApp(await this.deps.app.watchedIds(), appId => this.refresh(appId), (appId, message): RefreshDTO => ({ appId, outcome: 'failed', version: null, message }))
     return { refreshed }
   }
 

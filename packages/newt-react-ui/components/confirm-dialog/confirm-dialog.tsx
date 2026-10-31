@@ -26,7 +26,10 @@ type ConfirmDialogProps = {
   children?: ReactNode
 }
 
-/** Asks before doing something that matters. Cancel, Escape and a click outside all close it. */
+/**
+ * Asks before doing something that matters. Cancel, Escape and a click outside all close it,
+ * except while its action runs: the action goes on anyway, so closing would look like a cancel.
+ */
 export function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel, tone = 'default', loading = false, onConfirm, confirmWith, children }: ConfirmDialogProps) {
   const [typed, setTyped] = useState('')
   // Each time it opens, it asks again.
@@ -38,13 +41,15 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmL
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={next => {
+        if (next || !loading) onOpenChange(next)
+      }}
       title={title}
       description={description}
       size="sm"
       footer={(
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" disabled={loading} onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button variant={tone === 'destructive' ? 'destructive' : 'primary'} loading={loading} disabled={!confirmed} onClick={onConfirm}>{confirmLabel}</Button>
         </>
       )}

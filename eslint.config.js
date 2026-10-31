@@ -1,18 +1,20 @@
 import tseslint from 'typescript-eslint'
 import { newt } from 'newt-eslint'
-import { newtReactUi } from 'newt-react-ui/lint'
+import { newtReactUi, RESTRICTED_IMPORTS } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
 // frontends newt-react-ui's. The framework's own code is not
 // an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
+  root: import.meta.dirname,
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
 // newt-monitor is an application built with newt too, so it keeps the same lint.
 const MONITOR = newt({
+  root: import.meta.dirname,
   files: ['packages/newt-monitor/{scripts,backend}/**/*.ts'],
   contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { auth: [], monitor: ['auth'] } },
 })
@@ -76,18 +78,19 @@ export default [
       'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
     },
   },
+  // These two set the frontend's restricted imports again: they keep newt-react-ui's.
   {
     files: ['packages/newt-monitor/frontend/api/**/*.ts'],
     languageOptions: { parser: tseslint.parser },
     rules: {
-      'no-restricted-imports': ['error', { patterns: [MONITOR_API_BACKEND_IMPORTS] }],
+      'no-restricted-imports': ['error', { patterns: [...RESTRICTED_IMPORTS, MONITOR_API_BACKEND_IMPORTS] }],
     },
   },
   {
     // Their tests run them against the monitor itself, so they open one.
     files: ['packages/newt-monitor/frontend/api/**/*.test.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [MONITOR_API_TEST_IMPORTS] }],
+      'no-restricted-imports': ['error', { patterns: [...RESTRICTED_IMPORTS, MONITOR_API_TEST_IMPORTS] }],
     },
   },
 ]

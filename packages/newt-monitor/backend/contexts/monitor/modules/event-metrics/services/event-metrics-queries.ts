@@ -1,4 +1,5 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { whereOf as sharedWhereOf, type MetricsFilter } from '../../../../../shared/metrics-store/metrics-filter'
 import { BUCKETS, WINDOWS, type EventTotalDTO, type MetricsBucket, type MetricsWindow, type SeriesDTO, type SeriesPointDTO, type TopDTO } from '../event-metrics.schema'
 
@@ -35,18 +36,25 @@ export class EventMetricsQueries {
     }
   }
 
-  /** Each event's total in the window, and in the one just before. */
+  /** Each event's total in the window, and in the one just before: whole days older than the minutes from the summary. */
   async totals(window: MetricsWindow, now: Date): Promise<EventTotalDTO[]> {
     const length = WINDOWS[window].ms
     const to = now.getTime()
-    const rows = await this.analytics.query<{ context: string, event: string, total: number, previous: number }>(`
-      SELECT context, event,
-             sum(CASE WHEN minute >= $2 THEN count ELSE 0 END) AS total,
-             sum(CASE WHEN minute < $2 THEN count ELSE 0 END) AS previous
-      FROM event_minute WHERE minute >= $1 AND minute < $3
-      GROUP BY context, event ORDER BY total DESC, context, event`,
-    [new Date(to - 2 * length).toISOString(), new Date(to - length).toISOString(), new Date(to).toISOString()])
-    return rows.map(row => ({ context: row.context, event: row.event, total: row.total ?? 0, previous: row.previous ?? 0 }))
+    const totals = new Map<string, EventTotalDTO>()
+    for (const span of spansOf(to - 2 * length, to, await this.summarizedUntil())) {
+      const [table, time] = span.table === 'day' ? ['event_day', 'day'] : ['event_minute', 'minute']
+      for (const row of await this.analytics.query<{ context: string, event: string, recent: boolean, count: number }>(`
+        SELECT context, event, CAST(${time} AS TIMESTAMP) >= CAST($2 AS TIMESTAMP) AS recent, sum(count) AS count
+        FROM ${table} WHERE ${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($3 AS TIMESTAMP)
+        GROUP BY context, event, recent`,
+      [new Date(span.start).toISOString(), new Date(to - length).toISOString(), new Date(span.end).toISOString()])) {
+        const key = JSON.stringify([row.context, row.event])
+        const total = totals.get(key) ?? { context: row.context, event: row.event, total: 0, previous: 0 }
+        total[row.recent ? 'total' : 'previous'] += row.count
+        totals.set(key, total)
+      }
+    }
+    return [...totals.values()].sort((a, b) => b.total - a.total || a.context.localeCompare(b.context) || a.event.localeCompare(b.event))
   }
 
   /** Who told it most in the window: the ten first, by actor or by a scope's id. */

@@ -84,6 +84,7 @@ export type InstancesDTO = { system: SystemDTO | null, instances: InstanceDTO[] 
 export type CollectInstancesDTO =
   | { appId: string, outcome: 'collected', instances: number, minutes: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 const bucketSchema = z.enum(Object.keys(BUCKETS) as [MetricsBucket, ...MetricsBucket[]]).optional()

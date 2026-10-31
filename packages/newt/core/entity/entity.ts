@@ -21,6 +21,9 @@ type Fields = Record<string, unknown>
 /** What a store keeps with a row besides the entity's data: its version, and when it was soft deleted. */
 const FRAMEWORK_FIELDS = ['version', 'deletedAt']
 
+/** What the framework stamps on every entity: a change to them is never stored. */
+const TIMESTAMP_FIELDS = ['createdAt', 'updatedAt']
+
 /** A field that takes no value but not null (`.optional()`): null is what a store gives back for it. */
 const optionalOnly = (field: z.ZodType | undefined): boolean =>
   field !== undefined && field.safeParse(undefined).success && !field.safeParse(null).success
@@ -170,11 +173,15 @@ export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema =
    * The schema has the last word, as when it is built: it parses the whole entity as it
    * would be, so its refinements across fields hold, and the fields changed take the
    * values it gives (trimmed, defaulted, coerced). Nothing changes if it fails.
+   * createdAt and updatedAt are the framework's: changing them throws.
    */
   protected change(partial: Partial<Omit<z.infer<TSchema>, 'id'>>): void {
     if (this.deletion !== 'none') throw new DeletedEntityNotChangeable()
     const keys = Object.keys(partial).filter(key => key !== 'id')
-    for (const key of keys) if (!Object.hasOwn(this.schema.shape, key)) throw new UnknownEntityField(key)
+    for (const key of keys) {
+      if (TIMESTAMP_FIELDS.includes(key)) throw new UnknownEntityField(key, 'the framework keeps it, and a save never stores a change to it')
+      if (!Object.hasOwn(this.schema.shape, key)) throw new UnknownEntityField(key)
+    }
     const next = { ...(this.current as Fields), ...Object.fromEntries(keys.map(key => [key, (partial as Fields)[key]])) }
     const parsed = this.checked(() => this.schema.parse(next), this.constructor.name, this.id) as Fields
 
@@ -253,10 +260,15 @@ export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema =
     this.domainEvents = [...this.domainEvents.filter(each => each.name !== event.name), event]
   }
 
-  /** What it has to tell since it was last saved: its repository publishes it with the save. */
+  /**
+   * What it has to tell since it was last saved: its repository publishes it with the
+   * save. One the save did not write had its change undone: that change covered only
+   * this save, not an event told after it.
+   */
   [takeEvents](): DomainEvent[] {
     const events = this.domainEvents
     this.domainEvents = []
+    if (!this.hasPendingChanges) this.changed = false
     return events
   }
 }

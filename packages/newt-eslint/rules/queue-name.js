@@ -1,17 +1,26 @@
 import { posix } from 'node:path'
-import { modulePlace, camelCase } from '../paths.js'
+import { camelCase, modulePlace, rootOf } from '../paths.js'
 
 /**
  * `<module>.<use case>.on.<module>.<event>`: the framework refuses at startup a
  * handler's queue that does not start with two names and `.on.`; the event is the
  * name of the one it subscribes to, a module's and its own.
  */
-const QUEUE = /^([a-z][A-Za-z0-9]*)\.([a-z][A-Za-z0-9]*)\.on\.[^.\s]+\.([^.\s]+)$/
+const QUEUE = /^([a-z][A-Za-z0-9]*)\.([a-z][A-Za-z0-9]*)\.on\.([^.\s]+\.([^.\s]+))$/
 
 const property = (object, name) => object.properties.find(each => each.type === 'Property' && !each.computed && ((each.key.type === 'Identifier' && each.key.name === name) || each.key.value === name))
 
-/** A value without what only TypeScript sees around it: `'handler' as const` is `'handler'`. */
-const unwrap = (node) => node?.type === 'TSAsExpression' || node?.type === 'TSSatisfiesExpression' ? unwrap(node.expression) : node
+const TYPED = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSTypeAssertion', 'TSNonNullExpression'])
+
+/** A value without what only TypeScript sees around it: `'handler' as const`, `<const>'handler'` and `'handler'!` are `'handler'`. */
+const unwrap = (node) => TYPED.has(node?.type) ? unwrap(node.expression) : node
+
+/** The string a value is written as: a string, or a template with nothing in it (`` `order.fulfil.on.order.placed` ``); else `undefined`. */
+function text(node) {
+  const value = unwrap(node)
+  if (value?.type === 'Literal') return typeof value.value === 'string' ? value.value : undefined
+  return value?.type === 'TemplateLiteral' && value.expressions.length === 0 ? value.quasis[0].value.cooked : undefined
+}
 
 /** The variable a name is, from the scope it is read in. */
 function variableOf(scope, name) {
@@ -48,12 +57,12 @@ export const queueName = {
       shape: "'{{queue}}' is not a handler's queue: it is '<module>.<use case>.on.<module>.<event>', as 'order.fulfil.on.order.placed'.",
       module: "This queue is '{{module}}.…': the handlers in {{file}} are {{module}}'s, so their queues start with '{{module}}.', not '{{found}}.'.",
       useCase: "This queue says the handler calls {{module}}'s '{{useCase}}', but its callback calls no '{{useCase}}' of {{module}}: name the use case it calls.",
-      event: "This queue ends with '.on.…{{event}}', the event it subscribes to.",
+      event: "This queue ends with '.on.{{event}}', the event it subscribes to.",
     },
     schema: [],
   },
   create(context) {
-    const place = modulePlace(context.filename, context.cwd)
+    const place = modulePlace(context.filename, rootOf(context))
     if (!place) return {}
     const module = camelCase(place.module)
     const type = `${module[0].toUpperCase()}${module.slice(1)}_Module`
@@ -78,15 +87,64 @@ export const queueName = {
     }
 
     /**
-     * That `object` is the module: `this` in its own file, or of its type: by what
-     * TypeScript says, with a program; without one, by its annotation (`orders:
-     * Order_Module`, `m.Order_Module`), or by its name when it has none (`orders`,
-     * `this.orders`).
+     * The name of the event an emitter tells, by what TypeScript says of where it comes
+     * from: the `eventName` of its event class (`eventsOf(bus, { placed: Order_Placed })`),
+     * or the name of a schedule (`schedules.define('order.nightly', …)`). `undefined`
+     * when it cannot tell.
+     */
+    const eventName = (emitter) => {
+      const node = services.esTreeNodeToTSNodeMap.get(emitter)
+      const symbol = checker.getSymbolAtLocation(node.name ?? node)
+      for (const declaration of symbol?.declarations ?? []) {
+        for (const value of [declaration.initializer, ...assigned(declaration.parent, symbol)]) {
+          const name = value && (literal(checker.getTypeAtLocation(value).getProperty('eventName')) ?? scheduled(value))
+          if (name) return name
+        }
+      }
+      return undefined
+    }
+
+    /** The string a symbol's type is, when it is one (`static readonly eventName = 'order.placed'`). */
+    const literal = (symbol) => {
+      const found = symbol && checker.getTypeOfSymbol(symbol)
+      return found?.isStringLiteral() ? found.value : undefined
+    }
+
+    /** The name a schedule is defined with (`base.schedules.define('order.nightly', '0 3 * * *')`). */
+    const scheduled = (call) => call.arguments?.length && call.expression.name?.text === 'define'
+      ? (found => found.isStringLiteral() ? found.value : undefined)(checker.getTypeAtLocation(call.arguments[0]))
+      : undefined
+
+    /** What is assigned to `symbol` under `node` (`this.nightly = …` in a constructor). */
+    const assigned = (node, symbol) => {
+      const found = []
+      const visit = (each) => {
+        if (each.operatorToken && each.right && checker.getSymbolAtLocation(each.left.name ?? each.left) === symbol) found.push(each.right)
+        each.forEachChild(visit)
+      }
+      node?.forEachChild(visit)
+      return found
+    }
+
+    /** The class `this` is at `node`, through arrow functions; `null` in a function of its own. */
+    const classOf = (node) => {
+      for (let around = node.parent; around; around = around.parent) {
+        if (around.type === 'ClassBody') return around.parent
+        if (around.type === 'FunctionDeclaration' || (around.type === 'FunctionExpression' && around.parent.type !== 'MethodDefinition')) return null
+      }
+      return null
+    }
+
+    /**
+     * That `object` is the module: of its type, by what TypeScript says, with a
+     * program; without one, `this` in its own file or in a class of its name, or by
+     * its annotation (`orders: Order_Module`, `m.Order_Module`), or by its name when
+     * it has none (`orders`, `this.orders`).
      */
     const isModule = (object) => {
-      if (object.type === 'ThisExpression') return true
       const byType = typed(object)
       if (byType !== undefined) return byType
+      if (object.type === 'ThisExpression') return place.inside.endsWith('.module.ts') || classOf(object)?.id?.name === type
       if (object.type === 'MemberExpression') {
         if (object.computed || object.property.type !== 'Identifier') return false
         const annotation = object.object.type === 'ThisExpression' ? fieldType(object, object.property.name) : undefined
@@ -129,19 +187,27 @@ export const queueName = {
       CallExpression(node) {
         const { callee, arguments: [callback, options] } = node
         if (callee.type !== 'MemberExpression' || callee.property.name !== 'subscribe' || options?.type !== 'ObjectExpression') return
-        const strategy = unwrap(property(options, 'strategy')?.value)
         const queue = unwrap(property(options, 'queue')?.value)
-        if (strategy?.value !== 'handler' || queue?.type !== 'Literal' || typeof queue.value !== 'string') return
-        const shape = QUEUE.exec(queue.value)
-        if (!shape) return context.report({ node: queue, messageId: 'shape', data: { queue: queue.value } })
-        const [, found, useCase, event] = shape
+        const name = text(queue)
+        if (text(property(options, 'strategy')?.value) !== 'handler' || name === undefined) return
+        const shape = QUEUE.exec(name)
+        if (!shape) return context.report({ node: queue, messageId: 'shape', data: { queue: name } })
+        const [, found, useCase, event, last] = shape
         if (found !== module) context.report({ node: queue, messageId: 'module', data: { module, found, file: posix.basename(place.inside) } })
         const runs = body(callback)
         const calls = runs && [...nodes(runs)].some(each => each.type === 'CallExpression' && each.callee.type === 'MemberExpression'
           && !each.callee.computed && each.callee.property.name === useCase && isModule(each.callee.object))
         if (runs && !calls) context.report({ node: queue, messageId: 'useCase', data: { useCase, module } })
-        const key = callee.object.type === 'MemberExpression' && callee.object.property.type === 'Identifier' ? callee.object.property.name : null
-        if (key && event !== key) context.report({ node: queue, messageId: 'event', data: { event: `.${key}` } })
+        if (checker) {
+          const told = eventName(callee.object)
+          if (told && event !== told) context.report({ node: queue, messageId: 'event', data: { event: told } })
+          return
+        }
+        // Without a program, only the key it is read from in `events` (`eventsOf`'s) says the event.
+        const emitter = callee.object
+        const key = emitter.type === 'MemberExpression' && !emitter.computed && emitter.property.type === 'Identifier'
+          && emitter.object.type === 'MemberExpression' && !emitter.object.computed && emitter.object.property.name === 'events' ? emitter.property.name : null
+        if (key && last !== key) context.report({ node: queue, messageId: 'event', data: { event: `….${key}` } })
       },
     }
   },

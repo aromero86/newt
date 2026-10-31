@@ -36,7 +36,7 @@ const json = async <T>(path: string) => (await (await as(path)).json()) as T
 const collect = () => monitor.modules.instances.collect(id)
 
 /** An instance sampled every 10 seconds of a minute, from one slot to another. */
-function sampled(instance: string, at: Date, slots: number[], read: { rss?: number, cpu?: number, loopMaxMs?: number, memoryFree?: number, diskFree?: number } = {}) {
+function sampled(instance: string, at: Date, slots: number[], read: { rss?: number, cpu?: number, loopMaxMs?: number, memoryTotal?: number, memoryFree?: number, diskFree?: number } = {}) {
   for (const slot of slots) app.sample(instance, { at: new Date(at.getTime() + slot * 10 * SECOND), ...read })
 }
 
@@ -62,9 +62,9 @@ describe('instances', () => {
 
     const system = await json<SystemSeriesDTO>(`/api/apps/${id}/system/series?window=1h&bucket=1m`)
     expect(system.disks).toEqual({ '/': 100 * GB })
-    // The processes added up, the worst event loop, the fullest machine and the fullest disk.
-    expect(system.points.filter(point => point.rssBytes !== null).map(point => [point.rssBytes, point.cpu, point.loopMaxMs, point.memoryFreeBytes, point.disks['/']]))
-      .toEqual([[150 * MB, 15, 9, 2 * GB, 60 * GB]])
+    // The processes added up slot by slot (`b` only in the last three), the worst event loop, the fullest machine and the fullest disk.
+    expect(system.points.filter(point => point.rssBytes !== null).map(point => [point.rssBytes, point.rssMaxBytes, point.cpu, point.loopMaxMs, point.memoryFreeBytes, point.disks['/']]))
+      .toEqual([[125 * MB, 150 * MB, 12.5, 9, 2 * GB, 60 * GB]])
     expect((await as(`/api/apps/${id}/system/series?window=1h&bucket=1d`)).status).toBe(400)
     expect((await as(`/api/apps/${id}/instances/count?window=1h&bucket=1d`)).status).toBe(400)
   })
@@ -78,6 +78,27 @@ describe('instances', () => {
     const system = await json<SystemSeriesDTO>(`/api/apps/${id}/system/series?window=1h&bucket=1m`)
     expect(system.points.filter(point => point.rssBytes !== null).map(point => [point.at, point.rssBytes]))
       .toEqual([[ago(30 * MINUTE).toISOString(), 100 * MB], [ago(29 * MINUTE).toISOString(), 110 * MB]])
+  })
+
+  test('adds up in each slot only the instances alive together, and reads each machine\'s total with its own free memory', async () => {
+    // A restart within one minute, onto a smaller machine: `old` for its first two slots, `new` for its last three.
+    sampled('old', ago(30 * MINUTE), [0, 1], { rss: 100 * MB, cpu: 10, memoryTotal: 16 * GB, memoryFree: 1 * GB })
+    await app.stopped('old', ago(30 * MINUTE - 15 * SECOND))
+    sampled('new', ago(30 * MINUTE), [3, 4, 5], { rss: 100 * MB, cpu: 10, memoryTotal: 4 * GB, memoryFree: GB / 2 })
+    await collect()
+
+    const system = await json<SystemSeriesDTO>(`/api/apps/${id}/system/series?window=1h&bucket=1m`)
+    const [point] = system.points.filter(point => point.rssBytes !== null)
+    // Five of the six slots had one instance, none had two; the fuller machine is the bigger one, by share.
+    expect(point!.rssBytes).toBeCloseTo(100 * MB * 5 / 6)
+    expect(point!.cpu).toBeCloseTo(10 * 5 / 6)
+    expect([point!.rssMaxBytes, point!.cpuMax, point!.memoryTotalBytes, point!.memoryFreeBytes]).toEqual([100 * MB, 10, 16 * GB, 1 * GB])
+
+    // Both alive now, each on its machine: the system now reads the fuller one too.
+    app.sample('a', { at: new Date(Date.now() - 2 * SECOND), memoryTotal: 4 * GB, memoryFree: GB / 2 })
+    app.sample('b', { at: new Date(Date.now() - 2 * SECOND), memoryTotal: 16 * GB, memoryFree: 1 * GB })
+    await collect()
+    expect((await json<InstancesDTO>(`/api/apps/${id}/instances`)).system?.memory).toEqual({ totalBytes: 16 * GB, freeBytes: 1 * GB })
   })
 
   test('says an instance not heard of is lost, as the application says it', async () => {
@@ -113,7 +134,7 @@ describe('instances', () => {
     sampled('a', ago(20 * DAY), [0])
     await collect()
     expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { resourceMinuteDays: 1 } })).status).toBe(400)
-    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { resourceMinuteDays: 3, dayDays: 10 } })
+    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3, resourceMinuteDays: 3, dayDays: 10 } })
 
     await monitor.modules.instances.keep(id)
 

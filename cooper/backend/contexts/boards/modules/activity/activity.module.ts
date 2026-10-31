@@ -31,7 +31,7 @@ export class Activity_Module extends Module {
     return module
   }
 
-  private constructor(base: BoardsBase, private readonly repo: Activity_Repository, deps: Activity_Deps) {
+  private constructor(base: BoardsBase, private readonly repo: Activity_Repository, private readonly deps: Activity_Deps) {
     super('activity', base.invocations, deps)
   }
 
@@ -81,8 +81,13 @@ export class Activity_Module extends Module {
   /**
    * Records an event of a card, in its workspace (a worker is in none), by the event's
    * id: the second time, the entry is there already.
+   *
+   * A workspace auth deleted gets nothing: its job may run late, after the log's
+   * purge, and the deletion itself unassigns its cards. One deleted while it runs
+   * has its log purged again.
    */
   private async append(card: CardDTO, { by, via }: CardAuthor, event: EventMeta, kind: ActivityKind, detail: ActivityDTO['detail']): Promise<void> {
+    if (!await this.deps.member.exists(card.workspaceId)) return
     await runInWorkspace(card.workspaceId, async () => {
       if (await this.repo.first({ id: event.id })) return
       await this.repo.persist(Activity.record({
@@ -97,5 +102,6 @@ export class Activity_Module extends Module {
         detail,
       }))
     })
+    if (!await this.deps.member.exists(card.workspaceId)) await this.repo.purgeWorkspace(card.workspaceId)
   }
 }

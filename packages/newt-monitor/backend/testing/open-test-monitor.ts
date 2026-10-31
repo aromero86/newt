@@ -3,6 +3,7 @@ import { runContexts } from 'newt/application'
 import type { Clock } from 'newt/core'
 import { browser } from 'newt/testing'
 import type { MonitorConfig } from '../config'
+import type { AppClient } from '../shared/app-client/app-client'
 import { Auth_Context } from '../contexts/auth/auth.context'
 import { Monitor_Context } from '../contexts/monitor/monitor.context'
 
@@ -27,17 +28,18 @@ const TEST_CONFIG: MonitorConfig = {
   metricsFolder: ':memory:',
 }
 
-/** What a test changes of the monitor's settings (everything else is a test's), and the clock it tells the time by. */
-export type TestMonitorOptions = Partial<MonitorConfig> & { clock?: Clock }
+/** What a test changes of the monitor's settings (everything else is a test's), the clock it tells the time by, and how it reaches the applications (over HTTP, unless given). */
+export type TestMonitorOptions = Partial<MonitorConfig> & { clock?: Clock, client?: AppClient }
 
 /** The monitor for a test, its two contexts served on a free port, stopped by `close`. */
-export async function openTestMonitor({ clock, ...options }: TestMonitorOptions = {}) {
+export async function openTestMonitor({ clock, client, ...options }: TestMonitorOptions = {}) {
   const config = { ...TEST_CONFIG, ...options }
   const auth = await Auth_Context.open(config, clock)
-  const monitor = await Monitor_Context.open(config, { auth: auth.modules }, clock)
+  const monitor = await Monitor_Context.open(config, { auth: auth.modules, client }, clock)
   const app = runContexts([{ context: auth }, { context: monitor, serve: monitor.serving(auth.routes()) }], { signals: false })
   const url = app.servers.monitor!.url.origin
   return {
+    auth,
     monitor,
     modules: monitor.modules,
     url,

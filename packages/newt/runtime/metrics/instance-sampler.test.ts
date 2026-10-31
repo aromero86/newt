@@ -83,4 +83,23 @@ describe('InstanceSampler', () => {
     await Promise.all([sampler!.stop(), sampler!.stop()])
     expect((await metrics.instances(null, clock.now())).instances[0]).toMatchObject({ status: 'stopped', stoppedAt: '2026-01-01T10:00:06.000Z' })
   })
+
+  test('a reading in progress when it stops does not say the instance is alive again', async () => {
+    const metrics = sampled()
+    await sampler!.take()
+    time += 10_000
+    const read = (sampler as unknown as { readServer(): Promise<unknown> }).readServer.bind(sampler)
+    let stopCalled!: () => void
+    const stopping = new Promise<void>(resolve => stopCalled = resolve)
+    ;(sampler as unknown as { readServer(): Promise<unknown> }).readServer = async () => {
+      await stopping
+      return read()
+    }
+    const taking = sampler!.take()
+    time += 2
+    const stopped = sampler!.stop()
+    stopCalled()
+    await Promise.all([stopped, taking])
+    expect((await metrics.instances(null, clock.now())).instances[0]).toMatchObject({ status: 'stopped' })
+  })
 })

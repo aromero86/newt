@@ -204,26 +204,18 @@ export class RedisMetrics implements Metrics {
     const pending = this.pending
     this.pending = new Map()
     const told: EventCount[] = []
-    const writes: Promise<unknown>[] = []
+    const writes: string[][] = []
     for (const [minute, counts] of pending) {
       const hash = this.key(minute)
       for (const [key, count] of counts) {
-        writes.push(this.redis.hincrby(hash, key, count))
+        writes.push(['HINCRBY', hash, key, String(count)])
         told.push(countOf(key, minute, count))
       }
-      writes.push(this.redis.expire(hash, this.keepSeconds), this.redis.zadd(this.key('minutes'), Date.parse(minute), minute))
+      writes.push(['EXPIRE', hash, String(this.keepSeconds)], ['ZADD', this.key('minutes'), String(Date.parse(minute)), minute])
     }
-    try {
-      // All at once: Bun sends them in one pipeline.
-      await Promise.all(writes)
-    } catch (error) {
-      // Redis did not take them: they wait for the next flush, with what comes meanwhile.
-      for (const [minute, counts] of pending) {
-        for (const [key, count] of counts) this.add(minute, key, count)
-      }
-      console.error(`[newt metrics] Redis did not take the counts, they wait: ${(error as Error).message}`)
-      return
-    }
+    const outcome = await this.apply('counts', writes)
+    if (outcome === 'not applied') this.putBack('counts', pending, count => count, (minute, key, count) => this.add(minute, key, count))
+    if (outcome !== 'applied') return
     await Promise.all([
       // Older than the kept window, counted from the newest minute added.
       this.redis.send('ZREMRANGEBYSCORE', [this.key('minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]),
@@ -235,30 +227,24 @@ export class RedisMetrics implements Metrics {
     if (this.pendingTimings.size === 0) return
     const pending = this.pendingTimings
     this.pendingTimings = new Map()
-    const writes: Promise<unknown>[] = []
+    const writes: string[][] = []
     for (const [minute, timings] of pending) {
       const hash = this.key(`uc:${minute}`)
       for (const [key, timing] of timings) {
         writes.push(
-          this.redis.hincrby(hash, `${key}#calls`, timing.calls),
-          this.redis.hincrby(hash, `${key}#retries`, timing.retries),
-          this.redis.hincrby(hash, `${key}#us`, Math.round(timing.totalMs * 1000)),
-          ...[...timing.histogram].map(([bucket, count]) => this.redis.hincrby(hash, `${key}#b${bucket}`, count)),
-          ...[...timing.errors].map(([code, count]) => this.redis.hincrby(hash, `${key}#e:${encodeURIComponent(code)}`, count)),
-          ...[...timing.failures].map(([code, count]) => this.redis.hincrby(hash, `${key}#f:${encodeURIComponent(code)}`, count)),
+          ['HINCRBY', hash, `${key}#calls`, String(timing.calls)],
+          ['HINCRBY', hash, `${key}#retries`, String(timing.retries)],
+          ['HINCRBY', hash, `${key}#us`, String(Math.round(timing.totalMs * 1000))],
+          ...[...timing.histogram].map(([bucket, count]) => ['HINCRBY', hash, `${key}#b${bucket}`, String(count)]),
+          ...[...timing.errors].map(([code, count]) => ['HINCRBY', hash, `${key}#e:${encodeURIComponent(code)}`, String(count)]),
+          ...[...timing.failures].map(([code, count]) => ['HINCRBY', hash, `${key}#f:${encodeURIComponent(code)}`, String(count)]),
         )
       }
-      writes.push(this.redis.expire(hash, this.keepSeconds), this.redis.zadd(this.key('uc:minutes'), Date.parse(minute), minute))
+      writes.push(['EXPIRE', hash, String(this.keepSeconds)], ['ZADD', this.key('uc:minutes'), String(Date.parse(minute)), minute])
     }
-    try {
-      await Promise.all(writes)
-    } catch (error) {
-      for (const [minute, timings] of pending) {
-        for (const [key, timing] of timings) this.addTiming(minute, key, timing)
-      }
-      console.error(`[newt metrics] Redis did not take the timings, they wait: ${(error as Error).message}`)
-      return
-    }
+    const outcome = await this.apply('timings', writes)
+    if (outcome === 'not applied') this.putBack('timings', pending, timing => timing.calls, (minute, key, timing) => this.addTiming(minute, key, timing))
+    if (outcome !== 'applied') return
     await this.redis.send('ZREMRANGEBYSCORE', [this.key('uc:minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]).catch(() => undefined)
   }
 
@@ -266,27 +252,71 @@ export class RedisMetrics implements Metrics {
     if (this.pendingFlows.size === 0) return
     const pending = this.pendingFlows
     this.pendingFlows = new Map()
-    const writes: Promise<unknown>[] = []
+    const writes: string[][] = []
     for (const [minute, flows] of pending) {
       const hash = this.key(`q:${minute}`)
       for (const [key, flow] of flows) {
         for (const part of ['published', 'delivered', 'redelivered', 'dead'] as const) {
-          if (flow[part] > 0) writes.push(this.redis.hincrby(hash, `${key}#${part}`, flow[part]))
+          if (flow[part] > 0) writes.push(['HINCRBY', hash, `${key}#${part}`, String(flow[part])])
         }
-        for (const [bucket, count] of flow.wait) writes.push(this.redis.hincrby(hash, `${key}#w${bucket}`, count))
+        for (const [bucket, count] of flow.wait) writes.push(['HINCRBY', hash, `${key}#w${bucket}`, String(count)])
       }
-      writes.push(this.redis.expire(hash, this.keepSeconds), this.redis.zadd(this.key('q:minutes'), Date.parse(minute), minute))
+      writes.push(['EXPIRE', hash, String(this.keepSeconds)], ['ZADD', this.key('q:minutes'), String(Date.parse(minute)), minute])
     }
-    try {
-      await Promise.all(writes)
-    } catch (error) {
-      for (const [minute, flows] of pending) {
-        for (const [key, flow] of flows) this.addFlowAt(minute, key, flow)
-      }
-      console.error(`[newt metrics] Redis did not take the queue flows, they wait: ${(error as Error).message}`)
-      return
-    }
+    const outcome = await this.apply('queue flows', writes)
+    if (outcome === 'not applied') this.putBack('queue flows', pending, flow => flow.published + flow.delivered + flow.redelivered + flow.dead, (minute, key, flow) => this.addFlowAt(minute, key, flow))
+    if (outcome !== 'applied') return
     await this.redis.send('ZREMRANGEBYSCORE', [this.key('q:minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]).catch(() => undefined)
+  }
+
+  /**
+   * A batch of increments as one MULTI/EXEC: Redis runs it whole or not at all, so it is never added twice.
+   * `not applied` when Redis surely took none of it, and it may wait for the next flush; `unknown` when the
+   * connection failed with it sent, and it is dropped: losing a batch is better than counting it twice.
+   */
+  private async apply(what: string, writes: string[][]): Promise<'applied' | 'not applied' | 'unknown'> {
+    try {
+      // Connected first: what the client cannot send then, Redis never had.
+      if (!this.redis.connected) await this.redis.connect()
+    } catch (error) {
+      console.error(`[newt metrics] Redis is unreachable, the ${what} wait: ${(error as Error).message}`)
+      return 'not applied'
+    }
+    // Sent in one go, without an await between them: nothing else this client sends comes inside the transaction.
+    const sent = [this.redis.send('MULTI', []), ...writes.map(([name, ...args]) => this.redis.send(name!, args))]
+    const exec = this.redis.send('EXEC', [])
+    // Whatever fails among them, EXEC tells.
+    for (const each of sent) each.catch(() => undefined)
+    let results: unknown
+    try {
+      results = await exec
+    } catch (error) {
+      // An error reply to EXEC (EXECABORT) means Redis discarded the transaction; any other failure leaves it unknown.
+      if ((error as { code?: string }).code === 'ERR_REDIS_SERVER_ERROR') {
+        console.error(`[newt metrics] Redis did not take the ${what}, they wait: ${(error as Error).message}`)
+        return 'not applied'
+      }
+      console.error(`[newt metrics] Redis may have taken the ${what} or not, they are dropped rather than counted twice: ${(error as Error).message}`)
+      return 'unknown'
+    }
+    // A key the connection watched changed: Redis discarded it.
+    if (results === null) return 'not applied'
+    const failed = (results as unknown[]).filter(result => result instanceof Error)
+    if (failed.length > 0) console.error(`[newt metrics] Redis refused ${failed.length} of the ${what}' writes, the rest are added: ${failed[0]!.message}`)
+    return 'applied'
+  }
+
+  /** A batch Redis did not take waits for the next flush, but only its minutes still kept: older ones are dropped, and said. */
+  private putBack<T>(what: string, batch: Map<string, Map<string, T>>, size: (value: T) => number, add: (minute: string, key: string, value: T) => void): void {
+    const oldest = Date.now() - this.keepSeconds * 1000
+    let dropped = 0
+    for (const [minute, values] of batch) {
+      for (const [key, value] of values) {
+        if (Date.parse(minute) < oldest) dropped += size(value)
+        else add(minute, key, value)
+      }
+    }
+    if (dropped > 0) console.error(`[newt metrics] ${dropped} ${what} older than the minutes kept are dropped`)
   }
 
   /** Its minutes' samples, each minute whole under its own field, and its last sample as its state. */

@@ -1,5 +1,7 @@
 import { Fragment, useEffect } from 'react'
 import { Outlet } from 'react-router'
+import { Alert } from 'newt-react-ui/alert'
+import { Button } from 'newt-react-ui/button'
 import { NarrowPage } from 'newt-react-ui/narrow-page'
 import { Spinner } from 'newt-react-ui/spinner'
 import { useService, useValue } from 'newt-react'
@@ -24,6 +26,14 @@ export function SessionGuard() {
     return (
       <NarrowPage>
         <Spinner label="Loading the backoffice" />
+      </NarrowPage>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <NarrowPage>
+        <Alert tone="bad" title="Could not reach the backoffice">Whether you are signed in is not known yet.</Alert>
+        <Button block variant="outline" onClick={() => void session.check()}>Retry</Button>
       </NarrowPage>
     )
   }

@@ -17,6 +17,7 @@ export type UseCaseErrorsFeedDTO = z.infer<typeof UseCaseErrorsFeedSchema>
 export type CollectErrorsDTO =
   | { appId: string, outcome: 'collected', counted: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 const scopeSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_ ]*:.+$/, 'A scope is <name>:<id>')

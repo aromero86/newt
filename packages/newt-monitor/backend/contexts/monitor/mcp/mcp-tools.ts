@@ -3,6 +3,7 @@ import { mapPage, type Page, type PageRequest } from 'newt/core'
 import { z } from 'zod'
 import type { Monitor_Modules } from '../initialize-modules'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../modules/event-metrics/event-metrics.schema'
+import { TraceCursorSchema } from '../modules/traces/traces.schema'
 
 /** Every tool only reads: the monitor's own data, never an application's. */
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false }
@@ -131,7 +132,7 @@ export function registerMcpTools(server: McpServer, modules: Monitor_Modules): v
       useCase: z.string().optional().describe('As `<module>.<useCase>`; with context'),
       queue: z.string().optional(),
       show: z.enum(['all', 'failures', 'errors', 'retried', 'forced', 'logged', 'slow']).optional().describe('Which ones: all by default'),
-      before: z.string().optional().describe('The cursor of the page before'),
+      before: TraceCursorSchema.optional().describe('The cursor of the page before'),
       limit: z.number().int().min(1).max(100).optional().describe('How many, 50 by default'),
     },
     annotations: READ_ONLY,

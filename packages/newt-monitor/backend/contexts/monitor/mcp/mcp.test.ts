@@ -117,16 +117,37 @@ describe('the MCP server', () => {
     expect((await fetch(`${url}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${again.access_token}` } })).status).toBe(401)
   })
 
+  test('forgets a token whose first refresh token comes back after two refreshes', async () => {
+    const { refresh_token: first, clientId } = await connect()
+    const form = (fields: Record<string, string>) => ({ method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) })
+    const refresh = async (refreshToken: string) => (await (await fetch(`${url}/oauth/token`, form({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId }))).json()) as { access_token: string, refresh_token: string }
+    const third = await refresh((await refresh(first)).refresh_token)
+
+    expect((await fetch(`${url}/oauth/token`, form({ grant_type: 'refresh_token', refresh_token: first, client_id: clientId }))).status).toBe(400)
+    expect((await fetch(`${url}/mcp`, { method: 'POST', headers: { authorization: `Bearer ${third.access_token}` } })).status).toBe(401)
+    expect((await fetch(`${url}/oauth/token`, form({ grant_type: 'refresh_token', refresh_token: third.refresh_token, client_id: clientId }))).status).toBe(400)
+  })
+
   test('sends the person back with nothing when they say no, and never to an address the client did not register', async () => {
     const registered = await fetch(`${url}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CALLBACK] }) })
     const { client_id: clientId } = (await registered.json()) as { client_id: string }
     const challenge = new Bun.CryptoHasher('sha256').update('v'.repeat(43)).digest('base64url')
     const ask = (redirect: string) => as(`${url}/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: 'S256' })}`)
 
-    expect((await ask('https://elsewhere.example/callback')).headers.get('location')).toStartWith(`${url}/authorize/error?`)
+    // The error page is told why by a code, never by text it would show as it came.
+    expect((await ask('https://elsewhere.example/callback')).headers.get('location')).toBe(`${url}/authorize/error?error=oauthGrant.redirect_mismatch`)
     const request = (await ask(CALLBACK)).headers.get('location')!.split('/authorize/')[1]!
     const { redirectTo } = (await (await as(`/api/authorizations/${request}/deny`, { method: 'POST' })).json()) as { redirectTo: string }
     expect(new URL(redirectTo).searchParams.get('error')).toBe('access_denied')
     expect((await as(`/api/authorizations/${request}/approve`, { method: 'POST' })).status).toBe(409)
+  })
+
+  test('refuses a client whose Basic credentials do not decode, as any client it does not know', async () => {
+    const basic = { authorization: `Basic ${Buffer.from('a%zz:b').toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' }
+    for (const [endpoint, fields] of [['token', { grant_type: 'refresh_token', refresh_token: 'r' }], ['revoke', { token: 't' }]] as const) {
+      const refused = await fetch(`${url}/oauth/${endpoint}`, { method: 'POST', headers: basic, body: new URLSearchParams(fields) })
+      expect(refused.status).toBe(401)
+      expect(await refused.json()).toMatchObject({ error: 'invalid_client' })
+    }
   })
 })

@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, findCurrentActor, Module, UseCase } from 'newt/core'
+import { currentActor, eventsOf, findCurrentActor, Module, now, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { OauthClientNotFound } from '../oauth-client/errors/oauth-client-not-found'
 import type { OauthClientDTO } from '../oauth-client/oauth-client.schema'
@@ -23,6 +23,7 @@ import type { OauthGrant_Deps } from './oauth-grant.deps'
 import type { OauthGrant_Options } from './oauth-grant-options'
 import { OauthGrant_Repository } from './oauth-grant.repository'
 import { registerOauthGrantRoutes } from './oauth-grant.routes'
+import { registerOauthGrantWorkers } from './oauth-grant.workers'
 
 /** A PKCE challenge of S256: the base64url of a SHA-256, 43 characters. */
 const S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/
@@ -38,14 +39,19 @@ export class OauthGrant_Module extends Module {
   static initialize(base: AuthBase, deps: OauthGrant_Deps, options: OauthGrant_Options): OauthGrant_Module {
     const module = new OauthGrant_Module(base, new OauthGrant_Repository(base), deps)
     registerOauthGrantRoutes(base, module, deps, options)
+    registerOauthGrantWorkers(module)
     return module
   }
 
   readonly events
 
+  /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
+
   private constructor(base: AuthBase, private readonly repo: OauthGrant_Repository, private readonly deps: OauthGrant_Deps) {
     super('oauthGrant', base.invocations, deps)
     this.events = eventsOf(base.bus, { replayed: OauthGrant_Replayed })
+    this.nightly = base.schedules.define('oauthGrant.nightly', '0 3 * * *')
   }
 
   /**
@@ -157,6 +163,26 @@ export class OauthGrant_Module extends Module {
     await this.repo.persist(grant)
     const { id, userId, productId, resource } = grant.toDTO()
     return { grantId: id, userId: userId!, clientId, productId, resource }
+  }
+
+  /**
+   * Whether a grant's code was brought again after it was traded: what `token.exchange`
+   * asks once its tokens are saved, should the copy have come before they were.
+   */
+  @UseCase()
+  async isReplayed(grantId: string): Promise<boolean> {
+    const grant = await this.repo.first({ id: grantId })
+    return grant?.status === 'replayed'
+  }
+
+  /**
+   * Removes the requests that expired unanswered or untraded: anyone may ask, so they
+   * would pile up. A redeemed one stays, which tells a copied code. What the nightly
+   * worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 
   /** A product that lets in only whom it was told lets in those with access to all of it. */

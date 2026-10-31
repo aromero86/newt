@@ -59,7 +59,8 @@ export class InstancesQueries {
     for (const reading of await this.readings('system', from, to, size)) {
       for (const row of await this.analytics.query<{ slot: number, rss: number, rss_max: number, cpu: number, cpu_max: number, loop_max: number, memory_total: number, memory_free: number, usage: number | null, usage_max: number | null, load: number }>(
         `SELECT ${this.slot(reading.time, size)} AS slot, avg(rss_mean) AS rss, max(rss_max) AS rss_max, avg(cpu_mean) AS cpu, max(cpu_max) AS cpu_max,
-           max(loop_max) AS loop_max, max(memory_total) AS memory_total, min(memory_free_min) AS memory_free,
+           max(loop_max) AS loop_max, arg_min(memory_total, memory_free_min / memory_total) AS memory_total,
+           arg_min(memory_free_min, memory_free_min / memory_total) AS memory_free,
            avg(usage_mean) AS usage, max(usage_max) AS usage_max, max(load_max) AS load
          FROM ${reading.table} WHERE ${where(reading.time)} GROUP BY slot`, range(reading))) {
         Object.assign(pointAt(row.slot * 1000), {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Browser } from 'newt/testing'
+import { HeldAppClient } from '../../../../testing/held-app-client'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { StructureChangedDTO, StructureVersionDTO } from './structure'
@@ -9,9 +10,11 @@ let app: TestApp
 let as: Browser
 let id: string
 let changes: StructureChangedDTO[]
+let client: HeldAppClient
 
 beforeEach(async () => {
-  monitor = await openTestMonitor()
+  client = new HeldAppClient()
+  monitor = await openTestMonitor({ client })
   as = await monitor.signedIn()
   app = serveTestApp()
   app.add('shop', { order: { useCases: ['place'], events: ['placed'] } })
@@ -78,6 +81,25 @@ describe('structure', () => {
 
     expect(refreshed.filter(each => each.outcome === 'changed')).toHaveLength(1)
     expect(await versions()).toHaveLength(2)
+  })
+
+  test('keeps nothing of an application deleted while it was first read', async () => {
+    // Its worker stopped, registering it does not read it: the refresh below is its first read.
+    await monitor.monitor.base.jobs.stop()
+    const { id } = await monitor.modules.app.register({ name: 'deleted', url: app.url, key: app.key })
+    client.meanwhile = async () => {
+      await as(`/api/apps/${id}/archive`, { method: 'POST' })
+      await as(`/api/apps/${id}`, { method: 'DELETE' })
+      // What the monitor knew of it is forgotten before it answers.
+      await settled()
+    }
+
+    expect(await monitor.modules.structure.refresh(id)).toEqual({ appId: id, outcome: 'gone', version: null })
+    await settled()
+    const { store } = monitor.monitor.base
+    type OfAnApp = { id: string, appId: string, version: number }
+    expect(await store.table<OfAnApp>('structure_version').count({ appId: id })).toBe(0)
+    expect(await store.table<OfAnApp>('connection').count({ appId: id })).toBe(0)
   })
 
   test('has nothing to show before it first reads one', async () => {

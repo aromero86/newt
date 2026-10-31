@@ -1,7 +1,8 @@
 import type { UseCaseTiming } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
-import { scopesText } from '../../../../shared/metrics-store/metrics-store'
+import { eachApp } from '../../../../shared/each-app'
+import { AppGone, scopesText } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import {
   ErrorCodesQuerySchema, ErrorsSeriesQuerySchema, ErrorsTopQuerySchema, ErrorsTotalsQuerySchema, UseCaseErrorsFeed,
@@ -60,18 +61,26 @@ export class UseCaseErrors_Module extends Module {
     const read = await this.deps.connection.fetchTimings(appId, feed.until)
     if (!read.answered) return { appId, outcome: 'unreachable' }
 
-    const counted = await this.append(appId, read.value.timings)
+    // Deleted while it was asked: what it answered is not kept, nor its DuckDB opened again.
+    if (!await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
+    let counted: number
+    try {
+      counted = await this.append(appId, read.value.timings)
+    } catch (error) {
+      if (error instanceof AppGone) return { appId, outcome: 'gone' }
+      throw error
+    }
     feed.collectedUntil(read.value.until)
+    // A first feed is kept only for an application still there.
+    if (feed.isNew && !await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
     await this.repo.persist(feed)
     return { appId, outcome: 'collected', counted, until: read.value.until }
   }
 
-  /** Collects every application watched, one after another: one that does not answer is recorded so. */
+  /** Collects every application watched, one after another: one that does not answer is recorded so, one that fails too, and the others go on. */
   @UseCase({ writesTo: ['connection'] })
   async collectAll(): Promise<CollectErrorsDTO[]> {
-    const collected: CollectErrorsDTO[] = []
-    for (const appId of await this.deps.app.watchedIds()) collected.push(await this.collect(appId))
-    return collected
+    return eachApp(await this.deps.app.watchedIds(), appId => this.collect(appId), (appId, message) => ({ appId, outcome: 'failed', message }))
   }
 
   /** Sums each whole day at least two days old, and forgets what its retention says is old. */
@@ -79,7 +88,9 @@ export class UseCaseErrors_Module extends Module {
   async keep(appId: string): Promise<void> {
     const at = now()
     const { minuteDays, dayDays } = await this.deps.retention.of(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Deleted while its retention ran, its DuckDB dropped: nothing is left to keep.
+    if (!analytics) return
     await analytics.run(`
       INSERT INTO use_case_error_day (id, day, context, use_case, scopes, kind, code, count)
       SELECT strftime(CAST(minute AS DATE), '%Y-%m-%d') || '|' || context || '|' || use_case || '|' || CAST(scopes AS VARCHAR) || '|' || kind || '|' || code,
@@ -91,10 +102,10 @@ export class UseCaseErrors_Module extends Module {
     if (dayDays !== null) await analytics.run('DELETE FROM use_case_error_day WHERE day < CAST($1 AS DATE)', [dayBefore(at, dayDays)])
   }
 
-  /** Keeps every application's errors, archived ones too: their retention runs all the same. */
+  /** Keeps every application's errors, archived ones too: their retention runs all the same, and one that fails keeps none of the others from it. */
   @UseCase()
   async keepAll(): Promise<void> {
-    for (const feed of await this.repo.find({})) await this.keep(feed.appId)
+    await eachApp((await this.repo.find({})).map(feed => feed.appId), appId => this.keep(appId), () => undefined)
   }
 
   /** Each of its use cases' errors and failures in a window, beside the window before: the most failing first. */
@@ -133,7 +144,9 @@ export class UseCaseErrors_Module extends Module {
   @UseCase()
   async forget(appId: string): Promise<void> {
     await this.repo.purgeApp(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Another module dropped its DuckDB already: nothing of it is left.
+    if (!analytics) return
     for (const table of ['use_case_error_minute', 'use_case_error_day']) await analytics.run(`DELETE FROM ${table}`)
     await this.options.store.dropIfEmpty(appId)
   }

@@ -168,7 +168,12 @@ export class Invocations {
         throw error
       } finally {
         span.end()
-        this.onTimed?.({ useCase: name, ms: performance.now() - started, retries, outcome })
+        // Timing it is not part of what it does: a failure there neither replaces its answer nor its error.
+        try {
+          this.onTimed?.({ useCase: name, ms: performance.now() - started, retries, outcome })
+        } catch (error) {
+          console.error(`[metrics] ${name} could not be timed:`, error)
+        }
       }
     })
   }

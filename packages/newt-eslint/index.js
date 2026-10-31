@@ -1,4 +1,6 @@
+import { isAbsolute, posix } from 'node:path'
 import tseslint from 'typescript-eslint'
+import { absolute, slashed } from './paths.js'
 import { assertUsesTree, contextBoundaries } from './rules/context-boundaries.js'
 import { moduleAnatomy } from './rules/module-anatomy.js'
 import { moduleBoundaries } from './rules/module-boundaries.js'
@@ -44,24 +46,41 @@ const MODULES = '**/modules/*/**/*.ts'
  * - with `contexts`, each context imports only the ones it says it uses, so they
  *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
  *   one that names an unknown context or makes a cycle throws here, and a context
- *   folder it does not list uses no other;
+ *   folder it does not list uses no other. A context's file outside its modules
+ *   re-exports only what a module offers (`newt/module-boundaries`);
  * - with `files`, the globs of the files it lints, it lints only those: every `.ts`
  *   file by default.
+ *
+ * `root` is the folder of the config, which its globs are read from: the folder of
+ * the contexts and a `modules/` at the top are read from it too, whatever folder
+ * ESLint runs in. Without it, they are read from ESLint's cwd, as they used to.
  *
  * ```js
  * // eslint.config.js
  * import { newt } from 'newt-eslint'
- * export default newt({ contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
+ * export default newt({ root: import.meta.dirname, contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
  * ```
  *
- * @param {{ files?: string[], contexts?: { folder: string, uses: Record<string, string[]> } }} [options]
- *   the files it lints, the folder of the contexts, and which ones each one uses
+ * @param {{ files?: string[], contexts?: { folder: string, uses: Record<string, string[]> }, root?: string }} [options]
+ *   the files it lints, the folder of the contexts and which ones each one uses, and the config's folder
  */
-export function newt({ files = ['**/*.ts'], contexts } = {}) {
+export function newt({ files = ['**/*.ts'], contexts, root } = {}) {
+  const base = absolute(root ?? process.cwd(), process.cwd())
   if (contexts) assertUsesTree(contexts.uses)
+  const folder = contexts && absolute(contexts.folder, base)
+  const inside = contexts && posix.relative(base, folder)
+  // Without a root, a relative folder is read from ESLint's cwd, as the globs are without a config file.
+  const given = root === undefined && !isAbsolute(slashed(contexts?.folder ?? '')) ? inside : folder
+  // A glob is read from the config's folder, the root; with one, the rule gets the folder as an absolute path, whatever ESLint's cwd.
+  const inContexts = contexts && files.map(pattern => [pattern, `${inside ? `${inside}/` : ''}**/*.ts`])
   const contextRules = contexts ? [{
-    files: files.map(pattern => [pattern, `${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`]),
-    rules: { 'newt/context-boundaries': ['error', { folder: contexts.folder, uses: contexts.uses }] },
+    files: inContexts,
+    rules: { 'newt/context-boundaries': ['error', { folder: given, uses: contexts.uses }] },
+  }, {
+    // A context's file outside its modules imports what it composes, but its barrels re-export only what a module offers.
+    files: inContexts,
+    ignores: [MODULES],
+    rules: { 'newt/module-boundaries': 'error' },
   }] : []
 
   return tseslint.config(
@@ -70,6 +89,7 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
       files,
       languageOptions: { parser: tseslint.parser, parserOptions: { projectService: true } },
       plugins: { newt: plugin, '@typescript-eslint': tseslint.plugin },
+      ...root === undefined ? {} : { settings: { newt: { root: base } } },
       rules: {
         '@typescript-eslint/no-floating-promises': 'error',
         // By the file's name, wherever it is: a module (or its routes) outside modules/, one every context shares, too.
@@ -87,8 +107,8 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
         'newt/queue-name': 'error',
         'newt/schema-imports': 'error',
         'no-restricted-syntax': ['error', {
-          // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, `const { transaction } = store`.
-          selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",
+          // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, ``store[`transaction`]``, `const { transaction } = store`.
+          selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], MemberExpression[property.type='TemplateLiteral'][property.expressions.length=0][property.quasis.0.value.cooked='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",
           message: "A module writes through its repository's save (or saveRows), which runs the transaction, checks the write rule and publishes the events: never in a transaction of its own.",
         }],
       },

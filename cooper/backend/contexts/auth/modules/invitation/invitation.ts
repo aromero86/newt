@@ -60,6 +60,11 @@ export class Invitation extends Entity<typeof InvitationEntitySchema, typeof Inv
     return this.data.status === 'pending' && new Date(this.data.expiresAt) > at
   }
 
+  /** Accepted by this person and not expired: accepting it again finishes what the first time left. */
+  isAcceptedBy(userId: string, at = now()): boolean {
+    return this.data.status === 'accepted' && this.data.acceptedBy === userId && new Date(this.data.expiresAt) > at
+  }
+
   /**
    * A new token for its link, which only the email will carry: the one before, if
    * any, stops working. The store keeps its hash.

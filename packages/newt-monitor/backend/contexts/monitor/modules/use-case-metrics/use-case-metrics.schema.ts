@@ -17,6 +17,7 @@ export type UseCaseMetricsFeedDTO = z.infer<typeof UseCaseMetricsFeedSchema>
 export type CollectTimingsDTO =
   | { appId: string, outcome: 'collected', timings: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 const windowSchema = z.enum(Object.keys(WINDOWS) as [MetricsWindow, ...MetricsWindow[]]).default('24h')
 

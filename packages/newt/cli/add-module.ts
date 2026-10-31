@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { KEBAB, moduleNames } from './module-names'
 import { moduleTemplates } from './module-templates'
 import { writeNew } from './write-new'
@@ -12,7 +12,7 @@ export async function addModule(cwd: string, context: string, name: string): Pro
   if (!KEBAB.test(name)) throw new Error(`'${name}' is not a module's folder name: lower-case words in kebab case, as price-change`)
   const names = moduleNames(name)
   const folder = join(context, 'modules', name)
-  const { written, skipped } = await writeNew(join(cwd, folder), moduleTemplates(names))
+  const { written, skipped } = await writeNew(resolve(cwd, folder), moduleTemplates(names))
   return [
     ...written.map(path => `wrote    ${join(folder, path)}`),
     ...skipped.map(path => `skipped  ${join(folder, path)} (it is there already: left as it was)`),

@@ -111,10 +111,16 @@ export class Tenant_Module extends Module {
     await this.deps.access.revokeTenant(tenantId)
   }
 
-  /** A new workspace has its admin: what its worker calls, in case `create` stopped halfway. Safe to run again. */
+  /**
+   * A new workspace has its admin: what its worker calls, in case `create` stopped
+   * halfway. Safe to run again. Its job may run late, after the workspace's deletion
+   * took its accesses away: the admin it gives then goes again.
+   */
   @UseCase()
   async ensureAdmin(tenant: TenantDTO): Promise<void> {
+    if (await this.deps.access.check(tenant.createdBy, this.options.productId, tenant.id)) return
     await this.admitAdmin(tenant)
+    if ((await this.getMany([tenant.id])).length === 0) await this.deps.access.revokeTenant(tenant.id)
   }
 
   /**

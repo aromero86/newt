@@ -141,31 +141,50 @@ async function closedFlows(metrics: Metrics[], since: string | null, now: Date):
   return { flows: each.flatMap(one => one.flows).filter(flow => flow.minute <= until), until }
 }
 
-/** Counts as they come, as server-sent events, with a heartbeat every 8 seconds: whatever relays it, with an idle timeout of 10 (Bun's), keeps it open. */
+/**
+ * Counts as they come, as server-sent events, with a heartbeat every 8 seconds: whatever relays it, with an idle timeout of 10 (Bun's), keeps it open.
+ * A client that leaves, even before every context listens, leaves nothing listening or beating behind.
+ */
 function liveCounts(metrics: Metrics[], signal: AbortSignal): Response {
   const encoder = new TextEncoder()
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+  let heartbeat: ReturnType<typeof setInterval> | undefined
+  let stops: (() => void)[] = []
+  let ended = false
+  // Whenever it is called, and as many times: it stops whatever listens by then.
+  const end = (error?: unknown) => {
+    ended = true
+    clearInterval(heartbeat)
+    heartbeat = undefined
+    for (const stop of stops.splice(0)) stop()
+    try {
+      if (error === undefined) controller?.close()
+      else controller?.error(error)
+    } catch {
+      // Closed already.
+    }
+  }
+  const send = (text: string) => {
+    try {
+      controller?.enqueue(encoder.encode(text))
+    } catch {
+      // Closed meanwhile: nothing to send to.
+    }
+  }
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (text: string) => {
-        try {
-          controller.enqueue(encoder.encode(text))
-        } catch {
-          // Closed meanwhile: nothing to send to.
-        }
-      }
-      const stops = await Promise.all(metrics.map(one => one.live(counts => send(`data: ${JSON.stringify(counts)}\n\n`))))
-      const heartbeat = setInterval(() => send(': heartbeat\n\n'), 8_000)
+    async start(streamController) {
+      controller = streamController
+      // Before listening: the signal may abort while the contexts start to.
+      signal.addEventListener('abort', () => end(), { once: true })
+      const listening = await Promise.allSettled(metrics.map(one => one.live(counts => send(`data: ${JSON.stringify(counts)}\n\n`))))
+      stops = listening.flatMap(each => (each.status === 'fulfilled' ? [each.value] : []))
+      const failed = listening.find((each): each is PromiseRejectedResult => each.status === 'rejected')
+      if (failed) return end(failed.reason ?? new Error('A context could not listen'))
+      if (ended || signal.aborted) return end()
+      heartbeat = setInterval(() => send(': heartbeat\n\n'), 8_000)
       send(': live\n\n')
-      signal.addEventListener('abort', () => {
-        clearInterval(heartbeat)
-        for (const stop of stops) stop()
-        try {
-          controller.close()
-        } catch {
-          // Closed already.
-        }
-      })
     },
+    cancel: () => end(),
   })
   return new Response(stream, { headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store' } })
 }

@@ -44,6 +44,21 @@ describe('staff', () => {
     await t.as(sam, () => t.modules.staff.enter())
   })
 
+  test('two of the staff revoking each other at once leave one of them', async () => {
+    const sam = await t.staffMember('Sam')
+    const ana = await t.signUp('Ana')
+    await t.as(sam, () => t.modules.staff.grant({ email: 'ana@cooper.test' }))
+
+    const results = await Promise.allSettled([
+      t.as(sam, () => t.modules.staff.revoke(ana.id)),
+      t.as(ana, () => t.modules.staff.revoke(sam.id)),
+    ])
+    expect(results.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { code: 'access.last_staff_not_revocable' } })
+    const left = await t.as(sam, () => t.modules.staff.list({ size: 10 })).catch(() => t.as(ana, () => t.modules.staff.list({ size: 10 })))
+    expect(left.total).toBe(1)
+  })
+
   test('only the staff grant: auth checks it again', async () => {
     const ana = await t.signUp('Ana')
     await t.signUp('Bob')

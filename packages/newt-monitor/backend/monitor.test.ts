@@ -54,6 +54,14 @@ describe('its settings', () => {
     expect(() => readConfig({ NEWT_MONITOR_PORT: 'eighty', NEWT_MONITOR_DATA: ' ' })).toThrow(/NEWT_MONITOR_PORT[\s\S]*NEWT_MONITOR_DATA/)
   })
 
+  test('take an empty port for none, not port 0', () => {
+    expect(readConfig({ ...required, NEWT_MONITOR_PORT: '' }).port).toBe(4800)
+  })
+
+  test('keep the public URL without its trailing slash, as every address is built on it', () => {
+    expect(readConfig({ ...required, NEWT_MONITOR_PUBLIC_URL: 'https://m.example.com/' }).publicUrl).toBe('https://m.example.com')
+  })
+
   test('have no user, password nor secret unless told: a monitor nobody configured does not start', () => {
     expect(() => readConfig({})).toThrow(/NEWT_MONITOR_USER[\s\S]*NEWT_MONITOR_PASSWORD[\s\S]*NEWT_MONITOR_SECRET/)
     expect(() => readConfig({ ...required, NEWT_MONITOR_SECRET: 'too short' })).toThrow(/NEWT_MONITOR_SECRET/)

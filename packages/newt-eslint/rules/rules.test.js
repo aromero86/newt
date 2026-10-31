@@ -1,5 +1,9 @@
 import { afterAll, describe, expect, it } from 'bun:test'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { RuleTester } from 'eslint'
+import ts from 'typescript'
 import tseslint from 'typescript-eslint'
 import { assertUsesTree, contextBoundaries } from './context-boundaries.js'
 import { moduleAnatomy } from './module-anatomy.js'
@@ -45,6 +49,9 @@ tester.run('module-boundaries', moduleBoundaries, {
     { code: "import type { ProductDTO } from '../product/product.schema.js'", filename: `${MODULE}/price-change.ts` },
     { code: "import { Product_Created } from '../product/events/product-created.js'", filename: `${MODULE}/price-change.workers.ts` },
     { code: "type M = import('../product/product.module').Product_Module", filename: `${MODULE}/price-change.ts` },
+    { code: "export * from './modules/product/product.module'", filename: '/repo/src/contexts/ws/index.ts' },
+    { code: "export { ProductNotFound } from './product/errors/product-not-found'", filename: '/repo/src/contexts/ws/modules/index.ts' },
+    { code: "import { Product_Repository } from './modules/product/product.repository'", filename: '/repo/src/contexts/ws/ws.context.ts' },
   ],
   invalid: [
     { code: "import { Product_Repository } from '../product/product.repository'", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
@@ -57,6 +64,8 @@ tester.run('module-boundaries', moduleBoundaries, {
     { code: "type R = import('../product/product.repository').Product_Repository", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "import R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
     { code: "const R = require('../product/product.repository')", filename: `${MODULE}/price-change.module.ts`, errors: [{ messageId: 'private' }] },
+    { code: "export * from './modules/product/product.repository'", filename: '/repo/src/contexts/ws/index.ts', errors: [{ messageId: 'barrel' }] },
+    { code: "export { Product_Repository } from './product/product.repository'", filename: '/repo/src/contexts/ws/modules/index.ts', errors: [{ messageId: 'barrel' }] },
   ],
 })
 
@@ -89,6 +98,29 @@ tester.run('context-boundaries', contextBoundaries, {
       .map(path => ({ code: `import { x } from ${path}`, filename: `${CONTEXT}/auth/auth.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] })),
     { code: "const m = await import('../shop/shop.context')", filename: `${CONTEXT}/auth/auth.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] },
     { code: "import { x } from '../shop/shop.context'", filename: `${CONTEXT}/billing/billing.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] },
+    // An absolute folder is the same folder.
+    { code: "import { x } from '../shop/shop.context'", filename: `${CONTEXT}/auth/auth.context.ts`, options: [{ ...CONTEXTS, folder: CONTEXT }], errors: [{ messageId: 'other' }] },
+  ],
+})
+
+// Files on disk, to tell the folder of a context from a file beside them when an import names it without its extension.
+const PROJECT = mkdtempSync(join(tmpdir(), 'newt-eslint-contexts-'))
+const FOLDER = join(PROJECT, 'contexts')
+for (const [path, code] of Object.entries({ 'registry.ts': '', 'names.ts': '', 'billing/index.ts': '', 'shop/shop.context.ts': '' })) {
+  mkdirSync(join(FOLDER, path, '..'), { recursive: true })
+  writeFileSync(join(FOLDER, path), code)
+}
+afterAll(() => rmSync(PROJECT, { recursive: true, force: true }))
+const ON_DISK = { folder: FOLDER, uses: { auth: [], shop: ['auth'] } }
+tester.run('context-boundaries, of files beside the contexts', contextBoundaries, {
+  valid: [
+    { code: "import { x } from './names'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK] },
+  ],
+  invalid: [
+    { code: "import { x } from '../registry'", filename: join(FOLDER, 'auth/auth.context.ts'), options: [ON_DISK], errors: [{ messageId: 'root' }] },
+    { code: "import { x } from './shop/shop.context'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK], errors: [{ messageId: 'fromRoot' }] },
+    { code: "import { x } from './shop'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK], errors: [{ messageId: 'fromRoot' }] },
+    { code: "import { x } from '../billing'", filename: join(FOLDER, 'auth/auth.context.ts'), options: [ON_DISK], errors: [{ messageId: 'other', data: { path: '../billing', other: 'billing', context: 'auth', uses: 'no other context' } }] },
   ],
 })
 
@@ -114,6 +146,9 @@ tester.run('queue-name', queueName, {
     { code: "this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.module.ts` },
     { code: "(orders: m.Order_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts` },
     { code: "class W { constructor(private readonly orders: Order_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts` },
+    { code: "class Order_Module { register() { this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts` },
+    // Without a program, only a key of `events` says the event: a schedule's field is not its name.
+    { code: "orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.nightly' })", filename: `${ORDER}/order.workers.ts` },
     ...[['category', 'categories'], ['address', 'addresses'], ['box', 'boxes'], ['batch', 'batches']].map(([module, plural]) => ({
       code: `deps.brand.events.deleted.subscribe(b => ${plural}.forget(b.id), { strategy: 'handler', queue: '${module}.forget.on.brand.deleted' })`,
       filename: `/repo/src/contexts/shop/modules/${module}/${module}.workers.ts`,
@@ -134,7 +169,62 @@ tester.run('queue-name', queueName, {
     { code: "(orders: m.Product_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { register() { this.orders.events.placed.subscribe(o => this.products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { constructor(private readonly orders: Product_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
+    // A queue written as a template, or with what only TypeScript sees around it.
+    ...["`mail.fulfil.on.order.placed`", "<const>'mail.fulfil.on.order.placed'", "'mail.fulfil.on.order.placed'!"]
+      .map(queue => ({ code: `orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: \`handler\`, queue: ${queue} })`, filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'module' }] })),
+    // `this` in a class of the workers is that class, not the module.
+    { code: "class W { fulfil(id) {} register(orders) { orders.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
   ],
+})
+
+/** A program of `files` (path to code) and what they import, as the preset has typescript-eslint build one. */
+function programOf(files) {
+  const options = { strict: true, target: ts.ScriptTarget.ES2022, noEmit: true }
+  const host = ts.createCompilerHost(options)
+  const read = host.getSourceFile
+  host.getSourceFile = (name, ...rest) => (name in files ? ts.createSourceFile(name, files[name], options.target, true) : read(name, ...rest))
+  host.fileExists = name => name in files || ts.sys.fileExists(name)
+  host.readFile = name => files[name] ?? ts.sys.readFile(name)
+  host.directoryExists = folder => Object.keys(files).some(file => file.startsWith(`${folder}/`)) || ts.sys.directoryExists(folder)
+  return ts.createProgram(Object.keys(files), options, host)
+}
+
+const ORDER_TYPED = `${ORDER}/order.module.ts`
+const typedModule = `
+declare class Emitter { subscribe(handler: (payload: unknown) => unknown, subscription: { strategy: string, queue: string }): () => void }
+declare function eventsOf<C>(bus: unknown, classes: C): { readonly [K in keyof C]: Emitter }
+declare const base: { bus: unknown, schedules: { define(name: string, cron: string): Emitter } }
+export class Order_Placed { static readonly eventName = 'order.placed' }
+export class Order_Module {
+  readonly events = eventsOf(base.bus, { added: Order_Placed })
+  readonly purgeSchedule
+  constructor() {
+    this.purgeSchedule = base.schedules.define('order.nightly', '0 3 * * *')
+    this.events.added.subscribe(() => this.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })
+  }
+  fulfil(id: string) {}
+  purge() {}
+}
+`
+const typedCases = [
+  // The event is its class's name, or its schedule's, whatever the key it is read from.
+  ["export const w = (orders: Order_Module) => orders.events.added.subscribe(() => orders.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })"],
+  ["export const w = (orders: Order_Module) => orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.nightly' })"],
+  ["export const w = (orders: Order_Module) => orders.events.added.subscribe(() => orders.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.added' })", 'event'],
+  ["export const w = (orders: Order_Module) => orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.purgeSchedule' })", 'event'],
+  ["export class W { fulfil(id: string) {} register(orders: Order_Module) { orders.events.added.subscribe(() => this.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", 'useCase'],
+].map(([code, error], index) => ({ code: `import type { Order_Module } from './order.module'\n${code}`, filename: `${ORDER}/order${index}.workers.ts`, error }))
+const typedProgram = programOf({ [ORDER_TYPED]: typedModule, ...Object.fromEntries(typedCases.map(({ filename, code }) => [filename, code])) })
+
+new RuleTester({ languageOptions: { parser: tseslint.parser, parserOptions: { programs: [typedProgram] } } }).run('queue-name, typed', queueName, {
+  valid: [{ code: typedModule, filename: ORDER_TYPED }, ...typedCases.filter(each => !each.error).map(({ code, filename }) => ({ code, filename }))],
+  invalid: typedCases.filter(each => each.error).map(({ code, filename, error }) => ({ code, filename, errors: [{ messageId: error }] })),
+})
+
+describe('the program queue-name is typed with', () => {
+  it('has no errors of its own', () => {
+    expect(ts.getPreEmitDiagnostics(typedProgram).map(each => ts.flattenDiagnosticMessageText(each.messageText, '\n'))).toEqual([])
+  })
 })
 
 const ORDER_MODULE = '/repo/src/contexts/ws/modules/order/order.module.ts'
@@ -146,6 +236,10 @@ tester.run('use-case', useCase, {
     { code: moduleClass("private load(id: string) {}\nprotected check() {}\n#secret() {}\nget name() { return 'order' }\nset name(value: string) {}"), filename: ORDER_MODULE },
     { code: moduleClass('readonly events = {}\nprivate readonly helper = () => 1'), filename: ORDER_MODULE },
     { code: moduleClass('place(input: string): void\nplace(input: number): void\n@UseCase() place(input: unknown) {}'), filename: ORDER_MODULE },
+    { code: moduleClass('static { }\n[key: string]: unknown\n@UseCase() place() {}'), filename: ORDER_MODULE },
+    { code: 'class Order_Module extends core.Module { @core.UseCase() async place(input: unknown) {} }', filename: ORDER_MODULE },
+    { code: "import { Module, UseCase as UC } from 'newt/core'\n" + moduleClass('@UC() async place(input: unknown) {}'), filename: ORDER_MODULE },
+    { code: moduleClass('constructor(private readonly run: () => void, readonly name: string) { super() }'), filename: ORDER_MODULE },
     // Not a module: another class, or another file.
     { code: 'class Order_Helper { place() {} }', filename: ORDER_MODULE },
     { code: moduleClass('place() {}'), filename: `${MODULE}/price-change.ts` },
@@ -156,6 +250,11 @@ tester.run('use-case', useCase, {
     { code: moduleClass('@Traced() place() {}'), filename: ORDER_MODULE, errors: [{ messageId: 'method' }] },
     { code: moduleClass('place = async (input: unknown) => {}'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
     { code: 'export default class extends core.Module { place() {} }', filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'this module' } }] },
+    { code: "import { Module as Base } from 'newt/core'\nclass O extends Base { async place(input: unknown) {} }", filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'O' } }] },
+    { code: moduleClass('place = this.run.bind(this)'), filename: ORDER_MODULE, errors: [{ messageId: 'field', data: { name: 'place', module: 'Order_Module' } }] },
+    { code: moduleClass('place = wrap(async () => {})'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
+    { code: moduleClass('constructor(public readonly place: () => Promise<void>) { super() }'), filename: ORDER_MODULE, errors: [{ messageId: 'field', data: { name: 'place', module: 'Order_Module' } }] },
+    { code: moduleClass('constructor(readonly place: () => Promise<void>) { super() }'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
     // A module every context shares, outside modules/, is one too.
     { code: moduleClass('place() {}'), filename: '/repo/src/shared/outbox/outbox.module.ts', errors: [{ messageId: 'method' }] },
   ],
@@ -170,6 +269,8 @@ tester.run('route-body', routeBody, {
     { code: 'async (request: Request) => orders.place(Schema.parse(await request.json()))', filename: ORDER_ROUTES },
     { code: 'async (response: Response) => (await response.json()) as OrderDTO', filename: `${MODULE}/price-change.test.ts` },
     { code: 'const x = value as OrderPlaceDTO', filename: ORDER_ROUTES },
+    // What an upstream call answered is not the request's body.
+    { code: 'async (request: Request) => { const upstream = await fetch(url); const token = await upstream.json() as ProviderToken; return tokens.open(token) }', filename: ORDER_ROUTES },
   ],
   invalid: [
     { code: 'async (request: Request) => orders.place(await request.json() as OrderPlaceDTO)', filename: ORDER_ROUTES, errors: [{ messageId: 'body', data: { type: 'OrderPlaceDTO' } }] },

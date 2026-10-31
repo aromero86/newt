@@ -174,11 +174,13 @@ if (url) {
     test('refuses text with NUL as a ValidationError, and the transaction goes on', async () => {
       const store = await open()
       try {
-        const things = store.table<{ id: string, version: number, name: string, note: string | null }>('thing')
+        const things = store.table<{ id: string, version: number, name: string, note: string | null, tags: unknown }>('thing', { types: { tags: 'json' } })
         await store.query("INSERT INTO thing VALUES ('a', 'w', 'a', false, 0, NULL, '[]', '', '', NULL, 1)")
 
         await store.transaction(async () => {
           await expect(things.patch('a', { note: 'x\u0000y' })).rejects.toBeInstanceOf(ValidationError)
+          await expect(things.patch('a', { tags: { a: ['x\u0000y'] } })).rejects.toBeInstanceOf(ValidationError)
+          await expect(things.patch('a', { tags: { 'x\u0000y': 1 } })).rejects.toBeInstanceOf(ValidationError)
           await things.patch('a', { note: 'kept' })
         })
 

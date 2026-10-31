@@ -33,15 +33,19 @@ export function AppOverviewUseCases({ app }: { app: AppDTO }) {
   const [failure, setFailure] = useState<string | null>(null)
 
   useEffect(() => {
+    // Another window may be asked for before this answers.
+    let live = true
     setCalls(null)
     setEnded(null)
     Promise.all([metrics.series(app.id, { window, compare: 'none' }), errors.series(app.id, { window })])
       .then(([series, endedSeries]) => {
+        if (!live) return
         setCalls(series)
         setEnded(endedSeries)
         setFailure(null)
       })
-      .catch(error => setFailure(error instanceof Error ? error.message : 'Could not load the use cases\' metrics'))
+      .catch(error => { if (live) setFailure(error instanceof Error ? error.message : 'Could not load the use cases\' metrics') })
+    return () => { live = false }
   }, [metrics, errors, app.id, window])
 
   const endedAt = new Map(ended?.points.map(point => [point.at, point]) ?? [])

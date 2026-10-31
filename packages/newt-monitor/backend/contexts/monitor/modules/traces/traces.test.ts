@@ -45,6 +45,8 @@ describe('traces', () => {
     const first = await json<TraceListDTO>(`/api/apps/${id}/traces?limit=1`)
     expect(ids(first)).toEqual([newer])
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?limit=1&before=${encodeURIComponent(first.next!)}`))).toEqual([older])
+    expect((await as(`/api/apps/${id}/traces?before=nope`)).status).toBe(400)
+    expect((await as(`/api/apps/${id}/traces?before=nope%7C${older}`)).status).toBe(400)
   })
 
   test('finds a use case\'s, by how they went or how long its call took: a percentile\'s examples', async () => {
@@ -127,7 +129,11 @@ describe('traces', () => {
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?window=7d`))).toEqual([recent])
     expect((await as(`/api/apps/${id}/traces/${old}`)).status).toBe(404)
 
-    await monitor.modules.traces.forget(id)
-    expect((await json<TraceListDTO>(`/api/apps/${id}/traces?window=7d`)).traces).toEqual([])
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    await as(`/api/apps/${id}`, { method: 'DELETE' })
+    await monitor.monitor.base.jobs.idle()
+    // Its DuckDB dropped: nothing of it is kept again, nor read.
+    expect(await collect()).toEqual({ appId: id, outcome: 'gone' })
+    expect((await as(`/api/apps/${id}/traces?window=7d`)).status).toBe(404)
   })
 })

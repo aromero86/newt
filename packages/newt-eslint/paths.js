@@ -1,4 +1,5 @@
-import { posix } from 'node:path'
+import { statSync } from 'node:fs'
+import { posix, resolve } from 'node:path'
 
 /** A file's path with forward slashes, whatever the system. */
 export function slashed(path) {
@@ -10,9 +11,21 @@ export function camelCase(kebab) {
   return kebab.replace(/-(\w)/g, (_, letter) => letter.toUpperCase())
 }
 
-/** A file's path from the project's root (`cwd`), with a leading slash; the path as it is outside it. */
-function inProject(file, cwd) {
-  const root = slashed(cwd).replace(/\/$/, '')
+/** A folder as an absolute path with forward slashes and no trailing one, whatever the system: a relative one is read from `base`. */
+export function absolute(folder, base) {
+  return slashed(resolve(base, slashed(folder))).replace(/(?<=.)\/$/, '')
+}
+
+/**
+ * The project's root, from which a `modules/` folder is read: the one the preset was
+ * given (the `root` of its settings for `newt`), or ESLint's cwd without one.
+ */
+export function rootOf(context) {
+  return absolute(context.settings?.newt?.root ?? context.cwd, context.cwd)
+}
+
+/** A file's path from the project's `root` (absolute), with a leading slash; the path as it is outside it. */
+function inProject(file, root) {
   const path = slashed(file)
   return root && path.startsWith(`${root}/`) ? path.slice(root.length) : path
 }
@@ -20,30 +33,43 @@ function inProject(file, cwd) {
 /**
  * Where a file of a module is: its context (the folder that holds `modules/`), its
  * module, and its path inside the module. `null` for a file of no module. The path
- * is read from the project's root (`cwd`), so a project that lives inside a folder
- * named `modules` is not mistaken for one; a `modules/` at the project's root has
- * the project itself as its context (`.`).
+ * is read from the project's root (`root`, absolute), so a project that lives inside
+ * a folder named `modules` is not mistaken for one; a `modules/` at the project's
+ * root has the project itself as its context (`.`).
  */
-export function modulePlace(file, cwd = '') {
-  const path = inProject(file, cwd)
+export function modulePlace(file, root = '') {
+  const path = inProject(file, root)
   const top = path !== slashed(file) && /^\/modules\/([^/]+)\/(.+)$/.exec(path)
   if (top) return { context: '.', module: top[1], inside: top[2] }
   const match = /\/([^/]+)\/modules\/([^/]+)\/(.+)$/.exec(path)
   return match ? { context: match[1], module: match[2], inside: match[3] } : null
 }
 
+/** Where a file directly in the folder of the contexts is: in no context, and one no context may import. */
+export const ROOT = '(root)'
+
 /**
- * The context a file is in, when contexts are the folders of `folder` (`src/contexts`,
- * read from the project's root): `src/contexts/shop/…` is in `shop`. A path that is
- * the folder of a context itself (an import of `../shop`) is in it too, if `known`
- * names it. `null` for a file in none.
+ * The context a path is in, when contexts are the folders of `folder` (absolute):
+ * `…/contexts/shop/…` is in `shop`, and so is the folder itself (an import of
+ * `../shop`), whether `uses` lists it or not. A file directly in `folder`
+ * (`contexts/registry.ts`, or an import of it without its extension) is in `ROOT`.
+ * `null` for a path outside it.
  */
-export function contextOf(file, cwd, folder, known = []) {
-  const prefix = `/${slashed(folder).replace(/^\.?\/|\/$/g, '')}/`
-  const path = inProject(file, cwd)
-  if (!path.startsWith(prefix)) return null
-  const [name, ...rest] = path.slice(prefix.length).split('/')
-  return rest.length > 0 || known.includes(name) ? name : null
+export function contextOf(file, folder) {
+  const path = slashed(file)
+  if (!path.startsWith(`${folder}/`)) return null
+  const [name, ...rest] = path.slice(folder.length + 1).split('/')
+  if (rest.length > 0 || isFolder(path)) return name
+  return /\.[^./]+$/.test(name) || isFile(path) ? ROOT : name
+}
+
+function isFolder(path) {
+  return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false
+}
+
+/** That a file is there, with one of the extensions an import may leave out. */
+function isFile(path) {
+  return ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'].some(extension => statSync(`${path}${extension}`, { throwIfNoEntry: false })?.isFile())
 }
 
 /** The file a relative import points at. */
@@ -62,12 +88,19 @@ export function resolved(context, specifier) {
   return path?.replace(/\.[cm]?[jt]sx?$/, '') ?? null
 }
 
-/** The file an alias of the tsconfig's `paths` points at: the first one it lists, by the longest pattern that matches, as TypeScript does. */
+/**
+ * The file an alias of the tsconfig's `paths` points at: the first one it lists, by the
+ * longest pattern that matches, from the `baseUrl` if there is one and the tsconfig's
+ * folder if not, as TypeScript does.
+ */
 function aliased(context, specifier) {
   const options = context.sourceCode.parserServices?.program?.getCompilerOptions()
-  const base = options?.pathsBasePath ?? options?.baseUrl
+  const base = options?.baseUrl ?? options?.pathsBasePath
   if (!base || !options.paths) return null
-  const matches = Object.entries(options.paths).flatMap(([pattern, [first]]) => {
+  const matches = Object.entries(options.paths).flatMap(([pattern, list]) => {
+    // An alias that lists no file (TypeScript only warns of it) points nowhere.
+    const first = Array.isArray(list) ? list[0] : undefined
+    if (typeof first !== 'string') return []
     const [prefix, suffix] = pattern.split('*')
     if (suffix === undefined) return pattern === specifier ? [{ prefix, path: first }] : []
     const fits = specifier.startsWith(prefix) && specifier.endsWith(suffix) && specifier.length >= prefix.length + suffix.length

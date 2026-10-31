@@ -1,11 +1,31 @@
 import { posix } from 'node:path'
 import { slashed } from '../paths.js'
 
-/** `request.json()` or `await request.json()`, whatever the request is called: a body as it came. */
-function isBody(node) {
+const FUNCTIONS = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'])
+
+/** Whether `name`, where `node` is, is the first parameter of the nearest function around it: the handler's request. */
+function isRequest(context, node, name) {
+  let fn = node.parent
+  while (fn && !FUNCTIONS.has(fn.type)) fn = fn.parent
+  const first = fn?.params[0]
+  if (first?.type !== 'Identifier') return false
+  for (let scope = context.sourceCode.getScope(node); scope; scope = scope.upper) {
+    const variable = scope.set.get(name)
+    if (variable) return variable.defs.some(def => def.type === 'Parameter' && def.name === first)
+  }
+  return false
+}
+
+/**
+ * `request.json()` or `await request.json()`, whatever the handler calls its request: a
+ * body as it came. What an upstream call answered (`await upstream.json()`) is not one.
+ */
+function isBody(context, node) {
   const call = node?.type === 'AwaitExpression' ? node.argument : node
-  return call?.type === 'CallExpression' && call.arguments.length === 0
-    && call.callee.type === 'MemberExpression' && !call.callee.computed && call.callee.property.name === 'json'
+  if (call?.type !== 'CallExpression' || call.arguments.length !== 0) return false
+  const { callee } = call
+  return callee.type === 'MemberExpression' && !callee.computed && callee.property.name === 'json'
+    && callee.object.type === 'Identifier' && isRequest(context, call, callee.object.name)
 }
 
 /** A type that says something of the body: anything but `unknown`. */
@@ -31,14 +51,14 @@ export const routeBody = {
     if (!posix.basename(slashed(context.filename)).endsWith('.routes.ts')) return {}
     const report = (node, type) => context.report({ node, messageId: 'body', data: { type: context.sourceCode.getText(type) } })
     const asserted = node => {
-      if (isBody(node.expression) && claims(node.typeAnnotation)) report(node, node.typeAnnotation)
+      if (isBody(context, node.expression) && claims(node.typeAnnotation)) report(node, node.typeAnnotation)
     }
     return {
       TSAsExpression: asserted,
       TSTypeAssertion: asserted,
       VariableDeclarator(node) {
         const type = node.id.typeAnnotation?.typeAnnotation
-        if (isBody(node.init) && claims(type)) report(node, type)
+        if (isBody(context, node.init) && claims(type)) report(node, type)
       },
     }
   },

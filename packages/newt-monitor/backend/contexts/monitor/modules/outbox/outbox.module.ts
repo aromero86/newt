@@ -1,6 +1,7 @@
 import type { DeadJobs, OutboxState } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { BUCKETS, DEFAULT_BUCKET, WINDOWS } from '../event-metrics/event-metrics.schema'
 import { DeadJobsQuerySchema, DepthQuerySchema, type DepthPointDTO, type DepthSeriesDTO, type OutboxNowDTO, type OutboxQueueDTO, type SnapshotDTO } from './outbox.schema'
 import { OutboxUnreachable } from './errors/outbox-unreachable'
@@ -49,7 +50,15 @@ export class Outbox_Module extends Module {
     if (app.archivedAt !== null) return { appId, outcome: 'archived' }
     const read = await this.deps.connection.fetchOutbox(appId)
     if (!read.answered) return { appId, outcome: 'unreachable' }
-    const queues = await this.keepSnapshot(appId, read.value)
+    // Deleted while it was asked: what it answered is not kept, nor its DuckDB opened again.
+    if (!await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
+    let queues: number
+    try {
+      queues = await this.keepSnapshot(appId, read.value)
+    } catch (error) {
+      if (error instanceof AppGone) return { appId, outcome: 'gone' }
+      throw error
+    }
     return { appId, outcome: 'taken', queues, at: read.value.at }
   }
 
@@ -65,7 +74,10 @@ export class Outbox_Module extends Module {
   @UseCase()
   async keep(appId: string): Promise<void> {
     const { minuteDays } = await this.deps.retention.of(appId)
-    await (await this.options.store.of(appId)).run('DELETE FROM queue_depth WHERE minute < CAST($1 AS TIMESTAMP)', [new Date(now().getTime() - minuteDays * DAY_MS).toISOString()])
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Deleted while its retention ran, its DuckDB dropped: nothing is left to keep.
+    if (!analytics) return
+    await analytics.run('DELETE FROM queue_depth WHERE minute < CAST($1 AS TIMESTAMP)', [new Date(now().getTime() - minuteDays * DAY_MS).toISOString()])
   }
 
   /** Keeps every application's snapshots, archived ones too. */
@@ -128,7 +140,10 @@ export class Outbox_Module extends Module {
   /** Forgets everything of an application deleted: its snapshots; its DuckDB too, once nothing else is in it. */
   @UseCase()
   async forget(appId: string): Promise<void> {
-    await (await this.options.store.of(appId)).run('DELETE FROM queue_depth')
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Another module dropped its DuckDB already: nothing of it is left.
+    if (!analytics) return
+    await analytics.run('DELETE FROM queue_depth')
     await this.options.store.dropIfEmpty(appId)
   }
 

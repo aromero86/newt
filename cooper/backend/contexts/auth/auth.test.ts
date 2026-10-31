@@ -128,6 +128,29 @@ describe('accounts', () => {
       await server.stop()
     }
   })
+
+  test('keeps the session cookie Secure when its public URL is https, though the proxy before it speaks http', async () => {
+    await auth.stop()
+    auth = await Auth_Context.open({ ...config.auth, publicUrl: 'https://auth.cooper.test', database: ':memory:', port: 0 }, { mailer: new RecordingMailer() })
+    auth.start()
+    const server = serve(auth.serving())
+    try {
+      const call = (path: string, body?: unknown, cookie = '') => fetch(new URL(`/api${path}`, server.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+      expect(server.url.protocol).toBe('http:')
+      await signUp('Ana')
+      const signedIn = await call('/session/sign-in', { email: 'ana@cooper.test', password: 'a long password' })
+      expect(signedIn.status).toBe(200)
+      expect(signedIn.headers.get('set-cookie')).toContain('Secure')
+      const signedOut = await call('/session/sign-out', undefined, signedIn.headers.get('set-cookie')!.split(';')[0]!)
+      expect(signedOut.headers.get('set-cookie')).toContain('Secure')
+    } finally {
+      await server.stop()
+    }
+  })
 })
 
 describe('workspaces', () => {
@@ -234,6 +257,29 @@ describe('workspaces', () => {
     expect((await modules().tenant.listForUser(ana.id, page)).total).toBe(0)
   })
 
+  test('gives no admin to a workspace deleted before its worker ran', async () => {
+    const ana = await signUp('Ana')
+    // The job of `tenant.created` runs late, once its deletion's job took the accesses away.
+    const tenants = modules().tenant
+    const [ensureAdmin, removeAccesses] = [tenants.ensureAdmin.bind(tenants), tenants.removeAccesses.bind(tenants)]
+    const { promise: removed, resolve: release } = Promise.withResolvers<void>()
+    tenants.ensureAdmin = async tenant => {
+      await removed
+      return ensureAdmin(tenant)
+    }
+    tenants.removeAccesses = async tenantId => {
+      await removeAccesses(tenantId)
+      release()
+    }
+
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().tenant.delete(acme.id))
+    await settled()
+
+    expect(await modules().access.check(ana.id, 'cooper', acme.id)).toBeNull()
+    expect((await modules().access.listForUser(ana.id, page, 'cooper')).total).toBe(0)
+  })
+
   test('lists every workspace newest first, with the filters it allows', async () => {
     const ana = await signUp('Ana')
     await as(ana, () => modules().tenant.create({ name: 'Acme' }))
@@ -259,7 +305,63 @@ describe('invitations', () => {
     await expect(as(eve, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.another_email' })
     expect(await as(bob, () => modules().invitation.accept(token))).toMatchObject({ status: 'accepted', acceptedBy: bob.id })
     expect(await modules().access.check(bob.id, 'cooper', acme.id)).toMatchObject({ role: 'member' })
-    await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+    // Accepting again only finishes it, for whoever accepted it: once in, nothing more.
+    expect(await as(bob, () => modules().invitation.accept(token))).toMatchObject({ status: 'accepted', acceptedBy: bob.id })
+    expect((await modules().access.listForTenant(acme.id, page)).total).toBe(2)
+    await expect(as(eve, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('let nobody in when revoked while being accepted', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    const invitation = await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+    // Accepting stops once it read the invitation, until its admin revoked it.
+    const tenants = modules().tenant
+    const getMany = tenants.getMany.bind(tenants)
+    const { promise: read, resolve: hasRead } = Promise.withResolvers<void>()
+    const { promise: revoked, resolve: revoke } = Promise.withResolvers<void>()
+    tenants.getMany = async ids => {
+      hasRead()
+      await revoked
+      return getMany(ids)
+    }
+
+    const accepting = as(bob, () => modules().invitation.accept(token))
+    await read
+    await as(ana, () => modules().invitation.revoke(invitation.id))
+    revoke()
+
+    await expect(accepting).rejects.toMatchObject({ code: 'invitation.not_open' })
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
+  })
+
+  test('let nobody in when their workspace is deleted while being accepted', async () => {
+    const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+    await settled()
+    const token = linkToken()
+    // The access is given once the workspace and its accesses are gone.
+    const accesses = modules().access
+    const admit = accesses.admit.bind(accesses)
+    const { promise: admitting, resolve: isAdmitting } = Promise.withResolvers<void>()
+    const { promise: deleted, resolve: release } = Promise.withResolvers<void>()
+    accesses.admit = async input => {
+      isAdmitting()
+      await deleted
+      return admit(input)
+    }
+
+    const accepting = as(bob, () => modules().invitation.accept(token))
+    await admitting
+    await as(ana, () => modules().tenant.delete(acme.id))
+    await settled()
+    release()
+
+    await expect(accepting).rejects.toMatchObject({ code: 'invitation.not_open' })
+    expect(await modules().access.check(bob.id, 'cooper', acme.id)).toBeNull()
   })
 
   test('cannot be accepted once their days pass by auth\'s clock', async () => {
@@ -272,6 +374,27 @@ describe('invitations', () => {
     time += config.auth.invitationDays * DAY_MS
     expect(await modules().invitation.review(token)).toMatchObject({ open: false })
     await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
+  })
+
+  test('are made again once the one before expired, which is no longer listed as waiting', async () => {
+    const ana = await signUp('Ana')
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+
+    time += config.auth.invitationDays * DAY_MS
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(0)
+    expect(await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))).toMatchObject({ status: 'pending' })
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(1)
+  })
+
+  test('are made once per email when made at once', async () => {
+    const ana = await signUp('Ana')
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+
+    const results = await Promise.allSettled([1, 2].map(() => as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))))
+    expect(results.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { code: 'invitation.already_invited' } })
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(1)
   })
 
   test('cannot be accepted once their workspace is deleted, before its workers run', async () => {
