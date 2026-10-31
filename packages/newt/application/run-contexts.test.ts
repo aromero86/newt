@@ -179,7 +179,7 @@ describe('runContexts', () => {
     const stopped = await Promise.race([app.stop().then(() => 'stopped'), Bun.sleep(2000).then(() => 'hung')])
     expect(stopped).toBe('stopped')
     expect(performance.now() - started).toBeLessThan(1000)
-    expect(log).toEqual(['monitor started', 'monitor stopped'])
+    expect(log).toEqual(['monitor started', 'monitor worker stopped', 'monitor closed'])
     await reader.cancel().catch(() => {})
   })
 
