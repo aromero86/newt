@@ -6,6 +6,9 @@ import { instanceMinuteOf, instanceStateOf, type InstanceLast } from './instance
 import type { CountedEvent, Metrics, QueueFlowEntry, TimedCall } from './metrics'
 import { addCall, addEntry, countKey, countOf, emptyFlow, emptyTiming, flowKey, flowOf, type Flow, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
+/** How long after its end a minute is taken for closed: what was published in it may still be committing. */
+export const SETTLE_MS = 5_000
+
 export type MemoryMetricsOptions = {
   /** How long a minute is kept for whoever monitors it to collect: a day by default. */
   keepMinutes?: number
@@ -119,7 +122,7 @@ export class MemoryMetrics implements Metrics {
   }
 
   async instances(since: string | null, now: Date): Promise<Instances> {
-    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const until = minuteOf(now.getTime() - MINUTE_MS - SETTLE_MS)
     const minutes: InstanceMinute[] = []
     for (const minute of [...this.samples.keys()].sort()) {
       if ((since !== null && minute <= since) || minute > until) continue
@@ -129,7 +132,7 @@ export class MemoryMetrics implements Metrics {
   }
 
   async closedFlows(since: string | null, now: Date): Promise<QueueFlows> {
-    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const until = minuteOf(now.getTime() - MINUTE_MS - SETTLE_MS)
     const flows: QueueFlow[] = []
     for (const minute of [...this.flows.keys()].sort()) {
       if ((since !== null && minute <= since) || minute > until) continue
@@ -139,7 +142,7 @@ export class MemoryMetrics implements Metrics {
   }
 
   async closedTimings(since: string | null, now: Date): Promise<UseCaseTimings> {
-    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const until = minuteOf(now.getTime() - MINUTE_MS - SETTLE_MS)
     const timings: UseCaseTiming[] = []
     for (const minute of [...this.timings.keys()].sort()) {
       if ((since !== null && minute <= since) || minute > until) continue
@@ -149,7 +152,7 @@ export class MemoryMetrics implements Metrics {
   }
 
   async closed(since: string | null, now: Date): Promise<EventCounts> {
-    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const until = minuteOf(now.getTime() - MINUTE_MS - SETTLE_MS)
     const counts: EventCount[] = []
     for (const minute of [...this.minutes.keys()].sort()) {
       if ((since !== null && minute <= since) || minute > until) continue

@@ -84,13 +84,16 @@ export class InstanceSampler {
 
   private async read(): Promise<void> {
     try {
+      const reading = this.readProcess()
+      const server = await this.readServer()
       const sample: InstanceSample = {
         instance: this.options.instance,
         pid: process.pid,
         startedAt: this.options.startedAt,
+        // Its time once it is read: a minute closed meanwhile would never get it.
         at: this.options.clock.now(),
-        process: this.readProcess(),
-        server: await this.readServer(),
+        process: reading,
+        server,
       }
       if (this.stopping) return
       this.metrics.sample(sample)

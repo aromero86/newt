@@ -4,6 +4,7 @@ import type { Job, Outbox } from '../port-outbox'
 import { TransactionScope, type Store } from '../port-store'
 import { Base } from './base'
 import { BoundedContext } from './bounded-context'
+import { MemoryMetrics } from './metrics/memory-metrics'
 
 /** A store whose transactions, outbox writes and closing all go to one log. */
 function fakeStore(log: string[]): Store {
@@ -95,6 +96,24 @@ describe('the publisher', () => {
     await base.store.transaction(() => base.bus.publish(created))
 
     expect(log).toEqual(['begin', 'outbox mail.sendWelcome.on.user.created', 'commit'])
+  })
+
+  test('counts the event, and its jobs as published, in the minute its transaction commits', async () => {
+    let time = Date.parse('2026-01-01T10:00:59.900Z')
+    const metrics = new MemoryMetrics()
+    metrics.enable()
+    const base = new Base({ name: 'shop', store: fakeStore([]), metrics, clock: { now: () => new Date(time) } })
+    base.bus.subscribe('user.created', () => {}, { mode: 'handler', name: 'mail.sendWelcome.on.user.created' })
+    base.jobs.wake = () => {}
+
+    await base.store.transaction(async () => {
+      await base.publisher.publish(created)
+      time = Date.parse('2026-01-01T10:01:00.300Z')
+    })
+
+    const now = new Date('2026-01-01T10:05:00Z')
+    expect((await metrics.closed(null, now)).counts.map(count => [count.minute, count.count])).toEqual([['2026-01-01T10:01:00.000Z', 1]])
+    expect((await metrics.closedFlows(null, now)).flows.map(flow => [flow.minute, flow.queue])).toEqual([['2026-01-01T10:01:00.000Z', 'mail.sendWelcome.on.user.created']])
   })
 })
 
