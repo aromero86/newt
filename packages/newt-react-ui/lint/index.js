@@ -12,7 +12,8 @@ const ELEMENTS = ['form', 'fieldset']
  * newt-react-ui's lint, for a React app that uses it. Its pages, and everything that is
  * not in its own components folder (`components`):
  *
- * - style nothing: no `className`, `class`, `style`, `class:`/`style:` attributes, and
+ * - style nothing: no `className`, `class`, `style`, `class:`/`style:` attributes, nor those
+ *   keys in an object spread onto an element, and
  *   no `<style>`, nor the tools that make class names (`cn`, `class-variance-authority`,
  *   `tailwind-merge`);
  * - write no HTML element but `form` and `fieldset` (or those `elements` allows):
@@ -48,6 +49,9 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
         'no-restricted-syntax': ['error',
           { selector: 'JSXAttribute[name.name=/^(className|class|style)$/]', message: STYLING },
           { selector: 'JSXAttribute > JSXNamespacedName[namespace.name=/^(class|style)$/]', message: STYLING },
+          // Nor through an object spread: `{...{ className: 'x' }}`. A spread variable cannot be seen.
+          { selector: 'JSXSpreadAttribute > ObjectExpression > Property[key.name=/^(className|class|style)$/]', message: STYLING },
+          { selector: 'JSXSpreadAttribute > ObjectExpression > Property[key.value=/^(className|class|style)$/]', message: STYLING },
           { selector: 'JSXOpeningElement[name.name="style"]', message: STYLING },
           { selector: `JSXOpeningElement > JSXIdentifier.name[name=/^[a-z]/]:not([name=/${allowed}/])`, message: ELEMENT },
           ...syntax,
