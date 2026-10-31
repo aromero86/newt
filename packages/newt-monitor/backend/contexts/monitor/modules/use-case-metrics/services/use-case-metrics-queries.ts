@@ -1,5 +1,6 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
 import { histogramPercentile } from 'newt/contract'
+import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { whereOf, type MetricsFilter } from '../../../../../shared/metrics-store/metrics-filter'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
 import type { LatencyDTO, LatencyPointDTO, UseCaseSeriesDTO, UseCaseTopDTO, UseCaseTotalDTO } from '../use-case-metrics.schema'
@@ -50,22 +51,32 @@ export class UseCaseMetricsQueries {
   async totals(window: MetricsWindow, now: Date): Promise<UseCaseTotalDTO[]> {
     const length = WINDOWS[window].ms
     const end = now.getTime()
-    const params = [new Date(end - 2 * length).toISOString(), new Date(end - length).toISOString(), new Date(end).toISOString()]
     const sums = new Map<string, { now: Sum, previous: Sum }>()
     const of = (context: string, useCase: string) => {
       const key = JSON.stringify([context, useCase])
       if (!sums.has(key)) sums.set(key, { now: empty(), previous: empty() })
       return sums.get(key)!
     }
-    for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, calls: number, retries: number, total_ms: number }>(`
-      SELECT context, use_case, minute >= $2 AS recent, sum(calls) AS calls, sum(retries) AS retries, sum(total_ms) AS total_ms
-      FROM use_case_minute WHERE minute >= $1 AND minute < $3 GROUP BY context, use_case, recent`, params)) {
-      Object.assign(of(row.context, row.use_case)[row.recent ? 'now' : 'previous'], { calls: row.calls, retries: row.retries, totalMs: row.total_ms })
-    }
-    for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, bucket: number, count: number }>(`
-      SELECT context, use_case, minute >= $2 AS recent, bucket, sum(count) AS count
-      FROM use_case_minute_bucket WHERE minute >= $1 AND minute < $3 GROUP BY context, use_case, recent, bucket`, params)) {
-      of(row.context, row.use_case)[row.recent ? 'now' : 'previous'].histogram[String(row.bucket)] = row.count
+    const [until] = await this.analytics.query<{ until: string | null }>('SELECT max(day) + INTERVAL 1 DAY AS until FROM use_case_day')
+    for (const span of spansOf(end - 2 * length, end, until?.until ? Date.parse(until.until) : 0)) {
+      const [table, time] = span.table === 'day' ? ['use_case_day', 'day'] : ['use_case_minute', 'minute']
+      const params = [new Date(span.start).toISOString(), new Date(end - length).toISOString(), new Date(span.end).toISOString()]
+      const recent = `CAST(${time} AS TIMESTAMP) >= CAST($2 AS TIMESTAMP)`
+      const range = `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($3 AS TIMESTAMP)`
+      for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, calls: number, retries: number, total_ms: number }>(`
+        SELECT context, use_case, ${recent} AS recent, sum(calls) AS calls, sum(retries) AS retries, sum(total_ms) AS total_ms
+        FROM ${table} WHERE ${range} GROUP BY context, use_case, recent`, params)) {
+        const sum = of(row.context, row.use_case)[row.recent ? 'now' : 'previous']
+        sum.calls += row.calls
+        sum.retries += row.retries
+        sum.totalMs += row.total_ms
+      }
+      for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, bucket: number, count: number }>(`
+        SELECT context, use_case, ${recent} AS recent, bucket, sum(count) AS count
+        FROM ${table}_bucket WHERE ${range} GROUP BY context, use_case, recent, bucket`, params)) {
+        const histogram = of(row.context, row.use_case)[row.recent ? 'now' : 'previous'].histogram
+        histogram[String(row.bucket)] = (histogram[String(row.bucket)] ?? 0) + row.count
+      }
     }
     return [...sums].map(([key, sum]) => {
       const [context, useCase] = JSON.parse(key) as [string, string]

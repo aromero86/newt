@@ -96,6 +96,21 @@ describe('use case metrics', () => {
     expect((await series('window=30d&bucket=1d&actor=ana&compare=none')).total.calls).toBe(1)
   })
 
+  test('totals a window longer than the minutes kept from the day summary, and the window before it too', async () => {
+    app.call('boards', 'card.create', { at: ago(10 * MINUTE), ms: 20 })
+    app.call('boards', 'card.create', { at: ago(5 * DAY), ms: 50, times: 4 })
+    app.call('boards', 'card.create', { at: ago(100 * DAY), ms: 200, times: 2 })
+    await collect()
+    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3 } })
+
+    await monitor.modules.useCaseMetrics.keepAll()
+
+    const [total] = await json<UseCaseTotalDTO[]>(`/api/apps/${id}/metrics/use-cases?window=90d`)
+    expect(total).toMatchObject({ context: 'boards', useCase: 'card.create', now: { calls: 5 }, previous: { calls: 2 } })
+    near(total!.now.p50, 50)
+    near(total!.previous.p50, 200)
+  })
+
   test('forgets everything of a deleted application', async () => {
     await as(`/api/apps/${id}/archive`, { method: 'POST' })
     expect(await collect()).toEqual({ appId: id, outcome: 'archived' })

@@ -76,4 +76,19 @@ describe('queue metrics', () => {
     const days = await json<QueueSeriesDTO>(`/api/apps/${id}/metrics/queues/series?context=boards&queue=${QUEUE}&window=30d&bucket=1d&compare=none`)
     expect(days.total.published).toBe(5)
   })
+
+  test('totals a window longer than the minutes kept from the day summary, and the window before it too', async () => {
+    app.flow('boards', QUEUE, { at: ago(10 * MINUTE), kind: 'delivered', waitMs: 40 })
+    app.flow('boards', QUEUE, { at: ago(5 * DAY), kind: 'published', times: 4 })
+    app.flow('boards', QUEUE, { at: ago(100 * DAY), kind: 'delivered', waitMs: 2000, times: 2 })
+    await collect()
+    await monitor.modules.retention.change(id, { minuteDays: 3 })
+
+    await monitor.modules.queueMetrics.keepAll()
+
+    const [total] = await json<QueueTotalDTO[]>(`/api/apps/${id}/metrics/queues?window=90d`)
+    expect(total).toMatchObject({ context: 'boards', queue: QUEUE, now: { published: 4, delivered: 1 }, previous: { published: 0, delivered: 2 } })
+    near(total!.now.waitP50, 40)
+    near(total!.previous.waitP50, 2000)
+  })
 })
