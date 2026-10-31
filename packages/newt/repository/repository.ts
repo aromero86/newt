@@ -1,6 +1,6 @@
 import { ConcurrencyConflict, type Entity, type EntitySchema } from '../core'
 import { assertSavable, markPersisted, restoreSaved, savedState, takeEvents } from '../core/internal'
-import { saveReads, transactionSaves } from '../port-store/internal'
+import { allOrNone, saveReads, transactionSaves } from '../port-store/internal'
 import type { RepositoryBase } from './repository-base'
 import type { SaveHooks } from './save-hooks'
 
@@ -96,12 +96,13 @@ export abstract class Repository<E extends Entity<EntitySchema>, B extends Repos
    * the guard rule on what its tables read in it.
    */
   private async transaction(guard: string[] = [], fn: () => void | Promise<void>): Promise<void> {
-    await this.store.transaction(async () => {
+    // All or none: joined to a transaction in progress and failing, it rolls that one back too.
+    await allOrNone.run(true, () => this.store.transaction(async () => {
       this.base.invocations?.checkTransaction(transactionSaves.find())
       if (guard.length) await this.store.guard(guard)
       const reads = { guarded: guard.length > 0, tables: new Set<string>() }
       await saveReads.run(reads, fn)
       if (reads.tables.size) this.base.invocations?.checkGuard([...reads.tables])
-    })
+    }))
   }
 }
