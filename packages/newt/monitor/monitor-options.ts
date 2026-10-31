@@ -1,4 +1,5 @@
 import type { Clock } from '../core'
+import type { Metrics } from '../runtime/metrics/metrics'
 import type { Traces } from '../runtime/traces/traces'
 import type { NonceStore } from './nonce-store'
 
@@ -29,6 +30,12 @@ export type MonitorOptions = {
    * instances, `RedisNonces`, so a request is refused by all once any saw it.
    */
   nonces?: NonceStore
+  /**
+   * Where its instances are read from: the application's metrics, which its own
+   * sampler writes to, unless a test gives others of its own, which it serves as they
+   * are, with no sampler.
+   */
+  instances?: Metrics
   /**
    * The traces it serves: the application's (`setTraces`, or its memory), which serving
    * turns on, unless a test gives others of its own, which it serves as they are.

@@ -8,6 +8,7 @@ import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
 import type { MetricsStore } from '../../shared/metrics-store/metrics-store'
 import { EventMetrics_Module } from './modules/event-metrics/event-metrics.module'
+import { Instances_Module } from './modules/instances/instances.module'
 import { Outbox_Module } from './modules/outbox/outbox.module'
 import { QueueMetrics_Module } from './modules/queue-metrics/queue-metrics.module'
 import { Retention_Module } from './modules/retention/retention.module'
@@ -39,7 +40,8 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, metr
   const queueMetrics = QueueMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const outbox = Outbox_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const traces = Traces_Module.initialize(base, { app, connection, retention }, { store: metrics })
-  return { session, app, connection, structure, catalog, retention, eventMetrics, useCaseMetrics, useCaseErrors, queueMetrics, outbox, traces }
+  const instances = Instances_Module.initialize(base, { app, connection, retention }, { store: metrics })
+  return { session, app, connection, structure, catalog, retention, eventMetrics, useCaseMetrics, useCaseErrors, queueMetrics, outbox, traces, instances }
 }
 
 export type Monitor_Modules = ReturnType<typeof initializeModules>

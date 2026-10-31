@@ -81,7 +81,8 @@ export class RedisMetrics implements Metrics {
     const samples = this.ownSamples.get(minute) ?? []
     samples.push(sample)
     this.ownSamples.set(minute, samples)
-    this.pendingLast = sample
+    // Its state is its newest sample, whatever order they came in.
+    if (this.pendingLast === null || sample.at >= this.pendingLast.at) this.pendingLast = sample
   }
 
   /** What it sampled is written first: its stop comes after its last sample. */

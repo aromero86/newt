@@ -96,7 +96,7 @@ describe('event metrics', () => {
     app.tell('boards', 'card.created', { at: ago(5 * DAY), actor: 'ana', times: 4 })
     app.tell('boards', 'card.created', { at: ago(20 * DAY), actor: 'bea', times: 2 })
     await collect()
-    expect(await json<RetentionDTO>(`/api/apps/${id}/retention`)).toEqual({ minuteDays: 30, dayDays: null, traceDays: 7 })
+    expect(await json<RetentionDTO>(`/api/apps/${id}/retention`)).toEqual({ minuteDays: 30, dayDays: null, traceDays: 7, resourceMinuteDays: 30 })
     expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 1 } })).status).toBe(400)
     await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3, dayDays: 10 } })
 

@@ -2,7 +2,7 @@ import { eventsOf, Module, now, type DomainEvent, type DomainEventClass } from '
 import { serveMonitor } from 'newt/monitor'
 import type { Job, QueueDepth } from 'newt/port-outbox'
 import type { Store } from 'newt/port-store'
-import { Base, MemoryTraces, type Trace, type TraceSpan } from 'newt/runtime'
+import { Base, MemoryMetrics, MemoryTraces, type InstanceSample, type Trace, type TraceSpan } from 'newt/runtime'
 
 /** The key a test's application shares with the monitor. */
 export const TEST_APP_KEY = 'the test application\'s key, long enough'
@@ -54,7 +54,9 @@ export function serveTestApp(name = 'shop') {
   // Its own: the monitor's requests, in the same process, are no trace of this application.
   // Kept two minutes back: what a test keeps is in a closed minute, the monitor's to collect at once.
   const traces = new MemoryTraces({ keepMinutes: 60 * 24 * 30, clock: { now: () => new Date(Date.now() - 2 * 60_000) } })
-  let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY, traces })
+  // Its instances are a test's: the sampler of this process, the monitor's too, is none of them.
+  const instances = new MemoryMetrics()
+  let server = serveMonitor(contexts, { name, port: 0, key: TEST_APP_KEY, traces, instances })
   const port = server.port!
   return {
     url: server.url.origin,
@@ -112,6 +114,25 @@ export function serveTestApp(name = 'shop') {
       })
       return id
     },
+    /**
+     * One of its instances read itself and its server, at a time: on server `web-1`
+     * with a disk `/` unless told. Free memory and disk in bytes.
+     */
+    sample(instance: string, read: { at: Date, server?: string, rss?: number, cpu?: number, memoryFree?: number, diskFree?: number, usage?: number | null }) {
+      const sample: InstanceSample = {
+        instance, pid: 100, startedAt: '2026-01-01T00:00:00.000Z', at: read.at,
+        process: { rssBytes: read.rss ?? 100_000_000, heapUsedBytes: 50_000_000, cpu: read.cpu ?? 5, loopMeanMs: 1, loopMaxMs: 4 },
+        server: {
+          name: read.server ?? 'web-1',
+          disks: [{ path: '/', totalBytes: 100_000_000_000, freeBytes: read.diskFree ?? 60_000_000_000 }],
+          memory: { totalBytes: 8_000_000_000, freeBytes: read.memoryFree ?? 4_000_000_000 },
+          cpu: { cores: 4, load: [1, 1, 1], usage: read.usage === undefined ? 25 : read.usage },
+        },
+      }
+      instances.sample(sample)
+    },
+    /** One of its instances said it stopped. */
+    stopped: (instance: string, at: Date) => instances.stopped(instance, at),
     /** A context taken away. */
     remove(context: string) {
       contexts.splice(contexts.findIndex(base => base.name === context), 1)
@@ -119,7 +140,7 @@ export function serveTestApp(name = 'shop') {
     stop: () => server.stop(true),
     /** Served again, on the same port, after `stop`: the application back after a deployment. */
     start() {
-      server = serveMonitor(contexts, { name, port, key: TEST_APP_KEY, traces })
+      server = serveMonitor(contexts, { name, port, key: TEST_APP_KEY, traces, instances })
     },
   }
 }

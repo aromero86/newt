@@ -65,12 +65,14 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
     startedAt: clock.now().toISOString(),
   }
   // The instance reads itself and its server into the application's metrics (`setMetrics`): else the first
-  // context's, or its own memory with none.
-  const instanceMetrics = applicationMetrics.value ?? metricsOf()[0] ?? new MemoryMetrics()
+  // context's, or its own memory with none. A test's own are served as they are.
+  const instanceMetrics = options.instances ?? applicationMetrics.value ?? metricsOf()[0] ?? new MemoryMetrics()
   instanceMetrics.enable()
-  void applicationSampler.value?.stop()
-  applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, server, disks: options.disks, clock })
-  applicationSampler.value.start()
+  if (!options.instances) {
+    void applicationSampler.value?.stop()
+    applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, server, disks: options.disks, clock })
+    applicationSampler.value.start()
+  }
 
   return Bun.serve({
     port: options.port,

@@ -1,5 +1,5 @@
 import { signMonitorRequest, type MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'
@@ -63,6 +63,44 @@ const FlowsSchema = z.object({
     redelivered: z.number().int().min(0),
     dead: z.number().int().min(0),
     wait: z.record(z.string().regex(/^\d+$/), z.number().int().positive()),
+  })),
+  until: z.iso.datetime(),
+})
+
+const bytes = z.number().min(0)
+const meanMax = z.object({ mean: z.number(), max: z.number() })
+const meanMin = z.object({ mean: z.number(), min: z.number() })
+const ProcessReadingSchema = z.object({ rssBytes: bytes, heapUsedBytes: bytes, cpu: z.number().min(0), loopMeanMs: z.number().min(0), loopMaxMs: z.number().min(0) })
+const ServerReadingSchema = z.object({
+  name: z.string().min(1),
+  disks: z.array(z.object({ path: z.string(), totalBytes: bytes, freeBytes: bytes })),
+  memory: z.object({ totalBytes: bytes, freeBytes: bytes }),
+  cpu: z.object({ cores: z.number().int().positive(), load: z.tuple([z.number(), z.number(), z.number()]), usage: z.number().nullable() }),
+})
+
+/** Enough of its instances to know they are some: each as it is now, and their closed minutes. */
+const InstancesSchema = z.object({
+  instances: z.array(z.object({
+    instance: z.string().min(1),
+    pid: z.number().int(),
+    startedAt: z.iso.datetime(),
+    lastSeenAt: z.iso.datetime(),
+    status: z.enum(['alive', 'stopped', 'lost']),
+    stoppedAt: z.iso.datetime().nullable(),
+    process: ProcessReadingSchema,
+    server: ServerReadingSchema,
+  })),
+  minutes: z.array(z.object({
+    minute: z.iso.datetime(),
+    instance: z.string().min(1),
+    slots: z.array(z.number().int().min(0).max(5)),
+    process: z.object({ rssBytes: meanMax, heapUsedBytes: meanMax, cpu: meanMax, loopMeanMs: z.number(), loopMaxMs: z.number() }),
+    server: z.object({
+      name: z.string().min(1),
+      disks: z.array(z.object({ path: z.string(), totalBytes: bytes, freeBytes: meanMin })),
+      memory: z.object({ totalBytes: bytes, freeBytes: meanMin }),
+      cpu: z.object({ cores: z.number().int().positive(), load: meanMax, usage: meanMax.nullable() }),
+    }),
   })),
   until: z.iso.datetime(),
 })
@@ -168,6 +206,10 @@ export class HttpAppClient implements AppClient {
 
   async traces(endpoint: Endpoint, since: string | null): Promise<ClosedTraces> {
     return this.read(endpoint, since === null ? '/v1/traces' : `/v1/traces?since=${encodeURIComponent(since)}`, TracesSchema)
+  }
+
+  async instances(endpoint: Endpoint, since: string | null): Promise<Instances> {
+    return this.read(endpoint, since === null ? '/v1/instances' : `/v1/instances?since=${encodeURIComponent(since)}`, InstancesSchema)
   }
 
   async outbox(endpoint: Endpoint): Promise<OutboxState> {
