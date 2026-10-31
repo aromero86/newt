@@ -10,6 +10,7 @@ import { Spinner } from 'newt-react-ui/spinner'
 import { Stack } from 'newt-react-ui/stack'
 import { Mono, Text } from 'newt-react-ui/text'
 import { Provide, useService, useValue } from 'newt-react'
+import { AUTHORIZATION_REQUEST_PROBLEMS } from '../../api/authorizations'
 import { Brand } from '../../components/brand/brand'
 import { AuthorizeService } from './authorize.service'
 
@@ -66,14 +67,22 @@ function AuthorizeWrapped() {
   )
 }
 
-/** Where a request the monitor could not answer ends: why, never sent back to an address nobody vouched for. */
+/**
+ * Where a request the monitor could not answer ends: why, never sent back to an address
+ * nobody vouched for. The reason comes as a code and is told in the monitor's own words,
+ * never in text taken from the address, which anyone can write.
+ */
 export function AuthorizeError() {
   const [params] = useSearchParams()
+  const code = params.get('error') ?? ''
+  const reason = Object.hasOwn(AUTHORIZATION_REQUEST_PROBLEMS, code)
+    ? AUTHORIZATION_REQUEST_PROBLEMS[code as keyof typeof AUTHORIZATION_REQUEST_PROBLEMS]
+    : AUTHORIZATION_REQUEST_PROBLEMS['oauthGrant.invalid_request']
   return (
     <NarrowPage>
       <Brand size="lg" />
       <PageHeader title="Connect an application" />
-      <Alert tone="bad" title="The application asked for access the wrong way">{params.get('message') ?? 'The request is not a valid one.'}</Alert>
+      <Alert tone="bad" title="The application asked for access the wrong way">{reason}.</Alert>
     </NarrowPage>
   )
 }

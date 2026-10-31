@@ -34,13 +34,28 @@ export const OauthGrantSchema = z.object({
  */
 export const OauthGrantRequestSchema = z.object({
   responseType: z.string(),
-  clientId: z.string().min(1, 'The request does not say which application asks'),
-  redirectUri: z.string().min(1, 'The request does not say where to go back'),
+  clientId: z.string().min(1),
+  redirectUri: z.string().min(1),
   codeChallenge: z.string(),
   codeChallengeMethod: z.string(),
   state: z.string().max(1000).optional(),
   resource: z.string().optional(),
 })
+
+/**
+ * Why a client's request cannot be answered, by the code of its error, and what the
+ * person is told: the monitor's error page shows these and nothing taken from its address.
+ */
+export const AUTHORIZATION_REQUEST_PROBLEMS = {
+  'oauthGrant.invalid_request': 'The request is not a valid one',
+  'oauthGrant.missing_client': 'The request does not say which application asks',
+  'oauthGrant.missing_redirect': 'The request does not say where to go back',
+  'oauthGrant.unknown_client': 'This application is not registered in the monitor',
+  'oauthGrant.redirect_mismatch': 'The address to go back to is not one of this application',
+  'oauthGrant.unsupported_response_type': 'The application asks for a kind of access the monitor does not give',
+  'oauthGrant.pkce_required': 'The application does not protect its request with PKCE (S256)',
+  'oauthGrant.unknown_resource': 'The application asks for access to a server the monitor does not have',
+} as const
 
 /** What the monitor's consent page shows of a request: who asks, and where the browser goes back to. */
 export const OauthGrantReviewSchema = z.object({
@@ -71,6 +86,7 @@ export const OauthGrantRedeemedSchema = z.object({
   resource: z.string(),
 })
 
+export type AuthorizationRequestProblem = keyof typeof AUTHORIZATION_REQUEST_PROBLEMS
 export type OauthGrantStatus = z.infer<typeof OauthGrantStatusSchema>
 export type OauthGrantDTO = z.infer<typeof OauthGrantSchema>
 export type OauthGrantRequestDTO = z.input<typeof OauthGrantRequestSchema>
