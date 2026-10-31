@@ -29,6 +29,8 @@ export class BoardService {
   private readonly columnApi = inject(ColumnApi)
   private readonly cardApi = inject(CardApi)
   private readonly store = new Store<BoardState>({ workspaceId: '', boardId: '', view: null, loading: false, notFound: false, failure: null })
+  /** Numbers each read of the board, so only the latest one's answer is applied. */
+  private refreshSeq = 0
 
   private readonly view = this.store.select('view')
   readonly loading = this.store.select('loading')
@@ -55,13 +57,19 @@ export class BoardService {
     this.store.patch({ loading: false })
   }
 
-  /** Reads the board again, keeping what shows until the new version arrives. */
+  /**
+   * Reads the board again, keeping what shows until the new version arrives. Only the
+   * latest read is applied: an older answer landing last would undo a newer move.
+   */
   async refresh(): Promise<void> {
     const { workspaceId, boardId } = this.store.value
+    const seq = ++this.refreshSeq
+    const latest = () => seq === this.refreshSeq && this.store.value.boardId === boardId
     try {
       const view = await this.boardApi.view(workspaceId, boardId)
-      if (this.store.value.boardId === boardId) this.store.patch({ view, failure: null })
+      if (latest()) this.store.patch({ view, failure: null })
     } catch (error) {
+      if (!latest()) return
       if (error instanceof ApiError && error.status === 404) this.store.patch({ notFound: true })
       else this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load the board' })
     }
