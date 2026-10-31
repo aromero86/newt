@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { defineScope } from './define-scope'
+import { scopeId } from './registered-scopes'
 
 describe('defineScope', () => {
   test('carries a value down to everything run in it, across awaits', async () => {
@@ -27,5 +28,17 @@ describe('defineScope', () => {
     const two = defineScope<number>('two')
 
     expect(one.run(1, () => two.run(2, () => [one.current(), two.current()]))).toEqual([1, 2])
+  })
+})
+
+describe('scopeId', () => {
+  test('is an id for any value, one JSON cannot hold too', () => {
+    const cyclic: Record<string, unknown> = { id: 'w1', plan: 'pro' }
+    cyclic.self = cyclic
+
+    expect(scopeId({ workspaceId: 'w1' })).toBe('w1')
+    expect(scopeId(10n)).toBe('10')
+    expect(scopeId({ id: 10n, plan: 'pro' })).toBe('[unserializable]')
+    expect(scopeId(cyclic)).toBe('[unserializable]')
   })
 })
