@@ -13,7 +13,7 @@ export type AppMark = { at: string, label: string, tone: 'brand' | 'ok' | 'warn'
 /** The moments its instances started, stopped or were lost. */
 function instanceMarks(instances: InstanceDTO[]): AppMark[] {
   return instances.flatMap(instance => {
-    const name = `${instance.instanceId.slice(0, 8)} on ${instance.server}`
+    const name = instance.instanceId.slice(0, 8)
     const marks: AppMark[] = [{ at: instance.startedAt, label: `Started: ${name}`, tone: 'ok', instance: true }]
     if (instance.status === 'stopped') marks.push({ at: instance.stoppedAt ?? instance.lastSeenAt, label: `Stopped: ${name}`, tone: 'muted', instance: true })
     if (instance.status === 'lost') marks.push({ at: instance.lastSeenAt, label: `Lost: ${name}`, tone: 'bad', instance: true })
@@ -35,7 +35,7 @@ type AppState = {
   removed: CatalogItemDTO[] | null
   /** Whether the explorer shows them, marked, beside what is there now. */
   showRemoved: boolean
-  /** Its servers and instances now; null until asked for, or when it could not be. */
+  /** Its system and instances now; null until asked for, or when it could not be. */
   instances: InstancesDTO | null
   /** What its charts mark: its versions and its instances' comings and goings. */
   marks: AppMark[]
@@ -159,7 +159,7 @@ export class AppService {
     this.store.patch({ showRemoved: !this.store.value.showRemoved })
   }
 
-  /** Its servers and instances now, asked again: and their comings and goings, marked. */
+  /** Its system and instances now, asked again: and their comings and goings, marked. */
   async loadInstances(): Promise<void> {
     const appId = this.appId
     const instances = await this.instanceApi.list(appId).catch(() => null)

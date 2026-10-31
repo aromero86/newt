@@ -1,8 +1,7 @@
 // bun run cooper:replicas: two instances of cooper's backend side by side, as if behind a
 // load balancer, for newt-monitor to show an application with more than one: they share
 // the databases and one Redis, where they count their events, keep their traces and
-// tell the monitor how each instance and its server is. Each one says it runs on a
-// server of its own, `cooper-1` and `cooper-2`, though both run on this machine.
+// tell the monitor how each instance and the machine it runs on is.
 //
 //   COOPER_REDIS_URL=redis://localhost:6379 COOPER_MONITOR_KEY=… bun run cooper:replicas
 //
@@ -25,7 +24,6 @@ const REPLICAS = [0, SHIFT].map((shift, index) => ({
   url: `http://localhost:${config.auth.port + shift}/api/health`,
   env: {
     ...process.env,
-    COOPER_SERVER: process.env.COOPER_SERVER ?? `cooper-${index + 1}`,
     COOPER_AUTH_PORT: String(config.auth.port + shift),
     COOPER_BOARDS_PORT: String(config.boards.port + shift),
     COOPER_BACKOFFICE_PORT: String(config.backoffice.port + shift),

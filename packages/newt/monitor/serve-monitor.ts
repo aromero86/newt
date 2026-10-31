@@ -57,11 +57,10 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   const traces = options.traces ?? enableTraces()
   // A request that carries a header signed with its key has its trace kept: `signTraceHeader`.
   applicationTraces.forcing = header => verifyTraceHeader(options.key, header, clock.now())
-  const server = options.server ?? process.env.NEWT_SERVER ?? hostname()
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,
-    instance: { id: crypto.randomUUID(), host: hostname(), server, pid: process.pid },
+    instance: { id: crypto.randomUUID(), host: hostname(), pid: process.pid },
     startedAt: clock.now().toISOString(),
   }
   // The instance reads itself and its server into the application's metrics (`setMetrics`): else the first
@@ -70,7 +69,7 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   instanceMetrics.enable()
   if (!options.instances) {
     void applicationSampler.value?.stop()
-    applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, server, disks: options.disks, clock })
+    applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, disks: options.disks, clock })
     applicationSampler.value.start()
   }
 

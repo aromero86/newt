@@ -31,7 +31,7 @@ export function AppSettingsConnection({ app }: { app: AppDTO }) {
                   <BoxRowMeta>
                     {connection.failure && <>{connection.failure.message}</>}
                     {connection.identity && <>{connection.identity.instance.host}, process {connection.identity.instance.pid}, started <RelativeTime date={connection.identity.startedAt} /></>}
-                    {instances && instances.instances.length > 0 && <TextLink href={`/apps/${app.id}/servers`}>{alive} {alive === 1 ? 'instance' : 'instances'} alive on {instances.servers.length} {instances.servers.length === 1 ? 'server' : 'servers'}</TextLink>}
+                    {instances && instances.instances.length > 0 && <TextLink href={`/apps/${app.id}/system`}>{alive} {alive === 1 ? 'instance' : 'instances'} alive</TextLink>}
                     <>checked <RelativeTime date={connection.checkedAt} /></>
                     {connection.failure && <>{connection.lastSeenAt ? <>last answered <RelativeTime date={connection.lastSeenAt} /></> : 'it never answered'}</>}
                   </BoxRowMeta>

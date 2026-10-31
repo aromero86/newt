@@ -12,7 +12,6 @@ function sample(at: string, change: { instance?: string, rss?: number, cpu?: num
     at: new Date(at),
     process: { rssBytes: change.rss ?? 100, heapUsedBytes: 50, cpu: change.cpu ?? 10, loopMeanMs: 1, loopMaxMs: change.loopMaxMs ?? 2 },
     server: {
-      name: 's1',
       disks: [{ path: '/', totalBytes: 1000, freeBytes: change.free ?? 400 }],
       memory: { totalBytes: 800, freeBytes: change.free ?? 400 },
       cpu: { cores: 4, load: [1, 1, 1], usage: change.usage === undefined ? 20 : change.usage },

@@ -11,9 +11,7 @@ const TIMEOUT_MS = 5_000
 const IdentitySchema = z.object({
   name: z.string(),
   newt: z.string(),
-  // An application on a newt before servers says none: its machine is its server.
-  instance: z.object({ id: z.string(), host: z.string(), server: z.string().optional(), pid: z.number() })
-    .transform(instance => ({ ...instance, server: instance.server ?? instance.host })),
+  instance: z.object({ id: z.string(), host: z.string(), pid: z.number() }),
   startedAt: z.string(),
 })
 
@@ -72,7 +70,6 @@ const meanMax = z.object({ mean: z.number(), max: z.number() })
 const meanMin = z.object({ mean: z.number(), min: z.number() })
 const ProcessReadingSchema = z.object({ rssBytes: bytes, heapUsedBytes: bytes, cpu: z.number().min(0), loopMeanMs: z.number().min(0), loopMaxMs: z.number().min(0) })
 const ServerReadingSchema = z.object({
-  name: z.string().min(1),
   disks: z.array(z.object({ path: z.string(), totalBytes: bytes, freeBytes: bytes })),
   memory: z.object({ totalBytes: bytes, freeBytes: bytes }),
   cpu: z.object({ cores: z.number().int().positive(), load: z.tuple([z.number(), z.number(), z.number()]), usage: z.number().nullable() }),
@@ -96,7 +93,6 @@ const InstancesSchema = z.object({
     slots: z.array(z.number().int().min(0).max(5)),
     process: z.object({ rssBytes: meanMax, heapUsedBytes: meanMax, cpu: meanMax, loopMeanMs: z.number(), loopMaxMs: z.number() }),
     server: z.object({
-      name: z.string().min(1),
       disks: z.array(z.object({ path: z.string(), totalBytes: bytes, freeBytes: meanMin })),
       memory: z.object({ totalBytes: bytes, freeBytes: meanMin }),
       cpu: z.object({ cores: z.number().int().positive(), load: meanMax, usage: meanMax.nullable() }),

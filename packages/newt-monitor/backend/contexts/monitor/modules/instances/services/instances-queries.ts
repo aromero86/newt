@@ -1,6 +1,6 @@
-import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import type { DuckDbAnalytics } from 'newt/adapter-duckdb'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
-import type { InstanceCountSeriesDTO, ServerPointDTO, ServerSeriesDTO } from '../instances.schema'
+import type { InstanceCountSeriesDTO, SystemPointDTO, SystemSeriesDTO } from '../instances.schema'
 
 const DAY_MS = 24 * 60 * 60_000
 
@@ -16,7 +16,7 @@ const floor = (ms: number, size: number) => ms - (ms % size)
 type Reading = { table: string, time: string, from: number, to: number }
 
 /**
- * What a panel reads of an application's servers and instances, in DuckDB's SQL,
+ * What a panel reads of an application's system and instances, in DuckDB's SQL,
  * grouped by bucket as it is read. Days older than the summary's newest come from it,
  * the rest from the minutes.
  */
@@ -41,56 +41,65 @@ export class InstancesQueries {
     return { window, bucket, from: new Date(from).toISOString(), to: new Date(to).toISOString(), points }
   }
 
-  /** A server in each bucket of a window: its memory, its processors and each disk. */
-  async server(server: string, window: MetricsWindow, bucket: MetricsBucket, now: Date): Promise<ServerSeriesDTO> {
+  /** The system in each bucket of a window: the application's memory, processor and event loop, and its machines' memory, processors and disks. */
+  async system(window: MetricsWindow, bucket: MetricsBucket, now: Date): Promise<SystemSeriesDTO> {
     const { from, to, size } = this.span(window, bucket, now)
-    const points = new Map<number, ServerPointDTO>()
+    const points = new Map<number, SystemPointDTO>()
     const pointAt = (at: number) => {
-      if (!points.has(at)) points.set(at, { at: new Date(at).toISOString(), memoryTotalBytes: null, memoryFreeBytes: null, cpuUsage: null, cpuUsageMax: null, load: null, disks: {} })
+      if (!points.has(at)) {
+        points.set(at, {
+          at: new Date(at).toISOString(), rssBytes: null, rssMaxBytes: null, cpu: null, cpuMax: null, loopMaxMs: null,
+          memoryTotalBytes: null, memoryFreeBytes: null, cpuUsage: null, cpuUsageMax: null, load: null, disks: {},
+        })
+      }
       return points.get(at)!
     }
-    const range = (reading: Reading): DuckDbParam[] => [new Date(reading.from).toISOString(), new Date(reading.to).toISOString(), server]
-    const where = (time: string) => `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($2 AS TIMESTAMP) AND server = $3`
-    for (const reading of await this.readings('server', from, to, size)) {
-      for (const row of await this.analytics.query<{ slot: number, memory_total: number, memory_free: number, usage: number | null, usage_max: number | null, load: number }>(
-        `SELECT ${this.slot(reading.time, size)} AS slot, max(memory_total) AS memory_total, min(memory_free_min) AS memory_free,
+    const range = (reading: Reading) => [new Date(reading.from).toISOString(), new Date(reading.to).toISOString()]
+    const where = (time: string) => `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($2 AS TIMESTAMP)`
+    for (const reading of await this.readings('system', from, to, size)) {
+      for (const row of await this.analytics.query<{ slot: number, rss: number, rss_max: number, cpu: number, cpu_max: number, loop_max: number, memory_total: number, memory_free: number, usage: number | null, usage_max: number | null, load: number }>(
+        `SELECT ${this.slot(reading.time, size)} AS slot, avg(rss_mean) AS rss, max(rss_max) AS rss_max, avg(cpu_mean) AS cpu, max(cpu_max) AS cpu_max,
+           max(loop_max) AS loop_max, max(memory_total) AS memory_total, min(memory_free_min) AS memory_free,
            avg(usage_mean) AS usage, max(usage_max) AS usage_max, max(load_max) AS load
          FROM ${reading.table} WHERE ${where(reading.time)} GROUP BY slot`, range(reading))) {
-        Object.assign(pointAt(row.slot * 1000), { memoryTotalBytes: row.memory_total, memoryFreeBytes: row.memory_free, cpuUsage: row.usage, cpuUsageMax: row.usage_max, load: row.load })
+        Object.assign(pointAt(row.slot * 1000), {
+          rssBytes: row.rss, rssMaxBytes: row.rss_max, cpu: row.cpu, cpuMax: row.cpu_max, loopMaxMs: row.loop_max,
+          memoryTotalBytes: row.memory_total, memoryFreeBytes: row.memory_free, cpuUsage: row.usage, cpuUsageMax: row.usage_max, load: row.load,
+        })
       }
     }
-    for (const reading of await this.readings('disk', from, to, size)) {
+    for (const reading of await this.readings('system_disk', from, to, size)) {
       for (const row of await this.analytics.query<{ slot: number, path: string, free: number }>(
         `SELECT ${this.slot(reading.time, size)} AS slot, path, min(free_min) AS free FROM ${reading.table} WHERE ${where(reading.time)} GROUP BY slot, path`, range(reading))) {
         pointAt(row.slot * 1000).disks[row.path] = row.free
       }
     }
     const disks = Object.fromEntries((await this.analytics.query<{ path: string, total: number }>(
-      `SELECT path, arg_max(total, minute) AS total FROM disk_minute WHERE server = $1 GROUP BY path ORDER BY path`, [server])).map(row => [row.path, row.total]))
-    const all: ServerPointDTO[] = []
+      'SELECT path, arg_max(total, minute) AS total FROM system_disk_minute GROUP BY path ORDER BY path')).map(row => [row.path, row.total]))
+    const all: SystemPointDTO[] = []
     for (let at = from; at < to; at += size) {
       const point = pointAt(at)
       for (const path of Object.keys(disks)) point.disks[path] ??= null
       all.push(point)
     }
-    return { server, window, bucket, from: new Date(from).toISOString(), to: new Date(to).toISOString(), disks, points: all }
+    return { window, bucket, from: new Date(from).toISOString(), to: new Date(to).toISOString(), disks, points: all }
   }
 
   /**
-   * In how many days each disk of each server fills at the pace it lost free space over
-   * the last week (or since it was first read, an hour at least): null for one that does
-   * not lose any, or read too briefly. Keyed `<server>|<path>`.
+   * In how many days each disk fills at the pace it lost free space over the last week
+   * (or since it was first read, an hour at least): null for one that does not lose
+   * any, or read too briefly. By path.
    */
   async fullInDays(now: Date): Promise<Map<string, number | null>> {
     const since = new Date(now.getTime() - PACE_MS).toISOString()
-    const rows = await this.analytics.query<{ server: string, path: string, first_at: string, first_free: number, last_at: string, last_free: number }>(`
-      SELECT server, path, min(minute) AS first_at, arg_min(free_mean, minute) AS first_free, max(minute) AS last_at, arg_max(free_mean, minute) AS last_free
-      FROM disk_minute WHERE minute >= CAST($1 AS TIMESTAMP) GROUP BY server, path`, [since])
+    const rows = await this.analytics.query<{ path: string, first_at: string, first_free: number, last_at: string, last_free: number }>(`
+      SELECT path, min(minute) AS first_at, arg_min(free_mean, minute) AS first_free, max(minute) AS last_at, arg_max(free_mean, minute) AS last_free
+      FROM system_disk_minute WHERE minute >= CAST($1 AS TIMESTAMP) GROUP BY path`, [since])
     return new Map(rows.map(row => {
       const span = Date.parse(row.last_at) - Date.parse(row.first_at)
       const lost = row.first_free - row.last_free
       const days = span < LEAST_PACE_MS || lost <= 0 ? null : row.last_free / (lost / (span / DAY_MS))
-      return [`${row.server}|${row.path}`, days]
+      return [row.path, days]
     }))
   }
 

@@ -80,14 +80,14 @@ describe('the MCP server', () => {
     try {
       expect((await client.listTools()).tools.map(tool => tool.name).toSorted()).toEqual([
         'dead_jobs', 'error_codes', 'errors_totals', 'event_totals', 'get_structure', 'get_trace', 'list_apps', 'list_traces',
-        'list_versions', 'queues', 'server_series', 'servers_and_instances', 'use_case_series', 'use_case_totals',
+        'list_versions', 'queues', 'system_and_instances', 'system_series', 'use_case_series', 'use_case_totals',
       ])
       const apps = await use<{ items: { id: string, name: string, connection: string }[] }>(client, 'list_apps')
       expect(apps.items).toMatchObject([{ name: 'shop', connection: 'up' }])
       const appId = apps.items[0]!.id
       expect(await use(client, 'get_structure', { appId })).toMatchObject({ description: { contexts: [{ name: 'boards' }] } })
       expect(await use(client, 'use_case_totals', { appId, window: '1h' })).toEqual([])
-      expect(await use(client, 'servers_and_instances', { appId })).toEqual({ servers: [], instances: [] })
+      expect(await use(client, 'system_and_instances', { appId })).toEqual({ system: null, instances: [] })
       // A wrong question is the tool's error, as the route's would be.
       await expect(use(client, 'use_case_series', { appId, context: 'boards' })).rejects.toThrow()
     } finally {
