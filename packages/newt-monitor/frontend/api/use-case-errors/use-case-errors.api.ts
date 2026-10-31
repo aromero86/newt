@@ -1,5 +1,5 @@
-import type { MetricsWindow } from '../../../src/contexts/monitor/modules/event-metrics/event-metrics.schema'
-import type { ErrorCodeDTO, ErrorCodesQueryDTO, ErrorsSeriesDTO, ErrorsSeriesQueryDTO, ErrorsTopDTO, ErrorsTopQueryDTO, ErrorsTotalDTO } from '../../../src/contexts/monitor/modules/use-case-errors/use-case-errors.schema'
+import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
+import type { ErrorCodeDTO, ErrorCodesQueryDTO, ErrorsSeriesDTO, ErrorsSeriesQueryDTO, ErrorsTopDTO, ErrorsTopQueryDTO, ErrorsTotalDTO } from '../../../backend/contexts/monitor/modules/use-case-errors/use-case-errors.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `useCaseErrors` module: how each use case's calls ended badly. */

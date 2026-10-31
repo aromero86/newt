@@ -1,5 +1,5 @@
 import type { Page } from 'newt/contract'
-import type { AppDTO, AppRegisterDTO, AppUpdateDTO } from '../../../src/contexts/monitor/modules/app/app.schema'
+import type { AppDTO, AppRegisterDTO, AppUpdateDTO } from '../../../backend/contexts/monitor/modules/app/app.schema'
 import { type PageRequest, Requester } from 'newt-react'
 
 /** Which applications a list shows. */

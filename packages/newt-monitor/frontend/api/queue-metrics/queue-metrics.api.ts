@@ -1,5 +1,5 @@
-import type { MetricsWindow } from '../../../src/contexts/monitor/modules/event-metrics/event-metrics.schema'
-import type { QueueSeriesDTO, QueueSeriesQueryDTO, QueueTotalDTO } from '../../../src/contexts/monitor/modules/queue-metrics/queue-metrics.schema'
+import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
+import type { QueueSeriesDTO, QueueSeriesQueryDTO, QueueTotalDTO } from '../../../backend/contexts/monitor/modules/queue-metrics/queue-metrics.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `queueMetrics` module: how each queue of an application flows. */

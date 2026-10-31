@@ -1,5 +1,5 @@
 import type { Page } from 'newt/contract'
-import type { RefreshDTO, StructureVersionDTO, StructureVersionSummaryDTO } from '../../../src/contexts/monitor/modules/structure/structure.schema'
+import type { RefreshDTO, StructureVersionDTO, StructureVersionSummaryDTO } from '../../../backend/contexts/monitor/modules/structure/structure.schema'
 import { type PageRequest, Requester } from 'newt-react'
 
 /** The monitor's `structure` module: what an application is made of, version by version. */
