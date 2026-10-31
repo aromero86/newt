@@ -74,9 +74,6 @@
     "packages/newt-monitor": {
       "name": "newt-monitor",
       "version": "0.0.0",
-      "bin": {
-        "newt-monitor": "./bin/newt-monitor.ts",
-      },
       "dependencies": {
         "@duckdb/node-api": "1.5.6-r.1",
         "newt": "workspace:*",
