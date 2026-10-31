@@ -84,22 +84,31 @@ export class Invitation_Module extends Module {
   /**
    * The signed-in person accepts it, if they have its email: they become a member of
    * the workspace. It writes to `access` without being a worker, on purpose: whoever
-   * accepts enters at once. The access goes first, and is safe to give again: should
-   * the invitation fail to be marked accepted, accepting again finishes it.
+   * accepts enters at once. The invitation is marked accepted first, under its
+   * version, so a revoke at the same time wins or loses there, before anyone enters;
+   * the access goes after, and is safe to give again: should it fail, accepting again
+   * finishes it. A workspace deleted meanwhile has that access taken away again.
    */
   @UseCase({ writesTo: ['access'] })
   async accept(token: string): Promise<InvitationDTO> {
     const invitation = await this.byToken(token)
-    // Its workspace deleted, it is not open any more, whatever its worker did yet.
-    const [tenant] = await this.deps.tenant.getMany([invitation.tenantId])
-    if (!invitation.isOpen() || !tenant) throw new InvitationNotOpen()
     const { userId } = currentActor()
-    const me = await this.deps.user.get(userId)
-    if (me.email !== invitation.email) throw new InvitationForAnotherEmail(invitation.email)
+    const finishing = invitation.isAcceptedBy(userId)
+    // Its workspace deleted, it is not open any more, whatever its worker did yet.
+    if ((!invitation.isOpen() && !finishing) || !await this.tenantExists(invitation.tenantId)) throw new InvitationNotOpen()
+    if (!finishing) {
+      const me = await this.deps.user.get(userId)
+      if (me.email !== invitation.email) throw new InvitationForAnotherEmail(invitation.email)
+      invitation.accept(userId)
+      await this.repo.persist(invitation)
+    }
 
     await this.deps.access.admit({ userId, productId: this.options.productId, tenantId: invitation.tenantId, role: 'member' })
-    invitation.accept(userId)
-    await this.repo.persist(invitation)
+    // Deleted after the look above, its deletion may have taken its accesses away already.
+    if (!await this.tenantExists(invitation.tenantId)) {
+      await this.deps.access.revokeTenant(invitation.tenantId)
+      throw new InvitationNotOpen()
+    }
     return invitation.toDTO()
   }
 
@@ -138,6 +147,10 @@ export class Invitation_Module extends Module {
     const pending = await this.repo.find({ tenantId, status: 'pending' })
     for (const invitation of pending) invitation.revoke()
     await this.repo.persist(...pending)
+  }
+
+  private async tenantExists(tenantId: string): Promise<boolean> {
+    return (await this.deps.tenant.getMany([tenantId])).length > 0
   }
 
   private async byToken(token: string): Promise<Invitation> {
