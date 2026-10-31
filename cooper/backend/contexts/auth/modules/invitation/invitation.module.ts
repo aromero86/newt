@@ -47,17 +47,17 @@ export class Invitation_Module extends Module {
     await this.assertAdmin(tenantId)
     const invited = await this.deps.user.findByEmail(invitation.email)
     const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
-    if (member || await this.repo.count({ tenantId, email: invitation.email, status: 'pending' }) > 0) throw new AlreadyInvited(invitation.email)
+    if (member || await this.repo.count(this.repo.open(tenantId, invitation.email)) > 0) throw new AlreadyInvited(invitation.email)
 
-    await this.repo.persist(invitation)
+    await this.repo.persistOnlyOpenOne(invitation)
     return invitation.toDTO()
   }
 
-  /** The invitations of a workspace still waiting, the newest first: for its admin. */
+  /** The invitations of a workspace still waiting, not expired, the newest first: for its admin. */
   @UseCase()
   async list(tenantId: string, page: PageRequest): Promise<Page<InvitationDTO>> {
     await this.assertAdmin(tenantId)
-    const found = await this.repo.page({ tenantId, status: 'pending' }, page, { newestFirst: true })
+    const found = await this.repo.page(this.repo.open(tenantId), page, { newestFirst: true })
     return mapPage(found, invitation => invitation.toDTO())
   }
 
