@@ -78,6 +78,23 @@ describe('a span', () => {
   })
 })
 
+describe('its timing', () => {
+  test('a failure in it replaces neither what the use case returns nor what it throws', async () => {
+    const invocations = new Invocations()
+    invocations.onTimed = () => { throw new Error('metrics broke') }
+    const originalError = console.error
+    const errors: unknown[] = []
+    console.error = (...args: unknown[]) => void errors.push(args[0])
+    try {
+      expect(await invocations.run('thing.read', async () => 42)).toBe(42)
+      await expect(invocations.run('thing.break', async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    } finally {
+      console.error = originalError
+    }
+    expect(errors).toHaveLength(2)
+  })
+})
+
 describe('the invocation chain', () => {
   test('keeps the use case the work started with, and the one running now', async () => {
     const invocations = new Invocations(undefined, { context: 'shop' })
