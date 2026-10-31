@@ -1,8 +1,14 @@
 .git
-node_modules
-dist
-data
+**/node_modules
+**/dist
+**/data
 web/.vitepress/cache
-web/.vitepress/dist
-*.tsbuildinfo
-.env*
+**/*.tsbuildinfo
+**/.env*
+
+# local tools: agent worktrees, review scratch and IDEs, each with its own builds and databases
+.claude
+.review
+.druk
+.vscode
+.idea
