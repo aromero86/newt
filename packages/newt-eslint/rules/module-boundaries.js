@@ -1,4 +1,4 @@
-import { importsOf, modulePlace, resolved } from '../paths.js'
+import { importsOf, modulePlace, resolved, rootOf } from '../paths.js'
 
 /** What a module offers the others: its use cases' module, its contract, what it tells and how it fails. */
 const PUBLIC = /^(?:[^/]+\.module|[^/]+\.schema|events\/.+|errors\/.+|value-objects\/.+)$/
@@ -21,12 +21,13 @@ export const moduleBoundaries = {
     schema: [],
   },
   create(context) {
-    const place = modulePlace(context.filename, context.cwd)
+    const root = rootOf(context)
+    const place = modulePlace(context.filename, root)
     if (!place) return {}
     return importsOf((node, specifier) => {
       const path = resolved(context, specifier)
       if (!path) return
-      const imported = modulePlace(path, context.cwd) ?? modulePlace(`${path}/index`, context.cwd)
+      const imported = modulePlace(path, root) ?? modulePlace(`${path}/index`, root)
       if (!imported || (imported.context === place.context && imported.module === place.module)) return
       if (!PUBLIC.test(imported.inside)) context.report({ node, messageId: 'private', data: { path: specifier, module: imported.module } })
     })

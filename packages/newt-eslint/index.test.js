@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { ESLint } from 'eslint'
 import { newt } from './index.js'
 
@@ -117,6 +118,30 @@ describe('the preset of newt', () => {
     expect(await lint('app/contexts/ws/modules/order/helpers.ts', 'export const x = 1\n')).toEqual(['newt/module-anatomy'])
     expect(await lint('app/contexts/auth/auth.context.ts', "import { x } from '../ws/ws.context'\nexport const y = x\n")).toEqual(['newt/context-boundaries'])
     expect(await lint('other/modules/order/helpers.ts', 'export const x = 1\n')).toEqual([expect.stringContaining('no matching configuration')])
+  })
+
+  test('keeps contexts a tree from any folder ESLint runs in, with the folder written either way', async () => {
+    const outer = await mkdtemp(join(tmpdir(), 'newt-eslint-'))
+    const preset = JSON.stringify(pathToFileURL(join(import.meta.dirname, 'index.js')).href)
+    // A project with its own eslint.config.js, linted from `inside` it.
+    const lint = async (name, folder, inside) => {
+      const project = join(outer, name)
+      await mkdir(join(project, 'app/contexts/cs'), { recursive: true })
+      await mkdir(join(project, 'app/contexts/ws'), { recursive: true })
+      await writeFile(join(project, 'tsconfig.json'), JSON.stringify({ include: ['**/*.ts'] }))
+      await writeFile(join(project, 'eslint.config.js'), `import { newt } from ${preset}\nexport default newt({ root: import.meta.dirname, files: ['app/**/*.ts'], contexts: { folder: ${folder}, uses: { auth: [], ws: ['auth'], cs: ['auth'] } } })\n`)
+      await writeFile(join(project, 'app/contexts/cs/cs.context.ts'), 'export const x = 1\n')
+      await writeFile(join(project, 'app/contexts/ws/ws.context.ts'), "import { x } from '../cs/cs.context'\nexport const y = x\n")
+      const [result] = await new ESLint({ cwd: join(project, inside) }).lintFiles([join(project, 'app/contexts/ws/ws.context.ts')])
+      return result.messages.map(each => each.ruleId ?? each.message)
+    }
+    try {
+      expect(await lint('root', "'app/contexts'", '.')).toEqual(['newt/context-boundaries'])
+      expect(await lint('sub', "'./app/contexts/'", 'app')).toEqual(['newt/context-boundaries'])
+      expect(await lint('absolute', "import.meta.dirname + '/app/contexts/'", 'app')).toEqual(['newt/context-boundaries'])
+    } finally {
+      await rm(outer, { recursive: true, force: true })
+    }
   })
 
   test('finds the modules of an application without contexts the same way', async () => {
