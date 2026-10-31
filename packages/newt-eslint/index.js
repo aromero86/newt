@@ -87,8 +87,8 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
         'newt/queue-name': 'error',
         'newt/schema-imports': 'error',
         'no-restricted-syntax': ['error', {
-          // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, `const { transaction } = store`.
-          selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",
+          // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, ``store[`transaction`]``, `const { transaction } = store`.
+          selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], MemberExpression[property.type='TemplateLiteral'][property.expressions.length=0][property.quasis.0.value.cooked='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",
           message: "A module writes through its repository's save (or saveRows), which runs the transaction, checks the write rule and publishes the events: never in a transaction of its own.",
         }],
       },
