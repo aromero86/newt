@@ -14,7 +14,7 @@ COPY packages/newt-react/package.json packages/newt-react/
 COPY packages/newt-react-ui/package.json packages/newt-react-ui/
 RUN bun install --frozen-lockfile
 
-COPY bunfig.toml ./
+COPY bunfig.toml tsconfig.base.json ./
 COPY packages/newt packages/newt
 COPY packages/newt-react packages/newt-react
 COPY packages/newt-react-ui packages/newt-react-ui

@@ -1,16 +1,16 @@
 {
-  // The tools around the application: cooper's scripts.
+  // What every project of the repository shares: on Bun, strict, checked and never
+  // emitted. Each one extends it and says only what is its own: the DOM and JSX for
+  // what runs in the browser, the files it holds.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["bun"],
-    "moduleDetection": "force",
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["cooper/scripts/**/*.ts"],
   "exclude": ["**/node_modules"]
 }

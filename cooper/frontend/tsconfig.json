@@ -1,0 +1,14 @@
+{
+  // What of cooper runs in the browser: its frontends, their UI library and their API
+  // clients (../libs), with the backend's contracts (its modules' *.schema.ts) they share.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@cooper/ui/*": ["../libs/ui/*"],
+      "@cooper/api/*": ["../libs/api/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../libs/**/*.ts", "../libs/**/*.tsx", "../backend/contexts/*/modules/*/*.schema.ts"]
+}

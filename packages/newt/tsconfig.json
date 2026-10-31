@@ -1,0 +1,5 @@
+{
+  // The framework and its tests: as it is, with no application's additions to its types. No DOM.
+  "extends": "../../tsconfig.base.json",
+  "include": ["**/*.ts"]
+}

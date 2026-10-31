@@ -1,0 +1,6 @@
+{
+  // The tools around cooper: each script a module of its own.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "moduleDetection": "force" },
+  "include": ["**/*.ts"]
+}

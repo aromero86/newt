@@ -1,0 +1,6 @@
+{
+  // newt-monitor's backend and scripts: a newt application on Bun. No DOM: its frontend
+  // has a project of its own.
+  "extends": "../../tsconfig.base.json",
+  "include": ["backend/**/*.ts", "scripts/**/*.ts"]
+}
