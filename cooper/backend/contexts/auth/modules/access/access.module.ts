@@ -73,17 +73,20 @@ export class Access_Module extends Module {
   /**
    * The signed-in person takes someone's access away: a tenant's admin, or a member
    * leaving it; someone of the staff, for the whole product. The admin is never
-   * removed: a tenant keeps it while it exists.
+   * removed: a tenant keeps it while it exists; nor the staff's last one, nor by
+   * someone of the staff revoked meanwhile (the save checks it).
    */
   @UseCase()
   async revoke(input: AccessGrantDTO): Promise<void> {
     const { userId, productId, tenantId } = AccessGrantSchema.parse(input)
-    const leaving = tenantId !== null && userId === currentActor().userId
+    const actorId = currentActor().userId
+    const leaving = tenantId !== null && userId === actorId
     if (!leaving) await this.assertManages(productId, tenantId)
     const access = await this.resolve(() => this.repo.find({ userId, productId, tenantId }), () => new AccessNotFound())
     if (access.role === 'admin') throw new AdminNotRevocable()
     access.revoke()
-    await this.repo.persist(access)
+    if (tenantId === null) await this.repo.persistKeepingOneStaff(access, actorId)
+    else await this.repo.persist(access)
   }
 
   /**
