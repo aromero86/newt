@@ -87,6 +87,18 @@ describe('app', () => {
     expect(new KeyCipher(TEST_SECRET).open(row!.sealedKey, id)).toBe(COOPER.key)
   })
 
+  test('asks for its key with a new address when the one it keeps no longer opens', async () => {
+    const { id } = await (await register(COOPER)).json() as { id: string }
+    await monitor.monitor.base.store.table<AppRow>('app').patch(id, { sealedKey: new KeyCipher('another secret, the one it was sealed with').seal(COOPER.key, id) })
+    const moved = serveTestApp('cooper')
+
+    const refused = await as(`/api/apps/${id}`, { method: 'PATCH', json: { url: moved.url } })
+    expect(refused.status).toBe(400)
+    expect(await refused.json()).toMatchObject({ code: 'app.key_unreadable' })
+    expect(await (await as(`/api/apps/${id}`)).json()).toMatchObject({ url: cooper.url })
+    await moved.stop()
+  })
+
   test('says there is none for an id it does not have', async () => {
     const response = await as(`/api/apps/${Bun.randomUUIDv7()}`)
 
