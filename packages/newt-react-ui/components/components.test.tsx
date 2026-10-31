@@ -157,7 +157,7 @@ describe('newt-react-ui', () => {
   })
 
   test('a code block keeps its lines as they were written', () => {
-    expect(html(<CodeBlock label="Stack">{'TypeError: x\n    at f (a.ts:1)'}</CodeBlock>)).toMatch(/^<pre aria-label="Stack"[^>]*whitespace-pre[^>]*>TypeError: x\n {4}at f/)
+    expect(html(<CodeBlock label="Stack">{'TypeError: x\n    at f (a.ts:1)'}</CodeBlock>)).toMatch(/^<pre role="region" aria-label="Stack" tabindex="0"[^>]*whitespace-pre[^>]*>TypeError: x\n {4}at f/)
   })
 
   test('an empty state says what is missing, and offers what to do', () => {
