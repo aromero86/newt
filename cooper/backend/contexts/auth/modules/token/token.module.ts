@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { Module, now, UseCase } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidRefreshToken } from './errors/invalid-refresh-token'
 import {
@@ -32,6 +32,9 @@ export class Token_Module extends Module {
     return module
   }
 
+  /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
+
   private constructor(
     base: AuthBase,
     private readonly repo: Token_Repository,
@@ -39,6 +42,7 @@ export class Token_Module extends Module {
     private readonly options: Token_Options,
   ) {
     super('token', base.invocations, deps)
+    this.nightly = base.schedules.define('token.nightly', '0 3 * * *')
   }
 
   /**
@@ -119,5 +123,14 @@ export class Token_Module extends Module {
     if (!token) return
     token.revoke()
     await this.repo.persist(token)
+  }
+
+  /**
+   * Removes the tokens whose refresh token expired: a client that stopped refreshing
+   * never gives them back. What the nightly worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 }
