@@ -1,0 +1,5 @@
+{
+  // cooper's backend, on Bun. No DOM.
+  "extends": "../../tsconfig.base.json",
+  "include": ["**/*.ts"]
+}

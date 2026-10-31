@@ -1,0 +1,7 @@
+{
+  // What of newt-monitor runs in the browser, with the contracts of its modules (their
+  // *.schema.ts) it shares with the backend.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "jsx": "react-jsx" },
+  "include": ["**/*.ts", "**/*.tsx", "../backend/contexts/*/modules/*/*.schema.ts"]
+}

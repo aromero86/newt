@@ -1,0 +1,11 @@
+{
+  // cooper, as three projects: what runs on the server, what runs in the browser and the
+  // tools around them. Apart from newt's own project, as an application has newt apart:
+  // what cooper adds to newt's types (its Actor) is cooper's only.
+  "files": [],
+  "references": [
+    { "path": "./backend" },
+    { "path": "./frontend" },
+    { "path": "./scripts" }
+  ]
+}

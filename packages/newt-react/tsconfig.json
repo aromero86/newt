@@ -1,0 +1,6 @@
+{
+  // The logic of a React frontend, for the browser.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "jsx": "react-jsx" },
+  "include": ["**/*.ts", "**/*.tsx"]
+}
