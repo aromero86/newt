@@ -171,6 +171,8 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
   }
 
   private encode(row: Values): Values {
+    // JSON writes a NUL as the escape \u0000, which Postgres's jsonb refuses as well: it is looked for in the value, before.
+    if (this.dialect.refusesNul && Object.entries(row).some(([field, value]) => this.type(field) === 'json' && holdsNul(value))) throw new TextWithNul()
     const values = Object.fromEntries(Object.entries(row)
       .filter(([, value]) => value !== undefined)
       .map(([field, value]) => [this.column(field), this.encodeValue(field, value)]))
@@ -200,6 +202,14 @@ export class SqlTable<Row extends StoredRow> implements Table<Row> {
       }
     })) as Row
   }
+}
+
+/** Whether a value has NUL in any of its text: a string, or within an array or an object, as a key or as a value. */
+function holdsNul(value: unknown): boolean {
+  if (typeof value === 'string') return value.includes('\u0000')
+  if (Array.isArray(value)) return value.some(holdsNul)
+  if (value !== null && typeof value === 'object') return Object.entries(value).some(([key, item]) => key.includes('\u0000') || holdsNul(item))
+  return false
 }
 
 /** What a table knows of its columns: all of them, and those that may hold null, its big integers, its JSON. */
