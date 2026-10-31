@@ -1,6 +1,7 @@
 import { Module, now, UseCase } from 'newt/core'
 import type { InstanceMinute } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
+import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import { Instance, InstanceCountQuerySchema, InstancesFeed, SystemSeriesQuerySchema, type CollectInstancesDTO, type InstanceCountSeriesDTO, type InstancesDTO, type SystemDTO, type SystemSeriesDTO } from './instances'
 import type { Instances_Deps } from './instances.deps'
@@ -84,6 +85,8 @@ export class Instances_Module extends Module {
     const feed = await this.feeds.first({ appId }) ?? InstancesFeed.start(appId)
     const read = await this.deps.connection.fetchInstances(appId, feed.until)
     if (!read.answered) return { appId, outcome: 'unreachable' }
+    // Deleted while it was asked: what it answered is not kept, nor its DuckDB opened again.
+    if (!await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
 
     const known = new Map((await this.repo.find({ appId })).map(instance => [instance.instanceId, instance]))
     const heard = read.value.instances.map(state => {
@@ -93,8 +96,15 @@ export class Instances_Module extends Module {
       return instance
     })
     if (heard.length > 0) await this.repo.persist(...heard)
-    await this.append(appId, read.value.minutes)
+    try {
+      await this.append(appId, read.value.minutes)
+    } catch (error) {
+      if (error instanceof AppGone) return { appId, outcome: 'gone' }
+      throw error
+    }
     feed.collectedUntil(read.value.until)
+    // A first feed is kept only for an application still there.
+    if (feed.isNew && !await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
     await this.feeds.persist(feed)
     return { appId, outcome: 'collected', instances: heard.length, minutes: read.value.minutes.length, until: read.value.until }
   }
@@ -112,7 +122,9 @@ export class Instances_Module extends Module {
   async keep(appId: string): Promise<void> {
     const at = now()
     const { resourceMinuteDays, dayDays } = await this.deps.retention.of(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Deleted while its retention ran, its DuckDB dropped: nothing is left to keep.
+    if (!analytics) return
     const before = [dayBefore(at, 1)]
     const day = 'CAST(minute AS DATE)'
     const dayId = `strftime(${day}, '%Y-%m-%d')`
@@ -181,7 +193,9 @@ export class Instances_Module extends Module {
   async forget(appId: string): Promise<void> {
     await this.feeds.purgeApp(appId)
     await this.repo.purgeApp(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Another module dropped its DuckDB already: nothing of it is left.
+    if (!analytics) return
     for (const table of ['instance_count_minute', 'instance_count_day', 'system_minute', 'system_day', 'system_disk_minute', 'system_disk_day']) await analytics.run(`DELETE FROM ${table}`)
     await this.options.store.dropIfEmpty(appId)
   }

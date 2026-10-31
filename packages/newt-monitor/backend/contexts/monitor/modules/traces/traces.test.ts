@@ -127,7 +127,11 @@ describe('traces', () => {
     expect(ids(await json<TraceListDTO>(`/api/apps/${id}/traces?window=7d`))).toEqual([recent])
     expect((await as(`/api/apps/${id}/traces/${old}`)).status).toBe(404)
 
-    await monitor.modules.traces.forget(id)
-    expect((await json<TraceListDTO>(`/api/apps/${id}/traces?window=7d`)).traces).toEqual([])
+    await as(`/api/apps/${id}/archive`, { method: 'POST' })
+    await as(`/api/apps/${id}`, { method: 'DELETE' })
+    await monitor.monitor.base.jobs.idle()
+    // Its DuckDB dropped: nothing of it is kept again, nor read.
+    expect(await collect()).toEqual({ appId: id, outcome: 'gone' })
+    expect((await as(`/api/apps/${id}/traces?window=7d`)).status).toBe(404)
   })
 })

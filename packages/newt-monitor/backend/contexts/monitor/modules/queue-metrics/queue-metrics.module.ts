@@ -1,6 +1,7 @@
 import type { QueueFlow } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
+import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import { QueueMetricsFeed, QueueSeriesQuerySchema, QueueTotalsQuerySchema, type CollectFlowsDTO, type QueueSeriesDTO, type QueueTotalDTO } from './queue-metrics'
 import type { QueueMetrics_Deps } from './queue-metrics.deps'
@@ -59,8 +60,17 @@ export class QueueMetrics_Module extends Module {
     const read = await this.deps.connection.fetchFlows(appId, feed.until)
     if (!read.answered) return { appId, outcome: 'unreachable' }
 
-    await this.append(appId, read.value.flows)
+    // Deleted while it was asked: what it answered is not kept, nor its DuckDB opened again.
+    if (!await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
+    try {
+      await this.append(appId, read.value.flows)
+    } catch (error) {
+      if (error instanceof AppGone) return { appId, outcome: 'gone' }
+      throw error
+    }
     feed.collectedUntil(read.value.until)
+    // A first feed is kept only for an application still there.
+    if (feed.isNew && !await this.deps.app.find(appId)) return { appId, outcome: 'gone' }
     await this.repo.persist(feed)
     return { appId, outcome: 'collected', flows: read.value.flows.length, until: read.value.until }
   }
@@ -78,7 +88,9 @@ export class QueueMetrics_Module extends Module {
   async keep(appId: string): Promise<void> {
     const at = now()
     const { minuteDays, dayDays } = await this.deps.retention.of(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Deleted while its retention ran, its DuckDB dropped: nothing is left to keep.
+    if (!analytics) return
     const day = `strftime(CAST(minute AS DATE), '%Y-%m-%d') || '|' || context || '|' || queue`
     await analytics.run(`
       INSERT INTO queue_day (id, day, context, queue, published, delivered, redelivered, dead)
@@ -123,7 +135,9 @@ export class QueueMetrics_Module extends Module {
   @UseCase()
   async forget(appId: string): Promise<void> {
     await this.repo.purgeApp(appId)
-    const analytics = await this.options.store.of(appId)
+    const analytics = await this.options.store.ofUnlessDropped(appId)
+    // Another module dropped its DuckDB already: nothing of it is left.
+    if (!analytics) return
     for (const table of ['queue_minute', 'queue_minute_wait', 'queue_day', 'queue_day_wait']) await analytics.run(`DELETE FROM ${table}`)
     await this.options.store.dropIfEmpty(appId)
   }

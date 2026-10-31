@@ -2,7 +2,7 @@ import { afterEach, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MetricsStore } from './metrics-store'
+import { AppGone, MetricsStore } from './metrics-store'
 
 let folder: string | undefined
 
@@ -30,5 +30,17 @@ test('opens an application\'s DuckDB again once the process that held its lock l
   await holder.exited
   const analytics = await store.of('app')
   expect(await analytics.query<{ n: number }>('SELECT 1 AS n')).toEqual([{ n: 1 }])
+  await store.close()
+})
+
+test('does not open again the DuckDB of an application it dropped: what comes late for it is not kept', async () => {
+  folder = await mkdtemp(join(tmpdir(), 'metrics-store-'))
+  const store = new MetricsStore(folder)
+  store.define({ count: { columns: { n: 'INTEGER' } } })
+  await store.of('app')
+  await store.dropIfEmpty('app')
+
+  await expect(store.of('app')).rejects.toBeInstanceOf(AppGone)
+  expect(await Bun.file(join(folder, 'app.duckdb')).exists()).toBe(false)
   await store.close()
 })
