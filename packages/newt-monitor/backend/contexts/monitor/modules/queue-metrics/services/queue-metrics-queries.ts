@@ -1,5 +1,6 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
 import { histogramPercentile } from 'newt/contract'
+import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
 import type { FlowDTO, FlowPointDTO, QueueSeriesDTO, QueueTotalDTO } from '../queue-metrics.schema'
 
@@ -53,23 +54,29 @@ export class QueueMetricsQueries {
   async totals(window: MetricsWindow, now: Date): Promise<QueueTotalDTO[]> {
     const length = WINDOWS[window].ms
     const end = now.getTime()
-    const params = [new Date(end - 2 * length).toISOString(), new Date(end - length).toISOString(), new Date(end).toISOString()]
     const sums = new Map<string, { now: Sum, previous: Sum }>()
     const of = (context: string, queue: string) => {
       const key = JSON.stringify([context, queue])
       if (!sums.has(key)) sums.set(key, { now: empty(), previous: empty() })
       return sums.get(key)!
     }
-    for (const row of await this.analytics.query<{ context: string, queue: string, recent: boolean, published: number, delivered: number, redelivered: number, dead: number }>(`
-      SELECT context, queue, minute >= $2 AS recent, sum(published) AS published, sum(delivered) AS delivered, sum(redelivered) AS redelivered, sum(dead) AS dead
-      FROM queue_minute WHERE minute >= $1 AND minute < $3 GROUP BY context, queue, recent`, params)) {
-      add(of(row.context, row.queue)[row.recent ? 'now' : 'previous'], { ...row, wait: {} })
-    }
-    for (const row of await this.analytics.query<{ context: string, queue: string, recent: boolean, bucket: number, count: number }>(`
-      SELECT context, queue, minute >= $2 AS recent, bucket, sum(count) AS count
-      FROM queue_minute_wait WHERE minute >= $1 AND minute < $3 GROUP BY context, queue, recent, bucket`, params)) {
-      const wait = of(row.context, row.queue)[row.recent ? 'now' : 'previous'].wait
-      wait[String(row.bucket)] = (wait[String(row.bucket)] ?? 0) + row.count
+    const [until] = await this.analytics.query<{ until: string | null }>('SELECT max(day) + INTERVAL 1 DAY AS until FROM queue_day')
+    for (const span of spansOf(end - 2 * length, end, until?.until ? Date.parse(until.until) : 0)) {
+      const [table, time] = span.table === 'day' ? ['queue_day', 'day'] : ['queue_minute', 'minute']
+      const params = [new Date(span.start).toISOString(), new Date(end - length).toISOString(), new Date(span.end).toISOString()]
+      const recent = `CAST(${time} AS TIMESTAMP) >= CAST($2 AS TIMESTAMP)`
+      const range = `${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($3 AS TIMESTAMP)`
+      for (const row of await this.analytics.query<{ context: string, queue: string, recent: boolean, published: number, delivered: number, redelivered: number, dead: number }>(`
+        SELECT context, queue, ${recent} AS recent, sum(published) AS published, sum(delivered) AS delivered, sum(redelivered) AS redelivered, sum(dead) AS dead
+        FROM ${table} WHERE ${range} GROUP BY context, queue, recent`, params)) {
+        add(of(row.context, row.queue)[row.recent ? 'now' : 'previous'], { ...row, wait: {} })
+      }
+      for (const row of await this.analytics.query<{ context: string, queue: string, recent: boolean, bucket: number, count: number }>(`
+        SELECT context, queue, ${recent} AS recent, bucket, sum(count) AS count
+        FROM ${table}_wait WHERE ${range} GROUP BY context, queue, recent, bucket`, params)) {
+        const wait = of(row.context, row.queue)[row.recent ? 'now' : 'previous'].wait
+        wait[String(row.bucket)] = (wait[String(row.bucket)] ?? 0) + row.count
+      }
     }
     return [...sums].map(([key, sum]) => {
       const [context, queue] = JSON.parse(key) as [string, string]

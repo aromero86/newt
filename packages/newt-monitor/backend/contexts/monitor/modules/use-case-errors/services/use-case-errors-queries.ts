@@ -1,4 +1,5 @@
 import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { whereOf, type MetricsFilter } from '../../../../../shared/metrics-store/metrics-filter'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
 import type { EndedDTO, EndedPointDTO, ErrorCodeDTO, ErrorsSeriesDTO, ErrorsTopDTO, ErrorsTotalDTO } from '../use-case-errors.schema'
@@ -61,14 +62,18 @@ export class UseCaseErrorsQueries {
     const length = WINDOWS[window].ms
     const end = now.getTime()
     const totals = new Map<string, ErrorsTotalDTO>()
-    for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, kind: Kind, count: number }>(`
-      SELECT context, use_case, minute >= $2 AS recent, kind, sum(count) AS count FROM use_case_error_minute
-      WHERE minute >= $1 AND minute < $3 GROUP BY context, use_case, recent, kind`,
-    [new Date(end - 2 * length).toISOString(), new Date(end - length).toISOString(), new Date(end).toISOString()])) {
-      const key = JSON.stringify([row.context, row.use_case])
-      const total = totals.get(key) ?? { context: row.context, useCase: row.use_case, now: none(), previous: none() }
-      total[row.recent ? 'now' : 'previous'][field(row.kind)] += row.count
-      totals.set(key, total)
+    const [until] = await this.analytics.query<{ until: string | null }>('SELECT max(day) + INTERVAL 1 DAY AS until FROM use_case_error_day')
+    for (const span of spansOf(end - 2 * length, end, until?.until ? Date.parse(until.until) : 0)) {
+      const [table, time] = span.table === 'day' ? ['use_case_error_day', 'day'] : ['use_case_error_minute', 'minute']
+      for (const row of await this.analytics.query<{ context: string, use_case: string, recent: boolean, kind: Kind, count: number }>(`
+        SELECT context, use_case, CAST(${time} AS TIMESTAMP) >= CAST($2 AS TIMESTAMP) AS recent, kind, sum(count) AS count FROM ${table}
+        WHERE ${time} >= CAST($1 AS TIMESTAMP) AND ${time} < CAST($3 AS TIMESTAMP) GROUP BY context, use_case, recent, kind`,
+      [new Date(span.start).toISOString(), new Date(end - length).toISOString(), new Date(span.end).toISOString()])) {
+        const key = JSON.stringify([row.context, row.use_case])
+        const total = totals.get(key) ?? { context: row.context, useCase: row.use_case, now: none(), previous: none() }
+        total[row.recent ? 'now' : 'previous'][field(row.kind)] += row.count
+        totals.set(key, total)
+      }
     }
     return [...totals.values()].sort((a, b) => b.now.failures - a.now.failures || b.now.errors - a.now.errors || a.useCase.localeCompare(b.useCase))
   }

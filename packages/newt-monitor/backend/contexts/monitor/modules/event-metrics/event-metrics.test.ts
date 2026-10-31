@@ -143,6 +143,19 @@ describe('event metrics', () => {
     }
   })
 
+  test('totals a window longer than the minutes kept from the day summary, and the window before it too', async () => {
+    app.tell('boards', 'card.created', { at: ago(10 * MINUTE) })
+    app.tell('boards', 'card.created', { at: ago(5 * DAY), times: 4 })
+    app.tell('boards', 'card.created', { at: ago(100 * DAY), times: 2 })
+    await collect()
+    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3 } })
+
+    await monitor.modules.eventMetrics.keepAll()
+
+    expect(await json<EventTotalDTO[]>(`/api/apps/${id}/metrics/events?window=90d`)).toEqual([{ context: 'boards', event: 'card.created', total: 5, previous: 2 }])
+    expect(await json<EventTotalDTO[]>(`/api/apps/${id}/metrics/events?window=1h`)).toEqual([{ context: 'boards', event: 'card.created', total: 1, previous: 0 }])
+  })
+
   test('collects nothing of an archived application, and forgets everything of a deleted one', async () => {
     await as(`/api/apps/${id}/archive`, { method: 'POST' })
     expect(await collect()).toEqual({ appId: id, outcome: 'archived' })

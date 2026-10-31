@@ -76,6 +76,20 @@ describe('use case errors', () => {
     expect(days.total).toEqual({ errors: 0, failures: 4 })
   })
 
+  test('totals a window longer than the minutes kept from the day summary, and the window before it too', async () => {
+    app.call('boards', 'card.get', { at: ago(10 * MINUTE), ms: 3, outcome: broken })
+    app.call('boards', 'card.get', { at: ago(5 * DAY), ms: 3, times: 3, outcome: notFound })
+    app.call('boards', 'card.get', { at: ago(100 * DAY), ms: 3, times: 2, outcome: broken })
+    await collect()
+    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3 } })
+
+    await monitor.modules.useCaseErrors.keepAll()
+
+    expect(await json<ErrorsTotalDTO[]>(`/api/apps/${id}/metrics/errors?window=90d`)).toEqual([
+      { context: 'boards', useCase: 'card.get', now: { errors: 3, failures: 1 }, previous: { errors: 0, failures: 2 } },
+    ])
+  })
+
   test('forgets everything of a deleted application', async () => {
     await as(`/api/apps/${id}/archive`, { method: 'POST' })
     expect(await collect()).toEqual({ appId: id, outcome: 'archived' })
