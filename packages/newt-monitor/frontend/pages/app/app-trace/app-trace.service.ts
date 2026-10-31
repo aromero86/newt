@@ -27,6 +27,8 @@ export class AppTraceService {
 
   private readonly api = inject(TracesApi)
   private readonly app = inject(AppService)
+  /** Which open is the last asked for: what an older one, or a load it started, answers later is dropped. */
+  private opening = 0
   private readonly store = new Store<TraceState>({ focus: null, top: null, traces: {}, unfolded: [], loading: [], selected: null, failure: null, notFound: false })
 
   readonly focus = this.store.select('focus')
@@ -39,12 +41,15 @@ export class AppTraceService {
   readonly notFound = this.store.select('notFound')
 
   async open(traceId: string): Promise<void> {
+    const opening = ++this.opening
     this.store.patch({ focus: null, top: null, traces: {}, unfolded: [], loading: [], selected: null, failure: null, notFound: false })
     try {
       const trace = await this.api.trace(this.app.appId, traceId)
+      if (opening !== this.opening) return
       const failed = trace.spans.find(span => span.failure) ?? trace.spans.find(span => span.outcome && span.kind !== trace.kind)
       this.store.patch({ focus: trace.id, top: trace.id, traces: { [trace.id]: trace }, selected: { traceId: trace.id, spanId: (failed ?? trace.spans[0])!.id } })
     } catch (error) {
+      if (opening !== this.opening) return
       if (error instanceof ApiError && error.status === 404) this.store.patch({ notFound: true })
       else this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load the trace' })
     }
@@ -76,16 +81,18 @@ export class AppTraceService {
 
   private async load(traceId: string): Promise<boolean> {
     if (this.store.value.traces[traceId]) return true
+    const opening = this.opening
     this.store.patch({ loading: [...this.store.value.loading, traceId] })
     try {
       const trace = await this.api.trace(this.app.appId, traceId)
+      if (opening !== this.opening) return false
       this.store.patch({ traces: { ...this.store.value.traces, [trace.id]: trace } })
       return true
     } catch (error) {
-      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load the trace' })
+      if (opening === this.opening) this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load the trace' })
       return false
     } finally {
-      this.store.patch({ loading: this.store.value.loading.filter(each => each !== traceId) })
+      if (opening === this.opening) this.store.patch({ loading: this.store.value.loading.filter(each => each !== traceId) })
     }
   }
 }

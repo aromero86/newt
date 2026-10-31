@@ -24,13 +24,16 @@ export function AppUseCaseTraces({ appId, context, useCase, window, total }: { a
   const key = JSON.stringify(targets)
 
   useEffect(() => {
+    // Another use case or window may be asked for before these answer.
+    let live = true
     setExamples({})
     for (const [percentile, ms] of JSON.parse(key) as typeof targets) {
       if (ms === null) continue
       api.list(appId, { context, useCase, window, nearMs: ms, limit: 1 })
-        .then(page => setExamples(current => ({ ...current, [percentile]: page.traces[0] ?? null })))
-        .catch(() => setExamples(current => ({ ...current, [percentile]: null })))
+        .then(page => { if (live) setExamples(current => ({ ...current, [percentile]: page.traces[0] ?? null })) })
+        .catch(() => { if (live) setExamples(current => ({ ...current, [percentile]: null })) })
     }
+    return () => { live = false }
   }, [api, appId, context, useCase, window, key])
 
   return (

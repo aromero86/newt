@@ -26,6 +26,8 @@ export class AppEventService {
 
   private readonly api = inject(EventMetricsApi)
   private readonly app = inject(AppService)
+  /** Which load is the last asked for: an older one that answers later is dropped. */
+  private loadSeq = 0
   private readonly store = new Store<EventState>({
     context: '', event: '', window: '24h', bucket: DEFAULT_BUCKET['24h'], compare: 'previous',
     scope: null, actor: null, series: null, tops: [], loading: false, failure: null,
@@ -69,6 +71,7 @@ export class AppEventService {
   }
 
   private async load(): Promise<void> {
+    const seq = ++this.loadSeq
     const { context, event, window, bucket, compare, scope, actor } = this.store.value
     const appId = this.app.appId
     this.store.patch({ loading: true, failure: null })
@@ -79,12 +82,12 @@ export class AppEventService {
       ])
       const by = ['actor', ...scopes.slice(0, 3).map(name => `scope:${name}`)]
       const tops = await Promise.all(by.map(async each => ({ by: each, top: await this.api.top(appId, { context, event, window, by: each }) })))
-      // Another event or window may have been asked for meanwhile.
-      if (this.store.value.context === context && this.store.value.event === event && this.store.value.window === window) this.store.patch({ series, tops })
+      // Something else may have been asked for meanwhile.
+      if (seq === this.loadSeq) this.store.patch({ series, tops })
     } catch (error) {
-      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load its metrics' })
+      if (seq === this.loadSeq) this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load its metrics' })
     } finally {
-      this.store.patch({ loading: false })
+      if (seq === this.loadSeq) this.store.patch({ loading: false })
     }
   }
 }

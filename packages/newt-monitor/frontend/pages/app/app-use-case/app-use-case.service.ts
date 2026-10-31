@@ -32,6 +32,8 @@ export class AppUseCaseService {
   private readonly api = inject(UseCaseMetricsApi)
   private readonly errorsApi = inject(UseCaseErrorsApi)
   private readonly app = inject(AppService)
+  /** Which load is the last asked for: an older one that answers later is dropped. */
+  private loadSeq = 0
   private readonly store = new Store<UseCaseState>({
     context: '', useCase: '', window: '24h', bucket: DEFAULT_BUCKET['24h'], compare: 'previous',
     scope: null, actor: null, order: 'calls', series: null, errors: null, codes: [], tops: [], failure: null,
@@ -80,6 +82,7 @@ export class AppUseCaseService {
   }
 
   private async load(): Promise<void> {
+    const seq = ++this.loadSeq
     const { context, useCase, window, bucket, compare, scope, actor, order } = this.store.value
     const appId = this.app.appId
     this.store.patch({ failure: null })
@@ -98,9 +101,9 @@ export class AppUseCaseService {
           ? await this.errorsApi.top(appId, { context, useCase, window, by: each, kind: order === 'errors' ? 'error' : 'failure' })
           : await this.api.top(appId, { context, useCase, window, by: each, order }),
       })))
-      if (this.store.value.context === context && this.store.value.useCase === useCase && this.store.value.window === window) this.store.patch({ series, errors, codes, tops })
+      if (seq === this.loadSeq) this.store.patch({ series, errors, codes, tops })
     } catch (error) {
-      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load its metrics' })
+      if (seq === this.loadSeq) this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load its metrics' })
     }
   }
 }
