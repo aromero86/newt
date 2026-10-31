@@ -134,7 +134,8 @@ describe('the MCP server', () => {
     const challenge = new Bun.CryptoHasher('sha256').update('v'.repeat(43)).digest('base64url')
     const ask = (redirect: string) => as(`${url}/oauth/authorize?${new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: 'S256' })}`)
 
-    expect((await ask('https://elsewhere.example/callback')).headers.get('location')).toStartWith(`${url}/authorize/error?`)
+    // The error page is told why by a code, never by text it would show as it came.
+    expect((await ask('https://elsewhere.example/callback')).headers.get('location')).toBe(`${url}/authorize/error?error=oauthGrant.redirect_mismatch`)
     const request = (await ask(CALLBACK)).headers.get('location')!.split('/authorize/')[1]!
     const { redirectTo } = (await (await as(`/api/authorizations/${request}/deny`, { method: 'POST' })).json()) as { redirectTo: string }
     expect(new URL(redirectTo).searchParams.get('error')).toBe('access_denied')
