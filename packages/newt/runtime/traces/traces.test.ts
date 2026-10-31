@@ -308,6 +308,20 @@ describe('a chain of traces', () => {
     await settled()
     expect(await keptOf(traces)).toEqual(['failed', 'r', 'sibling'])
   })
+
+  test('holds the newest traces when full, letting go of the oldest', async () => {
+    const traces = new MemoryTraces({ maxHeld: 2 })
+    traces.finished(request('r1', ['e1']), false)
+    traces.finished(request('r2', ['e2']), false)
+    traces.finished(request('r3', ['e3']), false)
+    await settled()
+
+    traces.finished(job('j1', 'e1'), true)
+    traces.finished(job('j2', 'e2'), true)
+    traces.finished(job('j3', 'e3'), true)
+    await settled()
+    expect(await keptOf(traces)).toEqual(['j1', 'j2', 'j3', 'r2', 'r3'])
+  })
 })
 
 describe('a query\'s shape', () => {
