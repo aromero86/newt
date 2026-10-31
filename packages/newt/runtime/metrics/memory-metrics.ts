@@ -1,6 +1,8 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { InstanceMinute, Instances, InstanceSample } from '../../core/metrics/instance-sample'
 import type { QueueFlow, QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
+import { instanceMinuteOf, instanceStateOf, type InstanceLast } from './instance-minutes'
 import type { CountedEvent, Metrics, QueueFlowEntry, TimedCall } from './metrics'
 import { addCall, addEntry, countKey, countOf, emptyFlow, emptyTiming, flowKey, flowOf, type Flow, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
@@ -14,7 +16,8 @@ export type MemoryMetricsOptions = {
 }
 
 /**
- * An application's event counts and use case timings in its own memory: for one instance of it. What the
+ * An application's event counts, use case timings, queue flows and the samples of its
+ * instance in its own memory: for one instance of it. What the
  * monitor has not collected when the process ends is lost; with several instances,
  * each would count only its own, so they take `RedisMetrics`.
  */
@@ -26,6 +29,10 @@ export class MemoryMetrics implements Metrics {
   private readonly timings = new Map<string, Map<string, Timing>>()
   /** Each minute's queue flows, by key. */
   private readonly flows = new Map<string, Map<string, Flow>>()
+  /** Each minute's samples, by instance. */
+  private readonly samples = new Map<string, Map<string, InstanceSample[]>>()
+  /** Each instance's last sample. */
+  private readonly lasts = new Map<string, InstanceLast>()
   private readonly listeners = new Set<(counts: EventCount[]) => void>()
   private pending = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -87,6 +94,36 @@ export class MemoryMetrics implements Metrics {
     }
     addEntry(flow, entry)
     this.forgetIn(minute, entry.at)
+  }
+
+  sample(sample: InstanceSample): void {
+    if (!this.enabled) return
+    const minute = minuteOf(sample.at)
+    let instances = this.samples.get(minute)
+    if (!instances) this.samples.set(minute, instances = new Map())
+    let samples = instances.get(sample.instance)
+    if (!samples) {
+      instances.set(sample.instance, samples = [])
+      this.kept++
+    }
+    samples.push(sample)
+    this.lasts.set(sample.instance, { sample, stoppedAt: null })
+    this.forgetIn(minute, sample.at)
+  }
+
+  async stopped(instance: string, at: Date): Promise<void> {
+    const last = this.lasts.get(instance)
+    if (last) last.stoppedAt = at.toISOString()
+  }
+
+  async instances(since: string | null, now: Date): Promise<Instances> {
+    const until = minuteOf(now.getTime() - MINUTE_MS)
+    const minutes: InstanceMinute[] = []
+    for (const minute of [...this.samples.keys()].sort()) {
+      if ((since !== null && minute <= since) || minute > until) continue
+      for (const samples of this.samples.get(minute)!.values()) minutes.push(instanceMinuteOf(minute, samples))
+    }
+    return { instances: [...this.lasts.values()].map(last => instanceStateOf(last, now)), minutes, until }
   }
 
   async closedFlows(since: string | null, now: Date): Promise<QueueFlows> {
@@ -157,7 +194,10 @@ export class MemoryMetrics implements Metrics {
   /** Minutes too old, and the oldest ones while there are too many counts and timings. */
   private forget(now: number): void {
     const oldest = minuteOf(now - this.keepMinutes * MINUTE_MS)
-    for (const kept of [this.minutes, this.timings, this.flows] as Map<string, Map<string, unknown>>[]) {
+    for (const [instance, last] of this.lasts) {
+      if (minuteOf(last.sample.at) < oldest) this.lasts.delete(instance)
+    }
+    for (const kept of [this.minutes, this.timings, this.flows, this.samples] as Map<string, Map<string, unknown>>[]) {
       for (const [minute, each] of kept) {
         if (minute >= oldest) continue
         this.kept -= each.size
@@ -166,12 +206,13 @@ export class MemoryMetrics implements Metrics {
     }
     if (this.kept <= this.maxCounts) return
     // Too many still: the oldest go first. Rare, so it may sort.
-    for (const minute of [...new Set([...this.minutes.keys(), ...this.timings.keys(), ...this.flows.keys()])].sort()) {
+    for (const minute of [...new Set([...this.minutes.keys(), ...this.timings.keys(), ...this.flows.keys(), ...this.samples.keys()])].sort()) {
       if (this.kept <= this.maxCounts) break
-      this.kept -= (this.minutes.get(minute)?.size ?? 0) + (this.timings.get(minute)?.size ?? 0) + (this.flows.get(minute)?.size ?? 0)
+      this.kept -= (this.minutes.get(minute)?.size ?? 0) + (this.timings.get(minute)?.size ?? 0) + (this.flows.get(minute)?.size ?? 0) + (this.samples.get(minute)?.size ?? 0)
       this.minutes.delete(minute)
       this.timings.delete(minute)
       this.flows.delete(minute)
+      this.samples.delete(minute)
     }
   }
 }

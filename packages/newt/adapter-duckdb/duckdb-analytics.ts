@@ -38,6 +38,7 @@ export class DuckDbAnalytics implements Analytics {
   /** Every statement, one after another: the connection runs one at a time. */
   private queue: Promise<unknown> = Promise.resolve()
   private readonly created = new Set<string>()
+  private closing: Promise<void> | null = null
 
   private constructor(
     private readonly instance: DuckDBInstance,
@@ -98,10 +99,18 @@ export class DuckDbAnalytics implements Analytics {
     return found.map(row => JSON.parse(row.data) as AnalyticsRow)
   }
 
-  async close(): Promise<void> {
-    await this.queue.catch(() => undefined)
-    this.connection.closeSync()
-    this.instance.closeSync()
+  /**
+   * Closes it once the statements already given have run, however often it is called.
+   * A statement given after fails: on a closed connection DuckDB's native code would
+   * take the whole process down.
+   */
+  close(): Promise<void> {
+    this.closing ??= (async () => {
+      await this.queue.catch(() => undefined)
+      this.connection.closeSync()
+      this.instance.closeSync()
+    })()
+    return this.closing
   }
 
   private async ensure(dataset: string): Promise<void> {
@@ -116,6 +125,7 @@ export class DuckDbAnalytics implements Analytics {
   }
 
   private serially<T>(work: () => Promise<T>): Promise<T> {
+    if (this.closing) return Promise.reject(new Error('The analytics is closed: no statement runs on it any more'))
     const next = this.queue.then(work, work)
     this.queue = next.catch(() => undefined)
     return next

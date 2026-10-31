@@ -6,6 +6,7 @@ import type { ServeOptions } from 'newt/http'
 import { BoundedContext } from 'newt/runtime'
 import type { MonitorConfig } from '../../config'
 import { MonitorBase } from '../../monitor-base'
+import { MetricsStore } from '../../shared/metrics-store/metrics-store'
 import { initializeModules, type Monitor_Modules } from './initialize-modules'
 
 /**
@@ -14,7 +15,12 @@ import { initializeModules, type Monitor_Modules } from './initialize-modules'
  */
 export class Monitor_Context extends BoundedContext<MonitorBase> {
 
-  private constructor(base: MonitorBase, readonly modules: Monitor_Modules, private readonly config: MonitorConfig) {
+  private constructor(
+    base: MonitorBase,
+    readonly modules: Monitor_Modules,
+    private readonly config: MonitorConfig,
+    private readonly metrics: MetricsStore,
+  ) {
     super('monitor', base)
   }
 
@@ -22,7 +28,14 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
     if (config.database !== ':memory:') await mkdir(dirname(config.database), { recursive: true })
     const store = await SqliteStore.open({ path: config.database, migrations: join(import.meta.dir, 'migrations/sqlite') })
     const base = new MonitorBase({ name: 'monitor', store, clock })
-    return new Monitor_Context(base, initializeModules(base, config), config)
+    const metrics = new MetricsStore(config.metricsFolder)
+    return new Monitor_Context(base, initializeModules(base, config, metrics), config, metrics)
+  }
+
+  /** Its jobs end and its store closes, then every application's DuckDB: none is left open, with a query on its way, as the process ends. */
+  override async stop(): Promise<void> {
+    await super.stop()
+    await this.metrics.close()
   }
 
   /**

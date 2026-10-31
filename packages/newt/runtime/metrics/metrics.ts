@@ -1,4 +1,5 @@
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { Instances, InstanceSample } from '../../core/metrics/instance-sample'
 import type { Outcome } from '../../core/metrics/outcome'
 import type { QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTimings } from '../../core/metrics/use-case-timing'
@@ -48,6 +49,12 @@ export interface Metrics {
   closedTimings(since: string | null, now: Date): Promise<UseCaseTimings>
   /** The queues' flows of the minutes closed after `since`, and up to which minute. */
   closedFlows(since: string | null, now: Date): Promise<QueueFlows>
+  /** One instance's reading of itself and its server: its state now, and part of its minute. */
+  sample(sample: InstanceSample): void
+  /** That instance is on its way out, and said so: it is stopped, not lost. */
+  stopped(instance: string, at: Date): Promise<void>
+  /** Every instance as it is now, and their minutes closed after `since`, and up to which minute. */
+  instances(since: string | null, now: Date): Promise<Instances>
   /** Counts as they come, a few seconds apart, from every instance: for watching it live. */
   live(listener: (counts: EventCount[]) => void): Promise<() => void>
   close(): Promise<void>

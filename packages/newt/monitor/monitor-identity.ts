@@ -8,6 +8,8 @@ export type MonitorIdentity = {
     id: string
     /** The machine's name: in a container, the container's. */
     host: string
+    /** The server it runs on, as the monitor groups instances: `MonitorOptions.server`. */
+    server: string
     pid: number
   }
   startedAt: string

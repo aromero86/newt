@@ -46,3 +46,15 @@ describe('DuckDbAnalytics, with a dataset of its own columns', () => {
     await expect(analytics.append('drop table x', [{ id: '1' }])).rejects.toThrow(/not a name/)
   })
 })
+
+describe('DuckDbAnalytics, closed', () => {
+  test('runs what it was given before closing, and refuses what comes after, instead of crashing', async () => {
+    const analytics = await DuckDbAnalytics.open({ path: ':memory:' })
+    const before = analytics.query<{ one: number }>('SELECT 1 AS one')
+    const closing = analytics.close()
+    expect(await before).toEqual([{ one: 1 }])
+    await expect(analytics.query('SELECT 1')).rejects.toThrow('The analytics is closed')
+    await expect(analytics.run('SELECT 1')).rejects.toThrow('The analytics is closed')
+    await Promise.all([closing, analytics.close()])
+  })
+})

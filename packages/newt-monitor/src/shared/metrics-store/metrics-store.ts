@@ -16,6 +16,7 @@ export class MetricsStore {
 
   private readonly datasets: Record<string, DuckDbDataset> = {}
   private readonly opened = new Map<string, Promise<DuckDbAnalytics>>()
+  private closed = false
 
   constructor(private readonly folder: string) {}
 
@@ -26,6 +27,7 @@ export class MetricsStore {
 
   /** An application's DuckDB, opened the first time it is asked for. */
   of(appId: string): Promise<DuckDbAnalytics> {
+    if (this.closed) return Promise.reject(new Error('The metrics store is closed'))
     let analytics = this.opened.get(appId)
     if (!analytics) {
       analytics = DuckDbAnalytics.open({ path: this.pathOf(appId), datasets: this.datasets })
@@ -52,6 +54,7 @@ export class MetricsStore {
   }
 
   async close(): Promise<void> {
+    this.closed = true
     const all = [...this.opened.values()]
     this.opened.clear()
     for (const analytics of all) await (await analytics).close()
