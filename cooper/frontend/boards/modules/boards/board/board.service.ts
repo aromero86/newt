@@ -92,9 +92,12 @@ export class BoardService {
 
   // Cards
 
-  /** At the bottom of its column. Throws, for the form to show why. */
-  async createCard(input: CardCreateDTO): Promise<CardDTO> {
-    const card = await this.cardApi.create(this.workspaceId, this.store.value.boardId, input)
+  /**
+   * At the bottom of its column. Throws, for the form to show why. The same
+   * `idempotencyKey` sent again with the same input gets the card it made the first time.
+   */
+  async createCard(input: CardCreateDTO, idempotencyKey: string): Promise<CardDTO> {
+    const card = await this.cardApi.create(this.workspaceId, this.store.value.boardId, input, idempotencyKey)
     this.patchView(view => ({ cards: [...view.cards, card] }))
     return card
   }
