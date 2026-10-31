@@ -1,5 +1,6 @@
 import { Entity, type EntityInput } from 'newt/core'
 import { LOST_AFTER_MS, type InstanceState } from 'newt/runtime'
+import { Instances_Started } from './events/instances-started'
 import { InstanceSchema, InstancesFeedSchema, type InstanceDTO, type InstanceRowDTO, type InstanceStatus, type InstancesFeedDTO } from './instances.schema'
 
 export * from './instances.schema'
@@ -50,7 +51,9 @@ export class Instance extends Entity<typeof InstanceSchema> {
 
   /** The first time the monitor hears of it. */
   static heard(appId: string, state: InstanceState): Instance {
-    return new Instance({ appId, ...Instance.fields(state) }, true)
+    const instance = new Instance({ appId, ...Instance.fields(state) }, true)
+    instance.trackEvent(new Instances_Started({ appId, instanceId: state.instance, startedAt: state.startedAt, commit: state.commit }))
+    return instance
   }
 
   get instanceId(): string {
@@ -81,8 +84,8 @@ export class Instance extends Entity<typeof InstanceSchema> {
 
   /** For a client, with its status now. */
   view(now: Date): InstanceDTO {
-    const { instanceId, pid, startedAt, lastSeenAt, stoppedAt, process } = this.data
-    return { instanceId, pid, startedAt, lastSeenAt, status: this.statusAt(now), stoppedAt, process }
+    const { instanceId, pid, startedAt, commit, lastSeenAt, stoppedAt, process } = this.data
+    return { instanceId, pid, startedAt, commit, lastSeenAt, status: this.statusAt(now), stoppedAt, process }
   }
 
   /** Its last reading of the machine it runs on. */
@@ -101,7 +104,7 @@ export class Instance extends Entity<typeof InstanceSchema> {
 
   private static fields(state: InstanceState) {
     return {
-      instanceId: state.instance, pid: state.pid, startedAt: state.startedAt, lastSeenAt: state.lastSeenAt,
+      instanceId: state.instance, pid: state.pid, startedAt: state.startedAt, commit: state.commit, lastSeenAt: state.lastSeenAt,
       status: state.status, stoppedAt: state.stoppedAt, process: state.process, server: state.server,
     }
   }

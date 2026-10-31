@@ -1,14 +1,18 @@
 import { inject, FormStore, Store } from 'newt-react'
 import { toast } from 'newt-react-ui/toast'
 import { z } from 'zod'
-import { AppApi, AppRegisterSchema, type AppDTO, type AppUpdateDTO } from '../../../api/app'
+import { AppApi, AppRegisterSchema, RepositorySchema, type AppDTO, type AppUpdateDTO } from '../../../api/app'
 import { AppService } from '../app.service'
 
-/** The settings' form: a key left empty keeps the one it has, which is never shown. */
+/** The settings' form: a key left empty keeps the one it has, which is never shown; a repository left empty is none. */
 const AppSettingsSchema = z.object({
   name: AppRegisterSchema.shape.name,
   url: AppRegisterSchema.shape.url,
   key: z.union([z.literal(''), AppRegisterSchema.shape.key]),
+  repository: z.string().superRefine((value, context) => {
+    const checked = RepositorySchema.safeParse(value)
+    if (!checked.success) context.addIssue({ code: 'custom', message: checked.error.issues[0]!.message })
+  }),
 })
 
 type SettingsState = {
@@ -25,12 +29,12 @@ export class AppSettingsService {
 
   readonly confirming = this.store.select('confirming')
   readonly working = this.store.select('working')
-  readonly form = new FormStore(AppSettingsSchema, { name: '', url: '', key: '' }, {
+  readonly form = new FormStore(AppSettingsSchema, { name: '', url: '', key: '', repository: '' }, {
     errorFields: { 'app.name_taken': 'name', 'app.unreachable': 'url', 'app.bad_answer': 'url', 'app.key_rejected': 'key' },
   })
 
   edit(app: AppDTO): void {
-    this.form.reset({ name: app.name, url: app.url, key: '' })
+    this.form.reset({ name: app.name, url: app.url, key: '', repository: app.repository ?? '' })
   }
 
   /** Saves what changed: a new address or key only once the application answers with them. */
@@ -40,6 +44,7 @@ export class AppSettingsService {
         ...(values.name !== app.name ? { name: values.name } : {}),
         ...(values.url !== app.url ? { url: values.url } : {}),
         ...(values.key ? { key: values.key } : {}),
+        ...(RepositorySchema.parse(values.repository) !== app.repository ? { repository: values.repository } : {}),
       }
       if (Object.keys(change).length === 0) {
         toast.success('Nothing changed')

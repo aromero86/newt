@@ -192,7 +192,7 @@ function AppSystemWrapped({ app }: { app: AppDTO }) {
             </>
           )
         : <Skeleton lines={6} />}
-      {instances && <InstanceList instances={instances.instances} />}
+      {instances && <InstanceList instances={instances.instances} repository={app.repository} />}
     </Stack>
   )
 }

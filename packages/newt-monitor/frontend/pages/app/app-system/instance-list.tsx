@@ -3,9 +3,11 @@ import { Badge } from 'newt-react-ui/badge'
 import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
 import { Counter } from 'newt-react-ui/counter'
 import { RelativeTime } from 'newt-react-ui/relative-time'
+import { TextLink } from 'newt-react-ui/link'
 import { Mono, Text } from 'newt-react-ui/text'
 import type { DiskDTO, InstanceDTO, InstanceStatus, SystemDTO } from '../../../api/instances'
 import { formatBytes, formatMs, formatPercent } from '../app-metrics/metrics-format'
+import { commitUrl, shortCommit } from '../app.service'
 
 const STATUS: Record<InstanceStatus, { tone: 'ok' | 'muted' | 'bad', label: string }> = {
   alive: { tone: 'ok', label: 'Alive' },
@@ -26,8 +28,8 @@ export function memoryOf(memory: SystemDTO['memory']): string {
   return `${formatBytes(used)} of ${formatBytes(memory.totalBytes)} (${formatPercent(memory.totalBytes === 0 ? 0 : (used / memory.totalBytes) * 100)})`
 }
 
-/** Its instances: those alive and those gone lately, and how each process was doing. */
-export function InstanceList({ instances }: { instances: InstanceDTO[] }) {
+/** Its instances: those alive and those gone lately, the commit each was built from, and how each process was doing. */
+export function InstanceList({ instances, repository }: { instances: InstanceDTO[], repository: string | null }) {
   return (
     <Box label="Instances">
       <BoxHeader>Instances <Counter>{instances.length}</Counter></BoxHeader>
@@ -36,6 +38,7 @@ export function InstanceList({ instances }: { instances: InstanceDTO[] }) {
         <BoxRow key={instance.instanceId} leading={<Badge tone={STATUS[instance.status].tone}>{STATUS[instance.status].label}</Badge>} trailing={<Text size="sm" tone="muted">pid {instance.pid}</Text>}>
           <BoxRowTitle><Mono>{instance.instanceId}</Mono></BoxRowTitle>
           <BoxRowMeta>
+            {instance.commit && <CommitOf commit={instance.commit} repository={repository} />}
             <>started <RelativeTime date={instance.startedAt} /></>
             {instance.status === 'alive' ? <>heard <RelativeTime date={instance.lastSeenAt} /></> : <>gone <RelativeTime date={instance.stoppedAt ?? instance.lastSeenAt} /></>}
             <>memory {formatBytes(instance.process.rssBytes)} (heap {formatBytes(instance.process.heapUsedBytes)})</>
@@ -46,4 +49,11 @@ export function InstanceList({ instances }: { instances: InstanceDTO[] }) {
       ))}
     </Box>
   )
+}
+
+/** The commit an instance was built from: linked to it on GitHub when its repository is known. */
+function CommitOf({ commit, repository }: { commit: string, repository: string | null }) {
+  const url = commitUrl(repository, commit)
+  const label = <>commit <Mono>{shortCommit(commit)}</Mono></>
+  return url ? <TextLink href={url} external>{label}</TextLink> : label
 }

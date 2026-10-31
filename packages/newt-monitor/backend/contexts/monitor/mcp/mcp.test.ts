@@ -79,7 +79,7 @@ describe('the MCP server', () => {
     const client = await mcpClient((await connect()).access_token)
     try {
       expect((await client.listTools()).tools.map(tool => tool.name).toSorted()).toEqual([
-        'dead_jobs', 'error_codes', 'errors_totals', 'event_totals', 'get_structure', 'get_trace', 'list_apps', 'list_traces',
+        'dead_jobs', 'error_codes', 'errors_totals', 'event_totals', 'get_structure', 'get_trace', 'list_apps', 'list_deployments', 'list_traces',
         'list_versions', 'queues', 'system_and_instances', 'system_series', 'use_case_series', 'use_case_totals',
       ])
       const apps = await use<{ items: { id: string, name: string, connection: string }[] }>(client, 'list_apps')

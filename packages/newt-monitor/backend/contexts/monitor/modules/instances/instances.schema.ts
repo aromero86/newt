@@ -44,6 +44,8 @@ export const InstanceSchema = z.object({
   instanceId: z.string().min(1),
   pid: z.number().int(),
   startedAt: z.iso.datetime(),
+  /** The commit it was built from: null when it does not say. */
+  commit: z.string().nullable().default(null),
   lastSeenAt: z.iso.datetime(),
   /** As the application said it when last collected. */
   status: InstanceStatusSchema,
@@ -57,7 +59,10 @@ export const InstanceSchema = z.object({
 export type InstanceRowDTO = z.infer<typeof InstanceSchema>
 
 /** An instance, for a client: its status as it is now, told by the monitor (lost when it has not been heard of). */
-export type InstanceDTO = Pick<InstanceRowDTO, 'instanceId' | 'pid' | 'startedAt' | 'lastSeenAt' | 'status' | 'stoppedAt' | 'process'>
+export type InstanceDTO = Pick<InstanceRowDTO, 'instanceId' | 'pid' | 'startedAt' | 'commit' | 'lastSeenAt' | 'status' | 'stoppedAt' | 'process'>
+
+/** What `instances.started` tells: an instance the monitor heard of for the first time, and the commit it was built from. */
+export type InstanceStartedDTO = { appId: string, instanceId: string, startedAt: string, commit: string | null }
 
 /** A disk of the system as last read: and, if it fills, in how many days at the pace it has filled lately. */
 export type DiskDTO = { path: string, totalBytes: number, freeBytes: number, fullInDays: number | null }

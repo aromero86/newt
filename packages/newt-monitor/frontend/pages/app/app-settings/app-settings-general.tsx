@@ -47,13 +47,14 @@ function AppSettingsWrapped({ app }: { app: AppDTO }) {
   return (
     <Stack gap={8}>
       <Stack gap={0}>
-        <Subhead title="General" description="Where its monitor endpoint is, and the key it shares with the monitor. A new address or key is saved only once it answers with them." />
+        <Subhead title="General" description="Where its monitor endpoint is, the key it shares with the monitor, and where its code is. A new address or key is saved only once it answers with them." />
         <form onSubmit={onSubmit} noValidate>
           <Stack gap={4} align="start">
             {failure && <Alert tone="bad" title="Could not save">{failure}</Alert>}
             <FormField form={service.form} name="name" label="Name" autoComplete="off" />
             <FormField form={service.form} name="url" label="Endpoint" description="Its serveMonitor address, reachable from the monitor." autoComplete="off" />
             <FormField form={service.form} name="key" label="Key" type="password" description="Leave it empty to keep the one it has: it is kept encrypted and never shown." autoComplete="off" />
+            <FormField form={service.form} name="repository" label="Repository" description="Its code on GitHub, https://github.com/<owner>/<repo>: each commit deployed links to it, with its title." autoComplete="off" />
             <Button type="submit" loading={submitting}>Save changes</Button>
           </Stack>
         </form>
