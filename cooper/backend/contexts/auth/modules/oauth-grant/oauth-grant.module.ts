@@ -159,6 +159,16 @@ export class OauthGrant_Module extends Module {
     return { grantId: id, userId: userId!, clientId, productId, resource }
   }
 
+  /**
+   * Whether a grant's code was brought again after it was traded: what `token.exchange`
+   * asks once its tokens are saved, should the copy have come before they were.
+   */
+  @UseCase()
+  async isReplayed(grantId: string): Promise<boolean> {
+    const grant = await this.repo.first({ id: grantId })
+    return grant?.status === 'replayed'
+  }
+
   /** A product that lets in only whom it was told lets in those with access to all of it. */
   private async mayEnter(userId: string, product: ProductDTO): Promise<boolean> {
     return product.access !== 'granted' || (await this.deps.access.check(userId, product.id, null)) !== null
