@@ -44,7 +44,8 @@ const MODULES = '**/modules/*/**/*.ts'
  * - with `contexts`, each context imports only the ones it says it uses, so they
  *   never form a cycle (`newt/context-boundaries`). `uses` lists every context;
  *   one that names an unknown context or makes a cycle throws here, and a context
- *   folder it does not list uses no other;
+ *   folder it does not list uses no other. A context's file outside its modules
+ *   re-exports only what a module offers (`newt/module-boundaries`);
  * - with `files`, the globs of the files it lints, it lints only those: every `.ts`
  *   file by default.
  *
@@ -62,6 +63,11 @@ export function newt({ files = ['**/*.ts'], contexts } = {}) {
   const contextRules = contexts ? [{
     files: files.map(pattern => [pattern, `${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`]),
     rules: { 'newt/context-boundaries': ['error', { folder: contexts.folder, uses: contexts.uses }] },
+  }, {
+    // A context's file outside its modules imports what it composes, but its barrels re-export only what a module offers.
+    files: files.map(pattern => [pattern, `${contexts.folder.replace(/^\.?\/|\/$/g, '')}/**/*.ts`]),
+    ignores: [MODULES],
+    rules: { 'newt/module-boundaries': 'error' },
   }] : []
 
   return tseslint.config(
