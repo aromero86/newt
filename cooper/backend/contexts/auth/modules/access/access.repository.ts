@@ -1,5 +1,6 @@
 import { TableRepository } from 'newt/repository'
 import type { AuthBase } from '../../auth-base'
+import { LastStaffNotRevocable } from './errors/last-staff-not-revocable'
 import { TenantHasAdmin } from './errors/tenant-has-admin'
 import { Access, type AccessDTO } from './access'
 
@@ -40,6 +41,25 @@ export class Access_Repository extends TableRepository<Access, AccessRow, AuthBa
         for (const tenantId of tenants) {
           if (await this.count({ tenantId, role: 'admin' }) > 1) throw new TenantHasAdmin(tenantId)
         }
+      },
+    })
+  }
+
+  /**
+   * Saves a staff access taken away, keeping the product with someone of the staff.
+   * Whether the actor is staff was a plain read, which two of them revoking each other
+   * at once would both pass: so the product's staff is guarded, and checked again
+   * after the write, in its transaction. Someone remains, and the actor is still one
+   * of them, unless they are the one leaving.
+   */
+  async persistKeepingOneStaff(access: Access, actorId: string): Promise<void> {
+    const { productId } = access
+    await this.save([access], each => this.write(each), {
+      guard: [`staff:${productId}`],
+      after: async () => {
+        const remaining = await this.count({ productId, tenantId: null })
+        const actorRemains = actorId === access.userId || await this.count({ userId: actorId, productId, tenantId: null }) > 0
+        if (remaining === 0 || !actorRemains) throw new LastStaffNotRevocable(productId)
       },
     })
   }
