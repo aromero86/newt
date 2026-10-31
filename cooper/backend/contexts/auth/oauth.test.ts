@@ -8,11 +8,14 @@ import { Auth_Context } from './auth.context'
 let auth: Auth_Context
 let server: Server<undefined>
 let url: string
+/** How far auth's clock is ahead of the real one: a test moves it instead of waiting. */
+let ahead: number
 
 beforeEach(async () => {
   const port = freePort()
   url = `http://localhost:${port}`
-  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } })
+  ahead = 0
+  auth = await Auth_Context.open({ ...config.auth, database: ':memory:', port, publicUrl: url }, { mailer: { send: async () => {} } }, { now: () => new Date(Date.now() + ahead) })
   server = serve(auth.serving())
   auth.start()
 })
@@ -182,6 +185,28 @@ describe('the OAuth server', () => {
     const answer = await traded
     expect(answer.status).toBe(400)
     expect(await answer.json()).toMatchObject({ error: 'invalid_grant' })
+  })
+
+  test('removes the requests and tokens that expired, but keeps a redeemed request, which tells a copied code', async () => {
+    const grants = (status: string) => auth.base.store.table<{ id: string, version: number, status: string }>('oauth_grant').count({ status })
+    const tokens = () => auth.base.store.table('token').count({})
+    const clientId = await register()
+    await authorize(browser(url), { client_id: clientId, redirect_uri: CALLBACK, code_challenge: pkce().challenge, resource: MCP })
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    expect((await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).status).toBe(200)
+
+    // Nothing has expired yet: nothing goes.
+    expect(await auth.modules.oauthGrant.purgeExpired()).toBe(0)
+    expect(await auth.modules.token.purgeExpired()).toBe(0)
+
+    ahead = (config.auth.oauth.refreshDays + 1) * 24 * 60 * 60_000
+    expect(await auth.modules.oauthGrant.purgeExpired()).toBe(1)
+    expect(await auth.modules.token.purgeExpired()).toBe(1)
+
+    expect(await grants('pending')).toBe(0)
+    expect(await grants('redeemed')).toBe(1)
+    expect(await tokens()).toBe(0)
   })
 
   test('refuses a code without its PKCE verifier, and a request it cannot answer', async () => {

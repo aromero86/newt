@@ -14,4 +14,9 @@ export class Token_Repository extends TableRepository<Token, TokenRow, AuthBase>
   protected toEntity(row: TokenRow): Token {
     return Token.fromDTO(row)
   }
+
+  /** Removes for good the tokens whose refresh token expired by `at`, with the hash it replaced: how many it removed. */
+  purgeExpired(at: Date): Promise<number> {
+    return this.purge({ refreshExpiresAt: { lte: at.toISOString() } })
+  }
 }

@@ -14,4 +14,12 @@ export class OauthGrant_Repository extends TableRepository<OauthGrant, OauthGran
   protected toEntity(row: OauthGrantRow): OauthGrant {
     return OauthGrant.fromDTO(row)
   }
+
+  /**
+   * Removes for good the grants expired by `at` that were not redeemed: how many it
+   * removed. A redeemed one stays, so its code brought again is still told copied.
+   */
+  purgeExpired(at: Date): Promise<number> {
+    return this.purge({ expiresAt: { lte: at.toISOString() }, status: { ne: 'redeemed' } })
+  }
 }
