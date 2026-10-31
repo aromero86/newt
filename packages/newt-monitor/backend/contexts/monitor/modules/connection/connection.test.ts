@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Browser } from 'newt/testing'
+import { HeldAppClient } from '../../../../testing/held-app-client'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { ConnectionStatusDTO } from './connection'
@@ -9,9 +10,11 @@ let app: TestApp
 let as: Browser
 let id: string
 let told: string[]
+let client: HeldAppClient
 
 beforeEach(async () => {
-  monitor = await openTestMonitor()
+  client = new HeldAppClient()
+  monitor = await openTestMonitor({ client })
   as = await monitor.signedIn()
   app = serveTestApp()
   app.add('shop', { order: { useCases: ['place'] } })
@@ -68,6 +71,19 @@ describe('connection', () => {
     expect(await check()).toMatchObject({ status: 'down', failure: { reason: 'unreachable' } })
     await check()
     expect(told).toEqual(['lost: unreachable'])
+  })
+
+  test('notes nothing of a call to an application deleted while it was called', async () => {
+    await monitor.monitor.base.jobs.idle()
+    client.meanwhile = async () => {
+      await as(`/api/apps/${id}/archive`, { method: 'POST' })
+      await as(`/api/apps/${id}`, { method: 'DELETE' })
+      // What the monitor knew of it is forgotten before the call answers.
+      await monitor.monitor.base.jobs.idle()
+    }
+
+    expect((await monitor.modules.connection.fetchStructure(id)).answered).toBe(true)
+    expect(await monitor.monitor.base.store.table<{ id: string, appId: string, version: number }>('connection').count({ appId: id })).toBe(0)
   })
 
   test('says there is no application for an id it does not have, and nothing to nobody signed in', async () => {

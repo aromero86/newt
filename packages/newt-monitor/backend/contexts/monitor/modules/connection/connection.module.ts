@@ -141,9 +141,10 @@ export class Connection_Module extends Module {
     }
   }
 
+  /** Notes how a call went: not for an application deleted while it was called, whose connection is forgotten. */
   private async record(appId: string, outcome: Outcome): Promise<void> {
     const connection = await this.repo.first({ appId })
     if (connection) connection.record(outcome)
-    await this.repo.persist(connection ?? Connection.first(appId, outcome))
+    await this.repo.persistWhileThere(appId, connection ?? Connection.first(appId, outcome), async () => await this.deps.app.find(appId) !== null)
   }
 }
