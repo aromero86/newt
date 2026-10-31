@@ -15,4 +15,9 @@ export class WebSession_Repository extends TableRepository<WebSession, WebSessio
   protected toEntity(row: WebSessionRow): WebSession {
     return WebSession.fromDTO(row)
   }
+
+  /** Removes for good the sessions expired by `at`, closed by nobody: how many it removed. */
+  purgeExpired(at: Date): Promise<number> {
+    return this.purge({ expiresAt: { lte: at.toISOString() } })
+  }
 }
