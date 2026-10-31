@@ -62,12 +62,19 @@ export function resolved(context, specifier) {
   return path?.replace(/\.[cm]?[jt]sx?$/, '') ?? null
 }
 
-/** The file an alias of the tsconfig's `paths` points at: the first one it lists, by the longest pattern that matches, as TypeScript does. */
+/**
+ * The file an alias of the tsconfig's `paths` points at: the first one it lists, by the
+ * longest pattern that matches, from the `baseUrl` if there is one and the tsconfig's
+ * folder if not, as TypeScript does.
+ */
 function aliased(context, specifier) {
   const options = context.sourceCode.parserServices?.program?.getCompilerOptions()
-  const base = options?.pathsBasePath ?? options?.baseUrl
+  const base = options?.baseUrl ?? options?.pathsBasePath
   if (!base || !options.paths) return null
-  const matches = Object.entries(options.paths).flatMap(([pattern, [first]]) => {
+  const matches = Object.entries(options.paths).flatMap(([pattern, list]) => {
+    // An alias that lists no file (TypeScript only warns of it) points nowhere.
+    const first = Array.isArray(list) ? list[0] : undefined
+    if (typeof first !== 'string') return []
     const [prefix, suffix] = pattern.split('*')
     if (suffix === undefined) return pattern === specifier ? [{ prefix, path: first }] : []
     const fits = specifier.startsWith(prefix) && specifier.endsWith(suffix) && specifier.length >= prefix.length + suffix.length
