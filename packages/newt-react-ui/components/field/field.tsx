@@ -34,7 +34,7 @@ export function Field({ label, description, error, children }: FieldProps) {
         </p>
       )}
       {hasError && (
-        <p id={errorId} className="text-sm text-destructive">
+        <p id={errorId} role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
