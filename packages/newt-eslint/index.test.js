@@ -44,6 +44,7 @@ describe('the preset of newt', () => {
   test('keeps a module writing through save', async () => {
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => store.transaction(() => {})\n')).toEqual(['no-restricted-syntax'])
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', "export const go = (store: { transaction(fn: () => void): void }) => store['transaction'](() => {})\n")).toEqual(['no-restricted-syntax'])
+    expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => store[`transaction`](() => {})\n')).toEqual(['no-restricted-syntax'])
     expect(await complaints('src/contexts/ws/modules/brand/brand.repository.ts', 'export const go = (store: { transaction(fn: () => void): void }) => { const { transaction } = store; transaction(() => {}) }\n')).toEqual(['no-restricted-syntax'])
   })
 
