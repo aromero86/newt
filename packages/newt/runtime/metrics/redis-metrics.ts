@@ -1,7 +1,9 @@
 import { RedisClient } from 'bun'
 import type { EventCount, EventCounts } from '../../core/metrics/event-count'
+import type { InstanceMinute, Instances, InstanceSample } from '../../core/metrics/instance-sample'
 import type { QueueFlow, QueueFlows } from '../../core/metrics/queue-flow'
 import type { UseCaseTiming, UseCaseTimings } from '../../core/metrics/use-case-timing'
+import { instanceMinuteOf, instanceStateOf, type InstanceLast } from './instance-minutes'
 import type { CountedEvent, Metrics, QueueFlowEntry, TimedCall } from './metrics'
 import { addCall, addEntry, addFlow, addTiming, countKey, countOf, emptyFlow, emptyTiming, flowKey, flowOf, type Flow, MINUTE_MS, minuteOf, timingKey, timingOf, type Timing } from './minutes'
 
@@ -30,6 +32,10 @@ export class RedisMetrics implements Metrics {
   private pending = new Map<string, Map<string, number>>()
   private pendingTimings = new Map<string, Map<string, Timing>>()
   private pendingFlows = new Map<string, Map<string, Flow>>()
+  /** This instance's samples of each minute not yet closed, by minute: each flush writes them whole, over what it wrote before. */
+  private ownSamples = new Map<string, InstanceSample[]>()
+  /** Its last sample, until a flush writes it. */
+  private pendingLast: InstanceSample | null = null
   private readonly timer: ReturnType<typeof setInterval>
   private enabled = false
   private closing: Promise<void> | null = null
@@ -67,6 +73,43 @@ export class RedisMetrics implements Metrics {
     const one = emptyFlow()
     addEntry(one, entry)
     this.addFlowAt(minuteOf(entry.at), flowKey(entry), one)
+  }
+
+  sample(sample: InstanceSample): void {
+    if (!this.enabled) return
+    const minute = minuteOf(sample.at)
+    const samples = this.ownSamples.get(minute) ?? []
+    samples.push(sample)
+    this.ownSamples.set(minute, samples)
+    this.pendingLast = sample
+  }
+
+  /** What it sampled is written first: its stop comes after its last sample. */
+  async stopped(instance: string, at: Date): Promise<void> {
+    await this.flushSamples()
+    const found = await this.redis.hget(this.key('i:now'), instance)
+    if (found === null) return
+    const last = JSON.parse(found) as InstanceLast
+    await this.redis.hset(this.key('i:now'), { [instance]: JSON.stringify({ ...last, stoppedAt: at.toISOString() }) })
+  }
+
+  async instances(since: string | null, now: Date): Promise<Instances> {
+    const until = minuteOf(now.getTime() - MINUTE_MS - this.flushMs - 1_000)
+    const from = since === null ? '-inf' : `(${Date.parse(since)}`
+    const minutes: InstanceMinute[] = []
+    for (const minute of await this.redis.zrangebyscore(this.key('i:minutes'), from, Date.parse(until))) {
+      for (const samples of Object.values(await this.redis.hgetall(this.key(`i:${minute}`)))) {
+        minutes.push(instanceMinuteOf(minute, (JSON.parse(samples) as InstanceSample[]).map(revive)))
+      }
+    }
+    const lasts = Object.entries(await this.redis.hgetall(this.key('i:now'))).map(([instance, last]) => {
+      const parsed = JSON.parse(last) as InstanceLast
+      return { instance, last: { ...parsed, sample: revive(parsed.sample) } }
+    })
+    // One not seen for longer than minutes are kept is forgotten.
+    const forgotten = lasts.filter(({ last }) => now.getTime() - last.sample.at.getTime() > this.keepSeconds * 1000)
+    if (forgotten.length > 0) await this.redis.send('HDEL', [this.key('i:now'), ...forgotten.map(({ instance }) => instance)]).catch(() => undefined)
+    return { instances: lasts.filter(each => !forgotten.includes(each)).map(({ last }) => instanceStateOf(last, now)), minutes, until }
   }
 
   async closedFlows(since: string | null, now: Date): Promise<QueueFlows> {
@@ -153,6 +196,7 @@ export class RedisMetrics implements Metrics {
   }
 
   private async flush(): Promise<void> {
+    await this.flushSamples()
     await this.flushTimings()
     await this.flushFlows()
     if (this.pending.size === 0) return
@@ -244,6 +288,34 @@ export class RedisMetrics implements Metrics {
     await this.redis.send('ZREMRANGEBYSCORE', [this.key('q:minutes'), '-inf', String(Math.max(...[...pending.keys()].map(minute => Date.parse(minute))) - this.keepSeconds * 1000)]).catch(() => undefined)
   }
 
+  /** Its minutes' samples, each minute whole under its own field, and its last sample as its state. */
+  private async flushSamples(): Promise<void> {
+    const last = this.pendingLast
+    if (last === null) return
+    this.pendingLast = null
+    const writes: Promise<unknown>[] = [this.redis.hset(this.key('i:now'), { [last.instance]: JSON.stringify({ sample: last, stoppedAt: null }) })]
+    for (const [minute, samples] of this.ownSamples) {
+      const hash = this.key(`i:${minute}`)
+      writes.push(
+        this.redis.hset(hash, { [last.instance]: JSON.stringify(samples) }),
+        this.redis.expire(hash, this.keepSeconds),
+        this.redis.zadd(this.key('i:minutes'), Date.parse(minute), minute),
+      )
+    }
+    try {
+      await Promise.all(writes)
+    } catch (error) {
+      // Written again at the next flush, whole: nothing is lost but time.
+      this.pendingLast ??= last
+      console.error(`[newt metrics] Redis did not take the instance's samples, they wait: ${(error as Error).message}`)
+      return
+    }
+    // Only the minute still open is written again; those before it are whole in Redis.
+    const open = minuteOf(last.at)
+    for (const minute of this.ownSamples.keys()) if (minute < open) this.ownSamples.delete(minute)
+    await this.redis.send('ZREMRANGEBYSCORE', [this.key('i:minutes'), '-inf', String(Date.parse(open) - this.keepSeconds * 1000)]).catch(() => undefined)
+  }
+
   private addFlowAt(minute: string, key: string, flow: Flow): void {
     let flows = this.pendingFlows.get(minute)
     if (!flows) this.pendingFlows.set(minute, flows = new Map())
@@ -269,4 +341,9 @@ export class RedisMetrics implements Metrics {
   private key(name: string): string {
     return `${this.prefix}:${name}`
   }
+}
+
+/** A sample as JSON gives it back: its time a string again. */
+function revive(sample: InstanceSample): InstanceSample {
+  return { ...sample, at: new Date(sample.at) }
 }

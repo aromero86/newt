@@ -11,7 +11,9 @@ const TIMEOUT_MS = 5_000
 const IdentitySchema = z.object({
   name: z.string(),
   newt: z.string(),
-  instance: z.object({ id: z.string(), host: z.string(), pid: z.number() }),
+  // An application on a newt before servers says none: its machine is its server.
+  instance: z.object({ id: z.string(), host: z.string(), server: z.string().optional(), pid: z.number() })
+    .transform(instance => ({ ...instance, server: instance.server ?? instance.host })),
   startedAt: z.string(),
 })
 

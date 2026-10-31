@@ -2,7 +2,8 @@ import type { Server } from 'bun'
 import { hostname } from 'node:os'
 import { systemClock } from '../core'
 import { applicationTraces } from '../core/internal'
-import { describeApplication, enableTraces, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { applicationMetrics, applicationSampler, InstanceSampler } from '../runtime/internal'
+import { describeApplication, enableTraces, MemoryMetrics, type Base, type BoundedContext, type EventCounts, type Metrics, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
 import manifest from '../package.json'
 import { MIN_KEY_LENGTH } from './monitor-signature'
 import type { MonitorIdentity } from './monitor-identity'
@@ -24,7 +25,9 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * (`GET /v1/outbox/dead?context=&after=&limit=`), and the traces it kept, by the minute
  * they ended (`GET /v1/traces?since=<minute>`, whole minutes, about 2,000 traces a page).
  * Read only, and never its data: serving it starts every context's counting
- * (`Base.metrics`) and the application's traces (`setTraces`; in its memory unless set),
+ * (`Base.metrics`), the instance's reading of itself and its server every 10 seconds
+ * (its memory, processor time and event loop; the server's disks, memory and
+ * processors) and the application's traces (`setTraces`; in its memory unless set),
  * and keeps whole the trace of every request with an `x-newt-trace` header signed with
  * its key (`signTraceHeader`).
  *
@@ -52,12 +55,20 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
   const traces = options.traces ?? enableTraces()
   // A request that carries a header signed with its key has its trace kept: `signTraceHeader`.
   applicationTraces.forcing = header => verifyTraceHeader(options.key, header, clock.now())
+  const server = options.server ?? process.env.NEWT_SERVER ?? hostname()
   const identity: MonitorIdentity = {
     name: options.name,
     newt: manifest.version,
-    instance: { id: crypto.randomUUID(), host: hostname(), pid: process.pid },
+    instance: { id: crypto.randomUUID(), host: hostname(), server, pid: process.pid },
     startedAt: clock.now().toISOString(),
   }
+  // The instance reads itself and its server into the application's metrics (`setMetrics`): else the first
+  // context's, or its own memory with none.
+  const instanceMetrics = applicationMetrics.value ?? metricsOf()[0] ?? new MemoryMetrics()
+  instanceMetrics.enable()
+  void applicationSampler.value?.stop()
+  applicationSampler.value = new InstanceSampler(instanceMetrics, { instance: identity.instance.id, startedAt: identity.startedAt, server, disks: options.disks, clock })
+  applicationSampler.value.start()
 
   return Bun.serve({
     port: options.port,

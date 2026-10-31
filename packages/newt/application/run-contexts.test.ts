@@ -2,10 +2,15 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { NoopTracer, setTracer, type Tracer } from '../core'
 import { HttpRouter } from '../http'
+import { MemoryMetrics } from '../runtime'
+import { applicationSampler, InstanceSampler } from '../runtime/internal'
 import { runContexts } from './run-contexts'
 import type { ContextToRun } from './context-to-run'
 
-afterEach(() => setTracer(new NoopTracer()))
+afterEach(() => {
+  setTracer(new NoopTracer())
+  applicationSampler.value = null
+})
 
 /** A context that says in `log` when it starts and stops. */
 function context(name: string, log: string[]): ContextToRun['context'] {
@@ -43,6 +48,25 @@ describe('runContexts', () => {
     await Promise.all([app.stop(), app.stop()])
     expect(log.slice(3)).toEqual(['reports stopped', 'shop stopped', 'auth stopped'])
     await expect(fetch(new URL('/api/who', url))).rejects.toThrow()
+  })
+
+  test('says the instance stopped, before any context stops and closes its metrics', async () => {
+    const log: string[] = []
+    const metrics = new MemoryMetrics()
+    metrics.enable()
+    const clock = { now: () => new Date('2026-01-01T10:00:05Z') }
+    applicationSampler.value = new InstanceSampler(metrics, { instance: 'i-1', startedAt: '2026-01-01T10:00:00.000Z', clock })
+    await applicationSampler.value.take()
+    const stopped = metrics.stopped.bind(metrics)
+    metrics.stopped = async (instance, at) => {
+      log.push('instance stopped')
+      await stopped(instance, at)
+    }
+
+    const app = runContexts([{ context: context('shop', log) }], { signals: false })
+    await app.stop()
+    expect(log).toEqual(['shop started', 'instance stopped', 'shop stopped'])
+    expect((await metrics.instances(null, clock.now())).instances[0]!.status).toBe('stopped')
   })
 
   test('sets the application\'s tracer, which every request is a span of, and has it send what it keeps once stopped', async () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { RedisNonces } from '../../monitor/nonce-store'
 import type { EventCount } from '../../core/metrics/event-count'
+import type { InstanceSample } from '../../core/metrics/instance-sample'
 import { RedisMetrics } from './redis-metrics'
 
 // Against a real Redis, when there is one: REDIS_URL=redis://localhost:6390 bun test.
@@ -13,8 +14,8 @@ afterEach(async () => {
 })
 
 /** An instance of the application, counting into the shared Redis. */
-function instance() {
-  const metrics = new RedisMetrics({ url: url!, prefix, flushMs: 50 })
+function instance(keepMinutes?: number, own = '') {
+  const metrics = new RedisMetrics({ url: url!, prefix: `${prefix}${own}`, flushMs: 50, keepMinutes })
   metrics.enable()
   opened.push(metrics)
   return metrics
@@ -81,6 +82,51 @@ describe.skipIf(!url)('RedisMetrics', () => {
     await Bun.sleep(300)
     stop()
     expect(heard.map(count => [count.event, count.count])).toEqual([['order.placed', 1]])
+  })
+})
+
+/** A sample of an instance on server `s1`, at a time. */
+function sample(instance: string, at: string, rssBytes = 100): InstanceSample {
+  return {
+    instance, pid: 7, startedAt: '2026-01-01T09:00:00.000Z', at: new Date(at),
+    process: { rssBytes, heapUsedBytes: 50, cpu: 10, loopMeanMs: 1, loopMaxMs: 2 },
+    server: { name: 's1', disks: [{ path: '/', totalBytes: 1000, freeBytes: 400 }], memory: { totalBytes: 800, freeBytes: 400 }, cpu: { cores: 4, load: [1, 1, 1], usage: 20 } },
+  }
+}
+
+describe.skipIf(!url)('RedisMetrics, with instances', () => {
+  test('gives every instance, and each one\'s minutes whole, to whichever is asked', async () => {
+    const one = instance()
+    const two = instance()
+    one.sample(sample('a', '2026-01-01T10:00:05Z', 100))
+    await Bun.sleep(100)
+    // Written again, whole, with its next sample of the same minute.
+    one.sample(sample('a', '2026-01-01T10:00:15Z', 300))
+    two.sample(sample('b', '2026-01-01T10:00:25Z'))
+    one.sample(sample('a', '2026-01-01T10:01:05Z'))
+    await Bun.sleep(150)
+
+    const read = await two.instances(null, new Date('2026-01-01T10:01:10Z'))
+    expect(read.until).toBe('2026-01-01T10:00:00.000Z')
+    expect(read.minutes.toSorted((x, y) => x.instance.localeCompare(y.instance)).map(minute => [minute.instance, minute.slots, minute.process.rssBytes.max]))
+      .toEqual([['a', [0, 1], 300], ['b', [2], 100]])
+    expect(read.instances.toSorted((x, y) => x.instance.localeCompare(y.instance)).map(each => [each.instance, each.status, each.lastSeenAt]))
+      .toEqual([['a', 'alive', '2026-01-01T10:01:05.000Z'], ['b', 'lost', '2026-01-01T10:00:25.000Z']])
+    expect((await one.instances(read.until, new Date('2026-01-01T10:01:10Z'))).minutes).toEqual([])
+  })
+
+  test('takes an instance for stopped once it said so, after its last sample', async () => {
+    const one = instance(undefined, ':stopped')
+    one.sample(sample('a', '2026-01-01T10:00:05Z'))
+    await one.stopped('a', new Date('2026-01-01T10:00:06Z'))
+    expect((await instance(undefined, ':stopped').instances(null, new Date('2026-01-01T10:05:00Z'))).instances).toMatchObject([{ instance: 'a', status: 'stopped', stoppedAt: '2026-01-01T10:00:06.000Z' }])
+  })
+
+  test('forgets an instance not seen for longer than it keeps minutes', async () => {
+    const one = instance(5, ':forget')
+    one.sample(sample('a', '2026-01-01T10:00:05Z'))
+    await Bun.sleep(150)
+    expect((await one.instances(null, new Date('2026-01-01T10:20:00Z'))).instances).toEqual([])
   })
 })
 
