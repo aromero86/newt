@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'bun:test'
 import { RuleTester } from 'eslint'
+import ts from 'typescript'
 import tseslint from 'typescript-eslint'
 import { assertUsesTree, contextBoundaries } from './context-boundaries.js'
 import { moduleAnatomy } from './module-anatomy.js'
@@ -119,6 +120,9 @@ tester.run('queue-name', queueName, {
     { code: "this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.module.ts` },
     { code: "(orders: m.Order_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts` },
     { code: "class W { constructor(private readonly orders: Order_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts` },
+    { code: "class Order_Module { register() { this.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts` },
+    // Without a program, only a key of `events` says the event: a schedule's field is not its name.
+    { code: "orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.nightly' })", filename: `${ORDER}/order.workers.ts` },
     ...[['category', 'categories'], ['address', 'addresses'], ['box', 'boxes'], ['batch', 'batches']].map(([module, plural]) => ({
       code: `deps.brand.events.deleted.subscribe(b => ${plural}.forget(b.id), { strategy: 'handler', queue: '${module}.forget.on.brand.deleted' })`,
       filename: `/repo/src/contexts/shop/modules/${module}/${module}.workers.ts`,
@@ -139,7 +143,62 @@ tester.run('queue-name', queueName, {
     { code: "(orders: m.Product_Module) => orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { register() { this.orders.events.placed.subscribe(o => this.products.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
     { code: "class W { constructor(private readonly orders: Product_Module) {} register() { this.orders.events.placed.subscribe(o => this.orders.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
+    // A queue written as a template, or with what only TypeScript sees around it.
+    ...["`mail.fulfil.on.order.placed`", "<const>'mail.fulfil.on.order.placed'", "'mail.fulfil.on.order.placed'!"]
+      .map(queue => ({ code: `orders.events.placed.subscribe(o => orders.fulfil(o.id), { strategy: \`handler\`, queue: ${queue} })`, filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'module' }] })),
+    // `this` in a class of the workers is that class, not the module.
+    { code: "class W { fulfil(id) {} register(orders) { orders.events.placed.subscribe(o => this.fulfil(o.id), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", filename: `${ORDER}/order.workers.ts`, errors: [{ messageId: 'useCase' }] },
   ],
+})
+
+/** A program of `files` (path to code) and what they import, as the preset has typescript-eslint build one. */
+function programOf(files) {
+  const options = { strict: true, target: ts.ScriptTarget.ES2022, noEmit: true }
+  const host = ts.createCompilerHost(options)
+  const read = host.getSourceFile
+  host.getSourceFile = (name, ...rest) => (name in files ? ts.createSourceFile(name, files[name], options.target, true) : read(name, ...rest))
+  host.fileExists = name => name in files || ts.sys.fileExists(name)
+  host.readFile = name => files[name] ?? ts.sys.readFile(name)
+  host.directoryExists = folder => Object.keys(files).some(file => file.startsWith(`${folder}/`)) || ts.sys.directoryExists(folder)
+  return ts.createProgram(Object.keys(files), options, host)
+}
+
+const ORDER_TYPED = `${ORDER}/order.module.ts`
+const typedModule = `
+declare class Emitter { subscribe(handler: (payload: unknown) => unknown, subscription: { strategy: string, queue: string }): () => void }
+declare function eventsOf<C>(bus: unknown, classes: C): { readonly [K in keyof C]: Emitter }
+declare const base: { bus: unknown, schedules: { define(name: string, cron: string): Emitter } }
+export class Order_Placed { static readonly eventName = 'order.placed' }
+export class Order_Module {
+  readonly events = eventsOf(base.bus, { added: Order_Placed })
+  readonly purgeSchedule
+  constructor() {
+    this.purgeSchedule = base.schedules.define('order.nightly', '0 3 * * *')
+    this.events.added.subscribe(() => this.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })
+  }
+  fulfil(id: string) {}
+  purge() {}
+}
+`
+const typedCases = [
+  // The event is its class's name, or its schedule's, whatever the key it is read from.
+  ["export const w = (orders: Order_Module) => orders.events.added.subscribe(() => orders.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' })"],
+  ["export const w = (orders: Order_Module) => orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.nightly' })"],
+  ["export const w = (orders: Order_Module) => orders.events.added.subscribe(() => orders.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.added' })", 'event'],
+  ["export const w = (orders: Order_Module) => orders.purgeSchedule.subscribe(() => orders.purge(), { strategy: 'handler', queue: 'order.purge.on.order.purgeSchedule' })", 'event'],
+  ["export class W { fulfil(id: string) {} register(orders: Order_Module) { orders.events.added.subscribe(() => this.fulfil('x'), { strategy: 'handler', queue: 'order.fulfil.on.order.placed' }) } }", 'useCase'],
+].map(([code, error], index) => ({ code: `import type { Order_Module } from './order.module'\n${code}`, filename: `${ORDER}/order${index}.workers.ts`, error }))
+const typedProgram = programOf({ [ORDER_TYPED]: typedModule, ...Object.fromEntries(typedCases.map(({ filename, code }) => [filename, code])) })
+
+new RuleTester({ languageOptions: { parser: tseslint.parser, parserOptions: { programs: [typedProgram] } } }).run('queue-name, typed', queueName, {
+  valid: [{ code: typedModule, filename: ORDER_TYPED }, ...typedCases.filter(each => !each.error).map(({ code, filename }) => ({ code, filename }))],
+  invalid: typedCases.filter(each => each.error).map(({ code, filename, error }) => ({ code, filename, errors: [{ messageId: error }] })),
+})
+
+describe('the program queue-name is typed with', () => {
+  it('has no errors of its own', () => {
+    expect(ts.getPreEmitDiagnostics(typedProgram).map(each => ts.flattenDiagnosticMessageText(each.messageText, '\n'))).toEqual([])
+  })
 })
 
 const ORDER_MODULE = '/repo/src/contexts/ws/modules/order/order.module.ts'
