@@ -2,6 +2,7 @@ import type { Trace } from 'newt/contract'
 import { Module, now, UseCase } from 'newt/core'
 import { signTraceHeader, TRACE_HEADER } from 'newt/monitor'
 import type { MonitorBase } from '../../../../monitor-base'
+import { eachApp } from '../../../../shared/each-app'
 import { TraceHeaderSchema, TraceListQuerySchema, TraceNotFound, TracesFeed, type CollectTracesDTO, type TraceDTO, type TraceHeaderDTO, type TraceListDTO } from './traces'
 import type { Traces_Deps } from './traces.deps'
 import type { Traces_Options } from './traces-options'
@@ -73,12 +74,10 @@ export class Traces_Module extends Module {
     }
   }
 
-  /** Collects every application watched, one after another: one that does not answer is recorded so. */
+  /** Collects every application watched, one after another: one that does not answer is recorded so, one that fails too, and the others go on. */
   @UseCase({ writesTo: ['connection'] })
   async collectAll(): Promise<CollectTracesDTO[]> {
-    const collected: CollectTracesDTO[] = []
-    for (const appId of await this.deps.app.watchedIds()) collected.push(await this.collect(appId))
-    return collected
+    return eachApp(await this.deps.app.watchedIds(), appId => this.collect(appId), (appId, message) => ({ appId, outcome: 'failed', message }))
   }
 
   /** Forgets the traces its retention says are old. */
@@ -90,10 +89,10 @@ export class Traces_Module extends Module {
     for (const table of TABLES) await analytics.run(`DELETE FROM ${table} WHERE started_at < CAST($1 AS TIMESTAMP)`, [before])
   }
 
-  /** Keeps every application's traces, archived ones too: their retention runs all the same. */
+  /** Keeps every application's traces, archived ones too: their retention runs all the same, and one that fails keeps none of the others from it. */
   @UseCase()
   async keepAll(): Promise<void> {
-    for (const feed of await this.repo.find({})) await this.keep(feed.appId)
+    await eachApp((await this.repo.find({})).map(feed => feed.appId), appId => this.keep(appId), () => undefined)
   }
 
   /** Its traces in a window, by what they did and how they went. */

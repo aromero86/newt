@@ -16,6 +16,7 @@ export type EventMetricsFeedDTO = z.infer<typeof EventMetricsFeedSchema>
 export type CollectDTO =
   | { appId: string, outcome: 'collected', counts: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 /** The windows a panel shows, and the buckets each one may be drawn in: not configurable. */
 export const WINDOWS = {

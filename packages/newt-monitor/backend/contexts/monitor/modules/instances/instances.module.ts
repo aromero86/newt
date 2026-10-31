@@ -1,6 +1,7 @@
 import { Module, now, UseCase } from 'newt/core'
 import type { InstanceMinute } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
+import { eachApp } from '../../../../shared/each-app'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
 import { Instance, InstanceCountQuerySchema, InstancesFeed, SystemSeriesQuerySchema, type CollectInstancesDTO, type InstanceCountSeriesDTO, type InstancesDTO, type SystemDTO, type SystemSeriesDTO } from './instances'
 import type { Instances_Deps } from './instances.deps'
@@ -99,12 +100,10 @@ export class Instances_Module extends Module {
     return { appId, outcome: 'collected', instances: heard.length, minutes: read.value.minutes.length, until: read.value.until }
   }
 
-  /** Collects every application watched, one after another: one that does not answer is recorded so. */
+  /** Collects every application watched, one after another: one that does not answer is recorded so, one that fails too, and the others go on. */
   @UseCase({ writesTo: ['connection'] })
   async collectAll(): Promise<CollectInstancesDTO[]> {
-    const collected: CollectInstancesDTO[] = []
-    for (const appId of await this.deps.app.watchedIds()) collected.push(await this.collect(appId))
-    return collected
+    return eachApp(await this.deps.app.watchedIds(), appId => this.collect(appId), (appId, message) => ({ appId, outcome: 'failed', message }))
   }
 
   /** Sums each whole day at least a day old, forgets what its retention says is old, and the instances gone for a day. */
@@ -142,10 +141,10 @@ export class Instances_Module extends Module {
     await this.repo.purgeGone(appId, gone.map(instance => instance.id))
   }
 
-  /** Keeps every application's system and instances, archived ones too: their retention runs all the same. */
+  /** Keeps every application's system and instances, archived ones too: their retention runs all the same, and one that fails keeps none of the others from it. */
   @UseCase()
   async keepAll(): Promise<void> {
-    for (const feed of await this.feeds.find({})) await this.keep(feed.appId)
+    await eachApp((await this.feeds.find({})).map(feed => feed.appId), appId => this.keep(appId), () => undefined)
   }
 
   /** Its system as its instances alive read it now, and its instances: those alive, then those gone in the last day. */

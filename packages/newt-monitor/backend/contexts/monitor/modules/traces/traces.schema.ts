@@ -18,6 +18,7 @@ export type TracesFeedDTO = z.infer<typeof TracesFeedSchema>
 export type CollectTracesDTO =
   | { appId: string, outcome: 'collected', traces: number, until: string }
   | { appId: string, outcome: 'unreachable' | 'archived' | 'gone' }
+  | { appId: string, outcome: 'failed', message: string }
 
 /**
  * What a client asks of an application's traces: in a window, of a use case (of a
