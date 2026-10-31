@@ -22,6 +22,9 @@ export const RetentionSchema = z.object({
 /** What a client sends to change it: any of them. */
 export const RetentionChangeSchema = RetentionSchema.pick({ minuteDays: true, dayDays: true, traceDays: true, resourceMinuteDays: true }).partial()
   .refine(change => Object.values(change).some(value => value !== undefined), 'Say what changes: minuteDays, dayDays, traceDays or resourceMinuteDays')
+  // The daily series read every day before the summary's newest from the summary alone: it is kept at least as long as the minutes.
+  .refine(change => change.dayDays == null || change.minuteDays === undefined || change.dayDays >= change.minuteDays,
+    { message: 'The days cannot be kept for less time than the minutes', path: ['dayDays'] })
 
 export type RetentionRowDTO = z.infer<typeof RetentionSchema>
 export type RetentionDTO = Pick<RetentionRowDTO, 'minuteDays' | 'dayDays' | 'traceDays' | 'resourceMinuteDays'>

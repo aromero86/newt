@@ -1,4 +1,5 @@
 import { Entity, type EntityInput } from 'newt/core'
+import { DaysShorterThanMinutes } from './errors/days-shorter-than-minutes'
 import { RetentionSchema, type RetentionDTO, type RetentionRowDTO } from './retention.schema'
 
 export * from './retention.schema'
@@ -23,7 +24,11 @@ export class Retention extends Entity<typeof RetentionSchema> {
     return { minuteDays: this.data.minuteDays, dayDays: this.data.dayDays, traceDays: this.data.traceDays, resourceMinuteDays: this.data.resourceMinuteDays }
   }
 
+  /** Changes how long they are kept: the days never for less time than the minutes, whichever of the two changes. */
   keep(change: Partial<RetentionDTO>): void {
+    const dayDays = change.dayDays === undefined ? this.data.dayDays : change.dayDays
+    const minuteDays = change.minuteDays ?? this.data.minuteDays
+    if (dayDays !== null && dayDays < minuteDays) throw new DaysShorterThanMinutes(dayDays, minuteDays)
     this.change(change)
   }
 }

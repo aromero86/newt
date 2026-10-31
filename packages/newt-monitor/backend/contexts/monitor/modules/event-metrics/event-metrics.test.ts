@@ -98,6 +98,10 @@ describe('event metrics', () => {
     await collect()
     expect(await json<RetentionDTO>(`/api/apps/${id}/retention`)).toEqual({ minuteDays: 30, dayDays: null, traceDays: 7, resourceMinuteDays: 30 })
     expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 1 } })).status).toBe(400)
+    // The days are never kept for less time than the minutes: the daily series would read the days between as nothing.
+    expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 30, dayDays: 7 } })).status).toBe(400)
+    expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { dayDays: 7 } })).status).toBe(400)
+    expect(await json<RetentionDTO>(`/api/apps/${id}/retention`)).toMatchObject({ minuteDays: 30, dayDays: null })
     await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3, dayDays: 10 } })
 
     await monitor.modules.eventMetrics.keepAll()
