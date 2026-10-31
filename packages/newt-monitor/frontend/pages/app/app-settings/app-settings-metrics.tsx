@@ -20,6 +20,7 @@ function AppSettingsMetricsWrapped() {
   const service = useService(AppSettingsMetricsService)
   const submitting = useValue(service.form.submitting)
   const failure = useValue(service.form.failure)
+  const loaded = useValue(service.loaded)
 
   useEffect(() => {
     void service.load()
@@ -27,7 +28,7 @@ function AppSettingsMetricsWrapped() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    void service.save()
+    if (loaded) void service.save()
   }
 
   return (
@@ -40,7 +41,7 @@ function AppSettingsMetricsWrapped() {
           <FormField form={service.form} name="dayDays" label="Day by day, without who" description="Days: what stays once the minutes are gone. Empty to keep it for ever." />
           <FormField form={service.form} name="resourceMinuteDays" label="Servers and instances, minute by minute" description="Days: each server's memory, processors and disks, and how many instances were alive, by the minute. Day by day it is kept as long as the rest. 30 by default." />
           <FormField form={service.form} name="traceDays" label="Traces" description="Days each trace is kept: every one that failed or ran again, and a share of the rest. 7 by default." />
-          <Button type="submit" loading={submitting}>Save retention</Button>
+          <Button type="submit" loading={submitting} disabled={!loaded}>Save retention</Button>
         </Stack>
       </form>
     </Stack>
