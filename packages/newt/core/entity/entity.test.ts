@@ -7,6 +7,7 @@ import { EntityAlreadyDeleted } from './errors/entity-already-deleted'
 import { EventWithoutChange } from './errors/event-without-change'
 import { InvalidEntity } from './errors/invalid-entity'
 import { NewEntityNotDeletable } from './errors/new-entity-not-deletable'
+import { UnknownEntityField } from './errors/unknown-entity-field'
 import { markPersisted } from './mark-persisted'
 import { storedFields } from './stored-fields'
 import { takeEvents } from './take-events'
@@ -383,6 +384,14 @@ describe('change, further', () => {
 
     expect(thing.id).toBe('thing-1')
     expect(thing.getChanges()).toBeNull()
+  })
+
+  test('refuses createdAt and updatedAt, which a save would never store', () => {
+    const thing = existing()
+
+    expect(() => thing.apply({ createdAt: '2019-01-01T00:00:00.000Z' })).toThrow("Field 'createdAt' cannot be changed")
+    expect(() => thing.apply({ name: 'other', updatedAt: '2019-01-01T00:00:00.000Z' })).toThrow(UnknownEntityField)
+    expect(thing.toDTO()).toMatchObject({ name: 'original', createdAt: '2026-01-01T00:00:00.000Z' })
   })
 
   test('a structurally equal ref is no change: updatedAt stays', () => {
