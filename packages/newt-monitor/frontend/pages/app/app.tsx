@@ -12,6 +12,8 @@ import { AppJob } from './app-job/app-job'
 import { AppOverview } from './app-overview/app-overview'
 import { AppQueue } from './app-queue/app-queue'
 import { AppQueues } from './app-queues/app-queues'
+import { AppServer } from './app-server/app-server'
+import { AppServers } from './app-servers/app-servers'
 import { AppSettings } from './app-settings/app-settings'
 import { AppTrace } from './app-trace/app-trace'
 import { AppTraces } from './app-traces/app-traces'
@@ -53,6 +55,8 @@ function AppWrapped() {
           <Route path="events/:context/:event" element={<AppEvent app={app} />} />
           <Route path="queues" element={<AppQueues app={app} />} />
           <Route path="queues/:context/:queue" element={<AppQueue app={app} />} />
+          <Route path="servers" element={<AppServers app={app} />} />
+          <Route path="servers/:server" element={<AppServer app={app} />} />
           <Route path="traces" element={<AppTraces app={app} />} />
           <Route path="traces/:traceId" element={<AppTrace app={app} />} />
           <Route path="jobs/:jobId" element={<AppJob app={app} />} />

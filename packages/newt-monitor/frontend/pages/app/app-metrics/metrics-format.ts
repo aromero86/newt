@@ -33,3 +33,19 @@ export function changeOf(now: number | null, before: number | null): string | nu
 export function handlerOf(queue: string): string {
   return queue.split('.on.')[0] ?? queue
 }
+
+/** A size as it reads best, in powers of 1000: `512 B`, `1.2 kB`, `340 MB`, `7.5 GB`. */
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null) return '–'
+  const units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB']
+  let unit = 0
+  let size = bytes
+  while (Math.abs(size) >= 1000 && unit < units.length - 1) {
+    size /= 1000
+    unit++
+  }
+  return `${size.toLocaleString('en', { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`
+}
+
+/** A share, 0 to 100, as `42%`. */
+export const formatPercent = (value: number | null) => (value === null ? '–' : `${Math.round(value)}%`)

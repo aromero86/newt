@@ -27,6 +27,7 @@ import { AppUseCaseErrors } from './app-use-case-errors'
 import { AppUseCaseTops } from './app-use-case-tops'
 import { AppUseCaseTraces } from './app-use-case-traces'
 import { AppUseCaseService, type Compare } from './app-use-case.service'
+import { marksOn, useAppMarks } from '../app-metrics/chart-marks'
 
 /** One use case: how its calls went over a window, beside the one before; and who calls it most. With its own AppUseCaseService. */
 export function AppUseCase({ app }: { app: AppDTO }) {
@@ -49,6 +50,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
   const series = useValue(service.series)
   const errors = useValue(service.errors)
   const failure = useValue(service.failure)
+  const marks = useAppMarks()
 
   useEffect(() => {
     void service.open(context, useCase)
@@ -107,6 +109,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                   <LineChart
                     label={`${useCase}: mean, p50, p90 and p99, every ${BUCKET_LABELS[bucket]}`}
                     times={series.points.map(point => point.at)}
+                    marks={marksOn(series.points.map(point => point.at), marks)}
                     formatTime={format}
                     formatValue={value => formatMs(value)}
                     series={[
@@ -121,6 +124,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                   <TimeSeries
                     label={`${useCase}: calls, every ${BUCKET_LABELS[bucket]}`}
                     points={series.points.map(point => ({ at: point.at, count: point.calls }))}
+                    marks={marksOn(series.points.map(point => point.at), marks)}
                     compared={series.compared?.map(point => ({ at: point.at, count: point.calls })) ?? null}
                     names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
                     formatTime={format}
@@ -130,6 +134,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                   <TimeSeries
                     label={`${useCase}: runs more after a conflict, every ${BUCKET_LABELS[bucket]}`}
                     points={series.points.map(point => ({ at: point.at, count: point.retries }))}
+                    marks={marksOn(series.points.map(point => point.at), marks)}
                     compared={series.compared?.map(point => ({ at: point.at, count: point.retries })) ?? null}
                     names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: compare === 'week' ? 'A week before' : 'The window before' }}
                     formatTime={format}
@@ -140,6 +145,7 @@ function AppUseCaseWrapped({ app }: { app: AppDTO }) {
                     <LineChart
                       label={`${useCase}: errors and failures, every ${BUCKET_LABELS[bucket]}`}
                       times={errors.points.map(point => point.at)}
+                      marks={marksOn(errors.points.map(point => point.at), marks)}
                       formatTime={format}
                       series={[
                         { key: 'errors', label: 'Errors', tone: 'warn', values: errors.points.map(point => point.errors) },

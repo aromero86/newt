@@ -25,6 +25,7 @@ import { findModule, moduleHref } from '../app-structure'
 import { TraceList } from '../app-traces/trace-list'
 import { AppEventLive } from './app-event-live'
 import { AppEventService, type Compare } from './app-event.service'
+import { marksOn, useAppMarks } from '../app-metrics/chart-marks'
 
 /** One event: how many times it was told, over a window, beside the one before; and who tells it most. With its own AppEventService. */
 export function AppEvent({ app }: { app: AppDTO }) {
@@ -47,6 +48,7 @@ function AppEventWrapped({ app }: { app: AppDTO }) {
   const series = useValue(service.series)
   const tops = useValue(service.tops)
   const failure = useValue(service.failure)
+  const marks = useAppMarks()
 
   useEffect(() => {
     void service.open(context, event)
@@ -98,6 +100,7 @@ function AppEventWrapped({ app }: { app: AppDTO }) {
                 <TimeSeries
                   label={`${event}, every ${BUCKET_LABELS[bucket]}, over ${WINDOW_LABELS[window]}`}
                   points={series.points}
+                  marks={marksOn(series.points.map(point => point.at), marks)}
                   compared={series.compared}
                   names={{ points: `Last ${WINDOW_LABELS[window]}`, compared: comparedName }}
                   formatTime={format}

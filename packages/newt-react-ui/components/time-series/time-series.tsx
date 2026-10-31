@@ -2,6 +2,9 @@ import { useContext } from 'react'
 import { Area, AreaChart, CartesianGrid, Line, XAxis, YAxis } from 'recharts'
 import { cn } from 'cn'
 import { ChartContainer, ChartFillContext, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../../internal/chart'
+import { chartMarks, type ChartMark } from '../../internal/chart-marks'
+
+export type { ChartMark } from '../../internal/chart-marks'
 
 /** A point of a series: when its bucket starts, and how many. */
 export type TimePoint = { at: string, count: number }
@@ -16,6 +19,8 @@ type TimeSeriesProps = {
   names?: { points: string, compared?: string }
   /** How a bucket's time reads, in the axis and the tooltip. */
   formatTime?: (at: string) => string
+  /** Moments marked on its times, as dotted lines: a deployment, an instance that came or went. */
+  marks?: readonly ChartMark[]
   height?: number
 }
 
@@ -24,7 +29,7 @@ type TimeSeriesProps = {
  * brand's colour for now, a muted dash for before. Hovering shows a bucket's values. It
  * takes the width it is given. shadcn's chart, on Recharts.
  */
-export function TimeSeries({ label, points, compared, names = { points: 'Now', compared: 'Before' }, formatTime = at => new Date(at).toLocaleString(), height = 220 }: TimeSeriesProps) {
+export function TimeSeries({ label, points, compared, names = { points: 'Now', compared: 'Before' }, formatTime = at => new Date(at).toLocaleString(), marks = [], height = 220 }: TimeSeriesProps) {
   const fill = useContext(ChartFillContext)
   const config = {
     now: { label: names.points, color: 'var(--brand)' },
@@ -49,6 +54,7 @@ export function TimeSeries({ label, points, compared, names = { points: 'Now', c
           {compared && compared.length > 0 && (
             <Line dataKey="before" type="monotone" stroke="var(--color-before)" strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
           )}
+          {chartMarks(marks)}
           <Area dataKey="now" type="monotone" stroke="var(--color-now)" strokeWidth={2} fill="url(#time-series-now)" dot={false} isAnimationActive={false} />
         </AreaChart>
       </ChartContainer>

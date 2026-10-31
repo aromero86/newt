@@ -2,6 +2,9 @@ import { useContext, useState } from 'react'
 import { CartesianGrid, Line, LineChart as Lines, XAxis, YAxis } from 'recharts'
 import { cn } from 'cn'
 import { ChartContainer, ChartFillContext, ChartTooltip, ChartTooltipContent, type ChartConfig } from '../../internal/chart'
+import { chartMarks, type ChartMark } from '../../internal/chart-marks'
+
+export type { ChartMark } from '../../internal/chart-marks'
 
 /** One line: its name, its tone, the axis it is read on, and a value (or none) at each time. */
 export type LineSeries = {
@@ -26,6 +29,8 @@ type LineChartProps = {
   formatValue?: (value: number) => string
   /** How a value of the right axis reads: `120 ms`. */
   formatRight?: (value: number) => string
+  /** Moments marked on its times, as dotted lines: a deployment, an instance that came or went. */
+  marks?: readonly ChartMark[]
   height?: number
 }
 
@@ -37,7 +42,7 @@ const TONES = { brand: 'var(--brand)', ok: 'var(--ok)', warn: 'var(--warn)', bad
  * shows or hides each line as it is pressed; lines of another unit are read on a second
  * axis, at the right. shadcn's chart, on Recharts.
  */
-export function LineChart({ label, times, series, formatTime = at => new Date(at).toLocaleString(), formatValue = value => value.toLocaleString('en'), formatRight = formatValue, height = 220 }: LineChartProps) {
+export function LineChart({ label, times, series, formatTime = at => new Date(at).toLocaleString(), formatValue = value => value.toLocaleString('en'), formatRight = formatValue, marks = [], height = 220 }: LineChartProps) {
   const fill = useContext(ChartFillContext)
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const config = Object.fromEntries(series.map(each => [each.key, { label: each.label, color: TONES[each.tone] }])) satisfies ChartConfig
@@ -60,6 +65,7 @@ export function LineChart({ label, times, series, formatTime = at => new Date(at
           <YAxis yAxisId="left" tickLine={false} axisLine={false} width={56} tickFormatter={formatValue} />
           {right && <YAxis yAxisId="right" orientation="right" hide={!shownRight} tickLine={false} axisLine={false} width={64} tickFormatter={formatRight} />}
           <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent labelFormatter={at => formatTime(String(at))} valueFormatter={(value, key) => (axisOf.get(key) === 'right' ? formatRight : formatValue)(value)} />} />
+          {chartMarks(marks, 'left')}
           {series.map(each => (
             <Line
               key={each.key}

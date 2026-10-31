@@ -18,6 +18,7 @@ import { AppOverviewFailures } from './app-overview-failures'
 import { AppOverviewQueues } from './app-overview-queues'
 import { AppOverviewUseCases } from './app-overview-use-cases'
 import { AppOverviewRetries } from './app-overview-retries'
+import { AppOverviewServers } from './app-overview-servers'
 import { AppService } from '../app.service'
 import { AppGraph } from '../app-graph/app-graph'
 import { contextHref, contextsGraph } from '../app-structure'
@@ -59,6 +60,7 @@ export function AppOverview({ app }: { app: AppDTO }) {
             </Grid>
           )
         : <AppNotRead app={app} />}
+      <AppOverviewServers />
       {structure && <AppOverviewUseCases app={app} />}
       {structure && (
         <Grid columns={{ base: 1, md: 2, lg: 3 }}>

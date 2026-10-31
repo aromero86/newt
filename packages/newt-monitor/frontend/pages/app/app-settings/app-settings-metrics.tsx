@@ -38,6 +38,7 @@ function AppSettingsMetricsWrapped() {
           {failure && <Alert tone="bad" title="Could not save">{failure}</Alert>}
           <FormField form={service.form} name="minuteDays" label="Minute by minute, with who told each" description="Days: what can be filtered by actor, and drawn by the minute. 30 by default." />
           <FormField form={service.form} name="dayDays" label="Day by day, without who" description="Days: what stays once the minutes are gone. Empty to keep it for ever." />
+          <FormField form={service.form} name="resourceMinuteDays" label="Servers and instances, minute by minute" description="Days: each server's memory, processors and disks, and how many instances were alive, by the minute. Day by day it is kept as long as the rest. 30 by default." />
           <FormField form={service.form} name="traceDays" label="Traces" description="Days each trace is kept: every one that failed or ran again, and a share of the rest. 7 by default." />
           <Button type="submit" loading={submitting}>Save retention</Button>
         </Stack>
