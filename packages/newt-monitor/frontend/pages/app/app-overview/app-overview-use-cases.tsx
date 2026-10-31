@@ -16,6 +16,7 @@ import { WINDOWS, type MetricsWindow } from '../../../api/event-metrics'
 import { UseCaseErrorsApi, type ErrorsSeriesDTO } from '../../../api/use-case-errors'
 import { UseCaseMetricsApi, type UseCaseSeriesDTO } from '../../../api/use-case-metrics'
 import { BUCKET_LABELS, formatMs, timeFormat, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { marksOn, useAppMarks } from '../app-metrics/chart-marks'
 
 /**
  * Every use case of the application at once: how many calls, how many ran again after a
@@ -25,6 +26,7 @@ import { BUCKET_LABELS, formatMs, timeFormat, WINDOW_LABELS } from '../app-metri
 export function AppOverviewUseCases({ app }: { app: AppDTO }) {
   const metrics = useService(UseCaseMetricsApi)
   const errors = useService(UseCaseErrorsApi)
+  const marks = useAppMarks()
   const [window, setWindow] = useState<MetricsWindow>('24h')
   const [calls, setCalls] = useState<UseCaseSeriesDTO | null>(null)
   const [ended, setEnded] = useState<ErrorsSeriesDTO | null>(null)
@@ -67,6 +69,7 @@ export function AppOverviewUseCases({ app }: { app: AppDTO }) {
                 <LineChart
                   label="Every use case: calls, ran again, errors and failures, and their mean time"
                   times={calls.points.map(point => point.at)}
+                  marks={marksOn(calls.points.map(point => point.at), marks)}
                   formatTime={format}
                   formatRight={value => formatMs(value)}
                   series={[

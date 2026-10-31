@@ -16,11 +16,11 @@ export class Retention extends Entity<typeof RetentionSchema> {
 
   /** The retention by default, until it is changed. */
   static byDefault(appId: string): Retention {
-    return new Retention({ appId, minuteDays: 30, dayDays: null, traceDays: 7 }, true)
+    return new Retention({ appId, minuteDays: 30, dayDays: null, traceDays: 7, resourceMinuteDays: 30 }, true)
   }
 
   get days(): RetentionDTO {
-    return { minuteDays: this.data.minuteDays, dayDays: this.data.dayDays, traceDays: this.data.traceDays }
+    return { minuteDays: this.data.minuteDays, dayDays: this.data.dayDays, traceDays: this.data.traceDays, resourceMinuteDays: this.data.resourceMinuteDays }
   }
 
   keep(change: Partial<RetentionDTO>): void {

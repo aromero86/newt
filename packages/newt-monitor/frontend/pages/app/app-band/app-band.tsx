@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router'
-import { ActivityIcon, ArchiveIcon, BlocksIcon, BookOpenIcon, ListOrderedIcon, RefreshCwIcon, SettingsIcon, WaypointsIcon, ZapIcon } from 'lucide-react'
+import { ActivityIcon, ArchiveIcon, BlocksIcon, BookOpenIcon, ListOrderedIcon, RefreshCwIcon, ServerIcon, SettingsIcon, WaypointsIcon, ZapIcon } from 'lucide-react'
 import { Badge } from 'newt-react-ui/badge'
 import { Breadcrumbs } from 'newt-react-ui/breadcrumbs'
 import { Button } from 'newt-react-ui/button'
@@ -47,6 +47,7 @@ export function AppBand({ app }: { app: AppDTO }) {
           {/* A use case's and an event's pages are reached from their module's: they are part of Contexts. */}
           <UnderlineNavItem href={`${base}/contexts`} active={['contexts', 'use-cases', 'events'].some(path => pathname.startsWith(`${base}/${path}`))} icon={BlocksIcon} count={count(counts.contexts)}>Contexts</UnderlineNavItem>
           <UnderlineNavItem {...tab('queues')} icon={ListOrderedIcon}>Queues</UnderlineNavItem>
+          <UnderlineNavItem {...tab('servers')} icon={ServerIcon}>Servers</UnderlineNavItem>
           <UnderlineNavItem {...tab('traces')} icon={WaypointsIcon}>Traces</UnderlineNavItem>
           <UnderlineNavItem {...tab('settings')} icon={SettingsIcon}>Settings</UnderlineNavItem>
         </UnderlineNav>

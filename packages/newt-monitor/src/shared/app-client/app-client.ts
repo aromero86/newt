@@ -1,5 +1,5 @@
 import type { MonitorIdentity } from 'newt/monitor'
-import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 
 /** Where an application's monitor endpoint is, and the key to sign with. */
 export type Endpoint = { url: string, key: string }
@@ -22,6 +22,8 @@ export interface AppClient {
   flows(endpoint: Endpoint, since: string | null): Promise<QueueFlows>
   /** The traces it kept, in the minutes closed after `since`: whole minutes, a page at a time. */
   traces(endpoint: Endpoint, since: string | null): Promise<ClosedTraces>
+  /** Every instance of it and its server, as it is now, and their minutes closed after `since`. */
+  instances(endpoint: Endpoint, since: string | null): Promise<Instances>
   /** How full its queues are now. */
   outbox(endpoint: Endpoint): Promise<OutboxState>
   /** A page of a context's dead jobs, without their payloads. */

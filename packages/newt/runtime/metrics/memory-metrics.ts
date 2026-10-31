@@ -107,7 +107,9 @@ export class MemoryMetrics implements Metrics {
       this.kept++
     }
     samples.push(sample)
-    this.lasts.set(sample.instance, { sample, stoppedAt: null })
+    // Its state is its newest sample, whatever order they came in.
+    const last = this.lasts.get(sample.instance)
+    if (!last || sample.at >= last.sample.at) this.lasts.set(sample.instance, { sample, stoppedAt: null })
     this.forgetIn(minute, sample.at)
   }
 

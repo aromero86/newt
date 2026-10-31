@@ -78,6 +78,14 @@ describe('MemoryMetrics, with instances', () => {
     expect((await metrics.instances(read.until, new Date('2026-01-01T10:01:10Z'))).minutes).toEqual([])
   })
 
+  test('keeps an instance\'s newest sample as its state, whatever order they came in', async () => {
+    const metrics = new MemoryMetrics()
+    metrics.enable()
+    metrics.sample(sample('2026-01-01T10:00:35Z'))
+    metrics.sample(sample('2026-01-01T10:00:05Z'))
+    expect((await metrics.instances(null, new Date('2026-01-01T10:00:40Z'))).instances[0]!.lastSeenAt).toBe('2026-01-01T10:00:35.000Z')
+  })
+
   test('takes an instance for stopped once it said so', async () => {
     const metrics = new MemoryMetrics()
     metrics.enable()

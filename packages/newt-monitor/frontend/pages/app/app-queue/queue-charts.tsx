@@ -6,6 +6,7 @@ import type { MetricsBucket, MetricsWindow } from '../../../api/event-metrics'
 import type { DepthSeriesDTO } from '../../../api/outbox'
 import type { QueueSeriesDTO } from '../../../api/queue-metrics'
 import { BUCKET_LABELS, changeOf, formatMs, timeFormat, WINDOW_LABELS } from '../app-metrics/metrics-format'
+import { marksOn, useAppMarks } from '../app-metrics/chart-marks'
 
 /**
  * How a queue went over a window, or every queue at once: what went in and out, how
@@ -13,6 +14,7 @@ import { BUCKET_LABELS, changeOf, formatMs, timeFormat, WINDOW_LABELS } from '..
  */
 export function QueueCharts({ name, flow, depth, window, bucket, compare }: { name: string, flow: QueueSeriesDTO, depth: DepthSeriesDTO, window: MetricsWindow, bucket: MetricsBucket, compare: 'previous' | 'week' | 'none' }) {
   const format = timeFormat(window, bucket)
+  const marks = useAppMarks()
   const before = compare === 'week' ? 'a week before' : 'the window before'
   const hint = (now: number, was: number | undefined) => (flow.comparedTotal && was !== undefined ? `${was.toLocaleString('en')} ${before}${changeOf(now, was) ? ` (${changeOf(now, was)})` : ''}` : undefined)
 
@@ -29,6 +31,7 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
           <LineChart
             label={`${name}: jobs ready, to run again, running and dead`}
             times={depth.points.map(point => point.at)}
+            marks={marksOn(depth.points.map(point => point.at), marks)}
             formatTime={format}
             series={[
               { key: 'ready', label: 'Ready', tone: 'brand', values: depth.points.map(point => point.ready) },
@@ -42,6 +45,7 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
           <LineChart
             label={`${name}: jobs in, out, run again and dead`}
             times={flow.points.map(point => point.at)}
+            marks={marksOn(flow.points.map(point => point.at), marks)}
             formatTime={format}
             series={[
               { key: 'published', label: 'In', tone: 'brand', values: flow.points.map(point => point.published) },
@@ -55,6 +59,7 @@ export function QueueCharts({ name, flow, depth, window, bucket, compare }: { na
           <LineChart
             label={`${name}: wait p50, p90 and p99`}
             times={flow.points.map(point => point.at)}
+            marks={marksOn(flow.points.map(point => point.at), marks)}
             formatTime={format}
             formatValue={value => formatMs(value)}
             series={[

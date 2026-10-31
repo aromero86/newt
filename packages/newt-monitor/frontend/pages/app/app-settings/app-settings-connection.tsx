@@ -1,6 +1,7 @@
 import { PlugZapIcon } from 'lucide-react'
 import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
 import { Icon } from 'newt-react-ui/icon'
+import { TextLink } from 'newt-react-ui/link'
 import { RelativeTime } from 'newt-react-ui/relative-time'
 import { Stack } from 'newt-react-ui/stack'
 import { Subhead } from 'newt-react-ui/subhead'
@@ -9,9 +10,12 @@ import type { AppDTO } from '../../../api/app'
 import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
 import { AppService } from '../app.service'
 
-/** Settings' Connection: whether it answers, on which newt, and which process of it answered when it was last asked who it is. */
+/** Settings' Connection: whether it answers, on which newt, and which process of it answered when it was last asked who it is, and how many are alive. */
 export function AppSettingsConnection({ app }: { app: AppDTO }) {
-  const connection = useValue(useService(AppService).connection)
+  const service = useService(AppService)
+  const connection = useValue(service.connection)
+  const instances = useValue(service.instances)
+  const alive = instances?.instances.filter(instance => instance.status === 'alive').length ?? 0
 
   return (
     <Stack gap={0}>
@@ -27,6 +31,7 @@ export function AppSettingsConnection({ app }: { app: AppDTO }) {
                   <BoxRowMeta>
                     {connection.failure && <>{connection.failure.message}</>}
                     {connection.identity && <>{connection.identity.instance.host}, process {connection.identity.instance.pid}, started <RelativeTime date={connection.identity.startedAt} /></>}
+                    {instances && instances.instances.length > 0 && <TextLink href={`/apps/${app.id}/servers`}>{alive} {alive === 1 ? 'instance' : 'instances'} alive on {instances.servers.length} {instances.servers.length === 1 ? 'server' : 'servers'}</TextLink>}
                     <>checked <RelativeTime date={connection.checkedAt} /></>
                     {connection.failure && <>{connection.lastSeenAt ? <>last answered <RelativeTime date={connection.lastSeenAt} /></> : 'it never answered'}</>}
                   </BoxRowMeta>

@@ -8,7 +8,8 @@ import { registerRetentionWorkers } from './retention.workers'
 
 /**
  * How long the monitor keeps each application's metrics: the days of minutes, with who
- * did what, the days of daily summaries, and the days of traces. Every metrics module forgets its own as it
+ * did what, the days of daily summaries, the days of traces, and the days of its
+ * servers' and instances' minutes. Every metrics module forgets its own as it
  * says, each night.
  */
 export class Retention_Module extends Module {

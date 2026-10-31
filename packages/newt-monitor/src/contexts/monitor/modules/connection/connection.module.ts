@@ -1,5 +1,5 @@
 import { eventsOf, Module, UseCase } from 'newt/core'
-import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
@@ -71,6 +71,14 @@ export class Connection_Module extends Module {
   @UseCase()
   async fetchFlows(appId: string, since: string | null): Promise<Called<QueueFlows>> {
     const called = await this.call(appId, endpoint => this.deps.client.flows(endpoint, since))
+    await this.record(appId, called.answered ? { answered: true } : called)
+    return called
+  }
+
+  /** Its instances and their servers now, and their minutes closed since a cursor, if it answers; recorded as any call. */
+  @UseCase()
+  async fetchInstances(appId: string, since: string | null): Promise<Called<Instances>> {
+    const called = await this.call(appId, endpoint => this.deps.client.instances(endpoint, since))
     await this.record(appId, called.answered ? { answered: true } : called)
     return called
   }

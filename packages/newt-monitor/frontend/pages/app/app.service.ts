@@ -4,7 +4,22 @@ import { toast } from 'newt-react-ui/toast'
 import { AppApi, type AppDTO } from '../../api/app'
 import { CatalogApi, type CatalogItemDTO } from '../../api/catalog'
 import { ConnectionApi, type ConnectionStatusDTO } from '../../api/connection'
+import { InstancesApi, type InstanceDTO, type InstancesDTO } from '../../api/instances'
 import { StructureApi, type StructureVersionDTO } from '../../api/structure'
+
+/** A moment the charts mark: a new version of its structure, an instance that started, stopped or was lost. */
+export type AppMark = { at: string, label: string, tone: 'brand' | 'ok' | 'warn' | 'bad' | 'muted', instance?: boolean }
+
+/** The moments its instances started, stopped or were lost. */
+function instanceMarks(instances: InstanceDTO[]): AppMark[] {
+  return instances.flatMap(instance => {
+    const name = `${instance.instanceId.slice(0, 8)} on ${instance.server}`
+    const marks: AppMark[] = [{ at: instance.startedAt, label: `Started: ${name}`, tone: 'ok', instance: true }]
+    if (instance.status === 'stopped') marks.push({ at: instance.stoppedAt ?? instance.lastSeenAt, label: `Stopped: ${name}`, tone: 'muted', instance: true })
+    if (instance.status === 'lost') marks.push({ at: instance.lastSeenAt, label: `Lost: ${name}`, tone: 'bad', instance: true })
+    return marks
+  })
+}
 
 type AppState = {
   appId: string
@@ -20,6 +35,10 @@ type AppState = {
   removed: CatalogItemDTO[] | null
   /** Whether the explorer shows them, marked, beside what is there now. */
   showRemoved: boolean
+  /** Its servers and instances now; null until asked for, or when it could not be. */
+  instances: InstancesDTO | null
+  /** What its charts mark: its versions and its instances' comings and goings. */
+  marks: AppMark[]
 }
 
 /**
@@ -32,7 +51,8 @@ export class AppService {
   private readonly connections = inject(ConnectionApi)
   private readonly structures = inject(StructureApi)
   private readonly catalog = inject(CatalogApi)
-  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false })
+  private readonly instanceApi = inject(InstancesApi)
+  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false, instances: null, marks: [] })
 
   readonly app = this.store.select('app')
   readonly connection = this.store.select('connection')
@@ -42,6 +62,8 @@ export class AppService {
   readonly refreshing = this.store.select('refreshing')
   readonly removed = this.store.select('removed')
   readonly showRemoved = this.store.select('showRemoved')
+  readonly instances = this.store.select('instances')
+  readonly marks = this.store.select('marks')
 
   /** How many of each part its last version has. */
   readonly counts = computed(() => {
@@ -60,7 +82,8 @@ export class AppService {
   }
 
   async load(appId: string): Promise<void> {
-    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null })
+    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null, instances: null, marks: [] })
+    void this.loadMarks(appId)
     try {
       const [app, connection, structure] = await Promise.all([
         this.apps.app(appId),
@@ -134,6 +157,26 @@ export class AppService {
 
   toggleRemoved(): void {
     this.store.patch({ showRemoved: !this.store.value.showRemoved })
+  }
+
+  /** Its servers and instances now, asked again: and their comings and goings, marked. */
+  async loadInstances(): Promise<void> {
+    const appId = this.appId
+    const instances = await this.instanceApi.list(appId).catch(() => null)
+    if (this.appId !== appId) return
+    const others = this.store.value.marks.filter(mark => !mark.instance)
+    this.store.patch({ instances, marks: [...others, ...instanceMarks(instances?.instances ?? [])] })
+  }
+
+  /** Its last 100 versions and its instances, as marks: without them, charts mark nothing. */
+  private async loadMarks(appId: string): Promise<void> {
+    const [versions, instances] = await Promise.all([
+      this.structures.versions(appId, { size: 100 }).catch(() => null),
+      this.instanceApi.list(appId).catch(() => null),
+    ])
+    // The first version is when the monitor first read it, no deployment.
+    const deployed: AppMark[] = (versions?.hasMore ? versions.items : (versions?.items ?? []).slice(0, -1)).map(version => ({ at: version.takenAt, label: 'Its structure changed: deployed', tone: 'brand' }))
+    if (this.appId === appId) this.store.patch({ instances, marks: [...deployed, ...instanceMarks(instances?.instances ?? [])] })
   }
 
   /** Its last version, or null while none was read. */
