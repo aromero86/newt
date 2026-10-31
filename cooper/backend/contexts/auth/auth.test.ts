@@ -128,6 +128,29 @@ describe('accounts', () => {
       await server.stop()
     }
   })
+
+  test('keeps the session cookie Secure when its public URL is https, though the proxy before it speaks http', async () => {
+    await auth.stop()
+    auth = await Auth_Context.open({ ...config.auth, publicUrl: 'https://auth.cooper.test', database: ':memory:', port: 0 }, { mailer: new RecordingMailer() })
+    auth.start()
+    const server = serve(auth.serving())
+    try {
+      const call = (path: string, body?: unknown, cookie = '') => fetch(new URL(`/api${path}`, server.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+      expect(server.url.protocol).toBe('http:')
+      await signUp('Ana')
+      const signedIn = await call('/session/sign-in', { email: 'ana@cooper.test', password: 'a long password' })
+      expect(signedIn.status).toBe(200)
+      expect(signedIn.headers.get('set-cookie')).toContain('Secure')
+      const signedOut = await call('/session/sign-out', undefined, signedIn.headers.get('set-cookie')!.split(';')[0]!)
+      expect(signedOut.headers.get('set-cookie')).toContain('Secure')
+    } finally {
+      await server.stop()
+    }
+  })
 })
 
 describe('workspaces', () => {
