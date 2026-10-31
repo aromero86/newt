@@ -5,7 +5,7 @@ export const CatalogKindSchema = z.enum(['context', 'module', 'useCase', 'event'
 
 /**
  * A part of an application, as the catalog keeps it: what it is (its kind and its id,
- * newt-graph's: `boards/card.create`), where (its context, its module), what describes
+ * describeApplication's: `boards/card.create`), where (its context, its module), what describes
  * it, and when it was there.
  */
 export const CatalogItemSchema = z.object({

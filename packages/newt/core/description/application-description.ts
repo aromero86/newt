@@ -3,7 +3,7 @@
  * contexts, the modules of each, their use cases, the events they tell and what they
  * depend on. A field is only ever added; `version` goes up when one changes meaning.
  *
- * Ids are newt-graph's: a module's `<context>/<module>`, a use case's
+ * Ids: a module's `<context>/<module>`, a use case's
  * `<context>/<module>.<useCase>`, an event's `<context>/<event name>`.
  */
 export type ApplicationDescription = {

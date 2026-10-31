@@ -63,7 +63,7 @@ const FRONTEND = newtReactUi({
 })
 
 export default [
-  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'packages/newt-graph/**', 'web/**', '**/dist/**'] },
+  { ignores: ['packages/newt/**', 'packages/newt-eslint/**', 'web/**', '**/dist/**'] },
   ...BACKEND,
   ...MONITOR,
   ...MONITOR_FRONTEND,

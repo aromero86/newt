@@ -1,5 +1,5 @@
 {
-  // The whole repository, as nine projects: the framework (newt), its graph (newt-graph), its
+  // The whole repository, as eight projects: the framework (newt), its
   // monitor (newt-monitor, and its frontend), its React frontend's components and logic (newt-react-ui,
   // newt-react), what runs on the server (cooper's backend), what runs in the browser
   // (cooper's frontends and their libraries), and the tools around them (scripts). `bun check` follows the references.
@@ -14,7 +14,6 @@
   "files": [],
   "references": [
     { "path": "./tsconfig.newt.json" },
-    { "path": "./tsconfig.newt-graph.json" },
     { "path": "./tsconfig.newt-monitor.json" },
     { "path": "./tsconfig.newt-monitor-frontend.json" },
     { "path": "./tsconfig.newt-react-ui.json" },

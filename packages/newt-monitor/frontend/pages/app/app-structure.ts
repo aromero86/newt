@@ -3,7 +3,7 @@ import type { ApplicationDescription, ContextDescription, ModuleDescription, Sub
 
 /**
  * Reading an application's description: where each part is, and who reacts to what.
- * Ids are newt-graph's: `boards/card`, `boards/card.create`, `boards/card.created`.
+ * Ids are describeApplication's: `boards/card`, `boards/card.create`, `boards/card.created`.
  */
 
 /** The address of a module's page in an application. */

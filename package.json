@@ -16,7 +16,6 @@
     "cooper:seed": "bun run cooper/scripts/seed.ts",
     "cooper:migrations": "bun run cooper/scripts/migrations.ts",
     "cooper:build": "bun cooper/scripts/build.ts",
-    "cooper:graph": "newt-graph --root cooper/backend",
     "monitor": "bun --watch packages/newt-monitor/scripts/dev.ts",
     "monitor:build": "bun packages/newt-monitor/scripts/build.ts",
     "ui": "bun packages/newt-react-ui/gallery/serve.ts"
@@ -45,7 +44,6 @@
     "bun-plugin-tailwind": "0.1.2",
     "eslint": "10.12.0",
     "newt-eslint": "workspace:*",
-    "newt-graph": "workspace:*",
     "newt-monitor": "workspace:*",
     "newt-react": "workspace:*",
     "newt-react-ui": "workspace:*",
