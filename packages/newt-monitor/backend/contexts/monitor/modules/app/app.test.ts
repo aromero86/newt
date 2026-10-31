@@ -32,7 +32,7 @@ describe('app', () => {
     expect(response.status).toBe(201)
     const app = await response.json() as Record<string, unknown>
     expect(app).toMatchObject({ name: 'cooper', url: cooper.url, archivedAt: null })
-    expect(Object.keys(app).sort()).toEqual(['archivedAt', 'createdAt', 'id', 'name', 'updatedAt', 'url'])
+    expect(Object.keys(app).sort()).toEqual(['archivedAt', 'createdAt', 'id', 'name', 'repository', 'updatedAt', 'url'])
     expect(await (await as(`/api/apps/${app.id}`)).json()).toEqual(app)
   })
 

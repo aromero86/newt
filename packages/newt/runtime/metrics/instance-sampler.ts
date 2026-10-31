@@ -9,6 +9,8 @@ export type InstanceSamplerOptions = {
   /** Which instance it is: a new id each time the process starts. */
   instance: string
   startedAt: string
+  /** The commit it was built from, told with every reading: null, or none, when it is not known. */
+  commit?: string | null
   /** The paths whose file systems it watches: `/` unless told. */
   disks?: string[]
   clock: Clock
@@ -90,6 +92,7 @@ export class InstanceSampler {
         instance: this.options.instance,
         pid: process.pid,
         startedAt: this.options.startedAt,
+        commit: this.options.commit ?? null,
         // Its time once it is read: a minute closed meanwhile would never get it.
         at: this.options.clock.now(),
         process: reading,

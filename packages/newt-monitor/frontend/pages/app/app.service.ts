@@ -4,11 +4,23 @@ import { toast } from 'newt-react-ui/toast'
 import { AppApi, type AppDTO } from '../../api/app'
 import { CatalogApi, type CatalogItemDTO } from '../../api/catalog'
 import { ConnectionApi, type ConnectionStatusDTO } from '../../api/connection'
+import { DeploymentApi, type DeploymentDTO } from '../../api/deployment'
 import { InstancesApi, type InstanceDTO, type InstancesDTO } from '../../api/instances'
 import { StructureApi, type StructureVersionDTO } from '../../api/structure'
 
-/** A moment the charts mark: a new version of its structure, an instance that started, stopped or was lost. */
+/** A moment the charts mark: a commit deployed (or, before any is known, a new version of its structure), an instance that started, stopped or was lost. */
 export type AppMark = { at: string, label: string, tone: 'brand' | 'ok' | 'warn' | 'bad' | 'muted', instance?: boolean }
+
+/** A commit's first characters, as GitHub shows it. */
+export const shortCommit = (commit: string) => commit.slice(0, 7)
+
+/** Where a commit is on its repository: none while the application does not say where its code is. */
+export const commitUrl = (repository: string | null, commit: string) => (repository ? `${repository}/commit/${commit}` : null)
+
+/** The moments it deployed each commit. */
+function deploymentMarks(deployments: DeploymentDTO[]): AppMark[] {
+  return deployments.map(deployment => ({ at: deployment.deployedAt, label: `Deployed ${shortCommit(deployment.commit)}${deployment.title ? `: ${deployment.title}` : ''}`, tone: 'brand' }))
+}
 
 /** The moments its instances started, stopped or were lost. */
 function instanceMarks(instances: InstanceDTO[]): AppMark[] {
@@ -35,6 +47,8 @@ type AppState = {
   removed: CatalogItemDTO[] | null
   /** Whether the explorer shows them, marked, beside what is there now. */
   showRemoved: boolean
+  /** Its last deployments, the newest first: empty until asked for, or when none is known. */
+  deployments: DeploymentDTO[]
   /** Its system and instances now; null until asked for, or when it could not be. */
   instances: InstancesDTO | null
   /** Why they could not be asked for; null when they were, or were not yet. */
@@ -54,7 +68,8 @@ export class AppService {
   private readonly structures = inject(StructureApi)
   private readonly catalog = inject(CatalogApi)
   private readonly instanceApi = inject(InstancesApi)
-  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false, instances: null, instancesFailure: null, marks: [] })
+  private readonly deploymentApi = inject(DeploymentApi)
+  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false, deployments: [], instances: null, instancesFailure: null, marks: [] })
 
   readonly app = this.store.select('app')
   readonly connection = this.store.select('connection')
@@ -64,6 +79,7 @@ export class AppService {
   readonly refreshing = this.store.select('refreshing')
   readonly removed = this.store.select('removed')
   readonly showRemoved = this.store.select('showRemoved')
+  readonly deployments = this.store.select('deployments')
   readonly instances = this.store.select('instances')
   readonly instancesFailure = this.store.select('instancesFailure')
   readonly marks = this.store.select('marks')
@@ -85,7 +101,7 @@ export class AppService {
   }
 
   async load(appId: string): Promise<void> {
-    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null, instances: null, instancesFailure: null, marks: [] })
+    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null, deployments: [], instances: null, instancesFailure: null, marks: [] })
     void this.loadMarks(appId)
     try {
       const [app, connection, structure] = await Promise.all([
@@ -177,10 +193,14 @@ export class AppService {
     this.store.patch({ instances, instancesFailure, marks: [...others, ...instanceMarks(instances?.instances ?? [])] })
   }
 
-  /** Its last 100 versions and its instances, as marks: without them, charts mark nothing. */
+  /**
+   * Its last 100 deployments (or, while none is known, its structure's versions) and its
+   * instances, as marks: without them, charts mark nothing.
+   */
   private async loadMarks(appId: string): Promise<void> {
     let instancesFailure: string | null = null
-    const [versions, instances] = await Promise.all([
+    const [deployments, versions, instances] = await Promise.all([
+      this.deploymentApi.list(appId, { size: 100 }).catch(() => null),
       this.structures.versions(appId, { size: 100 }).catch(() => null),
       this.instanceApi.list(appId).catch((error: unknown) => {
         instancesFailure = error instanceof Error ? error.message : 'Could not load its instances'
@@ -188,8 +208,10 @@ export class AppService {
       }),
     ])
     // The first version is when the monitor first read it, no deployment.
-    const deployed: AppMark[] = (versions?.hasMore ? versions.items : (versions?.items ?? []).slice(0, -1)).map(version => ({ at: version.takenAt, label: 'Its structure changed: deployed', tone: 'brand' }))
-    if (this.appId === appId) this.store.patch({ instances, instancesFailure, marks: [...deployed, ...instanceMarks(instances?.instances ?? [])] })
+    const changed: AppMark[] = (versions?.hasMore ? versions.items : (versions?.items ?? []).slice(0, -1)).map(version => ({ at: version.takenAt, label: 'Its structure changed: deployed', tone: 'brand' }))
+    const known = deployments?.items ?? []
+    const deployed = known.length > 0 ? deploymentMarks(known) : changed
+    if (this.appId === appId) this.store.patch({ deployments: known, instances, instancesFailure, marks: [...deployed, ...instanceMarks(instances?.instances ?? [])] })
   }
 
   /** Its last version, or null while none was read. */

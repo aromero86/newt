@@ -47,6 +47,7 @@ describe('its settings', () => {
       frontend: join(import.meta.dir, '../dist/frontend'),
       frontendSources: false,
       metricsFolder: 'data/metrics',
+      githubToken: null,
     })
   })
 

@@ -15,6 +15,11 @@ export type MonitorOptions = {
    * characters. With none it does not start.
    */
   key: string
+  /**
+   * The commit the application was built from, for the monitor to tell what is deployed:
+   * `SOURCE_COMMIT` unless told (Coolify sets it as it builds), null when it is not known.
+   */
+  commit?: string | null
   /** The paths whose disks it watches, as space left on them: `['/']` unless told; `['/app/data']` where it keeps its data. */
   disks?: string[]
   /** What tells it the time, to check a request was made now: the real one unless a test gives another. */

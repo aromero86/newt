@@ -7,6 +7,8 @@ export const AppSchema = z.object({
   /** Where its monitor endpoint is (`serveMonitor`): `http://cooper:3010`. */
   url: z.url({ protocol: /^https?$/ }),
   sealedKey: z.string().min(1),
+  /** Its code on GitHub, `https://github.com/<owner>/<repo>`: where each commit deployed links to. Null until said. */
+  repository: z.string().nullable().default(null),
   /** When it was archived: it is not watched, and all it was is kept. Null while it is. */
   archivedAt: z.iso.datetime().nullable().default(null),
   createdAt: z.string().default(''),
@@ -21,6 +23,16 @@ const EndpointUrlSchema = AppSchema.shape.url
   .refine(url => !url.includes('?') && !url.includes('#'), 'An endpoint\'s address has no query and no fragment')
   .transform(url => url.replace(/\/+$/, ''))
 
+/**
+ * A repository on GitHub, as it is kept: `https://github.com/<owner>/<repo>`, whatever
+ * `.git` or `/` it ends with. Empty is none.
+ */
+export const RepositorySchema = z.string().trim()
+  .transform(url => url.replace(/\/+$/, '').replace(/\.git$/, ''))
+  .refine(url => url === '' || /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(url), 'A repository is on GitHub: https://github.com/<owner>/<repo>')
+  .transform(url => url === '' ? null : url)
+  .nullable()
+
 /** The key it shares with the application: as `serveMonitor` asks it, 32 characters or more. */
 export const AppKeySchema = z.string().min(32).max(512)
 
@@ -29,11 +41,12 @@ export const AppRegisterSchema = z.object({
   name: AppSchema.shape.name,
   url: EndpointUrlSchema,
   key: AppKeySchema,
+  repository: RepositorySchema.optional(),
 })
 
 /** What a client sends to change one: any of them, at least one. */
 export const AppUpdateSchema = AppRegisterSchema.partial()
-  .refine(change => Object.values(change).some(value => value !== undefined), 'Say what changes: name, url or key')
+  .refine(change => Object.values(change).some(value => value !== undefined), 'Say what changes: name, url, key or repository')
 
 /** Which of them a list shows: those watched (the default), those archived, or all. */
 export const AppListSchema = z.object({
@@ -48,4 +61,4 @@ export type AppUpdateDTO = z.input<typeof AppUpdateSchema>
 export type AppDeletedDTO = { id: string, name: string }
 
 /** What `app.updated` tells: the application now, and which of its fields changed (`key` among them, never its value). */
-export type AppUpdatedDTO = { dto: AppDTO, changed: ('name' | 'url' | 'key')[] }
+export type AppUpdatedDTO = { dto: AppDTO, changed: ('name' | 'url' | 'key' | 'repository')[] }

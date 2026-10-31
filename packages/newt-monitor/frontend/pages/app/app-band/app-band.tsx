@@ -10,6 +10,7 @@ import { useService, useValue } from 'newt-react'
 import type { AppDTO } from '../../../api/app'
 import { ConnectionBadge } from '../../../components/connection-badge/connection-badge'
 import { AppService } from '../app.service'
+import { DeployedCommit } from './deployed-commit'
 
 /** The application's header, like a repository's on GitHub: its name, whether it answers, and its parts. */
 export function AppBand({ app }: { app: AppDTO }) {
@@ -34,7 +35,7 @@ export function AppBand({ app }: { app: AppDTO }) {
           <Breadcrumbs items={[{ label: 'Applications', href: '/' }, { label: app.name, href: base }]} />
         </>
       )}
-      meta={app.archivedAt ? <Badge tone="warn">Archived</Badge> : connection && <ConnectionBadge status={connection.status} />}
+      meta={app.archivedAt ? <Badge tone="warn">Archived</Badge> : <>{connection && <ConnectionBadge status={connection.status} />}<DeployedCommit app={app} /></>}
       actions={app.archivedAt ? undefined : (
         <>
           <Button size="sm" variant="outline" loading={checking} onClick={() => void service.check()}><Icon icon={ZapIcon} size="sm" />Check connection</Button>

@@ -33,7 +33,7 @@ const answer = (value: unknown) => ({ content: [{ type: 'text' as const, text: J
  * collected: none changes an application, nor asks one anything.
  */
 export function registerMcpTools(server: McpServer, modules: Monitor_Modules): void {
-  const { app, connection, structure, useCaseMetrics, useCaseErrors, eventMetrics, queueMetrics, outbox, traces, instances } = modules
+  const { app, connection, structure, useCaseMetrics, useCaseErrors, eventMetrics, queueMetrics, outbox, traces, instances, deployment } = modules
 
   server.registerTool('list_apps', {
     title: 'List applications',
@@ -44,7 +44,7 @@ export function registerMcpTools(server: McpServer, modules: Monitor_Modules): v
     const page = await app.list({}, pageOf(args))
     const statuses = await Promise.all(page.items.map(each => connection.status(each.id)))
     return answer(paged({ ...page, items: page.items.map((each, index) => ({ each, status: statuses[index]! })) }, ({ each, status }) => ({
-      id: each.id, name: each.name, url: each.url, archived: each.archivedAt !== null, connection: status.status, checkedAt: status.checkedAt,
+      id: each.id, name: each.name, url: each.url, repository: each.repository, archived: each.archivedAt !== null, connection: status.status, checkedAt: status.checkedAt,
     })))
   })
 
@@ -158,4 +158,11 @@ export function registerMcpTools(server: McpServer, modules: Monitor_Modules): v
     inputSchema: { appId, window, bucket },
     annotations: READ_ONLY,
   }, async ({ appId: id, ...query }) => answer(await instances.system(id, query)))
+
+  server.registerTool('list_deployments', {
+    title: 'List an application\'s deployments',
+    description: 'Each commit an application deployed, the newest first: when its first instance started, and its title from GitHub (null until known). Its link is the repository list_apps gives, then /commit/ and the commit.',
+    inputSchema: { appId, ...pageArgs },
+    annotations: READ_ONLY,
+  }, async ({ appId: id, ...args }) => answer(paged(await deployment.list(id, pageOf(args)), each => each)))
 }

@@ -10,7 +10,7 @@ import { registerProtectedResource, resourceMetadataUrl } from './protected-reso
 const INSTRUCTIONS = [
   'newt-monitor watches applications built with newt: what each is made of, version by version, and how it runs.',
   'Start with list_apps: every other tool takes an application\'s id. get_structure says what it is made of;',
-  'use_case_totals, errors_totals, queues and system_and_instances say how it is doing; list_traces and get_trace show single runs.',
+  'use_case_totals, errors_totals, queues and system_and_instances say how it is doing; list_deployments what it deployed and when; list_traces and get_trace show single runs.',
   'Windows are 1h, 24h, 7d, 30d, 90d or 365d. Everything is read-only.',
 ].join(' ')
 

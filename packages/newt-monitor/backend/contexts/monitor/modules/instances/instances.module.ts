@@ -1,9 +1,10 @@
-import { Module, now, UseCase } from 'newt/core'
+import { eventsOf, Module, now, UseCase } from 'newt/core'
 import type { InstanceMinute } from 'newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
 import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { DEFAULT_BUCKET } from '../event-metrics/event-metrics.schema'
+import { Instances_Started } from './events/instances-started'
 import { Instance, InstanceCountQuerySchema, InstancesFeed, SystemSeriesQuerySchema, type CollectInstancesDTO, type InstanceCountSeriesDTO, type InstancesDTO, type SystemDTO, type SystemSeriesDTO } from './instances'
 import type { Instances_Deps } from './instances.deps'
 import type { Instances_Options } from './instances-options'
@@ -65,6 +66,7 @@ export class Instances_Module extends Module {
     return module
   }
 
+  readonly events
   /** Every minute: each application's instances now, and the minutes closed since its last collection. */
   readonly minutely
   /** Every night: the days summed, and what is old forgotten. */
@@ -78,6 +80,7 @@ export class Instances_Module extends Module {
     private readonly options: Instances_Options,
   ) {
     super('instances', base.invocations, deps)
+    this.events = eventsOf(base.bus, { started: Instances_Started })
     this.minutely = base.schedules.define('instances.minutely', '* * * * *')
     this.nightly = base.schedules.define('instances.nightly', '50 3 * * *')
   }

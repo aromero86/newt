@@ -34,7 +34,7 @@ const event = (name: string): DomainEvent => ({ name, occurredAt: clock.now().to
 const ana = { userId: 'ana' } as Actor
 
 /** A context `shop` whose events are counted, served on a free port. */
-async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}, monitor: { disks?: string[] } = {}) {
+async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}, monitor: { disks?: string[], commit?: string | null } = {}) {
   base = new Base({ name: 'shop', store: await SqliteStore.open({ path: ':memory:' }), clock, ...options })
   server = serveMonitor([base], { name: 'shop-app', port: 0, key: KEY, clock, ...monitor })
   return server.url.origin
@@ -262,5 +262,25 @@ describe('serveMonitor, with instances', () => {
     expect(closed.until).toBe('2026-01-01T10:00:00.000Z')
     expect(closed.minutes.map(minute => [minute.instance, minute.minute, minute.server.disks.map(disk => disk.path)])).toEqual([[identity.instance.id, '2026-01-01T10:00:00.000Z', ['/']]])
     expect((await (await signed(`${origin}/v1/instances?since=${closed.until}`)).json() as Instances).minutes).toEqual([])
+  })
+
+  test('tells the commit it was built from, as it is told or as SOURCE_COMMIT says, in its identity and its instances', async () => {
+    const told = await serve({}, { commit: 'abc123' })
+    expect((await (await signed(`${told}/v1/identity`)).json() as MonitorIdentity).commit).toBe('abc123')
+    await applicationSampler.value!.take()
+    expect((await (await signed(`${told}/v1/instances`)).json() as Instances).instances[0]!.commit).toBe('abc123')
+    await applicationSampler.value?.stop()
+    await server?.stop(true)
+    await base?.close()
+
+    const previous = process.env.SOURCE_COMMIT
+    process.env.SOURCE_COMMIT = 'def456'
+    try {
+      const fromEnv = await serve()
+      expect((await (await signed(`${fromEnv}/v1/identity`)).json() as MonitorIdentity).commit).toBe('def456')
+    } finally {
+      if (previous === undefined) delete process.env.SOURCE_COMMIT
+      else process.env.SOURCE_COMMIT = previous
+    }
   })
 })

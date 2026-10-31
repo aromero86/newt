@@ -6,6 +6,8 @@ export const IdentitySchema = z.object({
   newt: z.string(),
   instance: z.object({ id: z.string(), host: z.string(), pid: z.number() }),
   startedAt: z.string(),
+  /** The commit it was built from: null when it does not say (or on a newt before it did). */
+  commit: z.string().nullable().default(null),
 })
 
 /** Why it did not answer the last time it was asked. */

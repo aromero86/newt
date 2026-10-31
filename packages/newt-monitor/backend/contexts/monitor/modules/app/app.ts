@@ -11,7 +11,7 @@ import { App_Updated } from './events/app-updated'
 
 export * from './app.schema'
 
-type Fields = { name: string, url: string, key: string }
+type Fields = { name: string, url: string, key: string, repository?: string | null }
 
 /**
  * An application the monitor watches. Its key is sealed for it, by its own id: the
@@ -27,9 +27,9 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
     return new App(dto, false)
   }
 
-  static register({ name, url, key }: Fields, cipher: KeyCipher): App {
+  static register({ name, url, key, repository }: Fields, cipher: KeyCipher): App {
     const id = Bun.randomUUIDv7()
-    const app = new App({ id, name, url, sealedKey: cipher.seal(key, id), archivedAt: null }, true)
+    const app = new App({ id, name, url, sealedKey: cipher.seal(key, id), repository: repository ?? null, archivedAt: null }, true)
     app.trackEvent(new App_Registered(app.toDTO()))
     return app
   }
@@ -63,15 +63,17 @@ export class App extends Entity<typeof AppSchema, typeof AppPublicSchema> {
 
   /** Changes what is given and differs; tells which fields did, if any. */
   update(change: Partial<Fields>, cipher: KeyCipher): void {
-    const changed: ('name' | 'url' | 'key')[] = []
+    const changed: ('name' | 'url' | 'key' | 'repository')[] = []
     if (change.name !== undefined && change.name !== this.data.name) changed.push('name')
     if (change.url !== undefined && change.url !== this.data.url) changed.push('url')
     if (change.key !== undefined && !this.holds(change.key, cipher)) changed.push('key')
+    if (change.repository !== undefined && change.repository !== this.data.repository) changed.push('repository')
     if (changed.length === 0) return
     this.change({
       ...(changed.includes('name') ? { name: change.name } : {}),
       ...(changed.includes('url') ? { url: change.url } : {}),
       ...(changed.includes('key') ? { sealedKey: cipher.seal(change.key!, this.id) } : {}),
+      ...(changed.includes('repository') ? { repository: change.repository } : {}),
     })
     this.trackEvent(new App_Updated({ dto: this.toDTO(), changed }))
   }

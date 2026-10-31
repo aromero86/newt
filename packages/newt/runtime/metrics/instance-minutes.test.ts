@@ -9,6 +9,7 @@ function sample(at: string, change: { instance?: string, rss?: number, cpu?: num
     instance: change.instance ?? 'a',
     pid: 7,
     startedAt: '2026-01-01T09:00:00.000Z',
+    commit: 'c1',
     at: new Date(at),
     process: { rssBytes: change.rss ?? 100, heapUsedBytes: 50, cpu: change.cpu ?? 10, loopMeanMs: 1, loopMaxMs: change.loopMaxMs ?? 2 },
     server: {
@@ -54,6 +55,13 @@ describe('an instance state', () => {
     expect(instanceStateOf({ sample: sample('2026-01-01T10:00:31Z'), stoppedAt: null }, now).status).toBe('alive')
     expect(instanceStateOf({ sample: sample('2026-01-01T10:00:29Z'), stoppedAt: null }, now).status).toBe('lost')
     expect(instanceStateOf({ sample: sample('2026-01-01T10:00:29Z'), stoppedAt: '2026-01-01T10:00:30.000Z' }, now)).toMatchObject({ status: 'stopped', stoppedAt: '2026-01-01T10:00:30.000Z' })
+  })
+
+  test('tells the commit it was built from, and none for a sample kept before samples told it', () => {
+    const now = new Date('2026-01-01T10:01:00Z')
+    expect(instanceStateOf({ sample: sample('2026-01-01T10:00:50Z'), stoppedAt: null }, now).commit).toBe('c1')
+    const { commit: _, ...older } = sample('2026-01-01T10:00:50Z')
+    expect(instanceStateOf({ sample: older as InstanceSample, stoppedAt: null }, now).commit).toBeNull()
   })
 })
 

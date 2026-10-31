@@ -118,9 +118,9 @@ export function serveTestApp(name = 'shop') {
      * One of its instances read itself and the machine it runs on, at a time: a disk
      * `/` of 100 GB and 8 GB of memory, unless told. Memory and disk in bytes.
      */
-    sample(instance: string, read: { at: Date, rss?: number, cpu?: number, loopMaxMs?: number, memoryTotal?: number, memoryFree?: number, diskFree?: number, usage?: number | null }) {
+    sample(instance: string, read: { at: Date, commit?: string | null, rss?: number, cpu?: number, loopMaxMs?: number, memoryTotal?: number, memoryFree?: number, diskFree?: number, usage?: number | null }) {
       const sample: InstanceSample = {
-        instance, pid: 100, startedAt: '2026-01-01T00:00:00.000Z', at: read.at,
+        instance, pid: 100, startedAt: '2026-01-01T00:00:00.000Z', commit: read.commit ?? null, at: read.at,
         process: { rssBytes: read.rss ?? 100_000_000, heapUsedBytes: 50_000_000, cpu: read.cpu ?? 5, loopMeanMs: 1, loopMaxMs: read.loopMaxMs ?? 4 },
         server: {
           disks: [{ path: '/', totalBytes: 100_000_000_000, freeBytes: read.diskFree ?? 60_000_000_000 }],

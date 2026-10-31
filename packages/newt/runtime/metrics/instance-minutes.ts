@@ -51,6 +51,8 @@ export function instanceStateOf({ sample, stoppedAt }: InstanceLast, now: Date):
     instance: sample.instance,
     pid: sample.pid,
     startedAt: sample.startedAt,
+    // A sample kept by a newt before it told its commit has none.
+    commit: sample.commit ?? null,
     lastSeenAt: sample.at.toISOString(),
     status,
     stoppedAt,
