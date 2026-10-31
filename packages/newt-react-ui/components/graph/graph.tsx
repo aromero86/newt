@@ -27,12 +27,12 @@ export function Graph({ label, nodes, edges }: GraphProps) {
     ? null
     : new Set([focused, ...drawn.flatMap(edge => (edge.from === focused ? [edge.to] : edge.to === focused ? [edge.from] : []))])
   const lit = (edge: GraphEdge) => focused !== null && (edge.from === focused || edge.to === focused)
-  // An arrow that skips a column arcs over it, so it never runs under a box: room above for it.
+  // An arrow that skips a column, or runs rightward, arcs over the boxes: room above for it.
   const ports = portsOf(drawn, byId)
   // Many arrows into one box would heap their heads there: they get one only when lit.
   const arriving = (id: string) => drawn.filter(edge => edge.to === id).length
   const headed = (edge: GraphEdge) => lit(edge) || arriving(edge.to) <= 3
-  const top = drawn.some(edge => byId.get(edge.from)!.column - byId.get(edge.to)!.column > 1) ? ARC : 0
+  const top = drawn.some(edge => arcs(byId.get(edge.from)!, byId.get(edge.to)!)) ? ARC : 0
 
   return (
     <div role="group" aria-label={label} className="overflow-x-auto">
@@ -99,8 +99,17 @@ function GraphBox({ node }: { node: PlacedNode }) {
   return node.href ? <Link href={node.href} className={look} aria-label={node.label}>{text}</Link> : <div className={look}>{text}</div>
 }
 
-/** How far above the boxes an arrow that skips a column arcs. */
+/** How far above the boxes an arrow that skips a column, or runs rightward, arcs. */
 const ARC = 28
+
+/**
+ * Whether an arrow arcs over the boxes: one that skips a column would run under the boxes
+ * between, and one that runs rightward (a cut cycle, or a node both used and using) would
+ * run through its own two boxes.
+ */
+function arcs(from: PlacedNode, to: PlacedNode): boolean {
+  return from.column - to.column > 1 || from.column < to.column
+}
 
 /**
  * Where each arrow leaves its node and reaches the other: spread along their sides, in
@@ -128,8 +137,8 @@ function curve(from: PlacedNode, to: PlacedNode, port: { start: number, end: num
     return `M ${start.x} ${start.y} C ${left} ${start.y}, ${left} ${end.y}, ${to.x} ${end.y}`
   }
   const bend = Math.max(32, Math.abs(start.x - end.x) / 2)
-  if (from.column - to.column > 1) {
-    // Over the columns between, above their boxes.
+  if (arcs(from, to)) {
+    // Over the columns between, or back over its own two boxes, above them.
     const over = Math.min(start.y, end.y) - ARC * 1.4
     return `M ${start.x} ${start.y} C ${start.x - 24} ${over}, ${end.x + 24} ${over}, ${end.x} ${end.y}`
   }
