@@ -1,4 +1,4 @@
-import { inject, ListStore, Store } from 'newt-react'
+import { ApiError, inject, ListStore, Store } from 'newt-react'
 import { StructureApi, type StructureVersionDTO, type StructureVersionSummaryDTO } from '../../../api/structure'
 import { AppService } from '../app.service'
 
@@ -20,6 +20,9 @@ export class AppVersionsService {
   readonly version = this.store.select('version')
   readonly previous = this.store.select('previous')
   readonly failure = this.store.select('failure')
+  /** The latest open(): an earlier one that ends after it changes nothing. */
+  private opening = 0
+
   readonly list = new ListStore<StructureVersionSummaryDTO>(page => this.api.versions(this.app.appId, page))
 
   load(): Promise<void> {
@@ -28,6 +31,7 @@ export class AppVersionsService {
 
   /** A version, and the one before it: found going back through the list, page by page. */
   async open(versionId: string): Promise<void> {
+    const opening = ++this.opening
     this.store.patch({ version: undefined, previous: null, failure: null })
     const appId = this.app.appId
     try {
@@ -46,9 +50,11 @@ export class AppVersionsService {
         cursor = page.hasMore && previousId === undefined ? page.nextCursor ?? page.items.at(-1)?.id : undefined
       } while (cursor)
       const previous = previousId ? await this.api.version(appId, previousId) : null
-      this.store.patch({ version, previous })
+      if (opening === this.opening) this.store.patch({ version, previous })
     } catch (error) {
-      this.store.patch({ version: null, failure: error instanceof Error ? error.message : 'Could not load the version' })
+      if (opening !== this.opening) return
+      if (error instanceof ApiError && error.status === 404) this.store.patch({ version: null })
+      else this.store.patch({ version: null, failure: error instanceof Error ? error.message : 'Could not load the version' })
     }
   }
 }
