@@ -121,6 +121,22 @@ describe('the OAuth server', () => {
     expect(await auth.modules.token.verify(second.access_token)).toBeNull()
   })
 
+  test('revokes the tokens of a refresh token brought again however many times it was replaced since', async () => {
+    const clientId = await register()
+    const { verifier, challenge } = pkce()
+    const code = await codeFor(clientId, challenge)
+    const first = (await (await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).json()) as { refresh_token: string }
+    const second = (await (await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })).json()) as { refresh_token: string }
+    const third = (await (await token({ grant_type: 'refresh_token', refresh_token: second.refresh_token, client_id: clientId })).json()) as { access_token: string, refresh_token: string }
+
+    const replayed = await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })
+    expect(replayed.status).toBe(400)
+    expect(await auth.modules.token.verify(third.access_token)).toBeNull()
+    expect((await token({ grant_type: 'refresh_token', refresh_token: third.refresh_token, client_id: clientId })).status).toBe(400)
+    // The token gone, the refresh tokens it spent go with it.
+    expect(await auth.base.store.table('token_spent_refresh').count()).toBe(0)
+  })
+
   test('trades a code once: brought again, the tokens it gave are revoked, from a worker', async () => {
     const clientId = await register()
     const { verifier, challenge } = pkce()
@@ -187,14 +203,17 @@ describe('the OAuth server', () => {
     expect(await answer.json()).toMatchObject({ error: 'invalid_grant' })
   })
 
-  test('removes the requests and tokens that expired, but keeps a redeemed request, which tells a copied code', async () => {
+  test('removes the requests and tokens that expired, with the refresh tokens they replaced, but keeps a redeemed request, which tells a copied code', async () => {
     const grants = (status: string) => auth.base.store.table<{ id: string, version: number, status: string }>('oauth_grant').count({ status })
     const tokens = () => auth.base.store.table('token').count({})
+    const spent = () => auth.base.store.table('token_spent_refresh').count({})
     const clientId = await register()
     await authorize(browser(url), { client_id: clientId, redirect_uri: CALLBACK, code_challenge: pkce().challenge, resource: MCP })
     const { verifier, challenge } = pkce()
     const code = await codeFor(clientId, challenge)
-    expect((await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).status).toBe(200)
+    const first = (await (await token({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: CALLBACK })).json()) as { refresh_token: string }
+    expect((await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId })).status).toBe(200)
+    expect(await spent()).toBe(1)
 
     // Nothing has expired yet: nothing goes.
     expect(await auth.modules.oauthGrant.purgeExpired()).toBe(0)
@@ -207,6 +226,7 @@ describe('the OAuth server', () => {
     expect(await grants('pending')).toBe(0)
     expect(await grants('redeemed')).toBe(1)
     expect(await tokens()).toBe(0)
+    expect(await spent()).toBe(0)
   })
 
   test('refuses a code without its PKCE verifier, and a request it cannot answer', async () => {
