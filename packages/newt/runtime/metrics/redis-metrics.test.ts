@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { RedisClient } from 'bun'
 import { RedisNonces } from '../../monitor/nonce-store'
 import type { EventCount } from '../../core/metrics/event-count'
 import type { InstanceSample } from '../../core/metrics/instance-sample'
+import { MINUTE_MS, minuteOf } from './minutes'
 import { RedisMetrics } from './redis-metrics'
 
 // Against a real Redis, when there is one: REDIS_URL=redis://localhost:6390 bun test.
@@ -93,6 +95,45 @@ function sample(instance: string, at: string, rssBytes = 100): InstanceSample {
     server: { disks: [{ path: '/', totalBytes: 1000, freeBytes: 400 }], memory: { totalBytes: 800, freeBytes: 400 }, cpu: { cores: 4, load: [1, 1, 1], usage: 20 } },
   }
 }
+
+describe.skipIf(!url)('RedisMetrics, when Redis fails', () => {
+  test('adds a batch once, though part of it failed in Redis', async () => {
+    const one = instance(undefined, ':once')
+    const redis = new RedisClient(url!)
+    // Where a later minute's hashes go, a string: Redis refuses to add to it, and adds the rest of the batch.
+    const later = minuteOf(new Date('2026-01-01T10:05:20Z'))
+    for (const name of [later, `uc:${later}`, `q:${later}`]) await redis.send('SET', [`${prefix}:once:${name}`, 'x', 'EX', '60'])
+    for (const when of [at, new Date(later)]) {
+      one.count({ ...told, at: when })
+      one.time({ context: 'shop', useCase: 'order.place', scopes: {}, actor: 'ana', at: when, retries: 0, ms: 10 })
+      one.flow({ context: 'shop', queue: 'invoice.open.on.order.placed', at: when, kind: 'published' })
+    }
+    // Several flushes: none adds again what the first one added.
+    await Bun.sleep(300)
+    redis.close()
+
+    const now = new Date('2026-01-01T10:01:10Z')
+    expect((await one.closed(null, now)).counts.map(count => count.count)).toEqual([1])
+    expect((await one.closedTimings(null, now)).timings.map(timing => timing.calls)).toEqual([1])
+    expect((await one.closedFlows(null, now)).flows.map(flow => flow.published)).toEqual([1])
+  })
+
+  test('keeps, of a batch Redis did not take, only the minutes it keeps', async () => {
+    const one = instance(5, ':kept')
+    const redis = new RedisClient(url!)
+    // A key its connection watches, changed by another: Redis discards its next transaction whole.
+    await (one as unknown as { redis: RedisClient }).redis.send('WATCH', [`${prefix}:kept:watched`])
+    await redis.send('SET', [`${prefix}:kept:watched`, '1', 'EX', '60'])
+    const now = Date.now()
+    one.count({ ...told, at: new Date(now - 10 * MINUTE_MS) })
+    one.count({ ...told, at: new Date(now) })
+    await Bun.sleep(300)
+
+    expect(await redis.hgetall(`${prefix}:kept:${minuteOf(now - 10 * MINUTE_MS)}`)).toEqual({})
+    expect(Object.values(await redis.hgetall(`${prefix}:kept:${minuteOf(now)}`))).toEqual(['1'])
+    redis.close()
+  })
+})
 
 describe.skipIf(!url)('RedisMetrics, with instances', () => {
   test('gives every instance, and each one\'s minutes whole, to whichever is asked', async () => {
