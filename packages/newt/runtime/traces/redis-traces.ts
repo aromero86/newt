@@ -2,7 +2,7 @@ import { RedisClient } from 'bun'
 import type { ClosedTraces, Trace } from '../../core/traces/trace'
 import { MINUTE_MS, minuteOf } from '../metrics/minutes'
 import { keepChain, type HeldTraces } from './trace-chain'
-import { pageOf, TRACES_PAGE, type Traces } from './traces'
+import { TRACES_PAGE, type Traces } from './traces'
 
 export type RedisTracesOptions = {
   /** The Redis every instance shares: `redis://redis:6379`. */
@@ -57,10 +57,21 @@ export class RedisTraces implements Traces {
     const until = minuteOf(now.getTime() - MINUTE_MS - SETTLE_MS)
     const from = since === null ? '-inf' : `(${Date.parse(since)}`
     const minutes = await this.redis.zrangebyscore(this.key('minutes'), from, Date.parse(until))
-    const read: [string, string[]][] = []
-    for (const minute of minutes) read.push([minute, await this.redis.send('LRANGE', [this.key(minute), '0', '-1']) as string[]])
-    const page = pageOf(read, until, limit)
-    return { traces: page.minutes.flatMap(([, traces]) => traces.map(each => JSON.parse(each) as Trace)), until: page.until }
+    const page = await this.minutesOfPage(minutes, until, limit)
+    // All at once: Bun sends them in one pipeline.
+    const read = await Promise.all(page.minutes.map(minute => this.redis.send('LRANGE', [this.key(minute), '0', '-1']) as Promise<string[]>))
+    return { traces: read.flat().map(each => JSON.parse(each) as Trace), until: page.until }
+  }
+
+  /** The minutes that fit in a page, by their lengths, so only those are read: whole minutes, at least the first. */
+  private async minutesOfPage(minutes: string[], until: string, limit: number): Promise<{ minutes: string[], until: string }> {
+    const lengths = await Promise.all(minutes.map(minute => this.redis.send('LLEN', [this.key(minute)]) as Promise<number>))
+    let size = 0
+    for (const [at, minute] of minutes.entries()) {
+      if (at > 0 && size + lengths[at]! > limit) return { minutes: minutes.slice(0, at), until: minutes[at - 1]! }
+      size += lengths[at]!
+    }
+    return { minutes, until }
   }
 
   /** Waits for the traces on their way, then lets Redis go. */
