@@ -14,4 +14,9 @@ export class Session_Repository extends TableRepository<Session, SessionRow, Aut
   protected toEntity(row: SessionRow): Session {
     return Session.fromDTO(row)
   }
+
+  /** Removes for good the sessions expired by `at`, closed by nobody: how many it removed. */
+  purgeExpired(at: Date): Promise<number> {
+    return this.purge({ expiresAt: { lte: at.toISOString() } })
+  }
 }
