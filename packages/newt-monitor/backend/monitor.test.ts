@@ -39,6 +39,7 @@ describe('its settings', () => {
     expect(readConfig(required)).toEqual({
       port: 4800,
       database: 'data/newt-monitor.db',
+      authDatabase: 'data/newt-monitor-auth.db',
       publicUrl: 'http://localhost:4800',
       admin: { user: 'ana', password: 'twelve chars at least' },
       sessionHours: 12,

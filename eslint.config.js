@@ -14,7 +14,7 @@ const BACKEND = newt({
 // newt-monitor is an application built with newt too, so it keeps the same lint.
 const MONITOR = newt({
   files: ['packages/newt-monitor/{bin,scripts,backend}/**/*.ts'],
-  contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { monitor: [] } },
+  contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { auth: [], monitor: ['auth'] } },
 })
 
 // Its frontend composes newt-react-ui's components, as cooper's do. Of the backend it

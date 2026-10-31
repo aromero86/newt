@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path'
+import { dirname, extname, join } from 'node:path'
 import { z } from 'zod'
 import { MIN_SECRET_LENGTH } from './shared/key-cipher'
 
@@ -27,6 +27,8 @@ const EnvSchema = z.object({
 export type MonitorConfig = {
   port: number
   database: string
+  /** auth's database: beside the monitor's, `<name>-auth.db`, or in memory with it. */
+  authDatabase: string
   publicUrl: string
   /** The one person who signs in. */
   admin: { user: string, password: string }
@@ -56,6 +58,7 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
   return {
     port: data.NEWT_MONITOR_PORT,
     database: data.NEWT_MONITOR_DATA,
+    authDatabase: authDatabaseOf(data.NEWT_MONITOR_DATA),
     publicUrl: data.NEWT_MONITOR_PUBLIC_URL,
     admin: { user: data.NEWT_MONITOR_USER, password: data.NEWT_MONITOR_PASSWORD },
     sessionHours: data.NEWT_MONITOR_SESSION_HOURS,
@@ -64,4 +67,11 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
     frontendSources: data.NEWT_MONITOR_FRONTEND_SOURCES === '1',
     metricsFolder: data.NEWT_MONITOR_DATA === ':memory:' ? ':memory:' : join(dirname(data.NEWT_MONITOR_DATA), 'metrics'),
   }
+}
+
+/** auth's database beside the monitor's: `data/newt-monitor.db` has `data/newt-monitor-auth.db`. */
+function authDatabaseOf(database: string): string {
+  if (database === ':memory:') return database
+  const extension = extname(database)
+  return `${database.slice(0, database.length - extension.length)}-auth${extension}`
 }
