@@ -253,10 +253,15 @@ export class Entity<TSchema extends EntitySchema, TPublic extends EntitySchema =
     this.domainEvents = [...this.domainEvents.filter(each => each.name !== event.name), event]
   }
 
-  /** What it has to tell since it was last saved: its repository publishes it with the save. */
+  /**
+   * What it has to tell since it was last saved: its repository publishes it with the
+   * save. One the save did not write had its change undone: that change covered only
+   * this save, not an event told after it.
+   */
   [takeEvents](): DomainEvent[] {
     const events = this.domainEvents
     this.domainEvents = []
+    if (!this.hasPendingChanges) this.changed = false
     return events
   }
 }

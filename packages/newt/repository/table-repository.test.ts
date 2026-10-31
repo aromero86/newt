@@ -189,6 +189,18 @@ describe('persist', () => {
     expect(thing[takeEvents]()).toEqual([])
   })
 
+  test('a change undone covers only the save it was undone in, not an event told after it', async () => {
+    const { repo } = world()
+    const thing = Thing.fromRow(stored())
+    thing.rename('two')
+    thing.rename('one')
+    await repo.persist(thing)
+
+    thing.ping()
+
+    await expect(repo.persist(thing)).rejects.toThrow('Thing t1 tells thing.pinged but has nothing to save: change what it tells of')
+  })
+
   test('one that tells something but never changed is refused, and nothing of the save is written', async () => {
     const { log, repo } = world()
     const thing = Thing.fromRow(stored())
