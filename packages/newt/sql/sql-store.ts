@@ -91,8 +91,16 @@ export class SqlStore implements Store {
     try {
       return await this.scope.run(fn, state, {
         begin: async () => {
-          state.connection = await this.sql.reserve()
-          for (const statement of this.dialect.begin) await state.connection.unsafe(statement)
+          const connection = state.connection = await this.sql.reserve()
+          try {
+            for (const statement of this.dialect.begin) await connection.unsafe(statement)
+          } catch (error) {
+            // Neither rollback nor end runs after a failed begin: the connection goes back to the pool here.
+            await connection.unsafe('ROLLBACK').catch(() => {})
+            connection.release()
+            state.connection = undefined
+            throw error
+          }
         },
         commit: () => this.inTurn(state, async connection => {
           // Postgres answers COMMIT with ROLLBACK when a statement failed in the transaction and spoiled it.
