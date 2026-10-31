@@ -84,6 +84,25 @@ describe('runContexts', () => {
     expect(log).toEqual(['shop started', 'GET /api/who', 'shop stopped', 'flushed'])
   })
 
+  test('closes a stream that never ends once the stop\'s deadline passes, then stops the contexts', async () => {
+    const log: string[] = []
+    const stream = () => new Response(new ReadableStream({ start: controller => controller.enqueue(new TextEncoder().encode('data: live\n\n')) }), {
+      headers: { 'content-type': 'text/event-stream' },
+    })
+    const app = runContexts([
+      { context: context('monitor', log), serve: { port: 0, router: router('monitor'), routes: { '/live': stream } } },
+    ], { signals: false, stopTimeoutMs: 100 })
+    const reader = (await fetch(new URL('/live', app.servers.monitor!.url))).body!.getReader()
+    await reader.read()
+
+    const started = performance.now()
+    const stopped = await Promise.race([app.stop().then(() => 'stopped'), Bun.sleep(2000).then(() => 'hung')])
+    expect(stopped).toBe('stopped')
+    expect(performance.now() - started).toBeLessThan(1000)
+    expect(log).toEqual(['monitor started', 'monitor stopped'])
+    await reader.cancel().catch(() => {})
+  })
+
   test('on SIGTERM it stops them, then ends the process', async () => {
     const script = `
       import { runContexts } from '${join(import.meta.dir, 'run-contexts')}'
