@@ -175,6 +175,8 @@ tester.run('route-body', routeBody, {
     { code: 'async (request: Request) => orders.place(Schema.parse(await request.json()))', filename: ORDER_ROUTES },
     { code: 'async (response: Response) => (await response.json()) as OrderDTO', filename: `${MODULE}/price-change.test.ts` },
     { code: 'const x = value as OrderPlaceDTO', filename: ORDER_ROUTES },
+    // What an upstream call answered is not the request's body.
+    { code: 'async (request: Request) => { const upstream = await fetch(url); const token = await upstream.json() as ProviderToken; return tokens.open(token) }', filename: ORDER_ROUTES },
   ],
   invalid: [
     { code: 'async (request: Request) => orders.place(await request.json() as OrderPlaceDTO)', filename: ORDER_ROUTES, errors: [{ messageId: 'body', data: { type: 'OrderPlaceDTO' } }] },
