@@ -46,4 +46,26 @@ describe('splitStatements', () => {
   test("a Postgres E'…' string escapes with a backslash, without the option", () => {
     expect(splitStatements("SELECT E'it\\'s;'; SELECT 2;", { dollarQuotes: true })).toEqual(["SELECT E'it\\'s;'", 'SELECT 2'])
   })
+
+  test('a MySQL trigger keeps its BEGIN … END body whole, IF … END IF in it too', () => {
+    const trigger = "CREATE DEFINER = `admin`@`%` TRIGGER t BEFORE INSERT ON c FOR EACH ROW BEGIN\n  IF NEW.x IS NULL THEN SET NEW.x = IF(NEW.y > 0, 1, 2); END IF;\n  SET NEW.z = CASE WHEN NEW.x = 1 THEN 'a;b' ELSE 'c' END;\nEND"
+
+    expect(splitStatements(`${trigger};\nINSERT INTO c VALUES (1);`, { backslashEscapes: true })).toEqual([trigger, 'INSERT INTO c VALUES (1)'])
+  })
+
+  test('a MySQL procedure keeps its loops and nested blocks whole', () => {
+    const procedure = 'CREATE PROCEDURE p() BEGIN DECLARE i INT DEFAULT 0; lbl: LOOP SET i = i + 1; IF i > 3 THEN LEAVE lbl; END IF; END LOOP lbl; WHILE i > 0 DO SET i = i - 1; END WHILE; REPEAT SET i = i + 1; UNTIL i > 2 END REPEAT; CASE i WHEN 3 THEN BEGIN SELECT REPEAT("a", 2); END; ELSE SELECT 0; END CASE; END'
+
+    expect(splitStatements(`${procedure}; SELECT 2;`, { backslashEscapes: true })).toEqual([procedure, 'SELECT 2'])
+  })
+
+  test('a Postgres BEGIN ATOMIC body stays whole', () => {
+    const fn = 'CREATE OR REPLACE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC INSERT INTO t VALUES (1); SELECT 1; END'
+
+    expect(splitStatements(`${fn};\nSELECT 2;`, { dollarQuotes: true })).toEqual([fn, 'SELECT 2'])
+  })
+
+  test('outside a routine, BEGIN and END are words like any other', () => {
+    expect(splitStatements('BEGIN; SELECT 1; END; SELECT CASE WHEN a THEN 1 END FROM t; SELECT 2;')).toEqual(['BEGIN', 'SELECT 1', 'END', 'SELECT CASE WHEN a THEN 1 END FROM t', 'SELECT 2'])
+  })
 })
