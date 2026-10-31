@@ -6,9 +6,12 @@
 //   COOPER_REDIS_URL=redis://localhost:6379 COOPER_MONITOR_KEY=… bun run cooper:replicas
 //
 // The first listens where `bun run cooper` does, its monitor on 3010; the second 100
-// ports up (3101 to 3103, its monitor on 3110). The monitor needs only one of them:
-// either tells it all. Stopping it stops both; stopping one (`kill <pid>`) leaves the
-// other running, for the monitor to see one go.
+// ports up (3101 to 3103, its monitor on 3110). Both are opened at the first one's
+// addresses, as one balancer in front of them would give, unless COOPER_*_PUBLIC_URL
+// say otherwise: auth declares the apps' OAuth clients from them, in the database both
+// share, so different ones would leave only the last to open able to sign anyone in.
+// The monitor needs only one of them: either tells it all. Stopping it stops both;
+// stopping one (`kill <pid>`) leaves the other running, for the monitor to see one go.
 import { config } from '../backend/config'
 
 if (!config.monitor.redisUrl || !config.monitor.key) {
@@ -28,6 +31,9 @@ const REPLICAS = [0, SHIFT].map((shift, index) => ({
     COOPER_BOARDS_PORT: String(config.boards.port + shift),
     COOPER_BACKOFFICE_PORT: String(config.backoffice.port + shift),
     COOPER_MONITOR_PORT: String(config.monitor.port + shift),
+    COOPER_AUTH_PUBLIC_URL: config.auth.publicUrl,
+    COOPER_BOARDS_PUBLIC_URL: config.auth.boardsPublicUrl,
+    COOPER_BACKOFFICE_PUBLIC_URL: config.auth.backofficePublicUrl,
   },
 }))
 
