@@ -2,12 +2,14 @@ import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'
+import { SealedKeyUnreadable } from '../../../../shared/key-cipher'
 import { App, AppListSchema, AppRegisterSchema, AppUpdateSchema, type AppDTO } from './app'
 import type { App_Options } from './app-options'
 import type { App_Deps } from './app.deps'
 import { App_Repository } from './app.repository'
 import { registerAppRoutes } from './app.routes'
 import { AppDoesNotConnect } from './errors/app-does-not-connect'
+import { AppKeyUnreadable } from './errors/app-key-unreadable'
 import { AppNameTaken } from './errors/app-name-taken'
 import { AppNotFound } from './errors/app-not-found'
 import { App_Archived } from './events/app-archived'
@@ -72,7 +74,7 @@ export class App_Module extends Module {
     const app = await this.load(id)
     if (change.name !== undefined && await this.repo.isNameTaken(change.name, id)) throw new AppNameTaken(change.name)
     if (change.url !== undefined || change.key !== undefined) {
-      await this.connects({ url: change.url ?? app.url, key: change.key ?? app.key(this.options.cipher) })
+      await this.connects({ url: change.url ?? app.url, key: change.key ?? this.keptKey(app) })
     }
     app.update(change, this.options.cipher)
     await this.repo.persistWithNameFree(app)
@@ -136,6 +138,16 @@ export class App_Module extends Module {
     } catch (error) {
       if (!(error instanceof AppCallFailed) || error.reason === 'key_unreadable') throw error
       throw new AppDoesNotConnect(error.reason, error.message)
+    }
+  }
+
+  /** Its key, opened, to check a new address with: one sealed with another secret is asked for again. */
+  private keptKey(app: App): string {
+    try {
+      return app.key(this.options.cipher)
+    } catch (error) {
+      if (error instanceof SealedKeyUnreadable) throw new AppKeyUnreadable(app.name)
+      throw error
     }
   }
 
