@@ -9,6 +9,18 @@ const STYLING_TOOLS = 'Class names are made in the app\'s components folder only
 const ELEMENTS = ['form', 'fieldset']
 
 /**
+ * The imports newt-react-ui's lint refuses outside an app's components folder: the
+ * primitives, the library's internals and the tools that make class names. A config
+ * that sets `no-restricted-imports` again for an app's files spreads them before its
+ * own, so it adds to the library's restrictions instead of replacing them.
+ */
+export const RESTRICTED_IMPORTS = [
+  { group: ['radix-ui', '@radix-ui/*', 'recharts', 'recharts/*'], message: PRIMITIVES },
+  { group: ['newt-react-ui/internal', 'newt-react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
+  { group: ['cn', 'class-variance-authority', 'tailwind-merge', 'clsx'], message: STYLING_TOOLS },
+]
+
+/**
  * newt-react-ui's lint, for a React app that uses it. Its pages, and everything that is
  * not in its own components folder (`components`):
  *
@@ -32,7 +44,7 @@ const ELEMENTS = ['form', 'fieldset']
  *
  * It sets `no-restricted-syntax` and `no-restricted-imports` for those files: a config
  * after it that sets them for the same files replaces its own, so put yours in
- * `syntax` and `imports`.
+ * `syntax` and `imports`, or spread `RESTRICTED_IMPORTS` before your own patterns.
  */
 export function newtReactUi({ files, components = [], elements = ELEMENTS, syntax = [], imports = [] }) {
   if (!files?.length) throw new Error('newtReactUi: say which files are the app\'s (`files`)')
@@ -58,9 +70,7 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
         ],
         'no-restricted-imports': ['error', {
           patterns: [
-            { group: ['radix-ui', '@radix-ui/*', 'recharts', 'recharts/*'], message: PRIMITIVES },
-            { group: ['newt-react-ui/internal', 'newt-react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
-            { group: ['cn', 'class-variance-authority', 'tailwind-merge', 'clsx'], message: STYLING_TOOLS },
+            ...RESTRICTED_IMPORTS,
             ...imports,
           ],
         }],

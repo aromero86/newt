@@ -1,6 +1,6 @@
 import tseslint from 'typescript-eslint'
 import { newt } from 'newt-eslint'
-import { newtReactUi } from 'newt-react-ui/lint'
+import { newtReactUi, RESTRICTED_IMPORTS } from 'newt-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
 // frontends newt-react-ui's. The framework's own code is not
@@ -78,18 +78,19 @@ export default [
       'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
     },
   },
+  // These two set the frontend's restricted imports again: they keep newt-react-ui's.
   {
     files: ['packages/newt-monitor/frontend/api/**/*.ts'],
     languageOptions: { parser: tseslint.parser },
     rules: {
-      'no-restricted-imports': ['error', { patterns: [MONITOR_API_BACKEND_IMPORTS] }],
+      'no-restricted-imports': ['error', { patterns: [...RESTRICTED_IMPORTS, MONITOR_API_BACKEND_IMPORTS] }],
     },
   },
   {
     // Their tests run them against the monitor itself, so they open one.
     files: ['packages/newt-monitor/frontend/api/**/*.test.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [MONITOR_API_TEST_IMPORTS] }],
+      'no-restricted-imports': ['error', { patterns: [...RESTRICTED_IMPORTS, MONITOR_API_TEST_IMPORTS] }],
     },
   },
 ]
