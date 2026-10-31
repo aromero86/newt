@@ -23,7 +23,9 @@ const json = (body: unknown) => Response.json(body, { headers: { 'cache-control'
  * the events live (`GET /v1/metrics/live`, server-sent events), how full its queues are
  * now (`GET /v1/outbox`) and its dead jobs without their payloads
  * (`GET /v1/outbox/dead?context=&after=&limit=`), and the traces it kept, by the minute
- * they ended (`GET /v1/traces?since=<minute>`, whole minutes, about 2,000 traces a page).
+ * they ended (`GET /v1/traces?since=<minute>`, whole minutes, about 2,000 traces a page),
+ * and every instance with its server, as it is now and minute by minute
+ * (`GET /v1/instances?since=<minute>`: with `RedisMetrics`, every instance's, whichever answers).
  * Read only, and never its data: serving it starts every context's counting
  * (`Base.metrics`), the instance's reading of itself and its server every 10 seconds
  * (its memory, processor time and event loop; the server's disks, memory and
@@ -92,16 +94,21 @@ export function serveMonitor(contexts: readonly (Base | BoundedContext)[], optio
       if (url.pathname === '/v1/metrics/queues') return json(await closedFlows(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/metrics/use-cases') return json(await closedTimings(metricsOf(), url.searchParams.get('since'), clock.now()))
       if (url.pathname === '/v1/traces') return json(await traces.closed(url.searchParams.get('since'), clock.now()))
+      if (url.pathname === '/v1/instances') return json(await instanceMetrics.instances(validSince(url.searchParams.get('since')), clock.now()))
       if (url.pathname === '/v1/metrics/live') return liveCounts(metricsOf(), request.signal)
       return new Response(null, { status: 404 })
     },
   })
 }
 
+/** A cursor, if it is a time: else from the start. */
+function validSince(since: string | null): string | null {
+  return since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
+}
+
 /** Every context's counts of the minutes closed since a minute, and the last one closed. */
 async function closedCounts(metrics: Metrics[], since: string | null, now: Date): Promise<EventCounts> {
-  const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
-  const each = await Promise.all(metrics.map(one => one.closed(valid, now)))
+  const each = await Promise.all(metrics.map(one => one.closed(validSince(since), now)))
   // The earliest of their cursors: none of them has anything closed after it that is not in.
   const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
   return { counts: each.flatMap(one => one.counts).filter(count => count.minute <= until), until }
@@ -109,8 +116,7 @@ async function closedCounts(metrics: Metrics[], since: string | null, now: Date)
 
 /** Every context's use case timings of the minutes closed since a minute, and the last one closed. */
 async function closedTimings(metrics: Metrics[], since: string | null, now: Date): Promise<UseCaseTimings> {
-  const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
-  const each = await Promise.all(metrics.map(one => one.closedTimings(valid, now)))
+  const each = await Promise.all(metrics.map(one => one.closedTimings(validSince(since), now)))
   const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
   return { timings: each.flatMap(one => one.timings).filter(timing => timing.minute <= until), until }
 }
@@ -129,8 +135,7 @@ async function outboxState(contexts: readonly (Base | BoundedContext)[], now: Da
 
 /** Every context's queue flows of the minutes closed since a minute, and the last one closed. */
 async function closedFlows(metrics: Metrics[], since: string | null, now: Date): Promise<QueueFlows> {
-  const valid = since !== null && !Number.isNaN(Date.parse(since)) ? new Date(since).toISOString() : null
-  const each = await Promise.all(metrics.map(one => one.closedFlows(valid, now)))
+  const each = await Promise.all(metrics.map(one => one.closedFlows(validSince(since), now)))
   const until = each.map(one => one.until).sort()[0] ?? new Date(now.getTime() - (now.getTime() % 60_000) - 60_000).toISOString()
   return { flows: each.flatMap(one => one.flows).filter(flow => flow.minute <= until), until }
 }

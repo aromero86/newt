@@ -2,7 +2,9 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { SqliteStore } from '../adapter-sqlite'
 import { ConcurrencyConflict, defineScope, Module, NotFoundError, runAsActor, UseCase, type Actor, type DomainEvent } from '../core'
-import { Base, histogramPercentile, MemoryMetrics, type DeadJobs, type EventCounts, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { Base, histogramPercentile, MemoryMetrics, type DeadJobs, type EventCounts, type Instances, type OutboxState, type QueueFlows, type UseCaseTimings } from '../runtime'
+import { applicationSampler } from '../runtime/internal'
+import type { MonitorIdentity } from './monitor-identity'
 import { MemoryNonces } from './nonce-store'
 import { serveMonitor } from './serve-monitor'
 import { signMonitorRequest } from './sign-monitor-request'
@@ -20,6 +22,8 @@ let server: Server<undefined> | undefined
 let base: Base | undefined
 
 afterEach(async () => {
+  await applicationSampler.value?.stop()
+  applicationSampler.value = null
   await server?.stop(true)
   await base?.close()
   server = undefined
@@ -30,9 +34,9 @@ const event = (name: string): DomainEvent => ({ name, occurredAt: clock.now().to
 const ana = { userId: 'ana' } as Actor
 
 /** A context `shop` whose events are counted, served on a free port. */
-async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}) {
+async function serve(options: { metrics?: MemoryMetrics, jobs?: { backoffMs: number, pollMs: number } } = {}, monitor: { server?: string, disks?: string[] } = {}) {
   base = new Base({ name: 'shop', store: await SqliteStore.open({ path: ':memory:' }), clock, ...options })
-  server = serveMonitor([base], { name: 'shop-app', port: 0, key: KEY, clock })
+  server = serveMonitor([base], { name: 'shop-app', port: 0, key: KEY, clock, ...monitor })
   return server.url.origin
 }
 
@@ -207,5 +211,27 @@ describe('MemoryNonces', () => {
     expect(await nonces.remember('n1', 2_000, 1_000)).toBe(true)
     expect(await nonces.remember('n1', 2_000, 1_500)).toBe(false)
     expect(await nonces.remember('n1', 4_000, 3_000)).toBe(true)
+  })
+})
+
+describe('serveMonitor, with instances', () => {
+  test('tells its instance and its server, as they are now and minute by minute', async () => {
+    time = Date.parse('2026-01-01T10:00:20Z')
+    const origin = await serve({}, { server: 'web-1', disks: ['/'] })
+    const identity = await (await signed(`${origin}/v1/identity`)).json() as MonitorIdentity
+    expect(identity.instance.server).toBe('web-1')
+    await applicationSampler.value!.take()
+
+    const now = await (await signed(`${origin}/v1/instances`)).json() as Instances
+    expect(now.instances).toMatchObject([{ instance: identity.instance.id, pid: process.pid, status: 'alive', server: { name: 'web-1' } }])
+    // Its minute is still open.
+    expect(now.minutes).toEqual([])
+
+    time += 60_000
+    await applicationSampler.value!.take()
+    const closed = await (await signed(`${origin}/v1/instances?since=not-a-time`)).json() as Instances
+    expect(closed.until).toBe('2026-01-01T10:00:00.000Z')
+    expect(closed.minutes.map(minute => [minute.instance, minute.minute, minute.server.disks.map(disk => disk.path)])).toEqual([[identity.instance.id, '2026-01-01T10:00:00.000Z', ['/']]])
+    expect((await (await signed(`${origin}/v1/instances?since=${closed.until}`)).json() as Instances).minutes).toEqual([])
   })
 })
