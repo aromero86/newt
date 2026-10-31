@@ -1,4 +1,4 @@
-import { currentActor, Module, SecretToken, UseCase, type Actor } from 'newt/core'
+import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
 import type { CooperBase } from '../cooper-base'
 import { SignInDenied } from './errors/sign-in-denied'
 import { SignInExpired } from './errors/sign-in-expired'
@@ -7,6 +7,7 @@ import { WebSession } from './web-session'
 import type { WebSession_Options } from './web-session-options'
 import { WebSession_Repository } from './web-session.repository'
 import { registerWebSessionRoutes } from './web-session.routes'
+import { registerWebSessionWorkers } from './web-session.workers'
 import { WEB_SESSION_CALLBACK } from './web-session.schema'
 
 /** A sign-in on its way, as its cookie keeps it until auth sends the browser back. */
@@ -62,11 +63,16 @@ export class WebSession_Module extends Module {
   static initialize(base: CooperBase, options: WebSession_Options): WebSession_Module {
     const module = new WebSession_Module(base, new WebSession_Repository(base), options)
     registerWebSessionRoutes(base, module, options)
+    registerWebSessionWorkers(module)
     return module
   }
 
+  /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
+  readonly nightly
+
   private constructor(base: CooperBase, private readonly repo: WebSession_Repository, private readonly options: WebSession_Options) {
     super('session', base.invocations)
+    this.nightly = base.schedules.define('session.nightly', '0 3 * * *')
   }
 
   /** A new sign-in: where to send the browser, and what its cookie keeps until it comes back. */
@@ -136,6 +142,16 @@ export class WebSession_Module extends Module {
     if (!session) return
     session.close()
     await this.repo.persist(session)
+  }
+
+  /**
+   * Removes the sessions that expired: nobody signed out of them, and an expired one
+   * is closed only when its browser comes back, which drops its cookie as it expires.
+   * What the nightly worker calls; the second time, there are none.
+   */
+  @UseCase()
+  async purgeExpired(): Promise<number> {
+    return this.repo.purgeExpired(now())
   }
 
   private redirectUri(): string {
