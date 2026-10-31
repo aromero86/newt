@@ -129,4 +129,13 @@ describe('the MCP server', () => {
     expect(new URL(redirectTo).searchParams.get('error')).toBe('access_denied')
     expect((await as(`/api/authorizations/${request}/approve`, { method: 'POST' })).status).toBe(409)
   })
+
+  test('refuses a client whose Basic credentials do not decode, as any client it does not know', async () => {
+    const basic = { authorization: `Basic ${Buffer.from('a%zz:b').toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' }
+    for (const [endpoint, fields] of [['token', { grant_type: 'refresh_token', refresh_token: 'r' }], ['revoke', { token: 't' }]] as const) {
+      const refused = await fetch(`${url}/oauth/${endpoint}`, { method: 'POST', headers: basic, body: new URLSearchParams(fields) })
+      expect(refused.status).toBe(401)
+      expect(await refused.json()).toMatchObject({ error: 'invalid_client' })
+    }
+  })
 })

@@ -2,6 +2,7 @@ import type { BunRequest } from 'bun'
 import { toOauthErrorResponse, type RouteOptions } from 'newt/http'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors/cors'
 import type { AuthBase } from '../../auth-base'
+import { InvalidClient } from '../oauth-client/errors/invalid-client'
 import type { Token_Module } from './token.module'
 
 /** The OAuth error of each of the errors these endpoints may meet. */
@@ -29,8 +30,15 @@ async function formOf(request: BunRequest) {
   const field = (name: string) => form.get(name) ?? undefined
   const basic = request.headers.get('authorization')?.match(/^Basic\s+(.+)$/i)?.[1]
   if (!basic) return { field, clientId: field('client_id') ?? '', clientSecret: field('client_secret') }
-  const [id = '', secret = ''] = Buffer.from(basic, 'base64').toString().split(':')
-  return { field, clientId: decodeURIComponent(id), clientSecret: decodeURIComponent(secret) }
+  // The id ends at the first colon: the secret may have more (RFC 6749 §2.3.1).
+  const credentials = Buffer.from(basic, 'base64').toString()
+  const colon = credentials.indexOf(':')
+  const [id, secret] = colon === -1 ? [credentials, ''] : [credentials.slice(0, colon), credentials.slice(colon + 1)]
+  try {
+    return { field, clientId: decodeURIComponent(id), clientSecret: decodeURIComponent(secret) }
+  } catch {
+    throw new InvalidClient()
+  }
 }
 
 export function registerTokenRoutes(base: AuthBase, tokens: Token_Module): void {
