@@ -77,6 +77,21 @@ describe('Requester', () => {
     expect(failure).toMatchObject({ status: 502, message: 'Request failed (502)' })
   })
 
+  test('a refusal (403) calls the forbidden hook with the ApiError and its code', async () => {
+    answer(Response.json({ error: 'Only the staff', code: 'staff.not_staff' }, { status: 403 }))
+    const seen: ApiError[] = []
+    Requester.onForbidden = error => seen.push(error)
+
+    try {
+      await new NotesApi().list().catch(() => undefined)
+    } finally {
+      Requester.onForbidden = null
+    }
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({ status: 403, code: 'staff.not_staff' })
+  })
+
   test('no answer at all is an ApiError with status 0', async () => {
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
 

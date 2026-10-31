@@ -15,6 +15,9 @@ export abstract class Requester {
   /** Called when the backend says the session is gone (401), wherever the request came from. */
   static onUnauthorized: (() => void) | null = null
 
+  /** Called when the backend refuses a request (403), wherever it came from, with the error and its code. */
+  static onForbidden: ((error: ApiError) => void) | null = null
+
   /** The client's part of the URL, after the base URL (`/api`): `/proposals`. */
   protected abstract readonly path: string
 
@@ -55,7 +58,9 @@ export abstract class Requester {
     if (!response.ok) {
       if (response.status === 401) Requester.onUnauthorized?.()
       const failure = (await response.json().catch(() => null)) as Partial<ErrorBody> | null
-      throw new ApiError(response.status, failure?.error || response.statusText || `Request failed (${response.status})`, failure?.code)
+      const error = new ApiError(response.status, failure?.error || response.statusText || `Request failed (${response.status})`, failure?.code)
+      if (response.status === 403) Requester.onForbidden?.(error)
+      throw error
     }
 
     return (response.status === 204 ? undefined : await response.json()) as T

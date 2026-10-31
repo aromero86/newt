@@ -6,6 +6,8 @@ type SessionState =
   | { status: 'signed-out', user: null }
   /** Signed in, but not of the staff (any more): the backoffice answers them nothing. */
   | { status: 'refused', user: null }
+  /** The check itself failed (the backoffice down, no network): whether there is a session is unknown. */
+  | { status: 'failed', user: null }
   | { status: 'signed-in', user: SessionUserDTO }
 
 /**
@@ -40,8 +42,10 @@ export class SessionService {
       const { user } = await this.api.me()
       this.store.patch({ status: 'signed-in', user })
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) this.store.patch({ status: 'refused', user: null })
-      else this.expired()
+      // Only a 401 says there is no session; any other failure but a refusal says nothing of it.
+      if (error instanceof ApiError && error.status === 401) this.expired()
+      else if (error instanceof ApiError && error.status === 403) this.refused()
+      else this.store.patch({ status: 'failed', user: null })
     }
   }
 
@@ -64,6 +68,11 @@ export class SessionService {
       return this.expired()
     }
     location.assign(next)
+  }
+
+  /** The session's person is not of the staff (any more): the backoffice answers them nothing. */
+  refused(): void {
+    this.store.patch({ status: 'refused', user: null })
   }
 
   /** The backoffice no longer knows this session. */
