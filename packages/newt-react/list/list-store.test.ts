@@ -65,6 +65,59 @@ describe('ListStore', () => {
     expect(list.loading.value).toBe(false)
   })
 
+  test('the newest first page wins over one that was asked for before it and arrives after', async () => {
+    const answers: ((page: { items: { id: string }[], hasMore: boolean, total: number }) => void)[] = []
+    const list = new ListStore<{ id: string }>(() => new Promise(resolve => answers.push(resolve)))
+    const first = list.loadFirstPage()
+    const second = list.loadFirstPage()
+
+    expect(answers).toHaveLength(2)
+    answers[1]!({ items: [{ id: 'new-1' }], hasMore: false, total: 1 })
+    await second
+    answers[0]!({ items: [{ id: 'old-1' }], hasMore: true, total: 9 })
+    await first
+
+    expect(list.items.value.map(item => item.id)).toEqual(['new-1'])
+    expect(list.hasMore.value).toBe(false)
+    expect(list.total.value).toBe(1)
+    expect(list.loading.value).toBe(false)
+  })
+
+  test('a further page asked for before a new first page is not added to it', async () => {
+    const answers: ((page: { items: { id: string }[], hasMore: boolean, total: number }) => void)[] = []
+    const list = new ListStore<{ id: string }>(() => new Promise(resolve => answers.push(resolve)))
+    const first = list.loadFirstPage()
+    answers[0]!({ items: [{ id: 'old-1' }], hasMore: true, total: 9 })
+    await first
+
+    const more = list.loadMore()
+    const again = list.loadFirstPage()
+    answers[2]!({ items: [{ id: 'new-1' }], hasMore: false, total: 1 })
+    await again
+    answers[1]!({ items: [{ id: 'old-2' }], hasMore: true, total: 9 })
+    await more
+
+    expect(list.items.value.map(item => item.id)).toEqual(['new-1'])
+    expect(list.hasMore.value).toBe(false)
+    expect(list.total.value).toBe(1)
+    expect(list.loadingMore.value).toBe(false)
+  })
+
+  test('a failed first page leaves nothing of the one before it', async () => {
+    let offline = false
+    const read = pages()
+    const list = new ListStore<{ id: string }>(page => (offline ? Promise.reject(new Error('offline')) : read(page)), 2)
+    await list.loadFirstPage()
+    offline = true
+    await list.loadFirstPage()
+
+    expect(list.failure.value).toBe('offline')
+    expect(list.items.value).toEqual([])
+    expect(list.hasMore.value).toBe(false)
+    expect(list.total.value).toBe(0)
+    expect(list.loaded.value).toBe(false)
+  })
+
   test('keeps the total in step with what is added and removed', async () => {
     const list = new ListStore(pages(), 2)
     await list.loadFirstPage()

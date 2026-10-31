@@ -37,17 +37,26 @@ export class ListStore<T extends { id: string }> {
     private readonly size = 20,
   ) {}
 
-  /** Starts over: the first page replaces whatever was shown. */
+  /** Each first page starts a new one: a page asked for in an older one is dropped when it arrives. */
+  private generation = 0
+
+  /**
+   * Starts over: the first page replaces whatever was shown. The newest call wins,
+   * since what it asks for (a filter, a search) may have changed since the last one.
+   */
   async loadFirstPage(): Promise<void> {
-    if (this.store.value.loading) return
-    this.store.patch({ loading: true, failure: null })
+    const generation = ++this.generation
+    this.store.patch({ loading: true, loadingMore: false, failure: null })
     try {
       const page = await this.pagesFrom(undefined)
-      this.store.patch({ ...page, loaded: true })
+      if (generation !== this.generation) return
+      this.store.patch({ ...page, loaded: true, loading: false })
     } catch (error) {
-      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load the list' })
-    } finally {
-      this.store.patch({ loading: false })
+      if (generation !== this.generation) return
+      this.store.patch({
+        failure: error instanceof Error ? error.message : 'Could not load the list',
+        items: [], hasMore: false, total: 0, cursor: undefined, loaded: false, loading: false,
+      })
     }
   }
 
@@ -55,14 +64,15 @@ export class ListStore<T extends { id: string }> {
   async loadMore(): Promise<void> {
     const { hasMore, loading, loadingMore, cursor } = this.store.value
     if (!hasMore || loading || loadingMore || cursor === undefined) return
+    const generation = this.generation
     this.store.patch({ loadingMore: true, failure: null })
     try {
       const page = await this.pagesFrom(cursor)
-      this.store.update(state => ({ ...page, items: [...state.items, ...page.items] }))
+      if (generation !== this.generation) return
+      this.store.update(state => ({ ...page, items: [...state.items, ...page.items], loadingMore: false }))
     } catch (error) {
-      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load more' })
-    } finally {
-      this.store.patch({ loadingMore: false })
+      if (generation !== this.generation) return
+      this.store.patch({ failure: error instanceof Error ? error.message : 'Could not load more', loadingMore: false })
     }
   }
 
