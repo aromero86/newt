@@ -37,6 +37,8 @@ type AppState = {
   showRemoved: boolean
   /** Its system and instances now; null until asked for, or when it could not be. */
   instances: InstancesDTO | null
+  /** Why they could not be asked for; null when they were, or were not yet. */
+  instancesFailure: string | null
   /** What its charts mark: its versions and its instances' comings and goings. */
   marks: AppMark[]
 }
@@ -52,7 +54,7 @@ export class AppService {
   private readonly structures = inject(StructureApi)
   private readonly catalog = inject(CatalogApi)
   private readonly instanceApi = inject(InstancesApi)
-  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false, instances: null, marks: [] })
+  private readonly store = new Store<AppState>({ appId: '', app: undefined, connection: null, structure: null, failure: null, checking: false, refreshing: false, removed: null, showRemoved: false, instances: null, instancesFailure: null, marks: [] })
 
   readonly app = this.store.select('app')
   readonly connection = this.store.select('connection')
@@ -63,6 +65,7 @@ export class AppService {
   readonly removed = this.store.select('removed')
   readonly showRemoved = this.store.select('showRemoved')
   readonly instances = this.store.select('instances')
+  readonly instancesFailure = this.store.select('instancesFailure')
   readonly marks = this.store.select('marks')
 
   /** How many of each part its last version has. */
@@ -82,7 +85,7 @@ export class AppService {
   }
 
   async load(appId: string): Promise<void> {
-    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null, instances: null, marks: [] })
+    this.store.patch({ appId, app: undefined, connection: null, structure: null, failure: null, removed: null, instances: null, instancesFailure: null, marks: [] })
     void this.loadMarks(appId)
     try {
       const [app, connection, structure] = await Promise.all([
@@ -162,21 +165,31 @@ export class AppService {
   /** Its system and instances now, asked again: and their comings and goings, marked. */
   async loadInstances(): Promise<void> {
     const appId = this.appId
-    const instances = await this.instanceApi.list(appId).catch(() => null)
+    let instances: InstancesDTO | null = null
+    let instancesFailure: string | null = null
+    try {
+      instances = await this.instanceApi.list(appId)
+    } catch (error) {
+      instancesFailure = error instanceof Error ? error.message : 'Could not load its instances'
+    }
     if (this.appId !== appId) return
     const others = this.store.value.marks.filter(mark => !mark.instance)
-    this.store.patch({ instances, marks: [...others, ...instanceMarks(instances?.instances ?? [])] })
+    this.store.patch({ instances, instancesFailure, marks: [...others, ...instanceMarks(instances?.instances ?? [])] })
   }
 
   /** Its last 100 versions and its instances, as marks: without them, charts mark nothing. */
   private async loadMarks(appId: string): Promise<void> {
+    let instancesFailure: string | null = null
     const [versions, instances] = await Promise.all([
       this.structures.versions(appId, { size: 100 }).catch(() => null),
-      this.instanceApi.list(appId).catch(() => null),
+      this.instanceApi.list(appId).catch((error: unknown) => {
+        instancesFailure = error instanceof Error ? error.message : 'Could not load its instances'
+        return null
+      }),
     ])
     // The first version is when the monitor first read it, no deployment.
     const deployed: AppMark[] = (versions?.hasMore ? versions.items : (versions?.items ?? []).slice(0, -1)).map(version => ({ at: version.takenAt, label: 'Its structure changed: deployed', tone: 'brand' }))
-    if (this.appId === appId) this.store.patch({ instances, marks: [...deployed, ...instanceMarks(instances?.instances ?? [])] })
+    if (this.appId === appId) this.store.patch({ instances, instancesFailure, marks: [...deployed, ...instanceMarks(instances?.instances ?? [])] })
   }
 
   /** Its last version, or null while none was read. */

@@ -37,7 +37,9 @@ export function AppSystem({ app }: { app: AppDTO }) {
 
 function AppSystemWrapped({ app }: { app: AppDTO }) {
   const service = useService(AppSystemService)
-  const instances = useValue(useService(AppService).instances)
+  const appService = useService(AppService)
+  const instances = useValue(appService.instances)
+  const instancesFailure = useValue(appService.instancesFailure)
   const loaded = useValue(service.loaded)
   const window = useValue(service.window)
   const bucket = useValue(service.bucket)
@@ -51,7 +53,7 @@ function AppSystemWrapped({ app }: { app: AppDTO }) {
   }, [service])
 
   if (!loaded) return <Skeleton lines={6} />
-  if (!instances || (instances.instances.length === 0 && !series?.points.some(point => point.rssBytes !== null))) {
+  if (instances && instances.instances.length === 0 && !series?.points.some(point => point.rssBytes !== null)) {
     return (
       <Box label="System">
         <BoxEmpty icon={GaugeIcon} title="No instance heard of yet" description="Each instance of the application reads itself and its machine every 10 seconds; the monitor collects them every minute." />
@@ -59,7 +61,7 @@ function AppSystemWrapped({ app }: { app: AppDTO }) {
     )
   }
 
-  const system = instances.system
+  const system = instances?.system
   const tightest = system?.disks.filter(disk => disk.fullInDays !== null).sort((a, b) => a.fullInDays! - b.fullInDays!)[0]
     ?? system?.disks.toSorted((a, b) => a.freeBytes - b.freeBytes)[0]
   const format = timeFormat(window, bucket)
@@ -69,19 +71,22 @@ function AppSystemWrapped({ app }: { app: AppDTO }) {
 
   return (
     <Stack gap={4}>
-      <Grid columns={{ base: 2, md: 4 }}>
-        <Stat label="Instances alive" value={system?.instances ?? 0} hint={system ? <>read <RelativeTime date={system.at} /></> : 'none now'} />
-        <Stat label="Its memory" value={system ? formatBytes(system.process.rssBytes) : '–'} hint={system ? `heap ${formatBytes(system.process.heapUsedBytes)}, its instances added up` : undefined} />
-        <Stat label="Its processor" value={system ? formatPercent(system.process.cpu) : '–'} hint="of one core, its instances added up" />
-        <Stat label="Worst event loop" value={system ? formatMs(system.process.loopMaxMs) : '–'} hint="its longest delay, of the instances alive" />
-        <Stat label="Machine memory in use" value={system ? formatBytes(system.memory.totalBytes - system.memory.freeBytes) : '–'} hint={system ? memoryOf(system.memory) : undefined} />
-        <Stat label="Processors busy" value={formatPercent(system?.cpu.usage ?? null)} hint={system ? `load ${system.cpu.load.toFixed(2)} on ${system.cpu.cores} cores` : undefined} />
-        <Stat
-          label={tightest?.fullInDays != null ? 'Disk full in' : 'Disk free'}
-          value={tightest ? (tightest.fullInDays !== null ? `${Math.floor(tightest.fullInDays)} days` : formatBytes(tightest.freeBytes)) : '–'}
-          hint={system?.disks.map(diskOf).join('; ')}
-        />
-      </Grid>
+      {instancesFailure && <Alert tone="bad" title="Could not load its instances">{instancesFailure}</Alert>}
+      {instances && (
+        <Grid columns={{ base: 2, md: 4 }}>
+          <Stat label="Instances alive" value={system?.instances ?? 0} hint={system ? <>read <RelativeTime date={system.at} /></> : 'none now'} />
+          <Stat label="Its memory" value={system ? formatBytes(system.process.rssBytes) : '–'} hint={system ? `heap ${formatBytes(system.process.heapUsedBytes)}, its instances added up` : undefined} />
+          <Stat label="Its processor" value={system ? formatPercent(system.process.cpu) : '–'} hint="of one core, its instances added up" />
+          <Stat label="Worst event loop" value={system ? formatMs(system.process.loopMaxMs) : '–'} hint="its longest delay, of the instances alive" />
+          <Stat label="Machine memory in use" value={system ? formatBytes(system.memory.totalBytes - system.memory.freeBytes) : '–'} hint={system ? memoryOf(system.memory) : undefined} />
+          <Stat label="Processors busy" value={formatPercent(system?.cpu.usage ?? null)} hint={system ? `load ${system.cpu.load.toFixed(2)} on ${system.cpu.cores} cores` : undefined} />
+          <Stat
+            label={tightest?.fullInDays != null ? 'Disk full in' : 'Disk free'}
+            value={tightest ? (tightest.fullInDays !== null ? `${Math.floor(tightest.fullInDays)} days` : formatBytes(tightest.freeBytes)) : '–'}
+            hint={system?.disks.map(diskOf).join('; ')}
+          />
+        </Grid>
+      )}
       <Inline gap={2} wrap>
         {(Object.keys(WINDOWS) as MetricsWindow[]).map(each => (
           <Button key={each} size="sm" variant={each === window ? 'secondary' : 'ghost'} onClick={() => void service.showWindow(each)}>{WINDOW_LABELS[each]}</Button>
@@ -187,7 +192,7 @@ function AppSystemWrapped({ app }: { app: AppDTO }) {
             </>
           )
         : <Skeleton lines={6} />}
-      <InstanceList instances={instances.instances} />
+      {instances && <InstanceList instances={instances.instances} />}
     </Stack>
   )
 }
