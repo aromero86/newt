@@ -1,5 +1,6 @@
 import { TableRepository } from 'newt/repository'
 import type { MonitorBase } from '../../../../monitor-base'
+import { assertAppThere, unlessAppGone } from '../../../../shared/app-gone'
 import { Connection, type ConnectionDTO } from './connection'
 
 export type ConnectionRow = ConnectionDTO & { version: number }
@@ -13,6 +14,17 @@ export class Connection_Repository extends TableRepository<Connection, Connectio
 
   protected toEntity(row: ConnectionRow): Connection {
     return Connection.fromDTO(row)
+  }
+
+  /**
+   * Saves a call's note unless its application was deleted while it was being called:
+   * checked in the save, as forgetting it may have run meanwhile. Whether it saved.
+   */
+  persistWhileThere(appId: string, connection: Connection, isThere: () => Promise<boolean>): Promise<boolean> {
+    return unlessAppGone(() => this.save([connection], each => this.write(each), {
+      guard: [`connection:${appId}`],
+      after: () => assertAppThere(isThere),
+    }))
   }
 
   /** Everything of an application, for good: it was deleted. */

@@ -1,5 +1,6 @@
 import { TableRepository } from 'newt/repository'
 import type { MonitorBase } from '../../../../monitor-base'
+import { assertAppThere, unlessAppGone } from '../../../../shared/app-gone'
 import { CatalogItem, type CatalogItemDTO } from './catalog'
 
 export type CatalogItemRow = CatalogItemDTO & { version: number }
@@ -23,10 +24,13 @@ export class CatalogItem_Repository extends TableRepository<CatalogItem, Catalog
     return this.find({ appId })
   }
 
-  /** The items a version changed, at once, one application at a time. */
-  async persistAll(appId: string, items: CatalogItem[]): Promise<void> {
+  /**
+   * The items a version changed, at once, one application at a time: none if the
+   * application was deleted meanwhile, its items forgotten.
+   */
+  async persistAll(appId: string, items: CatalogItem[], isThere: () => Promise<boolean>): Promise<void> {
     if (items.length === 0) return
-    await this.save(items, each => this.write(each), { guard: [`catalog:${appId}`] })
+    await unlessAppGone(() => this.save(items, each => this.write(each), { guard: [`catalog:${appId}`], after: () => assertAppThere(isThere) }))
   }
 
   /** Everything of an application, for good: it was deleted. */

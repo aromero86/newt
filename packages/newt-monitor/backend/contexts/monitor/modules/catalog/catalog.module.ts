@@ -53,7 +53,7 @@ export class Catalog_Module extends Module {
       gone.archive(version.takenAt)
       if (gone.hasPendingChanges) changed.push(gone)
     }
-    await this.repo.persistAll(appId, changed)
+    await this.repo.persistAll(appId, changed, async () => await this.deps.app.find(appId) !== null)
   }
 
   /** A page of an application's items, in the order they appeared: those there now, unless `filter` asks for more. */

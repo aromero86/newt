@@ -50,7 +50,8 @@ export class Structure_Module extends Module {
     const hash = hashOf(read.value)
     if (previous?.hash === hash) return { appId, outcome: 'unchanged', version: previous.summary() }
     const version = StructureVersion.take(appId, read.value, hash, previous)
-    await this.repo.persistAfter(version, previous)
+    // Deleted while it was read: what it is made of is forgotten, and stays so.
+    if (!await this.repo.persistAfter(version, previous, async () => await this.deps.app.find(appId) !== null)) return { appId, outcome: 'gone', version: null }
     return { appId, outcome: 'changed', version: version.summary() }
   }
 
