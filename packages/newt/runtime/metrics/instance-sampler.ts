@@ -74,13 +74,16 @@ export class InstanceSampler {
   /** One reading, given to the metrics: a reading that fails is skipped, and said. */
   async take(): Promise<void> {
     try {
+      const reading = this.readProcess()
+      const server = await this.readServer()
       const sample: InstanceSample = {
         instance: this.options.instance,
         pid: process.pid,
         startedAt: this.options.startedAt,
+        // Its time once it is read: a minute closed meanwhile would never get it.
         at: this.options.clock.now(),
-        process: this.readProcess(),
-        server: await this.readServer(),
+        process: reading,
+        server,
       }
       this.metrics.sample(sample)
     } catch (error) {
