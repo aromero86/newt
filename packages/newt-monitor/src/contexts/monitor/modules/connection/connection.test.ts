@@ -31,7 +31,10 @@ const status = async () => (await as(`/api/apps/${id}/connection`)).json() as Pr
 
 describe('connection', () => {
   test('knows nothing of an application until it asks it', async () => {
-    expect(await status()).toMatchObject({ status: 'unknown', lastSeenAt: null })
+    // Registering one has its structure read by a worker, which asks it: not while the worker is stopped.
+    await monitor.monitor.base.jobs.stop()
+    const other = (await (await as('/api/apps', { method: 'POST', json: { name: 'other', url: app.url, key: app.key } })).json() as { id: string }).id
+    expect(await (await as(`/api/apps/${other}/connection`)).json()).toMatchObject({ status: 'unknown', lastSeenAt: null })
   })
 
   test('asks an application which it is, signing with its key, and records that it answered', async () => {

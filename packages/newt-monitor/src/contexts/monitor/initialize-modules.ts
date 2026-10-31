@@ -6,7 +6,7 @@ import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
 import { Catalog_Module } from './modules/catalog/catalog.module'
 import { Connection_Module } from './modules/connection/connection.module'
-import { MetricsStore } from '../../shared/metrics-store/metrics-store'
+import type { MetricsStore } from '../../shared/metrics-store/metrics-store'
 import { EventMetrics_Module } from './modules/event-metrics/event-metrics.module'
 import { Outbox_Module } from './modules/outbox/outbox.module'
 import { QueueMetrics_Module } from './modules/queue-metrics/queue-metrics.module'
@@ -20,8 +20,8 @@ import { Structure_Module } from './modules/structure/structure.module'
 /** What the modules are given from outside: the applications, over HTTP, unless a test gives another way to them. */
 export type Monitor_ModuleDeps = { client?: AppClient }
 
-/** Every module of `monitor`, each one after the modules it uses. */
-export function initializeModules(base: MonitorBase, config: MonitorConfig, deps: Monitor_ModuleDeps = {}) {
+/** Every module of `monitor`, each one after the modules it uses; the metrics modules keep theirs in `metrics`, which the context closes. */
+export function initializeModules(base: MonitorBase, config: MonitorConfig, metrics: MetricsStore, deps: Monitor_ModuleDeps = {}) {
   const session = Session_Module.initialize(base, {
     ...config.admin,
     hours: config.sessionHours,
@@ -32,7 +32,6 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, deps
   const connection = Connection_Module.initialize(base, { app, client })
   const structure = Structure_Module.initialize(base, { app, connection })
   const catalog = Catalog_Module.initialize(base, { app, structure })
-  const metrics = new MetricsStore(config.metricsFolder)
   const retention = Retention_Module.initialize(base, { app })
   const eventMetrics = EventMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const useCaseMetrics = UseCaseMetrics_Module.initialize(base, { app, connection, retention }, { store: metrics })
