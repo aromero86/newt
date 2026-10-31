@@ -80,8 +80,14 @@ class MemoryHeld implements HeldTraces {
 
   constructor(private readonly holdMs = 30 * MINUTE_MS, private readonly max = 5_000, private readonly now: () => number = Date.now) {}
 
+  /** Holds a trace: when full, it lets go of what is past its time and then of the oldest, the least likely to be needed. */
   async hold(trace: Trace): Promise<void> {
-    if (this.traces.size >= this.max) return
+    if (this.traces.size >= this.max) this.forget()
+    while (this.traces.size >= this.max) {
+      const oldest = this.traces.keys().next().value
+      if (oldest === undefined) break
+      this.letGo(oldest)
+    }
     this.traces.set(trace.id, { trace, until: this.now() + this.holdMs })
     for (const event of trace.told) this.tellers.set(event.id, trace.id)
     if (trace.job) this.caused.set(trace.job.eventId, (this.caused.get(trace.job.eventId) ?? new Set()).add(trace.id))
@@ -116,6 +122,20 @@ class MemoryHeld implements HeldTraces {
     for (const [eventId, ids] of this.caused) {
       for (const id of ids) if (!this.traces.has(id)) ids.delete(id)
       if (ids.size === 0) this.caused.delete(eventId)
+    }
+  }
+
+  /** Lets go of one trace held, and of what points to it. */
+  private letGo(id: string): void {
+    const held = this.traces.get(id)
+    this.traces.delete(id)
+    if (!held) return
+    for (const event of held.trace.told) if (this.tellers.get(event.id) === id) this.tellers.delete(event.id)
+    const job = held.trace.job
+    const ids = job ? this.caused.get(job.eventId) : undefined
+    if (job && ids) {
+      ids.delete(id)
+      if (ids.size === 0) this.caused.delete(job.eventId)
     }
   }
 
