@@ -274,6 +274,27 @@ describe('invitations', () => {
     await expect(as(bob, () => modules().invitation.accept(token))).rejects.toMatchObject({ code: 'invitation.not_open' })
   })
 
+  test('are made again once the one before expired, which is no longer listed as waiting', async () => {
+    const ana = await signUp('Ana')
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+    await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))
+
+    time += config.auth.invitationDays * DAY_MS
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(0)
+    expect(await as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))).toMatchObject({ status: 'pending' })
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(1)
+  })
+
+  test('are made once per email when made at once', async () => {
+    const ana = await signUp('Ana')
+    const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
+
+    const results = await Promise.allSettled([1, 2].map(() => as(ana, () => modules().invitation.create(acme.id, { email: 'bob@cooper.test' }))))
+    expect(results.map(result => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { code: 'invitation.already_invited' } })
+    expect((await as(ana, () => modules().invitation.list(acme.id, page))).total).toBe(1)
+  })
+
   test('cannot be accepted once their workspace is deleted, before its workers run', async () => {
     const [ana, bob] = [await signUp('Ana'), await signUp('Bob')]
     const acme = await as(ana, () => modules().tenant.create({ name: 'Acme' }))
