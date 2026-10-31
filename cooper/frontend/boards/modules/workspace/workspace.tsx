@@ -1,7 +1,12 @@
 import { useEffect } from 'react'
 import { Outlet, useParams } from 'react-router'
+import { RotateCcwIcon } from 'lucide-react'
+import { Alert } from 'newt-react-ui/alert'
+import { Button } from 'newt-react-ui/button'
+import { Icon } from 'newt-react-ui/icon'
 import { PageBody } from 'newt-react-ui/page-body'
 import { Spinner } from 'newt-react-ui/spinner'
+import { Stack } from 'newt-react-ui/stack'
 import { Provide, useService, useValue } from 'newt-react'
 import { NotFound } from '../../pages/not-found/not-found'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
@@ -24,6 +29,7 @@ function WorkspaceWrapped() {
   const service = useService(WorkspaceService)
   const workspace = useValue(workspaces.workspace(workspaceId))
   const failure = useValue(workspaces.failure)
+  const loading = useValue(workspaces.loading)
 
   useEffect(() => {
     void workspaces.load()
@@ -36,8 +42,21 @@ function WorkspaceWrapped() {
   }, [service, workspaceId, known])
 
   if (workspace === undefined && !failure) return <PageBody><Spinner label="Loading the workspace" /></PageBody>
+  // The list could not be read: whether it is theirs is not known yet.
+  if (workspace === undefined) {
+    return (
+      <PageBody>
+        <Stack gap={3} align="start">
+          <Alert tone="bad" title="Could not load your workspaces">{failure}</Alert>
+          <Button size="sm" variant="outline" loading={loading} onClick={() => void workspaces.reload()}>
+            <Icon icon={RotateCcwIcon} size="sm" />Retry
+          </Button>
+        </Stack>
+      </PageBody>
+    )
+  }
   // Not a member, or no such workspace: the same answer, as the backend gives.
-  if (!workspace) return <PageBody><NotFound /></PageBody>
+  if (workspace === null) return <PageBody><NotFound /></PageBody>
   return (
     <>
       <WorkspaceBand workspace={workspace} />
