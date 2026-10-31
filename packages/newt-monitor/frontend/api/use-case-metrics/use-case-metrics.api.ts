@@ -1,5 +1,5 @@
-import type { MetricsWindow } from '../../../src/contexts/monitor/modules/event-metrics/event-metrics.schema'
-import type { UseCaseSeriesDTO, UseCaseSeriesQueryDTO, UseCaseTopDTO, UseCaseTopQueryDTO, UseCaseTotalDTO } from '../../../src/contexts/monitor/modules/use-case-metrics/use-case-metrics.schema'
+import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
+import type { UseCaseSeriesDTO, UseCaseSeriesQueryDTO, UseCaseTopDTO, UseCaseTopQueryDTO, UseCaseTotalDTO } from '../../../backend/contexts/monitor/modules/use-case-metrics/use-case-metrics.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `useCaseMetrics` module: how each use case of an application went. */

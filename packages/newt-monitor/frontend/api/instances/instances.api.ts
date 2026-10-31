@@ -1,4 +1,4 @@
-import type { InstanceCountQueryDTO, InstanceCountSeriesDTO, InstancesDTO, ServerSeriesDTO, ServerSeriesQueryDTO } from '../../../src/contexts/monitor/modules/instances/instances.schema'
+import type { InstanceCountQueryDTO, InstanceCountSeriesDTO, InstancesDTO, ServerSeriesDTO, ServerSeriesQueryDTO } from '../../../backend/contexts/monitor/modules/instances/instances.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `instances` module: an application's instances and the servers they run on. */

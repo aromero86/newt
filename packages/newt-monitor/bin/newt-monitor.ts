@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { main } from '../src/main'
+import { main } from '../backend/main'
 
 try {
   await main(process.env)

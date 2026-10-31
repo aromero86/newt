@@ -15,7 +15,7 @@
   "include": [
     "packages/newt-monitor/frontend/**/*.ts",
     "packages/newt-monitor/frontend/**/*.tsx",
-    "packages/newt-monitor/src/contexts/*/modules/*/*.schema.ts"
+    "packages/newt-monitor/backend/contexts/*/modules/*/*.schema.ts"
   ],
   "exclude": ["**/node_modules"]
 }

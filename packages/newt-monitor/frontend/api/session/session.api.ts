@@ -1,4 +1,4 @@
-import type { MeDTO, SignInDTO } from '../../../src/contexts/monitor/modules/session/session.schema'
+import type { MeDTO, SignInDTO } from '../../../backend/contexts/auth/modules/session/session.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `session` module: who is signed in, in a cookie the page cannot read. */

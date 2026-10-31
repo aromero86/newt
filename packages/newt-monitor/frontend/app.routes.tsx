@@ -16,6 +16,9 @@ export const router = createBrowserRouter([
     Component: SessionGuard,
     ErrorBoundary: () => <PageBody><RouteError /></PageBody>,
     children: [
+      // An application asking for access: on a page of its own, outside the shell.
+      { path: 'authorize/error', lazy: () => import('./pages/authorize/authorize').then(page => ({ Component: page.AuthorizeError })) },
+      { path: 'authorize/:id', lazy: () => import('./pages/authorize/authorize').then(page => ({ Component: page.Authorize })) },
       {
         Component: Shell,
         children: [

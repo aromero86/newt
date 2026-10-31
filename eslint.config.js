@@ -13,8 +13,8 @@ const BACKEND = newt({
 
 // newt-monitor is an application built with newt too, so it keeps the same lint.
 const MONITOR = newt({
-  files: ['packages/newt-monitor/{bin,scripts,src}/**/*.ts'],
-  contexts: { folder: 'packages/newt-monitor/src/contexts', uses: { monitor: [] } },
+  files: ['packages/newt-monitor/{bin,scripts,backend}/**/*.ts'],
+  contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { auth: [], monitor: ['auth'] } },
 })
 
 // Its frontend composes newt-react-ui's components, as cooper's do. Of the backend it
@@ -23,7 +23,7 @@ const MONITOR_FRONTEND = newtReactUi({
   files: ['packages/newt-monitor/frontend/**/*.{ts,tsx}'],
   components: ['packages/newt-monitor/frontend/components/**'],
   imports: [{
-    regex: '(^|/)src(/|$)',
+    regex: '(^|/)backend(/|$)',
     message: 'The monitor\'s pages never import its backend: use its client in frontend/api.',
   }],
 })
@@ -46,12 +46,12 @@ const API_BACKEND_IMPORTS = {
 
 // The same for the monitor's clients: of its backend, only its modules' schemas.
 const MONITOR_API_BACKEND_IMPORTS = {
-  regex: '(^|/)src(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$)|$)',
+  regex: '(^|/)backend(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$)|$)',
   message: 'The monitor\'s API clients may only import a module\'s *.schema.ts (its contract).',
 }
 const MONITOR_API_TEST_IMPORTS = {
-  regex: '(^|/)src(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$|testing/)|$)',
-  message: 'A test of the monitor\'s API clients may import a module\'s *.schema.ts and src/testing, nothing else of the backend.',
+  regex: '(^|/)backend(/(?!contexts/[^/]+/modules/[^/]+/[^/]+\\.schema(\\.[jt]s)?$|testing/)|$)',
+  message: 'A test of the monitor\'s API clients may import a module\'s *.schema.ts and backend/testing, nothing else of the backend.',
 }
 
 // cooper's frontends compose newt-react-ui's components and style nothing: only cooper's

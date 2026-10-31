@@ -1,4 +1,4 @@
-import type { ConnectionStatusDTO } from '../../../src/contexts/monitor/modules/connection/connection.schema'
+import type { ConnectionStatusDTO } from '../../../backend/contexts/monitor/modules/connection/connection.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `connection` module: whether an application answers. */

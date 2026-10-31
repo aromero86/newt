@@ -1,4 +1,4 @@
-import type { TraceDTO, TraceHeaderDTO, TraceListDTO, TraceListQueryDTO } from '../../../src/contexts/monitor/modules/traces/traces.schema'
+import type { TraceDTO, TraceHeaderDTO, TraceListDTO, TraceListQueryDTO } from '../../../backend/contexts/monitor/modules/traces/traces.schema'
 import { Requester } from 'newt-react'
 
 /** The monitor's `traces` module: an application's traces, listed and whole; and the header that keeps a request's. */
