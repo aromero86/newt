@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { allOrNone } from './all-or-none'
 import { transactionSaves } from './transaction-saves'
 
 /** What a transaction does at each step, for the adapter that runs it. */
@@ -11,7 +12,14 @@ type Steps = {
   end?(): void | Promise<void>
 }
 
-type Transaction<State> = { open: boolean, state: State, committed: (() => void)[], rolledBack: (() => void)[] }
+type Transaction<State> = {
+  open: boolean
+  state: State
+  committed: (() => void)[]
+  rolledBack: (() => void)[]
+  /** Set by an all-or-none call that joined it and threw: what it wrote may be half done, so it can only roll back. */
+  spoiled?: { cause: unknown }
+}
 
 /** How long a call waits for the store by default before it gives up, saying why. */
 const WAIT_TIMEOUT_MS = 30_000
@@ -26,6 +34,9 @@ const WAIT_TIMEOUT_MS = 30_000
  * - once it starts committing or rolling back it is closed: a call that belongs to it
  *   and comes late (left unawaited, or a branch of a `Promise.all` still running when
  *   another threw) fails, instead of running outside it;
+ * - an all-or-none call (`allOrNone`: a repository's save) that joins it and throws
+ *   spoils it: whatever catches the error, it rolls back, since that call may have
+ *   written half of what it meant to;
  * - `afterCommit` runs once it commits, each callback on its own, never on a rollback;
  *   `afterRollback`, once it rolls back, latest first, never on a commit;
  * - it keeps the modules the repositories save in it (`transactionSaves`), for the
@@ -71,7 +82,16 @@ export class TransactionScope<State = undefined> {
 
   /** Runs `fn` in a new transaction, through `steps`, or in the one in progress. */
   async run<T>(fn: () => T | Promise<T>, state: State, steps: Steps): Promise<T> {
-    if (this.inTransaction) return fn()
+    const joined = this.current.getStore()
+    if (joined?.open) {
+      if (!allOrNone.find()) return fn()
+      try {
+        return await allOrNone.run(false, fn)
+      } catch (error) {
+        joined.spoiled ??= { cause: error }
+        throw error
+      }
+    }
     this.assertNotEnded()
 
     const transaction: Transaction<State> = { open: true, state, committed: [], rolledBack: [] }
@@ -81,13 +101,17 @@ export class TransactionScope<State = undefined> {
       try {
         let value: T
         try {
-          value = await this.current.run(transaction, () => transactionSaves.run(new Set(), fn))
+          value = await this.current.run(transaction, () => transactionSaves.run(new Set(), () => allOrNone.run(false, fn)))
         } catch (error) {
           transaction.open = false
           await rollback(steps)
           throw error
         }
         transaction.open = false
+        if (transaction.spoiled) {
+          await rollback(steps)
+          throw new Error('The transaction is rolled back: a save that joined it failed, and what it wrote may be half done, even though its error was caught.', { cause: transaction.spoiled.cause })
+        }
         try {
           await steps.commit()
           committed = true
@@ -97,7 +121,7 @@ export class TransactionScope<State = undefined> {
         }
         return value
       } finally {
-        await steps.end?.()
+        await end(steps)
       }
     }
     let result: T
@@ -173,6 +197,15 @@ export class TransactionScope<State = undefined> {
   /** Resolves once everything queued has ended: for closing. */
   async drain(): Promise<void> {
     await this.queue
+  }
+}
+
+/** Ends it, whatever happened: one ending raises is told, and neither the commit nor the first error is undone by it. */
+async function end(steps: Steps): Promise<void> {
+  try {
+    await steps.end?.()
+  } catch (error) {
+    console.error('[store] ending the transaction failed; its outcome stands:', error)
   }
 }
 

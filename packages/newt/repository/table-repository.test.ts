@@ -286,6 +286,22 @@ describe('persist', () => {
     expect([created.isNew, created.version]).toEqual([true, 0])
   })
 
+  test('joined to a transaction, and failing, rolls it all back, even if its error was caught', async () => {
+    const { log, repo, store, failNextWrite } = world()
+    const created = Thing.create('one')
+    const changed = Thing.fromRow(stored())
+    changed.rename('two')
+
+    const spoiled = store.transaction(async () => {
+      failNextWrite()
+      await repo.persist(created, changed).catch(() => {})
+    })
+
+    await expect(spoiled).rejects.toThrow('a save that joined it failed')
+    expect(log).toEqual(['begin', 'checkWrite', expect.stringMatching(/^insert /), 'rollback'])
+    expect([created.isNew, created.version]).toEqual([true, 0])
+  })
+
   test('one whose save rolled back is never saved again: a change since would tell less than it writes', async () => {
     const { log, repo, store } = world()
     const thing = Thing.fromRow(stored())

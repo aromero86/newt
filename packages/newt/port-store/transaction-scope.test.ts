@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { allOrNone } from './all-or-none'
 import { TransactionScope } from './transaction-scope'
 
 const steps = (log: string[]) => ({
@@ -189,6 +190,72 @@ describe('a rollback', () => {
       console.error = originalError
     }
   })
+})
+
+describe('a call that joined it and threw', () => {
+  test('all or none, rolls it back, even if the error was caught', async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    const spoiled = scope.run(async () => {
+      scope.afterCommit(() => log.push('afterCommit'))
+      scope.afterRollback(() => log.push('afterRollback'))
+      await allOrNone.run(true, () => scope.run(() => { throw new Error('half written') }, undefined, steps(log))).catch(() => {})
+      return 'value'
+    }, undefined, steps(log))
+
+    await expect(spoiled).rejects.toThrow('a save that joined it failed')
+    expect(await spoiled.catch((error: Error) => (error.cause as Error).message)).toBe('half written')
+    expect(log).toEqual(['begin', 'rollback', 'end', 'afterRollback'])
+  })
+
+  test('on its own (a write of a table), fails alone: what catches it may go on and commit', async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    const value = await scope.run(async () => {
+      await scope.run(() => {
+        // A write inside an all-or-none call is not one itself.
+        return allOrNone.run(true, () => scope.run(() => scope.run(() => { throw new Error('taken') }, undefined, steps(log)).catch(() => {}), undefined, steps(log)))
+      }, undefined, steps(log))
+      return 'value'
+    }, undefined, steps(log))
+
+    expect(value).toBe('value')
+    expect(log).toEqual(['begin', 'commit', 'end'])
+  })
+})
+
+describe('an end that fails', () => {
+  const silenced = async (fn: () => Promise<void>) => {
+    const originalError = console.error
+    console.error = () => {}
+    try {
+      await fn()
+    } finally {
+      console.error = originalError
+    }
+  }
+
+  test('after the commit, still returns the value and runs the callbacks', () => silenced(async () => {
+    const scope = new TransactionScope()
+    const log: string[] = []
+
+    const value = await scope.run(() => {
+      scope.afterCommit(() => log.push('callback'))
+      return 'value'
+    }, undefined, { ...steps(log), end: () => { throw new Error('end failed') } })
+
+    expect(value).toBe('value')
+    expect(log).toEqual(['begin', 'commit', 'callback'])
+  }))
+
+  test('after a failed commit, leaves the commit error the one thrown', () => silenced(async () => {
+    const scope = new TransactionScope()
+    const failing = scope.run(() => {}, undefined, { ...steps([]), commit: () => { throw new Error('disk full') }, end: () => { throw new Error('end failed') } })
+
+    await expect(failing).rejects.toThrow('disk full')
+  }))
 })
 
 describe('exclusive', () => {
