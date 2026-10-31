@@ -2,14 +2,17 @@ import { dirname, extname, join } from 'node:path'
 import { z } from 'zod'
 import { MIN_SECRET_LENGTH } from './shared/key-cipher'
 
+/** An empty variable counts as unset: `NEWT_MONITOR_PORT=` is the default port, not port 0. */
+const unset = (value: unknown) => (value === '' ? undefined : value)
+
 /** What the monitor is told by its environment, each variable with what it is for. */
 const EnvSchema = z.object({
   /** Where it listens. */
-  NEWT_MONITOR_PORT: z.coerce.number().int().min(0).max(65_535).default(4800),
+  NEWT_MONITOR_PORT: z.preprocess(unset, z.coerce.number().int().min(0).max(65_535).default(4800)),
   /** Its SQLite database: a file, made with its folder if missing, or `:memory:`. */
   NEWT_MONITOR_DATA: z.string().trim().min(1).default('data/newt-monitor.db'),
-  /** Where people open it: its session cookie is `Secure` when this is `https`. */
-  NEWT_MONITOR_PUBLIC_URL: z.url().default('http://localhost:4800'),
+  /** Where people open it: its session cookie is `Secure` when this is `https`. Without a trailing slash, as its addresses are built on it. */
+  NEWT_MONITOR_PUBLIC_URL: z.url().transform(url => url.replace(/\/+$/, '')).default('http://localhost:4800'),
   /** Who signs in to it: no default, so a monitor nobody configured does not start. */
   NEWT_MONITOR_USER: z.string().trim().min(1),
   /** Their password: 12 characters or more. */
