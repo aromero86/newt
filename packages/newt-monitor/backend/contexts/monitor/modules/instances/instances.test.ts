@@ -113,7 +113,7 @@ describe('instances', () => {
     sampled('a', ago(20 * DAY), [0])
     await collect()
     expect((await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { resourceMinuteDays: 1 } })).status).toBe(400)
-    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { resourceMinuteDays: 3, dayDays: 10 } })
+    await as(`/api/apps/${id}/retention`, { method: 'PATCH', json: { minuteDays: 3, resourceMinuteDays: 3, dayDays: 10 } })
 
     await monitor.modules.instances.keep(id)
 
