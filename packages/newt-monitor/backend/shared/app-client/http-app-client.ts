@@ -180,6 +180,9 @@ const DeadJobsSchema = z.object({
 /** `AppClient` over HTTP: each request signed with the endpoint's key, which never travels. */
 export class HttpAppClient implements AppClient {
 
+  /** `timeoutMs`: how long it waits for an answer, body included. */
+  constructor(private readonly timeoutMs = TIMEOUT_MS) {}
+
   async identity(endpoint: Endpoint): Promise<MonitorIdentity> {
     return this.read(endpoint, '/v1/identity', IdentitySchema)
   }
@@ -241,9 +244,10 @@ export class HttpAppClient implements AppClient {
 
   private async get(endpoint: Endpoint, path: string): Promise<unknown> {
     const url = `${endpoint.url}${path}`
+    const signal = AbortSignal.timeout(this.timeoutMs)
     let response: Response
     try {
-      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal: AbortSignal.timeout(TIMEOUT_MS) })
+      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal })
     } catch (error) {
       throw new AppCallFailed('unreachable', `Nobody answered at ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -251,7 +255,9 @@ export class HttpAppClient implements AppClient {
     if (!response.ok) throw new AppCallFailed('bad_answer', `${endpoint.url} answered ${response.status}: is it a monitor endpoint?`)
     try {
       return await response.json()
-    } catch {
+    } catch (error) {
+      // The timeout covers the body too: one that never ends is no answer, not a wrong one.
+      if (signal.aborted) throw new AppCallFailed('unreachable', `${endpoint.url} did not finish answering in ${this.timeoutMs} ms`)
       throw new AppCallFailed('bad_answer', `${endpoint.url} answered something that is not JSON: is it a monitor endpoint?`)
     }
   }
