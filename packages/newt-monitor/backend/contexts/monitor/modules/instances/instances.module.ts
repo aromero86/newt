@@ -24,13 +24,19 @@ const SYSTEM = {
 const DISK = { path: 'VARCHAR', total: 'BIGINT', free_mean: 'DOUBLE', free_min: 'BIGINT' } as const
 
 /** How a day sums its minutes, column by column. */
-const SYSTEM_DAY = 'avg(rss_mean), max(rss_max), avg(heap_mean), avg(cpu_mean), max(cpu_max), max(loop_max), max(memory_total), avg(memory_free_mean), min(memory_free_min), max(cores), avg(load_mean), max(load_max), avg(usage_mean), max(usage_max)'
+const SYSTEM_DAY = 'avg(rss_mean), max(rss_max), avg(heap_mean), avg(cpu_mean), max(cpu_max), max(loop_max), arg_min(memory_total, memory_free_min / memory_total), avg(memory_free_mean), arg_min(memory_free_min, memory_free_min / memory_total), max(cores), avg(load_mean), max(load_max), avg(usage_mean), max(usage_max)'
 
 /** A day, `days` before a time, as `YYYY-MM-DD`. */
 const dayBefore = (at: Date, days: number) => new Date(at.getTime() - days * DAY_MS).toISOString().slice(0, 10)
 
 /** The 10-second slots of a minute. */
 const SLOTS = [0, 1, 2, 3, 4, 5]
+
+/** Whether an instance was alive at a slot of its minute: from its first slot to its last. */
+const aliveAt = (each: InstanceMinute, slot: number) => each.slots.length > 0 && Math.min(...each.slots) <= slot && slot <= Math.max(...each.slots)
+
+/** The share of a machine's memory in use. */
+const usedShare = (memory: { totalBytes: number }, free: number) => (memory.totalBytes > 0 ? 1 - free / memory.totalBytes : 0)
 
 /**
  * Each application's instances and the system they make: every instance as it is now
@@ -190,8 +196,8 @@ export class Instances_Module extends Module {
    * The minutes collected, into its DuckDB, each one whatever instances and machines it
    * had: how many instances were alive at each 10-second slot, at the emptiest and the
    * fullest (an instance counts from its first slot of the minute to its last); the
-   * application's processes added up and its worst event loop; and its machines at
-   * their fullest, each disk by its path.
+   * application's processes added up slot by slot, only those alive together, and its
+   * worst event loop; and its machines at their fullest, each disk by its path.
    */
   private async append(appId: string, minutes: InstanceMinute[]): Promise<void> {
     if (minutes.length === 0) return
@@ -200,21 +206,25 @@ export class Instances_Module extends Module {
     for (const each of minutes) byMinute.set(each.minute, [...byMinute.get(each.minute) ?? [], each])
     const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
     const counts = [...byMinute].map(([minute, instances]) => {
-      const alive = SLOTS.map(slot => instances.filter(each => each.slots.length > 0 && Math.min(...each.slots) <= slot && slot <= Math.max(...each.slots)).length)
+      const alive = SLOTS.map(slot => instances.filter(each => aliveAt(each, slot)).length)
       return { id: minute, minute, min: Math.min(...alive), max: Math.max(...alive) }
     })
     const systems = [...byMinute].map(([minute, instances]) => {
       const usages = instances.flatMap(each => (each.server.cpu.usage ? [each.server.cpu.usage] : []))
-      // The machine with the least memory free, its total with it.
-      const fullest = instances.reduce((least, each) => (each.server.memory.freeBytes.mean < least.server.memory.freeBytes.mean ? each : least))
+      // Each slot adds up the instances alive in it: one and its replacement in the same minute are not counted together.
+      const bySlot = (value: (each: InstanceMinute) => number) => SLOTS.map(slot => sum(instances.filter(each => aliveAt(each, slot)).map(value)))
+      const mean = (value: (each: InstanceMinute) => number) => sum(bySlot(value)) / SLOTS.length
+      const most = (value: (each: InstanceMinute) => number) => Math.max(...bySlot(value))
+      // The machine with the most of its memory in use: its total and its free with it.
+      const fullest = instances.reduce((top, each) => (usedShare(each.server.memory, each.server.memory.freeBytes.mean) > usedShare(top.server.memory, top.server.memory.freeBytes.mean) ? each : top))
       return {
         id: minute, minute,
-        rss_mean: sum(instances.map(each => each.process.rssBytes.mean)), rss_max: sum(instances.map(each => each.process.rssBytes.max)),
-        heap_mean: sum(instances.map(each => each.process.heapUsedBytes.mean)),
-        cpu_mean: sum(instances.map(each => each.process.cpu.mean)), cpu_max: sum(instances.map(each => each.process.cpu.max)),
+        rss_mean: mean(each => each.process.rssBytes.mean), rss_max: most(each => each.process.rssBytes.max),
+        heap_mean: mean(each => each.process.heapUsedBytes.mean),
+        cpu_mean: mean(each => each.process.cpu.mean), cpu_max: most(each => each.process.cpu.max),
         loop_max: Math.max(...instances.map(each => each.process.loopMaxMs)),
         memory_total: fullest.server.memory.totalBytes, memory_free_mean: fullest.server.memory.freeBytes.mean,
-        memory_free_min: Math.min(...instances.map(each => each.server.memory.freeBytes.min)),
+        memory_free_min: fullest.server.memory.freeBytes.min,
         cores: Math.max(...instances.map(each => each.server.cpu.cores)),
         load_mean: Math.max(...instances.map(each => each.server.cpu.load.mean)), load_max: Math.max(...instances.map(each => each.server.cpu.load.max)),
         usage_mean: usages.length ? Math.max(...usages.map(usage => usage.mean)) : null, usage_max: usages.length ? Math.max(...usages.map(usage => usage.max)) : null,
@@ -238,7 +248,7 @@ export class Instances_Module extends Module {
   /** The system now, from the last reading of each instance alive: the processes added up, the machines at their fullest. */
   private systemOf(alive: Instance[], fullIn: Map<string, number | null>): SystemDTO {
     const readings = alive.map(instance => instance.reading)
-    const fullest = readings.reduce((least, each) => (each.memory.freeBytes < least.memory.freeBytes ? each : least))
+    const fullest = readings.reduce((top, each) => (usedShare(each.memory, each.memory.freeBytes) > usedShare(top.memory, top.memory.freeBytes) ? each : top))
     const usages = readings.flatMap(each => (each.cpu.usage === null ? [] : [each.cpu.usage]))
     const disks = new Map<string, { path: string, totalBytes: number, freeBytes: number }>()
     for (const disk of readings.flatMap(each => each.disks)) {
