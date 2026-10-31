@@ -52,12 +52,23 @@ export class DuckDbAnalytics implements Analytics {
         if (!NAME.test(column)) throw new Error(`'${column}' is not a name a dataset or a column may have`)
       }
       if ('id' in dataset.columns) throw new Error(`${name}: 'id' is every row's, not a column to declare`)
+      sameButCase(Object.keys(dataset.columns), `${name}'s columns`)
     }
+    // DuckDB tells names apart regardless of case: two that differ only in it would be one table, or one column.
+    sameButCase(Object.keys(datasets), 'Datasets')
     if (path !== ':memory:') await mkdir(dirname(path), { recursive: true })
     const instance = await DuckDBInstance.create(path)
-    const analytics = new DuckDbAnalytics(instance, await instance.connect(), datasets)
-    for (const name of Object.keys(datasets)) await analytics.ensure(name)
-    return analytics
+    let connection: DuckDBConnection | undefined
+    try {
+      connection = await instance.connect()
+      const analytics = new DuckDbAnalytics(instance, connection, datasets)
+      for (const name of Object.keys(datasets)) await analytics.ensure(name)
+      return analytics
+    } catch (error) {
+      connection?.closeSync()
+      instance.closeSync()
+      throw error
+    }
   }
 
   async append(dataset: string, rows: AnalyticsRow[]): Promise<void> {
@@ -72,7 +83,7 @@ export class DuckDbAnalytics implements Analytics {
     for (let start = 0; start < rows.length; start += 1000) {
       const batch = rows.slice(start, start + 1000)
       const placeholders = batch.map((_, row) => `(${columns.map((__, column) => `$${row * columns.length + column + 1}`).join(', ')})`).join(', ')
-      await this.run(`INSERT INTO ${dataset} (${columns.join(', ')}) VALUES ${placeholders} ON CONFLICT DO NOTHING`, batch.flatMap(values))
+      await this.run(`INSERT INTO ${quote(dataset)} (${columns.map(quote).join(', ')}) VALUES ${placeholders} ON CONFLICT DO NOTHING`, batch.flatMap(values))
     }
   }
 
@@ -94,8 +105,8 @@ export class DuckDbAnalytics implements Analytics {
   /** A dataset's rows, whole: for tests, and datasets kept as JSON. */
   async rows(dataset: string): Promise<AnalyticsRow[]> {
     await this.ensure(dataset)
-    if (this.datasets[dataset]) return this.query<AnalyticsRow>(`SELECT * FROM ${dataset} ORDER BY id`)
-    const found = await this.query<{ data: string }>(`SELECT data FROM ${dataset} ORDER BY id`)
+    if (this.datasets[dataset]) return this.query<AnalyticsRow>(`SELECT * FROM ${quote(dataset)} ORDER BY id`)
+    const found = await this.query<{ data: string }>(`SELECT data FROM ${quote(dataset)} ORDER BY id`)
     return found.map(row => JSON.parse(row.data) as AnalyticsRow)
   }
 
@@ -116,12 +127,29 @@ export class DuckDbAnalytics implements Analytics {
   private async ensure(dataset: string): Promise<void> {
     if (this.created.has(dataset)) return
     if (!NAME.test(dataset)) throw new Error(`'${dataset}' is not a name a dataset may have`)
+    const other = Object.keys(this.datasets).find(name => name !== dataset && name.toLowerCase() === dataset.toLowerCase())
+    if (other) throw new Error(`'${dataset}' and the declared '${other}' differ only in case: DuckDB would take them as one dataset`)
     const declared = this.datasets[dataset]
     const columns = declared
-      ? Object.entries(declared.columns).map(([name, type]) => `${name} ${type}`)
+      ? Object.entries(declared.columns).map(([name, type]) => `${quote(name)} ${type}`)
       : ['data JSON NOT NULL']
-    await this.run(`CREATE TABLE IF NOT EXISTS ${dataset} (id VARCHAR PRIMARY KEY, ${columns.join(', ')})`)
+    await this.run(`CREATE TABLE IF NOT EXISTS ${quote(dataset)} (id VARCHAR PRIMARY KEY, ${columns.join(', ')})`)
+    if (declared) await this.evolve(dataset, declared)
     this.created.add(dataset)
+  }
+
+  /** Adds to a table already in its file the columns declared since; a column declared with another type is refused. */
+  private async evolve(dataset: string, declared: DuckDbDataset): Promise<void> {
+    const found = await this.query<{ column_name: string, data_type: string }>(
+      `SELECT column_name, data_type FROM information_schema.columns WHERE lower(table_name) = lower($1) AND table_schema = current_schema()`,
+      [dataset],
+    )
+    const types = new Map(found.map(column => [column.column_name.toLowerCase(), column.data_type]))
+    for (const [name, type] of Object.entries(declared.columns)) {
+      const existing = types.get(name.toLowerCase())
+      if (existing === undefined) await this.run(`ALTER TABLE ${quote(dataset)} ADD COLUMN ${quote(name)} ${type}`)
+      else if (existing !== type) throw new Error(`${dataset}.${name} is ${existing} in its file, not ${type}: a column's type is not changed, declare another column`)
+    }
   }
 
   private serially<T>(work: () => Promise<T>): Promise<T> {
@@ -129,6 +157,21 @@ export class DuckDbAnalytics implements Analytics {
     const next = this.queue.then(work, work)
     this.queue = next.catch(() => undefined)
     return next
+  }
+}
+
+/** A name as SQL takes it whatever it is, a reserved word too. NAME keeps quotes out of it. */
+function quote(name: string): string {
+  return `"${name}"`
+}
+
+/** Refuses names that differ only in case. */
+function sameButCase(names: string[], what: string): void {
+  const seen = new Map<string, string>()
+  for (const name of names) {
+    const other = seen.get(name.toLowerCase())
+    if (other) throw new Error(`${what} '${other}' and '${name}' differ only in case: DuckDB would take them as one`)
+    seen.set(name.toLowerCase(), name)
   }
 }
 

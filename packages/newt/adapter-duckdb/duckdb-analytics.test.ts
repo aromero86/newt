@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describeAnalyticsContract } from '../port-analytics/contract'
 import { DuckDbAnalytics } from './duckdb-analytics'
 
@@ -44,6 +47,58 @@ describe('DuckDbAnalytics, with a dataset of its own columns', () => {
 
     expect(await analytics.rows('event_minute')).toEqual([])
     await expect(analytics.append('drop table x', [{ id: '1' }])).rejects.toThrow(/not a name/)
+  })
+})
+
+describe('DuckDbAnalytics, declared again', () => {
+  let folder: string | undefined
+
+  afterEach(async () => {
+    if (folder) await rm(folder, { recursive: true, force: true })
+    folder = undefined
+  })
+
+  test('adds a column declared later to the table already in its file', async () => {
+    folder = await mkdtemp(join(tmpdir(), 'newt-duckdb-'))
+    const path = join(folder, 'analytics.duckdb')
+    const first = await DuckDbAnalytics.open({ path, datasets: { m: { columns: { x: 'INTEGER' } } } })
+    await first.append('m', [{ id: '1', x: 1 }])
+    await first.close()
+
+    const second = await DuckDbAnalytics.open({ path, datasets: { m: { columns: { x: 'INTEGER', y: 'INTEGER' } } } })
+    await second.append('m', [{ id: '2', x: 1, y: 2 }])
+    expect(await second.rows('m')).toEqual([{ id: '1', x: 1, y: null }, { id: '2', x: 1, y: 2 }])
+    await second.close()
+
+    const third = await DuckDbAnalytics.open({ path, datasets: { m: { columns: { x: 'VARCHAR', y: 'INTEGER' } } } }).catch((error: Error) => error)
+    expect(third).toBeInstanceOf(Error)
+    expect((third as Error).message).toMatch(/m\.x is INTEGER in its file, not VARCHAR/)
+  })
+})
+
+describe('DuckDbAnalytics, names', () => {
+  test('takes a reserved word as a dataset or a column', async () => {
+    const analytics = await DuckDbAnalytics.open({ path: ':memory:', datasets: { order: { columns: { from: 'VARCHAR', select: 'INTEGER' } } } })
+    await analytics.append('order', [{ id: '1', from: 'a', select: 2 }])
+    await analytics.append('group', [{ id: '1', value: 3 }])
+    expect(await analytics.rows('order')).toEqual([{ id: '1', from: 'a', select: 2 }])
+    expect(await analytics.rows('group')).toEqual([{ id: '1', value: 3 }])
+    await analytics.close()
+  })
+
+  test('refuses names that differ only in case', async () => {
+    await expect(DuckDbAnalytics.open({
+      path: ':memory:',
+      datasets: { Sales: { columns: { total: 'INTEGER' } }, sales: { columns: { total: 'INTEGER' } } },
+    })).rejects.toThrow(/differ only in case/)
+    await expect(DuckDbAnalytics.open({
+      path: ':memory:',
+      datasets: { sales: { columns: { Total: 'INTEGER', total: 'INTEGER' } } },
+    })).rejects.toThrow(/differ only in case/)
+
+    const analytics = await DuckDbAnalytics.open({ path: ':memory:', datasets: { sales: { columns: { total: 'INTEGER' } } } })
+    await expect(analytics.append('Sales', [{ id: '1' }])).rejects.toThrow(/differ only in case/)
+    await analytics.close()
   })
 })
 
