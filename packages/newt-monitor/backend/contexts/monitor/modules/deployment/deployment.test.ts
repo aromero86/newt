@@ -13,16 +13,16 @@ let as: Browser
 let id: string
 /** What GitHub was asked, and what it answers: each commit's title, none for one it does not have. */
 let asked: string[]
-let titles: Record<string, string>
+let messages: Record<string, string>
 
 beforeEach(async () => {
   asked = []
-  titles = { c1: 'Cards can be moved', c2: 'Boards can be archived' }
+  messages = { c1: 'Cards can be moved', c2: 'Boards can be archived' }
   monitor = await openTestMonitor({
-    titles: {
-      title: async (repository, commit) => {
+    messages: {
+      message: async (repository, commit) => {
         asked.push(`${repository}@${commit}`)
-        return titles[commit] ?? null
+        return messages[commit] ? { title: messages[commit], description: `What ${commit} does, at length.` } : null
       },
     },
   })
@@ -53,7 +53,7 @@ describe('deployment', () => {
     await deployed(['a', 'c1'], ['b', 'c1'])
     await deployed(['c', 'c2'])
 
-    expect((await deployments()).map(each => [each.commit, each.title])).toEqual([['c2', 'Boards can be archived'], ['c1', 'Cards can be moved']])
+    expect((await deployments()).map(each => [each.commit, each.title, each.description])).toEqual([['c2', 'Boards can be archived', 'What c2 does, at length.'], ['c1', 'Cards can be moved', 'What c1 does, at length.']])
     // Asked once per commit, of the repository as it is kept: without its `.git`.
     expect(asked).toEqual([`${REPOSITORY}@c1`, `${REPOSITORY}@c2`])
     const instances = (await (await as(`/api/apps/${id}/instances`)).json()) as { instances: { instanceId: string, commit: string | null }[] }

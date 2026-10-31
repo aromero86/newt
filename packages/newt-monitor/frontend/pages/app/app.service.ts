@@ -9,7 +9,7 @@ import { InstancesApi, type InstanceDTO, type InstancesDTO } from '../../api/ins
 import { StructureApi, type StructureVersionDTO } from '../../api/structure'
 
 /** A moment the charts mark: a commit deployed (or, before any is known, a new version of its structure), an instance that started, stopped or was lost. */
-export type AppMark = { at: string, label: string, tone: 'brand' | 'ok' | 'warn' | 'bad' | 'muted', instance?: boolean }
+export type AppMark = { at: string, label: string, detail?: string | null, tone: 'brand' | 'ok' | 'warn' | 'bad' | 'muted', instance?: boolean }
 
 /** A commit's first characters, as GitHub shows it. */
 export const shortCommit = (commit: string) => commit.slice(0, 7)
@@ -19,7 +19,7 @@ export const commitUrl = (repository: string | null, commit: string) => (reposit
 
 /** The moments it deployed each commit. */
 function deploymentMarks(deployments: DeploymentDTO[]): AppMark[] {
-  return deployments.map(deployment => ({ at: deployment.deployedAt, label: `Deployed ${shortCommit(deployment.commit)}${deployment.title ? `: ${deployment.title}` : ''}`, tone: 'brand' }))
+  return deployments.map(deployment => ({ at: deployment.deployedAt, label: `Deployed ${shortCommit(deployment.commit)}${deployment.title ? `: ${deployment.title}` : ''}`, detail: deployment.description, tone: 'brand' }))
 }
 
 /** The moments its instances started, stopped or were lost. */

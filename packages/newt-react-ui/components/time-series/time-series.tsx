@@ -50,7 +50,7 @@ export function TimeSeries({ label, points, compared, names = { points: 'Now', c
           <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="at" tickLine={false} axisLine={false} tickMargin={8} minTickGap={48} tickFormatter={formatTime} />
           <YAxis tickLine={false} axisLine={false} width={40} allowDecimals={false} />
-          <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent labelFormatter={at => formatTime(String(at))} />} />
+          <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent marks={marks} labelFormatter={at => formatTime(String(at))} />} />
           {compared && compared.length > 0 && (
             <Line dataKey="before" type="monotone" stroke="var(--color-before)" strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
           )}

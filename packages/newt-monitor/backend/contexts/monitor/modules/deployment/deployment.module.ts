@@ -13,7 +13,7 @@ const DESCRIBED_AGAIN = 50
 
 /**
  * Each commit an application deployed, as its instances tell it: when its first one
- * started, and its title, from the application's repository on GitHub.
+ * started, and its message, from the application's repository on GitHub.
  */
 export class Deployment_Module extends Module {
 
@@ -44,16 +44,16 @@ export class Deployment_Module extends Module {
     await this.repo.persistOnce(known ?? Deployment.record(started.appId, started.commit, started.startedAt))
   }
 
-  /** Asks its repository for a deployment's title, once its application says where it is: nothing to do once it has one. */
+  /** Asks its repository for a deployment's message, once its application says where it is: nothing to do once it has one. */
   @UseCase()
   async describe(id: string): Promise<void> {
     const deployment = await this.repo.first({ id })
     if (!deployment || deployment.title !== null) return
     const app = await this.deps.app.find(deployment.appId)
     if (!app?.repository) return
-    const title = await this.deps.titles.title(app.repository, deployment.commit)
-    if (title === null) return
-    deployment.described(title)
+    const message = await this.deps.messages.message(app.repository, deployment.commit)
+    if (message === null) return
+    deployment.described(message)
     await this.repo.persist(deployment)
   }
 

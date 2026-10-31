@@ -25,7 +25,7 @@ const EnvSchema = z.object({
   NEWT_MONITOR_FRONTEND: z.string().trim().min(1).default(join(import.meta.dir, '../dist/frontend')),
   /** `1` (`bun run monitor` sets it): the frontend from its sources, which Bun builds as it serves them. */
   NEWT_MONITOR_FRONTEND_SOURCES: z.enum(['0', '1']).default('0'),
-  /** A GitHub token that reads the applications' repositories (Contents: read): each commit deployed gets its title. None reads only public ones. */
+  /** A GitHub token that reads the applications' repositories (Contents: read): each commit deployed gets its message. None reads only public ones. */
   NEWT_MONITOR_GITHUB_TOKEN: z.string().trim().optional(),
 })
 
@@ -46,7 +46,7 @@ export type MonitorConfig = {
   frontendSources: boolean
   /** Where each application's metrics are kept, a DuckDB each: beside its database, or in memory with it. */
   metricsFolder: string
-  /** What reads the commits' titles from GitHub: null reads only public repositories. */
+  /** What reads the commits' messages from GitHub: null reads only public repositories. */
   githubToken: string | null
 }
 

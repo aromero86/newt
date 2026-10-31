@@ -2,8 +2,8 @@ import type { MonitorConfig } from '../../config'
 import type { MonitorBase } from '../../monitor-base'
 import type { AppClient } from '../../shared/app-client/app-client'
 import { HttpAppClient } from '../../shared/app-client/http-app-client'
-import type { CommitTitles } from '../../shared/commit-titles/commit-titles'
-import { GitHubCommitTitles } from '../../shared/commit-titles/github-commit-titles'
+import type { CommitMessages } from '../../shared/commit-messages/commit-messages'
+import { GitHubCommitMessages } from '../../shared/commit-messages/github-commit-messages'
 import { KeyCipher } from '../../shared/key-cipher'
 import { App_Module } from './modules/app/app.module'
 import { Catalog_Module } from './modules/catalog/catalog.module'
@@ -22,8 +22,8 @@ import { Structure_Module } from './modules/structure/structure.module'
 import { SESSION_COOKIE } from '../auth/modules/session/session.schema'
 import type { Auth_Modules } from '../auth/initialize-modules'
 
-/** What the modules are given from outside: auth's, the applications, over HTTP, and the commits' titles, from GitHub, unless a test gives others. */
-export type Monitor_ModuleDeps = { auth: Auth_Modules, client?: AppClient, titles?: CommitTitles }
+/** What the modules are given from outside: auth's, the applications, over HTTP, and the commits' messages, from GitHub, unless a test gives others. */
+export type Monitor_ModuleDeps = { auth: Auth_Modules, client?: AppClient, messages?: CommitMessages }
 
 /** Every module of `monitor`, each one after the modules it uses; the metrics modules keep theirs in `metrics`, which the context closes. */
 export function initializeModules(base: MonitorBase, config: MonitorConfig, metrics: MetricsStore, deps: Monitor_ModuleDeps) {
@@ -42,7 +42,7 @@ export function initializeModules(base: MonitorBase, config: MonitorConfig, metr
   const outbox = Outbox_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const traces = Traces_Module.initialize(base, { app, connection, retention }, { store: metrics })
   const instances = Instances_Module.initialize(base, { app, connection, retention }, { store: metrics })
-  const deployment = Deployment_Module.initialize(base, { app, instances, titles: deps.titles ?? new GitHubCommitTitles(config.githubToken) })
+  const deployment = Deployment_Module.initialize(base, { app, instances, messages: deps.messages ?? new GitHubCommitMessages(config.githubToken) })
   return { app, connection, structure, catalog, retention, eventMetrics, useCaseMetrics, useCaseErrors, queueMetrics, outbox, traces, instances, deployment }
 }
 
