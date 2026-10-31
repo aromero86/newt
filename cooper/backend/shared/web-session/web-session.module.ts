@@ -12,8 +12,16 @@ import { WEB_SESSION_CALLBACK } from './web-session.schema'
 /** A sign-in on its way, as its cookie keeps it until auth sends the browser back. */
 type PendingSignIn = { state: string, verifier: string, returnTo: string }
 
-/** Only a path of the context itself: never another host (`//evil.example`). */
-export const ownPath = (path: string | undefined) => (path && path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/\\') ? path : '/')
+/**
+ * Only a path of the context itself: never another host (`//evil.example`). A browser
+ * drops tabs and newlines and reads `\\` as `/`, so a path with any of them is refused,
+ * and what is left is resolved as the browser would and kept only on the same origin.
+ */
+export const ownPath = (path: string | undefined): string => {
+  if (!path || !path.startsWith('/') || /[\\\x00-\x1f\x7f]/.test(path)) return '/'
+  const url = new URL(path, 'http://x.invalid')
+  return url.origin === 'http://x.invalid' ? url.pathname + url.search + url.hash : '/'
+}
 
 /**
  * The web session of a context that signs its people in through auth: boards and

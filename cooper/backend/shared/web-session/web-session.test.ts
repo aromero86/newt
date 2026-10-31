@@ -9,7 +9,7 @@ import { config } from '../../config'
 import { Auth_Context } from '../../contexts/auth/auth.context'
 import { CooperBase } from '../cooper-base'
 import { ServedContext } from '../served-context'
-import { WebSession_Module } from './web-session.module'
+import { ownPath, WebSession_Module } from './web-session.module'
 
 /**
  * A context that signs its people in through auth, as boards does: the product
@@ -134,5 +134,12 @@ describe('the web session of a context', () => {
     await again.as(authUrl('/api/session/sign-in'), { method: 'POST', json: { email: 'ana@cooper.test', password: 'a long password' } })
     const approved = (await (await again.as(authUrl(`/api/authorizations/${again.id}/approve`), { method: 'POST' })).json()) as { redirectTo: string }
     expect((await again.as(approved.redirectTo)).headers.get('location')).toBe('/')
+  })
+})
+
+describe('ownPath', () => {
+  test('keeps a path of the context, and turns whatever a browser would read as another host into /', () => {
+    expect(ownPath('/w/1/boards?x=1#a')).toBe('/w/1/boards?x=1#a')
+    for (const elsewhere of ['//evil.example', '/\\evil.example', '/\t/evil.example/x', '/\n/evil.example', 'https://evil.example', undefined]) expect(ownPath(elsewhere)).toBe('/')
   })
 })
