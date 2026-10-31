@@ -20,9 +20,23 @@ export abstract class BoundedContext<B extends Base = Base> {
     this.base.jobs.start()
   }
 
-  /** Waits for the jobs in progress, then closes its store. */
-  async stop(): Promise<void> {
+  /**
+   * Stops the worker of its jobs, once those in progress end. Its store stays open:
+   * the handlers other contexts subscribed to its events, which its worker runs, write
+   * theirs, so an application stops every worker before it closes any store.
+   */
+  async stopWorker(): Promise<void> {
     await this.base.jobs.stop()
+  }
+
+  /** Closes its store, once its worker, and every worker that runs its handlers, stopped. */
+  async close(): Promise<void> {
     await this.base.close()
+  }
+
+  /** Stops its worker, then closes its store: a context on its own, as a test opens it. */
+  async stop(): Promise<void> {
+    await this.stopWorker()
+    await this.close()
   }
 }

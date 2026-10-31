@@ -41,7 +41,11 @@ export async function openContexts(config: Config, options: OpenContextsOptions 
   return { auth, boards, backoffice, all: [auth, boards, backoffice] as const }
 }
 
-/** The last opened first: a context stops before those it uses. */
+/**
+ * Every worker first, since a context's handlers of another's events run on that one's
+ * worker; then each store, the last opened first: a context closes before those it uses.
+ */
 export async function stopContexts(contexts: Awaited<ReturnType<typeof openContexts>>): Promise<void> {
-  for (const context of contexts.all.toReversed()) await context.stop()
+  await Promise.all(contexts.all.map(context => context.stopWorker()))
+  for (const context of contexts.all.toReversed()) await context.close()
 }

@@ -2,25 +2,70 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { NoopTracer, setTracer, type Tracer } from '../core'
 import { HttpRouter } from '../http'
-import { MemoryMetrics } from '../runtime'
-import { applicationSampler, InstanceSampler } from '../runtime/internal'
+import type { Job, Outbox } from '../port-outbox'
+import { TransactionScope, type Store } from '../port-store'
+import { Base, BoundedContext, MemoryMetrics, setMetrics } from '../runtime'
+import { applicationMetrics, applicationSampler, InstanceSampler } from '../runtime/internal'
 import { runContexts } from './run-contexts'
 import type { ContextToRun } from './context-to-run'
 
 afterEach(() => {
   setTracer(new NoopTracer())
   applicationSampler.value = null
+  applicationMetrics.value = null
 })
 
-/** A context that says in `log` when it starts and stops. */
+/** A context that says in `log` when it starts, when its worker stops and when it closes. */
 function context(name: string, log: string[]): ContextToRun['context'] {
   return {
     name,
     start: () => void log.push(`${name} started`),
-    stop: async () => {
+    stopWorker: async () => {
       await Bun.sleep(5)
-      log.push(`${name} stopped`)
+      log.push(`${name} worker stopped`)
     },
+    close: async () => void log.push(`${name} closed`),
+  }
+}
+
+/** A store that says in `log` when it closes, and whose outbox hands its worker `jobs` once. */
+function fakeStore(name: string, log: string[], jobs: Job[] = []): Store {
+  const scope = new TransactionScope()
+  const outbox = {
+    add: async () => {},
+    claim: async () => jobs.splice(0),
+    renew: async () => {},
+    close: async () => void log.push(`${name} job closed`),
+    seen: async () => {},
+    purge: async () => {},
+    list: async () => [],
+    queues: async () => [],
+    depth: async () => [],
+    waiting: async () => [],
+  } as unknown as Outbox
+  return {
+    transaction: fn => scope.run(fn, undefined, { begin() {}, commit() {}, rollback() {} }),
+    guard: async () => {},
+    afterCommit: fn => scope.afterCommit(fn),
+    afterRollback: fn => scope.afterRollback(fn),
+    table: () => { throw new Error('no tables here') },
+    outbox,
+    migrations: {} as never,
+    close: async () => void log.push(`${name} store closed`),
+  }
+}
+
+class Context extends BoundedContext {
+  constructor(name: string, base: Base) {
+    super(name, base)
+  }
+}
+
+function job(queue: string, event: string): Job {
+  const now = new Date().toISOString()
+  return {
+    id: 'j1', queue, event: JSON.stringify({ id: 'e1', name: event, payload: {}, occurredAt: now }),
+    status: 'running', attempts: 0, runAfter: now, lockedBy: null, lockedUntil: null, lastError: null, createdAt: now, updatedAt: now,
   }
 }
 
@@ -46,7 +91,8 @@ describe('runContexts', () => {
 
     const url = app.servers.auth!.url
     await Promise.all([app.stop(), app.stop()])
-    expect(log.slice(3)).toEqual(['reports stopped', 'shop stopped', 'auth stopped'])
+    expect(log.slice(3, 6).sort()).toEqual(['auth worker stopped', 'reports worker stopped', 'shop worker stopped'])
+    expect(log.slice(6)).toEqual(['reports closed', 'shop closed', 'auth closed'])
     await expect(fetch(new URL('/api/who', url))).rejects.toThrow()
   })
 
@@ -65,7 +111,7 @@ describe('runContexts', () => {
 
     const app = runContexts([{ context: context('shop', log) }], { signals: false })
     await app.stop()
-    expect(log).toEqual(['shop started', 'instance stopped', 'shop stopped'])
+    expect(log).toEqual(['shop started', 'instance stopped', 'shop worker stopped', 'shop closed'])
     expect((await metrics.instances(null, clock.now())).instances[0]!.status).toBe('stopped')
   })
 
@@ -81,13 +127,47 @@ describe('runContexts', () => {
     const app = runContexts([{ context: context('shop', log), serve: { port: 0, router: router('shop') } }], { tracer, signals: false })
     await fetch(new URL('/api/who', app.servers.shop!.url))
     await app.stop()
-    expect(log).toEqual(['shop started', 'GET /api/who', 'shop stopped', 'flushed'])
+    expect(log).toEqual(['shop started', 'GET /api/who', 'shop worker stopped', 'shop closed', 'flushed'])
+  })
+
+  test('stops every worker before closing any store: a context\'s handler of another\'s event runs on that one\'s worker', async () => {
+    const log: string[] = []
+    const boards = new Base({ name: 'boards', store: fakeStore('boards', log, [job('metric.recordCard.on.card.created', 'card.created')]), jobs: { pollMs: 5 } })
+    const backoffice = new Base({ name: 'backoffice', store: fakeStore('backoffice', log) })
+    const running = Promise.withResolvers<void>()
+    // backoffice's handler, on boards' bus: boards' worker runs it, and it writes backoffice's store.
+    boards.bus.subscribe('card.created', async () => {
+      running.resolve()
+      await Bun.sleep(20)
+      log.push('handler wrote backoffice')
+    }, { mode: 'handler', name: 'metric.recordCard.on.card.created' })
+
+    const app = runContexts([{ context: new Context('boards', boards) }, { context: new Context('backoffice', backoffice) }], { signals: false })
+    await running.promise
+    await app.stop()
+
+    expect(log).toEqual(['handler wrote backoffice', 'boards job closed', 'backoffice store closed', 'boards store closed'])
+  })
+
+  test('closes the application\'s metrics once, after every context\'s worker stopped and its store closed', async () => {
+    const log: string[] = []
+    const metrics = new MemoryMetrics()
+    metrics.close = async () => void log.push('metrics closed')
+    setMetrics(metrics)
+    const auth = new Base({ name: 'auth', store: fakeStore('auth', log) })
+    const shop = new Base({ name: 'shop', store: fakeStore('shop', log) })
+    for (const base of [auth, shop]) base.jobs.stop = async () => void log.push(`${base.name} worker stopped`)
+
+    const app = runContexts([{ context: new Context('auth', auth) }, { context: new Context('shop', shop) }], { signals: false })
+    await app.stop()
+
+    expect(log).toEqual(['auth worker stopped', 'shop worker stopped', 'shop store closed', 'auth store closed', 'metrics closed'])
   })
 
   test('on SIGTERM it stops them, then ends the process', async () => {
     const script = `
       import { runContexts } from '${join(import.meta.dir, 'run-contexts')}'
-      const context = name => ({ name, start: () => console.log(name, 'started'), stop: async () => console.log(name, 'stopped') })
+      const context = name => ({ name, start: () => console.log(name, 'started'), stopWorker: async () => {}, close: async () => console.log(name, 'stopped') })
       runContexts([{ context: context('auth') }, { context: context('shop') }])
       process.kill(process.pid, 'SIGTERM')
       setTimeout(() => console.log('still running'), 2000)

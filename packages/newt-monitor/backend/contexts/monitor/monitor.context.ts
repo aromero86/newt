@@ -35,9 +35,9 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
     return new Monitor_Context(base, initializeModules(base, config, metrics, deps), config, metrics, deps)
   }
 
-  /** Its jobs end and its store closes, then every application's DuckDB: none is left open, with a query on its way, as the process ends. */
-  override async stop(): Promise<void> {
-    await super.stop()
+  /** Its store closes, then every application's DuckDB: none is left open, with a query on its way, as the process ends. */
+  override async close(): Promise<void> {
+    await super.close()
     await this.metrics.close()
   }
 

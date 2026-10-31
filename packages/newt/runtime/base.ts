@@ -36,6 +36,8 @@ export class Base<S extends Store = Store> {
   readonly schedules: Schedules
   /** Where it counts its events for whoever monitors it (`serveMonitor` starts it). */
   readonly metrics: Metrics
+  /** Whether its metrics are its own, not the application's, which the application closes once every context closed. */
+  private readonly ownsMetrics: boolean
 
   constructor(options: BaseOptions<S>) {
     const clock = options.clock ?? systemClock
@@ -43,6 +45,7 @@ export class Base<S extends Store = Store> {
     // Each read and write of its tables, a step of the trace in progress, if any.
     this.store = tracedStore(options.store, options.name)
     this.metrics = options.metrics ?? applicationMetrics.value ?? new MemoryMetrics()
+    this.ownsMetrics = options.metrics !== undefined || this.metrics !== applicationMetrics.value
     this.invocations = new Invocations(options.tracer, { context: options.name }, options.writeRule, clock, options.guardRule)
     // Every call of its use cases, timed as it ends, in the scopes and by the actor it ran with.
     // Only its modules' use cases: the framework's own invocations (`job.claim`, `schedule.tick`) are no one's.
@@ -89,9 +92,13 @@ export class Base<S extends Store = Store> {
     this.jobs.onFlow = ({ queue, kind, waitMs }) => this.metrics.flow({ context: this.name, queue, kind, waitMs, at: clock.now() })
   }
 
-  /** Closes its store, and its metrics: what they had not added yet is added before. */
+  /**
+   * Closes its store, and its metrics if they are its own: what they had not added yet
+   * is added before. The application's (`setMetrics`), which every context shares, are
+   * closed by whoever runs them, once every context closed.
+   */
   async close(): Promise<void> {
-    await this.metrics.close()
+    if (this.ownsMetrics) await this.metrics.close()
     await this.store.close()
   }
 }
