@@ -7,12 +7,14 @@ import { newtReactUi } from 'newt-react-ui/lint'
 // an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
+  root: import.meta.dirname,
   files: ['cooper/backend/**/*.ts', 'cooper/scripts/**/*.ts'],
   contexts: { folder: 'cooper/backend/contexts', uses: { auth: [], boards: ['auth'], backoffice: ['auth', 'boards'] } },
 })
 
 // newt-monitor is an application built with newt too, so it keeps the same lint.
 const MONITOR = newt({
+  root: import.meta.dirname,
   files: ['packages/newt-monitor/{scripts,backend}/**/*.ts'],
   contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { auth: [], monitor: ['auth'] } },
 })

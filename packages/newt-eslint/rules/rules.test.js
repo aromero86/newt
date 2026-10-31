@@ -1,4 +1,7 @@
 import { afterAll, describe, expect, it } from 'bun:test'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { RuleTester } from 'eslint'
 import ts from 'typescript'
 import tseslint from 'typescript-eslint'
@@ -95,6 +98,29 @@ tester.run('context-boundaries', contextBoundaries, {
       .map(path => ({ code: `import { x } from ${path}`, filename: `${CONTEXT}/auth/auth.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] })),
     { code: "const m = await import('../shop/shop.context')", filename: `${CONTEXT}/auth/auth.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] },
     { code: "import { x } from '../shop/shop.context'", filename: `${CONTEXT}/billing/billing.context.ts`, options: [CONTEXTS], errors: [{ messageId: 'other' }] },
+    // An absolute folder is the same folder.
+    { code: "import { x } from '../shop/shop.context'", filename: `${CONTEXT}/auth/auth.context.ts`, options: [{ ...CONTEXTS, folder: CONTEXT }], errors: [{ messageId: 'other' }] },
+  ],
+})
+
+// Files on disk, to tell the folder of a context from a file beside them when an import names it without its extension.
+const PROJECT = mkdtempSync(join(tmpdir(), 'newt-eslint-contexts-'))
+const FOLDER = join(PROJECT, 'contexts')
+for (const [path, code] of Object.entries({ 'registry.ts': '', 'names.ts': '', 'billing/index.ts': '', 'shop/shop.context.ts': '' })) {
+  mkdirSync(join(FOLDER, path, '..'), { recursive: true })
+  writeFileSync(join(FOLDER, path), code)
+}
+afterAll(() => rmSync(PROJECT, { recursive: true, force: true }))
+const ON_DISK = { folder: FOLDER, uses: { auth: [], shop: ['auth'] } }
+tester.run('context-boundaries, of files beside the contexts', contextBoundaries, {
+  valid: [
+    { code: "import { x } from './names'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK] },
+  ],
+  invalid: [
+    { code: "import { x } from '../registry'", filename: join(FOLDER, 'auth/auth.context.ts'), options: [ON_DISK], errors: [{ messageId: 'root' }] },
+    { code: "import { x } from './shop/shop.context'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK], errors: [{ messageId: 'fromRoot' }] },
+    { code: "import { x } from './shop'", filename: join(FOLDER, 'registry.ts'), options: [ON_DISK], errors: [{ messageId: 'fromRoot' }] },
+    { code: "import { x } from '../billing'", filename: join(FOLDER, 'auth/auth.context.ts'), options: [ON_DISK], errors: [{ messageId: 'other', data: { path: '../billing', other: 'billing', context: 'auth', uses: 'no other context' } }] },
   ],
 })
 

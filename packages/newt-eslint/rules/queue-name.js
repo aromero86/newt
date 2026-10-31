@@ -1,5 +1,5 @@
 import { posix } from 'node:path'
-import { modulePlace, camelCase } from '../paths.js'
+import { camelCase, modulePlace, rootOf } from '../paths.js'
 
 /**
  * `<module>.<use case>.on.<module>.<event>`: the framework refuses at startup a
@@ -62,7 +62,7 @@ export const queueName = {
     schema: [],
   },
   create(context) {
-    const place = modulePlace(context.filename, context.cwd)
+    const place = modulePlace(context.filename, rootOf(context))
     if (!place) return {}
     const module = camelCase(place.module)
     const type = `${module[0].toUpperCase()}${module.slice(1)}_Module`

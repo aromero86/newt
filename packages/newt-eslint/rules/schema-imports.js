@@ -1,4 +1,4 @@
-import { importsOf, modulePlace } from '../paths.js'
+import { importsOf, modulePlace, rootOf } from '../paths.js'
 
 /**
  * A module's schema (`<m>.schema.ts`) is what its clients share with it: a frontend
@@ -17,7 +17,7 @@ export const schemaImports = {
     schema: [],
   },
   create(context) {
-    const place = modulePlace(context.filename, context.cwd)
+    const place = modulePlace(context.filename, rootOf(context))
     if (!place || place.inside !== `${place.module}.schema.ts`) return {}
     return importsOf((node, specifier) => {
       if ((specifier === 'newt' || specifier.startsWith('newt/')) && specifier !== 'newt/contract') {

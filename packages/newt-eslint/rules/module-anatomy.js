@@ -1,5 +1,5 @@
 import { posix } from 'node:path'
-import { modulePlace } from '../paths.js'
+import { modulePlace, rootOf } from '../paths.js'
 
 /** The folders a module may have, and what each one holds. */
 const FOLDERS = {
@@ -28,7 +28,7 @@ export const moduleAnatomy = {
     schema: [],
   },
   create(context) {
-    const place = modulePlace(context.filename, context.cwd)
+    const place = modulePlace(context.filename, rootOf(context))
     if (!place) return {}
     const { module, inside } = place
     const [first, ...rest] = inside.split('/')
