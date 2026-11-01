@@ -15,3 +15,4 @@ RUN bun run docs:build
 
 FROM nginx:1.27-alpine
 COPY --from=build /app/web/.vitepress/dist /usr/share/nginx/html
+COPY web/nginx.conf /etc/nginx/conf.d/default.conf
