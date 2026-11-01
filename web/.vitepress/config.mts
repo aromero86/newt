@@ -73,7 +73,6 @@ export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun, with a monitor that sees everything it runs',
   cleanUrls: true,
-  lastUpdated: true,
   head: [['meta', { name: 'theme-color', content: '#0f9d76' }]],
   markdown: {
     // A ```mermaid fence is a diagram, drawn in the browser in the page's theme.
