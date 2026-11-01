@@ -6,7 +6,7 @@ It never opens an application's database: each one tells it what it is made of,
 through `newt/monitor`, on a port of its own, to requests signed with a key both share.
 
 It is a newt application itself. How to use it, and how it is built, is part III of
-the newt book, `web/book/40-monitor.md`.
+the newt manual, `web/manual/40-monitor.md`.
 
 ## Running it
 

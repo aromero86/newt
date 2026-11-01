@@ -6,7 +6,7 @@ framework, versioned with it. What follows is this project's own.
 ## This project
 
 cooper: boards of cards for teams, each team in a workspace of its own. newt's
-example application, the running example of the newt book (web/book).
+example application, the running example of the newt manual (web/manual).
 
 ## Contexts
 

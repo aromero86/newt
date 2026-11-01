@@ -33,7 +33,7 @@ A tool can answer those only if it knows the concepts. newt-monitor does.
 
 A newt application already knows what it is made of. Every module is registered with its
 context, every use case has `@UseCase()`, every event has a name, every subscription has a
-queue, every schedule has a cron. Part I of this book built that structure on purpose, and
+queue, every schedule has a cron. Part I of this manual built that structure on purpose, and
 `describeApplication` can read it back while the application runs.
 
 So the monitor does not guess. The application **tells** it: its structure, how many
@@ -264,7 +264,7 @@ that is down for a few minutes catches up on its next round.
 ## Built with newt
 
 newt-monitor is not a special tool bolted on the side. It is a newt application, in
-`packages/newt-monitor`, built with exactly what this book teaches: two bounded contexts,
+`packages/newt-monitor`, built with exactly what this manual teaches: two bounded contexts,
 `auth` (who may enter: the one person, their sessions, the MCP clients they let in) and
 `monitor` (the applications and what it learns of each), thirteen modules in `monitor`,
 use cases, domain events, workers, schedules, repositories on SQLite, and DuckDB for the

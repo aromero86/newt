@@ -262,13 +262,11 @@ html { scrollbar-color: var(--vp-c-border) var(--vp-c-bg); }
 .VPNavBarSearch .DocSearch-Button:hover, .VPNavBarSearchButton:hover { border-color: var(--vp-c-border) !important; }
 .VPNavBarSearchButton .keys, .DocSearch-Button-Keys { opacity: .7; }
 
-/* newt's logotype: the word itself, in Bricolage Grotesque, in gruvbox's aqua green. */
-:root { --newt-logo: #427b58; }
-.dark { --newt-logo: #8ec07c; }
-.newt-logo, .VPNavBarTitle .title span {
-  font-family: 'Bricolage Grotesque', var(--vp-font-family-base);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: var(--newt-logo);
+/* newt's logotype in the nav, in place of the site's title. */
+.VPNavBarTitle .nav-logo { font-size: 24px; }
+
+/* On the landing the nav stays put on phones too: the logotype flies into it. */
+@media (max-width: 959px) {
+  html:has(.landing) .VPNav { position: fixed; }
+  html:has(.landing) .VPContent { padding-top: var(--vp-nav-height); }
 }
-.VPNavBarTitle .title span { font-size: 26px; line-height: 1; padding-bottom: 3px; }

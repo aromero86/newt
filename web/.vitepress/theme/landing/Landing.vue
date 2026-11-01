@@ -78,8 +78,8 @@ const copy = useCopy({
     cta: 'Meet newt-monitor',
   },
   rest: { eyebrow: 'And the rest', title: 'What a real backend needs,', rest: 'from the first module.' },
-  cooper: { eyebrow: 'Learn it on a real application', title: 'Meet cooper.', lead: 'Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces, invitations, search, a backoffice and an MCP server. The book explains every part of newt through it, with the code in front of you.', go: 'Meet cooper', board: 'A board in cooper, with its columns and cards', shots: ['A board, its columns and its cards', 'A workspace\'s boards', 'The backoffice, for cooper\'s staff', 'Sign-in, through its own OAuth server'] },
-  end: { title: 'Build something that lasts.', lead: 'Start with the essentials: fourteen chapters, from why newt exists to running it in production. Then go as deep as you like.', read: 'Read the book', monitor: 'The monitor', note: '' },
+  cooper: { eyebrow: 'Learn it on a real application', title: 'Meet cooper.', lead: 'Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces, invitations, search, a backoffice and an MCP server. The manual explains every part of newt through it, with the code in front of you.', go: 'Meet cooper', board: 'A board in cooper, with its columns and cards', shots: ['A board, its columns and its cards', 'A workspace\'s boards', 'The backoffice, for cooper\'s staff', 'Sign-in, through its own OAuth server'] },
+  end: { title: 'Build something that lasts.', lead: 'Start with the essentials: fourteen chapters, from why newt exists to running it in production. Then go as deep as you like.', read: 'Read the manual', monitor: 'The monitor', note: '' },
 }, {
   story: { eyebrow: 'El problema', title: 'Todo backend empieza limpio.', rest: 'Luego crece.', lead: 'Seis maneras en que un backend se pudre al crecer, y qué hace newt con cada una: el código sin newt, y con él.' },
   model: { eyebrow: 'El modelo', title: 'Contextos, módulos y cómo se hablan.', rest: 'Fronteras que aguantan.', lead: 'Una aplicación son contextos delimitados. Un contexto son módulos, cada uno dueño de una entidad. Un módulo pregunta a otro para leer, y escucha a otro para escribir. Cuatro pasos, y sabes dónde va cada cosa.' },
@@ -104,8 +104,8 @@ const copy = useCopy({
     cta: 'Conoce newt-monitor',
   },
   rest: { eyebrow: 'Y el resto', title: 'Lo que un backend de verdad necesita,', rest: 'desde el primer módulo.' },
-  cooper: { eyebrow: 'Apréndelo en una aplicación real', title: 'Te presento a cooper.', lead: 'Tableros de tarjetas para equipos: tres contextos, inicio de sesión con un servidor OAuth propio, espacios de trabajo, invitaciones, búsqueda, un backoffice y un servidor MCP. El libro explica cada parte de newt a través de él, con el código delante.', go: 'Conoce cooper', board: 'Un tablero en cooper, con sus columnas y tarjetas', shots: ['Un tablero, sus columnas y sus tarjetas', 'Los tableros de un espacio de trabajo', 'El backoffice, para el equipo de cooper', 'El inicio de sesión, con su propio servidor OAuth'] },
-  end: { title: 'Construye algo que dure.', lead: 'Empieza por lo esencial: catorce capítulos, desde por qué existe newt hasta llevarlo a producción. Luego, tan a fondo como quieras.', read: 'Leer el libro', monitor: 'El monitor', note: 'El libro está en inglés.' },
+  cooper: { eyebrow: 'Apréndelo en una aplicación real', title: 'Te presento a cooper.', lead: 'Tableros de tarjetas para equipos: tres contextos, inicio de sesión con un servidor OAuth propio, espacios de trabajo, invitaciones, búsqueda, un backoffice y un servidor MCP. El manual explica cada parte de newt a través de él, con el código delante.', go: 'Conoce cooper', board: 'Un tablero en cooper, con sus columnas y tarjetas', shots: ['Un tablero, sus columnas y sus tarjetas', 'Los tableros de un espacio de trabajo', 'El backoffice, para el equipo de cooper', 'El inicio de sesión, con su propio servidor OAuth'] },
+  end: { title: 'Construye algo que dure.', lead: 'Empieza por lo esencial: catorce capítulos, desde por qué existe newt hasta llevarlo a producción. Luego, tan a fondo como quieras.', read: 'Leer el manual', monitor: 'El monitor', note: 'El manual está en inglés.' },
 })
 </script>
 
@@ -201,7 +201,7 @@ const copy = useCopy({
 
         <AskClaude class="ask l-reveal" />
 
-        <a class="l-btn primary l-reveal" :href="withBase('/book/40-monitor')">{{ copy.monitor.cta }} <span class="arrow">→</span></a>
+        <a class="l-btn primary l-reveal" :href="withBase('/manual/40-monitor')">{{ copy.monitor.cta }} <span class="arrow">→</span></a>
       </div>
     </section>
 
@@ -227,7 +227,7 @@ const copy = useCopy({
           <p class="l-eyebrow"><b>08</b> {{ copy.cooper.eyebrow }}</p>
           <h2 class="l-h2">{{ copy.cooper.title }}</h2>
           <p class="l-lead">{{ copy.cooper.lead }}</p>
-          <a class="l-btn ghost go" :href="withBase('/book/02-meet-cooper')">{{ copy.cooper.go }} <span class="arrow">→</span></a>
+          <a class="l-btn ghost go" :href="withBase('/manual/02-meet-cooper')">{{ copy.cooper.go }} <span class="arrow">→</span></a>
         </div>
         <figure class="lead-shot l-reveal" style="--i: 1">
           <Shot class="shot-frame" name="cooper-board-focus" :alt="copy.cooper.board" />
@@ -247,8 +247,8 @@ const copy = useCopy({
         <h2 class="l-h2">{{ copy.end.title }}</h2>
         <p class="l-lead">{{ copy.end.lead }}</p>
         <div class="end-actions">
-          <a class="l-btn primary" :href="withBase('/book/00-how-to-read')">{{ copy.end.read }} <span class="arrow">→</span></a>
-          <a class="l-btn ghost" :href="withBase('/book/40-monitor')">{{ copy.end.monitor }}</a>
+          <a class="l-btn primary" :href="withBase('/manual/00-how-to-read')">{{ copy.end.read }} <span class="arrow">→</span></a>
+          <a class="l-btn ghost" :href="withBase('/manual/40-monitor')">{{ copy.end.monitor }}</a>
         </div>
         <p v-if="copy.end.note" class="end-note">{{ copy.end.note }}</p>
       </div>

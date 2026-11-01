@@ -11,7 +11,7 @@ const details = [
   ['Idempotency-Key: 7f3a', '→ 201, once'],
   ['Bun.serve', 'bun:sqlite', 'Bun.SQL', 'zod', 'kysely'],
 ]
-const links = ['/book/26-stores', '/book/23-time', '/book/27-security', '/book/28-rate-limits', '/book/24-idempotency', '/book/01-why-newt']
+const links = ['/manual/26-stores', '/manual/23-time', '/manual/27-security', '/manual/28-rate-limits', '/manual/24-idempotency', '/manual/01-why-newt']
 
 const items = useCopy([
   { title: 'Stores you can swap', text: 'SQLite, plain files, Postgres and MySQL behind one port, proven by one contract suite. Start on a file, grow into a server, change nothing in your modules.' },

@@ -11,25 +11,25 @@ const english = [
     key: 'application', label: 'The application', title: 'Bounded contexts, each with its own database',
     text: 'An application is bounded contexts. Each owns a store of its own and a set of modules, and says which other contexts it uses. cooper has three.',
     rules: ['A context reaches only the contexts it says it uses', 'Never in a cycle', 'Another context\'s tables are never read'],
-    link: '/book/03-contexts',
+    link: '/manual/03-contexts',
   },
   {
     key: 'context', label: 'A context', title: 'Modules, each owning one entity',
     text: 'A context is modules: boards has board, column, card, member, activity and workspace. Each module declares, in its Deps, what it uses; the application knows it, and newt-monitor draws it.',
     rules: ['One module, one entity, one responsibility', 'It names what it uses, typed', 'It points at another\'s things only by id'],
-    link: '/book/04-modules',
+    link: '/manual/04-modules',
   },
   {
     key: 'module', label: 'A module', title: 'The same anatomy, every time',
     text: 'Every module has the same files, so you, and your coding agent, always know where a thing goes. The lint refuses any other file.',
     rules: ['Only the repository touches the store', 'Only the entity changes itself', 'A route calls one use case'],
-    link: '/book/04-modules',
+    link: '/manual/04-modules',
   },
   {
     key: 'talk', label: 'Between modules', title: 'They ask, and they hear',
     text: 'A module asks another in the request, through its use cases, to read. It hears another after the commit: a worker runs one of its own use cases on the event, in a transaction of its own. Writing into another module from a request is refused when it runs.',
     rules: ['Asks: reads, in the request, by use cases', 'Hears: writes, after the commit, from a worker', 'Across contexts, the very same'],
-    link: '/book/11-between-contexts',
+    link: '/manual/11-between-contexts',
   },
 ]
 const steps = useCopy(english, [
@@ -55,7 +55,7 @@ const steps = useCopy(english, [
   },
 ])
 const ui = useCopy({
-  aria: 'newt\'s model, step by step', book: 'In the book →',
+  aria: 'newt\'s model, step by step', manual: 'In the manual →',
   graph: 'its modules, and how they depend on each other', graphAria: 'boards\' modules and their dependencies',
   legendAsks: 'asks: calls its use cases, in the request', legendHears: 'hears: its events, from a worker',
   request: 'In the request', requestWhat: 'asks, to read', after: 'After the commit', afterWhat: 'hears, to write',
@@ -71,7 +71,7 @@ const ui = useCopy({
     'One class per file: card.created, card.edited…; card.not_found…',
   ],
 }, {
-  aria: 'El modelo de newt, paso a paso', book: 'En el libro →',
+  aria: 'El modelo de newt, paso a paso', manual: 'En el manual →',
   graph: 'sus módulos, y cómo dependen unos de otros', graphAria: 'Los módulos de boards y sus dependencias',
   legendAsks: 'pregunta: llama a sus casos de uso, en la petición', legendHears: 'escucha: sus eventos, desde un worker',
   request: 'En la petición', requestWhat: 'pregunta, para leer', after: 'Tras el commit', afterWhat: 'escucha, para escribir',
@@ -143,7 +143,7 @@ const files = [
             <strong>{{ step.title }}</strong>
             <p>{{ step.text }}</p>
             <ul><li v-for="rule in step.rules" :key="rule">{{ rule }}</li></ul>
-            <a :href="withBase(step.link)" @click.stop>{{ ui.book }}</a>
+            <a :href="withBase(step.link)" @click.stop>{{ ui.manual }}</a>
           </div>
         </div>
         <span class="bar"><i v-if="index === current" :key="cycle" @animationend="next" /></span>

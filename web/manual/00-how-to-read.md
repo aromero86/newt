@@ -1,4 +1,4 @@
-# How to read this book
+# How to read this manual
 
 <p class="chapter-lead">This is the manual of newt, a backend framework for Bun. This page tells you who it is for, how it is laid out, which path to take through it, and what you need on your computer before the next chapter.</p>
 
@@ -11,13 +11,13 @@ Design, event sourcing or any particular framework. Every idea newt borrows from
 worlds is explained here the first time it appears, in plain words, with code you can
 open in the repository.
 
-The book does not teach Bun, Zod or SQL. It uses all three, and it says what each line
+The manual does not teach Bun, Zod or SQL. It uses all three, and it says what each line
 does when it matters, but it assumes you can look up `z.object` or `Bun.serve` when
 you need to.
 
 ## How it is laid out
 
-The book explains newt one concept at a time, and every concept is shown working in
+The manual explains newt one concept at a time, and every concept is shown working in
 **cooper**, a small but complete SaaS that lives in the same repository (`cooper/`).
 You do not build cooper as you read: it is already built. You read its code, run it,
 and change it if you like.
@@ -62,7 +62,7 @@ the outside.
 
 ## How the callouts work
 
-The book uses five kinds of boxes. Each one always means the same thing, so you can
+The manual uses five kinds of boxes. Each one always means the same thing, so you can
 skim by them.
 
 ::: info Concept: Bounded context
@@ -108,7 +108,7 @@ bun install
 
 The repository is one Bun workspace: the framework in `packages/newt`, its lint, its
 React packages and the monitor beside it in `packages/`, cooper in `cooper/`, and this
-book in `web/`. From the root, these are the commands you will use (they are the
+manual in `web/`. From the root, these are the commands you will use (they are the
 `scripts` of the root `package.json`):
 
 ```sh
@@ -141,5 +141,5 @@ You are ready. The next chapter tells the story of why newt exists.
 
 ## Going further
 
-- [Meet cooper](./02-meet-cooper): the application you will read throughout the book.
+- [Meet cooper](./02-meet-cooper): the application you will read throughout the manual.
 - [The command line](./c-cli): `newt init` and `newt add module`.

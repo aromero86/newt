@@ -14,7 +14,7 @@ const english = [
     key: 'overview', label: 'Overview', shot: 'monitor-overview', ratio: 0.625, path: 'cooper',
     title: 'The whole application, at a glance',
     text: 'What it is made of, read from its code. Its instances, disk, memory and event loop. Every use case\'s calls, errors, failures and times, from the last hour to the last year, with every deploy marked.',
-    link: '/book/43-metrics',
+    link: '/manual/43-metrics',
     spots: [
       { x: 53, y: 29, label: '150 use cases, read from the code' },
       { x: 61, y: 60, label: '0 failures nobody expected' },
@@ -25,7 +25,7 @@ const english = [
     key: 'structure', label: 'Structure', shot: 'monitor-graph', ratio: 0.903, path: 'cooper/contexts/boards/card',
     title: 'What uses what, drawn from the code',
     text: 'Each module with what it uses and what uses it, across contexts. Every use case says whether it writes only to its own module, and whether it runs again on a conflict.',
-    link: '/book/42-structure',
+    link: '/manual/42-structure',
     spots: [
       { x: 50.5, y: 26.8, label: 'card, and its dependencies' },
       { x: 32.5, y: 39.9, label: 'auth: another context' },
@@ -37,7 +37,7 @@ const english = [
     key: 'use-case', label: 'Use cases', shot: 'monitor-use-case', ratio: 0.903, path: 'cooper/use-cases/card.create',
     title: 'Every use case, measured',
     text: 'Calls, errors by code, failures nobody expected, conflicts that ran it again, p50 to p99, beside the window before. Errors it says may happen are told apart from the ones that should not.',
-    link: '/book/43-metrics',
+    link: '/manual/43-metrics',
     spots: [
       { x: 53, y: 31.5, label: '675 errors it says may happen' },
       { x: 74, y: 31.5, label: '0 failures' },
@@ -49,7 +49,7 @@ const english = [
     key: 'traces', label: 'Traces', shot: 'monitor-trace', ratio: 0.903, path: 'cooper/traces/01a1…',
     title: 'One request, down to the last query',
     text: 'The use cases it called, in its context and in others, every query with its criteria and rows, the transaction, the event told, and the workers that ran after it.',
-    link: '/book/44-traces',
+    link: '/manual/44-traces',
     spots: [
       { x: 81, y: 27.6, label: '4 ms, the whole request' },
       { x: 17, y: 45.3, label: 'auth, called by its use case' },
@@ -62,7 +62,7 @@ const english = [
     key: 'queues', label: 'Queues', shot: 'monitor-queues', ratio: 0.903, path: 'cooper/queues',
     title: 'The outbox, live',
     text: 'Every queue: what waits, what runs, how long jobs wait, what died. A queue nobody serves after a deploy is flagged. The depth over time tells you a worker fell behind before your users do.',
-    link: '/book/45-queues',
+    link: '/manual/45-queues',
     spots: [
       { x: 52, y: 17.3, label: 'One job ran out of attempts' },
       { x: 85, y: 45.5, label: 'How long jobs waited' },
@@ -73,7 +73,7 @@ const english = [
     key: 'dead', label: 'Dead jobs', shot: 'monitor-job', ratio: 0.903, path: 'cooper/queues/boards/card.notifyAssignee…',
     title: 'What died, and why',
     text: 'A job that failed every attempt keeps its event and its last error. Read why, fix the cause, and let your application put it back: in cooper, the backoffice does it with one button.',
-    link: '/book/45-queues',
+    link: '/manual/45-queues',
     spots: [
       { x: 52, y: 25, label: 'Dead now' },
       { x: 56, y: 78.7, label: 'Its last error' },
@@ -84,7 +84,7 @@ const english = [
     key: 'system', label: 'System', shot: 'monitor-system', ratio: 0.903, path: 'cooper/system',
     title: 'Its instances, and their machines',
     text: 'CPU, memory, event loop delay and disk of every instance, and how many were alive, minute by minute, across deploys.',
-    link: '/book/43-metrics',
+    link: '/manual/43-metrics',
     spots: [],
   },
 ]
@@ -124,7 +124,7 @@ const screens = useCopy(english, [
     text: 'CPU, memoria, retraso del event loop y disco de cada instancia, y cuántas estaban vivas, minuto a minuto, entre despliegues.',
   },
 ])
-const ui = useCopy({ aria: 'What newt-monitor shows', book: 'In the book →' }, { aria: 'Lo que enseña newt-monitor', book: 'En el libro →' })
+const ui = useCopy({ aria: 'What newt-monitor shows', manual: 'In the manual →' }, { aria: 'Lo que enseña newt-monitor', manual: 'En el manual →' })
 
 /** Each screen shows this long, and its screenshot scrolls in the frame's 16:10. */
 const DWELL = 8
@@ -163,7 +163,7 @@ onInView(root, () => { playing.value = true }, { threshold: 0.3, leave: () => { 
         <span class="tab-body">
           <strong>{{ each.title }}</strong>
           <span>{{ each.text }}</span>
-          <a :href="withBase(each.link)" @click.stop>{{ ui.book }}</a>
+          <a :href="withBase(each.link)" @click.stop>{{ ui.manual }}</a>
         </span>
         <span class="progress"><i v-if="index === current" :key="cycle" @animationend="next" /></span>
       </div>

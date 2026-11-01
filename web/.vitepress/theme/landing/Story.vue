@@ -12,7 +12,7 @@ const english = [
     story: 'A handler validates, writes two tables and sends an email. Six months later, nobody dares to touch it.',
     answer: 'A route does not think',
     how: 'It reads the request, calls one use case, answers. The use case validates, asks who may, lets the entity change itself and saves once. The email leaves from a worker.',
-    link: '/book/06-use-cases',
+    link: '/manual/06-use-cases',
     before: {
       file: 'routes/cards.ts',
       code: `app.post('/cards', async (req, res) => {
@@ -43,7 +43,7 @@ const english = [
     story: 'The row is saved, the process restarts, the event is never published. The invoice is never sent, and nothing tells you.',
     answer: 'Events are born in the entity',
     how: 'The entity tracks what happened. The event is written in the same transaction as the change, and a worker runs every reaction until it succeeds.',
-    link: '/book/09-events',
+    link: '/manual/09-events',
     before: {
       file: 'services/cards.ts',
       code: `await db.insert('card', card)
@@ -70,7 +70,7 @@ await this.repo.persistNew(card)`,
     story: 'Ana moves a card while Bob renames it. One of the changes silently disappears.',
     answer: 'Versions, and a second run',
     how: 'Every row has a version. A save that read an old one throws, and the use case runs again on fresh data: on SQLite, Postgres and MySQL alike.',
-    link: '/book/20-concurrency',
+    link: '/manual/20-concurrency',
     before: {
       file: 'two tabs, one second apart',
       code: `-- Ana, 10:02:01
@@ -99,7 +99,7 @@ async edit(id: string, input: unknown): Promise<CardDTO> {
     story: 'One forgotten where clause, and Acme reads Globex\'s boards.',
     answer: 'Scopes the repository keeps',
     how: 'A repository of tenant rows says its scope, and sees only the current one. Saving a row of another scope throws. A stranger gets a 404.',
-    link: '/book/22-tenants',
+    link: '/manual/22-tenants',
     before: {
       file: 'routes/boards.ts',
       code: `const board = await db.query(
@@ -127,7 +127,7 @@ async edit(id: string, input: unknown): Promise<CardDTO> {
     story: 'Which module listens to card.created? What breaks if I change this payload? The answer lives in someone\'s head.',
     answer: 'The structure, declared and drawn',
     how: 'Every module declares what it uses. The lint keeps the boundaries, and the application describes itself to newt-monitor, which draws it.',
-    link: '/book/42-structure',
+    link: '/manual/42-structure',
     before: {
       file: 'terminal',
       code: `$ grep -rn "card.created" src/
@@ -153,7 +153,7 @@ src/billing/hooks.ts:301  // TODO: still used?`,
     story: 'Your coding agent is fast. It is also happy to write another module\'s rows from a request and call out mid-transaction.',
     answer: 'Rules a machine checks',
     how: 'An AGENTS.md versioned with the package, a lint that knows newt\'s anatomy, and runtime rules whose errors say what to do instead.',
-    link: '/book/33-agents',
+    link: '/manual/33-agents',
     before: {
       file: 'label.module.ts, at 2 a.m.',
       code: `@UseCase()

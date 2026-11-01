@@ -1,7 +1,7 @@
 import { computed, type ComputedRef } from 'vue'
 import { useData } from 'vitepress'
 
-/** The landing's languages: English at /, Spanish at /es/. The book is in English only. */
+/** The landing's languages: English at /, Spanish at /es/. The manual is in English only. */
 export type Lang = 'en' | 'es'
 
 export function useLang(): ComputedRef<Lang> {
