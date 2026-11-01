@@ -1,4 +1,5 @@
 import { TooManyRequests, type Clock } from '../../core'
+import { traceSpan } from '../../core/internal'
 import type { RateLimitRule, RateLimitStore, RateLimitTake } from '../../port-rate-limit'
 
 /**
@@ -16,11 +17,20 @@ export class RateLimit {
     private readonly clock: Clock,
   ) {}
 
-  /** One take of `key`: `TooManyRequests` past the limit, with how long to wait. */
-  async take(key: string): Promise<RateLimitTake> {
-    const take = await this.store.take(this.keyOf(key), this.rule, this.clock.now())
-    if (!take.allowed) throw new TooManyRequests(this.name, take.retryAfterMs)
-    return take
+  /**
+   * One take of `key`: `TooManyRequests` past the limit, with how long to wait. Each is
+   * a step of the trace in progress, its key left out: it may be an email.
+   */
+  take(key: string): Promise<RateLimitTake> {
+    return traceSpan(
+      { kind: 'rate-limit', name: this.name, context: this.context, attributes: { limit: this.rule.limit, windowMs: this.rule.windowMs } },
+      async () => {
+        const take = await this.store.take(this.keyOf(key), this.rule, this.clock.now())
+        if (!take.allowed) throw new TooManyRequests(this.name, take.retryAfterMs)
+        return take
+      },
+      take => ({ remaining: take.remaining }),
+    )
   }
 
   /** Forgets what `key` did, as a sign-in that worked forgets the attempts before it. */
