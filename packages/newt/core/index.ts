@@ -44,6 +44,7 @@ export { ConflictError } from './errors/conflict-error'
 export { ConcurrencyConflict } from './errors/concurrency-conflict'
 export { DuplicateValue } from './errors/duplicate-value'
 export { ReferenceNotFound } from './errors/reference-not-found'
+export { TooManyRequests } from './errors/too-many-requests'
 export type { Messages } from './messages/messages'
 export { setMessages } from './messages/set-messages'
 

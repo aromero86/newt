@@ -3,6 +3,7 @@ import { DomainError } from '../core'
 import { message } from '../core/internal'
 import { MalformedBody } from './errors/malformed-body'
 import { MethodNotAllowed } from './errors/method-not-allowed'
+import { retryAfter } from './to-error-response'
 
 /**
  * What an OAuth client receives when a request fails: `{ error, error_description }`
@@ -12,7 +13,7 @@ import { MethodNotAllowed } from './errors/method-not-allowed'
  */
 export function toOauthErrorResponse(error: unknown, fallback: string, codes: Record<string, string> = {}): Response {
   const answer = (status: number, code: string, description: string) =>
-    Response.json({ error: code, error_description: description }, { status, headers: { 'cache-control': 'no-store' } })
+    Response.json({ error: code, error_description: description }, { status, headers: { 'cache-control': 'no-store', ...retryAfter(error) } })
 
   // A body that is not JSON (read raw, or inside `handle`) or not a form (read inside `handle`,
   // whatever Bun throws for it). Any other TypeError is a bug of the server's own, a 500 like the rest.

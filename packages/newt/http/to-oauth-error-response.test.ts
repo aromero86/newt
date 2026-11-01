@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { UnauthorizedError, ValidationError } from '../core'
+import { TooManyRequests, UnauthorizedError, ValidationError } from '../core'
 import { MalformedBody } from './errors/malformed-body'
 import { MethodNotAllowed } from './errors/method-not-allowed'
 import { handle } from './handle'
@@ -11,6 +11,14 @@ class CodeUsed extends ValidationError {
 }
 
 describe('toOauthErrorResponse', () => {
+  test('one who ran into a rate limit says when to try again', async () => {
+    const response = toOauthErrorResponse(new TooManyRequests('token.exchange', 30_000), 'invalid_request', { too_many_requests: 'slow_down' })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('30')
+    expect(await response.json()).toMatchObject({ error: 'slow_down' })
+  })
+
   test('a domain error becomes the OAuth error it is mapped to, with its status', async () => {
     const response = toOauthErrorResponse(new CodeUsed('Used'), 'invalid_request', { 'thing.code_used': 'invalid_grant' })
 

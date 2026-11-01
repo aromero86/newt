@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { z } from 'zod'
-import { ConflictError, InvalidEntity } from '../core'
+import { ConflictError, InvalidEntity, TooManyRequests } from '../core'
 import { toErrorResponse } from './to-error-response'
 
 class SlugTaken extends ConflictError {
@@ -13,6 +13,14 @@ describe('toErrorResponse', () => {
 
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: 'Slug taken', code: 'thing.slug_taken' })
+  })
+
+  test('one who ran into a rate limit is a 429 that says when to try again, in whole seconds', async () => {
+    const response = toErrorResponse(new TooManyRequests('session.signIn', 1500))
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('2')
+    expect(await response.json()).toEqual({ error: 'Too many requests: try again in 2 s', code: 'too_many_requests' })
   })
 
   test('invalid input is a 400', async () => {

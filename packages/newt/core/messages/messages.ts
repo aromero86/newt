@@ -27,6 +27,8 @@ export type Messages = {
   filter_too_deep: (params: { max: number }) => string
   /** A client's filter with more conditions than its `defineFilter` allows. */
   filter_too_many_conditions: (params: { max: number }) => string
+  /** Someone who ran into a rate limit: they may try again in `retryAfterSeconds`. */
+  too_many_requests: (params: { retryAfterSeconds: number }) => string
   /** Anything unexpected: it says nothing about the inside. */
   internal: () => string
 }
