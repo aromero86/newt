@@ -1,33 +1,23 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
 import { withBase } from 'vitepress'
 import Hero from './Hero.vue'
-import Marquee from './Marquee.vue'
 import Story from './Story.vue'
-import RequestJourney from './RequestJourney.vue'
-import EventBirth from './EventBirth.vue'
 import ModelExplorer from './ModelExplorer.vue'
 import ChangeTracking from './ChangeTracking.vue'
+import RequestJourney from './RequestJourney.vue'
 import MonitorShowcase from './MonitorShowcase.vue'
 import AskClaude from './AskClaude.vue'
 import AgentTerminal from './AgentTerminal.vue'
 import Bento from './Bento.vue'
 import Counter from './Counter.vue'
 import Shot from './Shot.vue'
+import { useCopy } from './i18n'
 import { reducedMotion } from './motion'
 import './landing.css'
 
-/** What scrolls into view fades in; how far down the page is, a line under the bar. */
-const progress = ref<HTMLElement>()
+/** What scrolls into view fades in, once. */
 let observer: IntersectionObserver | undefined
-let frame = 0
-function measure() {
-  cancelAnimationFrame(frame)
-  frame = requestAnimationFrame(() => {
-    const scrolled = scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight)
-    progress.value?.style.setProperty('transform', `scaleX(${scrolled.toFixed(4)})`)
-  })
-}
 onMounted(() => {
   const revealed = document.querySelectorAll('.landing .l-reveal')
   if (reducedMotion() || !('IntersectionObserver' in window)) revealed.forEach(element => element.classList.add('is-in'))
@@ -41,16 +31,10 @@ onMounted(() => {
     }, { threshold: 0.08 })
     revealed.forEach(element => observer!.observe(element))
   }
-  measure()
-  addEventListener('scroll', measure, { passive: true })
 })
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  removeEventListener('scroll', measure)
-  cancelAnimationFrame(frame)
-})
+onBeforeUnmount(() => observer?.disconnect())
 
-/** What a log says, line after line, for ever. */
+/** What a log says, line after line. */
 const logs = [
   'POST /api/workspaces/01a1…/boards/01a1…/cards 201 4ms',
   'GET  /api/workspaces/01a1…/boards 200 1ms',
@@ -58,126 +42,141 @@ const logs = [
   'job failed, retrying in 32s',
   'GET  /api/workspaces/01a1…/cards/01a1… 404 0ms',
   'PATCH /api/workspaces/01a1…/cards/01a1… 200 2ms',
-  'POST /api/workspaces/01a1…/boards/01a1…/cards 400 1ms',
   'Error: connect ECONNREFUSED 10.0.3.7:587',
   'GET  /api/me 200 0ms',
   'job failed, retrying in 64s',
   'POST /oauth/token 200 3ms',
-  'GET  /api/workspaces/01a1…/search?q=rel 200 2ms',
 ]
-/** What newt-monitor says about the same minutes. */
 const insights = [
-  { code: 'card.create', ctx: 'boards', text: '368 errors in the hour, all of them ones it says may happen. 0 failures. p90 1 ms.' },
-  { code: 'card.notifyAssignee.on.card.created', ctx: 'boards', text: 'Died after 5 attempts: MailNotSent, the mail server at smtp.cooper.dev:587 refused the connection.' },
-  { code: 'access.check', ctx: 'auth', text: '0.1 ms of a 4 ms request to boards: the other context, asked through its use case.' },
+  { code: 'card.create', ctx: 'boards' },
+  { code: 'card.notifyAssignee.on.card.created', ctx: 'boards' },
+  { code: 'access.check', ctx: 'auth' },
 ]
-const numbers = [
-  { to: 101125, label: 'use case calls in an hour' },
-  { to: 0, label: 'failures nobody expected' },
-  { to: 0.94, decimals: 2, suffix: ' ms', label: 'p90 of every use case' },
-  { to: 12867, label: 'jobs in, and as many out' },
-]
+const numbers = [{ to: 158986 }, { to: 0 }, { to: 0.39, decimals: 2, suffix: ' ms' }, { to: 0.94, decimals: 2, suffix: ' ms' }]
+
+const copy = useCopy({
+  story: { eyebrow: 'The problem', title: 'Every backend starts clean.', rest: 'Then it grows.', lead: 'Six ways a backend rots as it grows, and what newt does about each: the code without it, and with it.' },
+  model: { eyebrow: 'The model', title: 'Contexts, modules, and how they talk.', rest: 'Boundaries that hold.', lead: 'An application is bounded contexts. A context is modules, each owning one entity. A module asks another to read, and hears another to write. Four steps, and you know where everything goes.' },
+  changes: { eyebrow: 'Change tracking', title: 'You change the entity.', rest: 'newt does the rest.', lead: 'You never write an UPDATE, never diff, never publish. The entity knows what changed and tells it; the repository writes only that, guarded by its version, and the event leaves in the same transaction. A change undone writes nothing and tells nothing.' },
+  journey: { eyebrow: 'One request', title: 'One request, end to end.', rest: 'Replayed from its trace.', lead: 'One card created in cooper, newt\'s example application, as newt-monitor kept it: three contexts, a rate limit, an idempotency key, one transaction, one event and four workers.' },
+  monitor: {
+    eyebrow: 'newt-monitor', title: 'Production, explained', rest: 'in your own words.',
+    lead: 'Your application already knows its contexts, modules, use cases, events and queues. newt-monitor asks it, and shows you every one of them running: not routes and status codes, but what your code calls things.',
+    logs: 'Your logs say', says: 'newt-monitor says',
+    insights: [
+      '591 errors in the hour, all of them ones it says may happen. 0 failures. p90 1 ms.',
+      'Died after 5 attempts: MailNotSent, the mail server at smtp.cooper.dev:587 refused the connection.',
+      '0.1 ms of a 4 ms request to boards: the other context, asked through its use case.',
+    ],
+    numbers: ['use case calls in an hour', 'failures nobody expected', 'mean of every use case', 'p90 of every use case'],
+    note: 'cooper under a load test, as newt-monitor counted it.',
+    promises: [
+      { title: 'It knows your domain', text: 'Contexts, modules, use cases, events, queues and schedules as your code names them, and each use case\'s errors by their codes.' },
+      { title: 'It never opens your database', text: 'The monitor asks; your application answers on a port of its own, every request signed. Payloads and rows stay where they are.' },
+      { title: 'One monitor, every application', text: 'Register as many as you run. Each deploy is marked on every chart, and each version of their structure is kept to compare.' },
+    ],
+    cta: 'Meet newt-monitor',
+  },
+  rest: { eyebrow: 'And the rest', title: 'What a real backend needs,', rest: 'from the first module.' },
+  cooper: { eyebrow: 'Learn it on a real application', title: 'Meet cooper.', lead: 'Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces, invitations, search, a backoffice and an MCP server. The book explains every part of newt through it, with the code in front of you.', go: 'Meet cooper', board: 'A board in cooper, with its columns and cards', backoffice: 'cooper\'s backoffice' },
+  end: { title: 'Build something that lasts.', lead: 'Start with the essentials: fourteen chapters, from why newt exists to running it in production. Then go as deep as you like.', read: 'Read the book', monitor: 'The monitor', note: '' },
+}, {
+  story: { eyebrow: 'El problema', title: 'Todo backend empieza limpio.', rest: 'Luego crece.', lead: 'Seis maneras en que un backend se pudre al crecer, y qué hace newt con cada una: el código sin newt, y con él.' },
+  model: { eyebrow: 'El modelo', title: 'Contextos, módulos y cómo se hablan.', rest: 'Fronteras que aguantan.', lead: 'Una aplicación son contextos delimitados. Un contexto son módulos, cada uno dueño de una entidad. Un módulo pregunta a otro para leer, y escucha a otro para escribir. Cuatro pasos, y sabes dónde va cada cosa.' },
+  changes: { eyebrow: 'Seguimiento de cambios', title: 'Tú cambias la entidad.', rest: 'newt hace el resto.', lead: 'Nunca escribes un UPDATE, ni calculas un diff, ni publicas nada. La entidad sabe qué cambió y lo cuenta; el repositorio escribe solo eso, protegido por su versión, y el evento sale en la misma transacción. Un cambio deshecho no escribe nada ni cuenta nada.' },
+  journey: { eyebrow: 'Una petición', title: 'Una petición, de principio a fin.', rest: 'Reproducido desde su traza.', lead: 'Una tarjeta creada en cooper, la aplicación de ejemplo de newt, tal como la guardó newt-monitor: tres contextos, un rate limit, una clave de idempotencia, una transacción, un evento y cuatro workers.' },
+  monitor: {
+    eyebrow: 'newt-monitor', title: 'Producción, explicada', rest: 'con tus propias palabras.',
+    lead: 'Tu aplicación ya conoce sus contextos, módulos, casos de uso, eventos y colas. newt-monitor se lo pregunta, y te enseña cada uno funcionando: no rutas y códigos de estado, sino las cosas por el nombre que les da tu código.',
+    logs: 'Tus logs dicen', says: 'newt-monitor dice',
+    insights: [
+      '591 errores en la hora, todos de los que dice que pueden pasar. 0 fallos. p90 de 1 ms.',
+      'Muerto tras 5 intentos: MailNotSent, el servidor de correo en smtp.cooper.dev:587 rechazó la conexión.',
+      '0,1 ms de una petición de 4 ms a boards: el otro contexto, preguntado por su caso de uso.',
+    ],
+    numbers: ['llamadas a casos de uso en una hora', 'fallos que nadie esperaba', 'media de todos los casos de uso', 'p90 de todos los casos de uso'],
+    note: 'cooper bajo una prueba de carga, según lo contó newt-monitor.',
+    promises: [
+      { title: 'Conoce tu dominio', text: 'Contextos, módulos, casos de uso, eventos, colas y tareas programadas tal como los nombra tu código, y los errores de cada caso de uso por su código.' },
+      { title: 'Nunca abre tu base de datos', text: 'El monitor pregunta; tu aplicación responde en un puerto propio, con cada petición firmada. Los payloads y las filas se quedan donde están.' },
+      { title: 'Un monitor, todas tus aplicaciones', text: 'Registra todas las que tengas. Cada despliegue queda marcado en cada gráfica, y cada versión de su estructura se guarda para compararla.' },
+    ],
+    cta: 'Conoce newt-monitor',
+  },
+  rest: { eyebrow: 'Y el resto', title: 'Lo que un backend de verdad necesita,', rest: 'desde el primer módulo.' },
+  cooper: { eyebrow: 'Apréndelo en una aplicación real', title: 'Te presento a cooper.', lead: 'Tableros de tarjetas para equipos: tres contextos, inicio de sesión con un servidor OAuth propio, espacios de trabajo, invitaciones, búsqueda, un backoffice y un servidor MCP. El libro explica cada parte de newt a través de él, con el código delante.', go: 'Conoce cooper', board: 'Un tablero en cooper, con sus columnas y tarjetas', backoffice: 'El backoffice de cooper' },
+  end: { title: 'Construye algo que dure.', lead: 'Empieza por lo esencial: catorce capítulos, desde por qué existe newt hasta llevarlo a producción. Luego, tan a fondo como quieras.', read: 'Leer el libro', monitor: 'El monitor', note: 'El libro está en inglés.' },
+})
 </script>
 
 <template>
   <div class="landing">
-    <div class="scroll-line" aria-hidden="true"><i ref="progress" /></div>
-
     <Hero />
-    <Marquee />
 
-    <!-- The story: problem, then answer -->
-    <section id="story" class="l-section story">
+    <section id="story" class="l-section">
       <div class="l-container">
         <header class="l-head l-reveal">
-          <p class="l-eyebrow">The story</p>
-          <h2 class="l-h2">Every backend starts clean. <span class="l-ink">Then it grows.</span></h2>
-          <p class="l-lead">These are the six ways it rots. Scroll through them, and watch what newt does about each.</p>
+          <p class="l-eyebrow"><b>01</b> {{ copy.story.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.story.title }} <span class="l-ink">{{ copy.story.rest }}</span></h2>
+          <p class="l-lead">{{ copy.story.lead }}</p>
         </header>
         <Story />
       </div>
     </section>
 
-    <!-- One request, replayed -->
-    <section id="journey" class="l-section journey">
-      <div class="l-grid-bg" aria-hidden="true" />
+    <section id="model" class="l-section">
       <div class="l-container">
         <header class="l-head l-reveal">
-          <p class="l-eyebrow">Follow one request</p>
-          <h2 class="l-h2">From a click <span class="l-ink">to the last worker.</span></h2>
-          <p class="l-lead">
-            One card created in cooper, newt's example application, replayed from the trace newt-monitor kept: three
-            contexts, a rate limit, an idempotency key, one transaction, one event and four workers. In 4 milliseconds.
-          </p>
-        </header>
-        <RequestJourney class="l-reveal" />
-      </div>
-    </section>
-
-    <!-- Change tracking -->
-    <section id="changes" class="l-section">
-      <div class="l-container">
-        <header class="l-head l-reveal">
-          <p class="l-eyebrow">Change tracking</p>
-          <h2 class="l-h2">You change the entity. <span class="l-ink">newt does the rest.</span></h2>
-          <p class="l-lead">
-            You never write an UPDATE, never diff, never publish. The entity knows what changed and tells it; the
-            repository writes only that, guarded by the version, and the event leaves with it. A change undone writes
-            nothing and tells nothing.
-          </p>
-        </header>
-        <ChangeTracking class="l-reveal" />
-      </div>
-    </section>
-
-    <!-- Events -->
-    <section id="events" class="l-section">
-      <div class="l-container">
-        <EventBirth class="l-reveal" />
-      </div>
-    </section>
-
-    <!-- Contexts and modules -->
-    <section id="contexts" class="l-section contexts">
-      <div class="l-container">
-        <header class="l-head l-reveal">
-          <p class="l-eyebrow">The model</p>
-          <h2 class="l-h2">Contexts, modules, and how they talk. <span class="l-ink">Boundaries that hold.</span></h2>
-          <p class="l-lead">
-            An application is bounded contexts. A context is modules, each owning one entity. A module asks another to
-            read, and hears another to write. Four steps, and you know where everything goes.
-          </p>
+          <p class="l-eyebrow"><b>02</b> {{ copy.model.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.model.title }} <span class="l-ink">{{ copy.model.rest }}</span></h2>
+          <p class="l-lead">{{ copy.model.lead }}</p>
         </header>
         <ModelExplorer class="l-reveal" />
       </div>
     </section>
 
-    <!-- newt-monitor -->
-    <section id="monitor" class="l-section monitor">
-      <div class="monitor-sky" aria-hidden="true" />
+    <section id="changes" class="l-section">
       <div class="l-container">
         <header class="l-head l-reveal">
-          <p class="l-eyebrow">newt-monitor</p>
-          <h2 class="l-h2">Production, explained <span class="l-ink">in your own words.</span></h2>
-          <p class="l-lead">
-            Your application already knows its contexts, modules, use cases, events and queues. newt-monitor asks it,
-            and shows you every one of them running: not routes and status codes, but what your code calls things.
-          </p>
+          <p class="l-eyebrow"><b>03</b> {{ copy.changes.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.changes.title }} <span class="l-ink">{{ copy.changes.rest }}</span></h2>
+          <p class="l-lead">{{ copy.changes.lead }}</p>
+        </header>
+        <ChangeTracking class="l-reveal" />
+      </div>
+    </section>
+
+    <section id="journey" class="l-section tint">
+      <div class="l-container">
+        <header class="l-head l-reveal">
+          <p class="l-eyebrow"><b>04</b> {{ copy.journey.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.journey.title }} <span class="l-ink">{{ copy.journey.rest }}</span></h2>
+          <p class="l-lead">{{ copy.journey.lead }}</p>
+        </header>
+        <RequestJourney class="l-reveal" />
+      </div>
+    </section>
+
+    <section id="monitor" class="l-section">
+      <div class="l-container">
+        <header class="l-head l-reveal">
+          <p class="l-eyebrow"><b>05</b> {{ copy.monitor.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.monitor.title }} <span class="l-ink">{{ copy.monitor.rest }}</span></h2>
+          <p class="l-lead">{{ copy.monitor.lead }}</p>
         </header>
 
         <div class="versus l-reveal">
-          <div class="logs">
-            <p class="tag">Your logs say</p>
-            <div class="log-window">
-              <div class="log-track"><code v-for="(line, index) in [...logs, ...logs]" :key="index">{{ line }}</code></div>
-            </div>
+          <div>
+            <p class="tag">{{ copy.monitor.logs }}</p>
+            <div class="log-window"><code v-for="line in logs" :key="line">{{ line }}</code></div>
           </div>
-          <div class="vs" aria-hidden="true">→</div>
-          <div class="insights">
-            <p class="tag good">newt-monitor says</p>
-            <div v-for="(insight, index) in insights" :key="insight.code" class="insight l-reveal" :style="{ '--i': index + 2 }">
-              <div class="insight-head"><code>{{ insight.code }}</code><span class="ctx" :class="insight.ctx">{{ insight.ctx }}</span></div>
-              <p>{{ insight.text }}</p>
+          <div>
+            <p class="tag good">{{ copy.monitor.says }}</p>
+            <div class="insights">
+              <div v-for="(insight, index) in insights" :key="insight.code" class="insight">
+                <div class="insight-head"><code>{{ insight.code }}</code><span class="ctx" :class="insight.ctx">{{ insight.ctx }}</span></div>
+                <p>{{ copy.monitor.insights[index] }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -185,164 +184,120 @@ const numbers = [
         <MonitorShowcase class="l-reveal" />
 
         <div class="numbers l-reveal">
-          <div v-for="(number, index) in numbers" :key="number.label" class="number" :style="{ '--i': index }">
+          <div v-for="(number, index) in numbers" :key="index" class="number">
             <strong><Counter :to="number.to" :decimals="number.decimals" :suffix="number.suffix" /></strong>
-            <span>{{ number.label }}</span>
+            <span>{{ copy.monitor.numbers[index] }}</span>
           </div>
         </div>
-        <p class="numbers-note">cooper under a load test, as newt-monitor counted it.</p>
+        <p class="numbers-note">{{ copy.monitor.note }}</p>
 
-        <div class="promises">
-          <div class="promise l-reveal" style="--i: 0">
-            <span class="icon">◎</span>
-            <h3>It knows your domain</h3>
-            <p>Contexts, modules, use cases, events, queues and schedules as your code names them, and each use case's errors by their codes.</p>
-          </div>
-          <div class="promise l-reveal" style="--i: 1">
-            <span class="icon">⛨</span>
-            <h3>It never opens your database</h3>
-            <p>The monitor asks; your application answers on a port of its own, every request signed. Payloads and rows stay where they are.</p>
-          </div>
-          <div class="promise l-reveal" style="--i: 2">
-            <span class="icon">⌁</span>
-            <h3>One monitor, every application</h3>
-            <p>Register as many as you run. Each deploy is marked on every chart, and each version of their structure is kept to compare.</p>
+        <div class="promises l-reveal">
+          <div v-for="(promise, index) in copy.monitor.promises" :key="index" class="promise">
+            <span class="n">{{ String(index + 1).padStart(2, '0') }}</span>
+            <h3>{{ promise.title }}</h3>
+            <p>{{ promise.text }}</p>
           </div>
         </div>
 
         <AskClaude class="ask l-reveal" />
 
-        <div class="center l-reveal">
-          <a class="l-btn primary" :href="withBase('/book/40-monitor')">Meet newt-monitor <span class="arrow">→</span></a>
-        </div>
+        <a class="l-btn primary l-reveal" :href="withBase('/book/40-monitor')">{{ copy.monitor.cta }} <span class="arrow">→</span></a>
       </div>
     </section>
 
-    <!-- Agents -->
     <section id="agents" class="l-section">
       <div class="l-container">
         <AgentTerminal class="l-reveal" />
       </div>
     </section>
 
-    <!-- Everything else -->
-    <section class="l-section">
+    <section id="rest" class="l-section">
       <div class="l-container">
         <header class="l-head l-reveal">
-          <p class="l-eyebrow">And everything a real backend needs</p>
-          <h2 class="l-h2">Serious <span class="l-ink">from the first module.</span></h2>
+          <p class="l-eyebrow"><b>07</b> {{ copy.rest.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.rest.title }} <span class="l-ink">{{ copy.rest.rest }}</span></h2>
         </header>
         <Bento class="l-reveal" />
       </div>
     </section>
 
-    <!-- cooper -->
-    <section class="l-section cooper">
+    <section id="cooper" class="l-section">
       <div class="l-container two">
         <div class="l-reveal">
-          <p class="l-eyebrow">Learn it on a real application</p>
-          <h2 class="l-h2">Meet <span class="l-ink">cooper.</span></h2>
-          <p class="l-lead">
-            Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces,
-            invitations, search, a backoffice and an MCP server. The book explains every part of newt through it, with
-            the code in front of you.
-          </p>
-          <a class="l-btn primary go" :href="withBase('/book/02-meet-cooper')">Meet cooper <span class="arrow">→</span></a>
+          <p class="l-eyebrow"><b>08</b> {{ copy.cooper.eyebrow }}</p>
+          <h2 class="l-h2">{{ copy.cooper.title }}</h2>
+          <p class="l-lead">{{ copy.cooper.lead }}</p>
+          <a class="l-btn ghost go" :href="withBase('/book/02-meet-cooper')">{{ copy.cooper.go }} <span class="arrow">→</span></a>
         </div>
-        <div class="fan l-reveal" style="--i: 1">
-          <Shot class="card back2" name="cooper-backoffice" alt="cooper's backoffice" />
-          <Shot class="card back1" name="cooper-boards" alt="cooper's boards" />
-          <Shot class="card front" name="cooper-board" alt="A board in cooper, with its columns and cards" />
+        <div class="pair l-reveal" style="--i: 1">
+          <Shot class="shot-frame" name="cooper-board" :alt="copy.cooper.board" />
+          <Shot class="shot-frame" name="cooper-backoffice" :alt="copy.cooper.backoffice" />
         </div>
       </div>
     </section>
 
-    <!-- Call to action -->
-    <section class="l-section cta">
-      <div class="l-container">
-        <div class="cta-box l-reveal">
-          <div class="l-grid-bg" aria-hidden="true" />
-          <div class="cta-glow" aria-hidden="true" />
-          <h2 class="l-h2">Build something <span class="l-ink">that lasts.</span></h2>
-          <p class="l-lead">Start with the essentials: fourteen chapters, from why newt exists to running it in production. Then go as deep as you like.</p>
-          <div class="cta-actions">
-            <a class="l-btn primary" :href="withBase('/book/00-how-to-read')">Read the book <span class="arrow">→</span></a>
-            <a class="l-btn ghost" :href="withBase('/book/40-monitor')">The monitor</a>
-          </div>
+    <section class="l-section end">
+      <div class="l-container l-reveal">
+        <h2 class="l-h2">{{ copy.end.title }}</h2>
+        <p class="l-lead">{{ copy.end.lead }}</p>
+        <div class="end-actions">
+          <a class="l-btn primary" :href="withBase('/book/00-how-to-read')">{{ copy.end.read }} <span class="arrow">→</span></a>
+          <a class="l-btn ghost" :href="withBase('/book/40-monitor')">{{ copy.end.monitor }}</a>
         </div>
+        <p v-if="copy.end.note" class="end-note">{{ copy.end.note }}</p>
       </div>
     </section>
   </div>
 </template>
 
 <style scoped>
-.scroll-line { position: fixed; top: var(--vp-nav-height, 64px); left: 0; right: 0; z-index: 30; height: 2px; pointer-events: none; }
-.scroll-line i { display: block; height: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--l-green), var(--l-yellow), var(--l-orange)); box-shadow: 0 0 10px var(--l-glow-green); }
-
-.journey { background: linear-gradient(180deg, transparent, var(--l-bg-2) 18%, var(--l-bg-2) 82%, transparent); }
+.tint { background: var(--l-bg-2); }
 .two { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
-.checks { list-style: none; display: grid; gap: 14px; margin-top: 28px; }
-.checks li { position: relative; padding-left: 34px; font-size: 15.5px; line-height: 1.55; color: var(--l-ink-2); }
-.checks li::before { content: '✓'; position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 3px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--l-on-accent); background: var(--l-green); }
 
-.monitor { overflow: hidden; }
-.monitor-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(900px 500px at 15% 10%, var(--l-glow-green), transparent 60%), radial-gradient(800px 500px at 90% 40%, var(--l-glow-blue), transparent 60%), radial-gradient(700px 500px at 30% 90%, var(--l-glow-orange), transparent 60%); opacity: .55; }
-.monitor .l-container { position: relative; }
-
-.versus { display: grid; grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr); gap: 16px; align-items: stretch; margin-bottom: clamp(64px, 9vw, 112px); }
-.tag { margin-bottom: 12px; font-size: 13px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--l-ink-3); }
+.versus { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-bottom: clamp(56px, 8vw, 96px); }
+.tag { margin-bottom: 12px; font-family: var(--vp-font-family-mono); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--l-ink-3); }
 .tag.good { color: var(--l-green-ink); }
-.log-window { position: relative; height: 290px; overflow: hidden; padding: 0 18px; border-radius: 6px; background: var(--l-code-bg); border: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
-.log-track { display: flex; flex-direction: column; gap: 9px; animation: logs 22s linear infinite; }
-.log-track code { font-size: 12px; color: var(--l-code-dim); white-space: nowrap; }
-@keyframes logs { to { transform: translateY(calc(-50% - 4.5px)); } }
-.vs { display: grid; place-items: center; font-size: 26px; color: var(--l-ink-3); }
-.insights { display: grid; align-content: start; gap: 10px; }
-.insight { padding: 16px 18px; border-radius: 6px; background: var(--l-panel); border: 1px solid color-mix(in srgb, var(--l-green) 30%, transparent); box-shadow: var(--l-shadow); backdrop-filter: blur(10px); }
+.log-window { display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: 16px 18px; border-radius: 4px; background: var(--l-code-bg); border: 1px solid var(--l-code-border); }
+.log-window code { font-size: 12px; color: var(--l-code-dim); white-space: nowrap; }
+.insights { display: grid; border: 1px solid var(--l-border); border-radius: 4px; background: var(--l-panel); }
+.insight { padding: 16px 18px; }
+.insight + .insight { border-top: 1px solid var(--l-border); }
 .insight-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.insight-head code { font-size: 13px; font-weight: 700; color: var(--l-ink); overflow-wrap: anywhere; }
+.insight-head code { font-size: 13px; font-weight: 600; color: var(--l-ink); overflow-wrap: anywhere; }
 .insight p { margin-top: 6px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 
-.numbers { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: clamp(64px, 9vw, 112px); border-radius: 6px; overflow: hidden; border: 1px solid var(--l-border); background: var(--l-panel); backdrop-filter: blur(10px); }
-.number { padding: 30px 20px; text-align: center; }
+.numbers { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: clamp(56px, 8vw, 96px); border-top: 1px solid var(--l-border); border-bottom: 1px solid var(--l-border); }
+.number { padding: 28px 16px; text-align: center; }
 .number + .number { border-left: 1px solid var(--l-border); }
-.number strong { display: block; font-size: clamp(30px, 4vw, 46px); font-weight: 850; letter-spacing: -0.04em; line-height: 1; color: var(--l-ink); }
-.number > span { display: block; margin-top: 10px; font-size: 13.5px; color: var(--l-ink-3); }
+.number strong { display: block; font-size: clamp(28px, 3.4vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--l-ink); }
+.number > span { display: block; margin-top: 10px; font-size: 13px; color: var(--l-ink-3); }
 .numbers-note { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--l-ink-3); }
 
-.promises { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: clamp(56px, 8vw, 96px) 0; }
-.promise { padding: 26px; border-radius: 6px; background: var(--l-panel); border: 1px solid var(--l-border); }
-.icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 16px; border-radius: 4px; font-size: 20px; color: var(--l-green-ink); background: color-mix(in srgb, var(--l-green) 14%, transparent); }
-.promise h3 { font-size: 17.5px; font-weight: 750; color: var(--l-ink); }
-.promise p { margin-top: 8px; font-size: 14.5px; line-height: 1.6; color: var(--l-ink-2); }
-.ask { margin-bottom: clamp(56px, 8vw, 96px); }
-.center { text-align: center; }
+.promises { display: grid; grid-template-columns: repeat(3, 1fr); margin: clamp(56px, 8vw, 96px) 0; border-top: 1px solid var(--l-border); }
+.promise { padding: 28px 28px 0 0; }
+.promise + .promise { padding-left: 28px; border-left: 1px solid var(--l-border); }
+.promise .n { font-family: var(--vp-font-family-mono); font-size: 12px; color: var(--l-orange); }
+.promise h3 { margin-top: 10px; font-size: 17px; font-weight: 650; color: var(--l-ink); }
+.promise p { margin-top: 8px; font-size: 14.5px; line-height: 1.65; color: var(--l-ink-2); }
+.ask { margin-bottom: clamp(48px, 7vw, 80px); }
 
-.cooper .go { margin-top: 32px; }
-.fan { position: relative; height: clamp(300px, 34vw, 460px); perspective: 1600px; }
-.fan :deep(.card) { position: absolute; width: 82%; border-radius: 6px; overflow: hidden; border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transition: transform .6s cubic-bezier(.2,.7,.2,1); }
-.fan :deep(.back2) { right: 0; top: 0; transform: rotateY(-14deg) rotateZ(4deg) translateZ(-80px); opacity: .85; }
-.fan :deep(.back1) { right: 6%; top: 8%; transform: rotateY(-10deg) rotateZ(2deg) translateZ(-40px); }
-.fan :deep(.front) { left: 0; top: 18%; transform: rotateY(-6deg); }
-.fan:hover :deep(.back2) { transform: rotateY(-8deg) rotateZ(7deg) translate(30px, -24px); }
-.fan:hover :deep(.back1) { transform: rotateY(-4deg) rotateZ(3deg) translate(14px, -10px); }
-.fan:hover :deep(.front) { transform: rotateY(0) translate(-12px, 18px); }
+.go { margin-top: 32px; }
+.pair { display: grid; }
+.pair :deep(.shot-frame) { border-radius: 4px; overflow: hidden; border: 1px solid var(--l-border-strong); background: var(--l-panel); }
+.pair :deep(.shot-frame:last-child) { width: 72%; margin: -16% 0 0 auto; box-shadow: var(--l-shadow-big); }
 
-.cta-box { position: relative; overflow: hidden; isolation: isolate; padding: clamp(56px, 9vw, 112px) 24px; border-radius: 6px; text-align: center; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow-big); }
-.cta-box .l-grid-bg { z-index: -1; }
-.cta-glow { position: absolute; inset: -30%; z-index: -2; background: conic-gradient(from 0deg at 50% 50%, var(--l-glow-green), var(--l-glow-orange), var(--l-glow-blue), var(--l-glow-green)); filter: blur(60px); animation: turn 18s linear infinite; opacity: .8; }
-@keyframes turn { to { transform: rotate(360deg); } }
-.cta-box .l-h2 { font-size: clamp(38px, 6vw, 72px); }
-.cta-box .l-lead { margin-left: auto; margin-right: auto; max-width: 560px; }
-.cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 36px; }
+.end .l-container { max-width: 760px; text-align: center; }
+.end .l-lead { margin-left: auto; margin-right: auto; }
+.end-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 32px; }
+.end-note { margin-top: 16px; font-size: 13px; color: var(--l-ink-3); }
 
 @media (max-width: 1000px) {
-  .two { grid-template-columns: minmax(0, 1fr); }
-  .versus { grid-template-columns: minmax(0, 1fr); }
-  .vs { transform: rotate(90deg); height: 32px; }
+  .two, .versus { grid-template-columns: minmax(0, 1fr); }
   .numbers { grid-template-columns: 1fr 1fr; }
   .number:nth-child(3) { border-left: 0; }
   .number:nth-child(n + 3) { border-top: 1px solid var(--l-border); }
   .promises { grid-template-columns: minmax(0, 1fr); }
+  .promise, .promise + .promise { padding: 24px 0; border-left: 0; }
+  .promise + .promise { border-top: 1px solid var(--l-border); }
 }
 </style>

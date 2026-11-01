@@ -2,10 +2,11 @@
 import { ref } from 'vue'
 import { withBase } from 'vitepress'
 import ContextMap from './ContextMap.vue'
+import { useCopy } from './i18n'
 import { onInView, reducedMotion } from './motion'
 
 /** newt's model, from the application down to how two modules talk: one step at a time, cooper as the example. */
-const steps = [
+const english = [
   {
     key: 'application', label: 'The application', title: 'Bounded contexts, each with its own database',
     text: 'An application is bounded contexts. Each owns a store of its own and a set of modules, and says which other contexts it uses. cooper has three.',
@@ -31,13 +32,68 @@ const steps = [
     link: '/book/11-between-contexts',
   },
 ]
+const steps = useCopy(english, [
+  {
+    label: 'La aplicación', title: 'Contextos delimitados, cada uno con su base de datos',
+    text: 'Una aplicación son contextos delimitados. Cada uno tiene su propio almacén y sus módulos, y dice qué otros contextos usa. cooper tiene tres.',
+    rules: ['Un contexto solo llega a los contextos que dice usar', 'Nunca en ciclo', 'Las tablas de otro contexto no se leen jamás'],
+  },
+  {
+    label: 'Un contexto', title: 'Módulos, cada uno dueño de una entidad',
+    text: 'Un contexto son módulos: boards tiene board, column, card, member, activity y workspace. Cada módulo declara en sus Deps lo que usa; la aplicación lo sabe, y newt-monitor lo dibuja.',
+    rules: ['Un módulo, una entidad, una responsabilidad', 'Nombra lo que usa, con tipos', 'Apunta a lo de otro solo por id'],
+  },
+  {
+    label: 'Un módulo', title: 'La misma anatomía, siempre',
+    text: 'Todos los módulos tienen los mismos ficheros, así que tú, y tu agente de código, siempre sabéis dónde va cada cosa. El lint rechaza cualquier otro fichero.',
+    rules: ['Solo el repositorio toca el almacén', 'Solo la entidad se cambia a sí misma', 'Una ruta llama a un caso de uso'],
+  },
+  {
+    label: 'Entre módulos', title: 'Preguntan, y escuchan',
+    text: 'Un módulo pregunta a otro durante la petición, por sus casos de uso, para leer. Escucha a otro después del commit: un worker ejecuta uno de sus propios casos de uso con el evento, en su propia transacción. Escribir en otro módulo desde una petición se rechaza al ejecutarse.',
+    rules: ['Pregunta: lee, en la petición, por casos de uso', 'Escucha: escribe, tras el commit, desde un worker', 'Entre contextos, exactamente igual'],
+  },
+])
+const ui = useCopy({
+  aria: 'newt\'s model, step by step', book: 'In the book →',
+  graph: 'its modules, and how they depend on each other', graphAria: 'boards\' modules and their dependencies',
+  legendAsks: 'asks: calls its use cases, in the request', legendHears: 'hears: its events, from a worker',
+  request: 'In the request', requestWhat: 'asks, to read', after: 'After the commit', afterWhat: 'hears, to write',
+  commit: 'the card, and card.created in the outbox',
+  files: [
+    'Zod schemas, the DTO, inputs and filters: the module\'s public contract.',
+    'The entity: changes itself with methods named after what happened, and tracks its events.',
+    'Its use cases: validate, load, ask who may, let the entity change, save once.',
+    'The only file that touches the store. It says its scope: a workspace.',
+    'HTTP: read the request as it came, call one use case, answer.',
+    'Its reactions: to its own events, to others\', to schedules.',
+    'What it uses: board, column, member, and auth\'s access.',
+    'One class per file: card.created, card.edited…; card.not_found…',
+  ],
+}, {
+  aria: 'El modelo de newt, paso a paso', book: 'En el libro →',
+  graph: 'sus módulos, y cómo dependen unos de otros', graphAria: 'Los módulos de boards y sus dependencias',
+  legendAsks: 'pregunta: llama a sus casos de uso, en la petición', legendHears: 'escucha: sus eventos, desde un worker',
+  request: 'En la petición', requestWhat: 'pregunta, para leer', after: 'Tras el commit', afterWhat: 'escucha, para escribir',
+  commit: 'la tarjeta, y card.created en el outbox',
+  files: [
+    'Esquemas Zod, el DTO, entradas y filtros: el contrato público del módulo.',
+    'La entidad: se cambia con métodos que llevan el nombre de lo que pasó, y registra sus eventos.',
+    'Sus casos de uso: validar, cargar, preguntar quién puede, dejar que la entidad cambie, guardar una vez.',
+    'El único fichero que toca el almacén. Dice su ámbito: un espacio de trabajo.',
+    'HTTP: leer la petición tal como llega, llamar a un caso de uso, responder.',
+    'Sus reacciones: a sus propios eventos, a los de otros, a horarios.',
+    'Lo que usa: board, column, member, y access de auth.',
+    'Una clase por fichero: card.created, card.edited…; card.not_found…',
+  ],
+})
 const DWELL = 11
 
 const current = ref(0)
 const cycle = ref(0)
 const playing = ref(false)
 function pick(index: number) { current.value = index; cycle.value++ }
-function next() { if (!reducedMotion()) pick((current.value + 1) % steps.length) }
+function next() { if (!reducedMotion()) pick((current.value + 1) % steps.value.length) }
 const root = ref<HTMLElement>()
 onInView(root, () => { playing.value = true }, { threshold: 0.3, leave: () => { playing.value = false } })
 
@@ -64,20 +120,20 @@ const hears = [
 
 /** card's files, and what each holds. */
 const files = [
-  { name: 'card.schema.ts', role: 'contract', text: 'Zod schemas, the DTO, inputs and filters: the module\'s public contract.' },
-  { name: 'card.ts', role: 'domain', text: 'The entity: changes itself with methods named after what happened, and tracks its events.' },
-  { name: 'card.module.ts', role: 'domain', text: 'Its use cases: validate, load, ask who may, let the entity change, save once.' },
-  { name: 'card.repository.ts', role: 'store', text: 'The only file that touches the store. It says its scope: a workspace.' },
-  { name: 'card.routes.ts', role: 'edge', text: 'HTTP: read the request as it came, call one use case, answer.' },
-  { name: 'card.workers.ts', role: 'edge', text: 'Its reactions: to its own events, to others\', to schedules.' },
-  { name: 'card.deps.ts', role: 'contract', text: 'What it uses: board, column, member, and auth\'s access.' },
-  { name: 'events/ · errors/', role: 'contract', text: 'One class per file: card.created, card.edited…; card.not_found…' },
+  { name: 'card.schema.ts', role: 'contract' },
+  { name: 'card.ts', role: 'domain' },
+  { name: 'card.module.ts', role: 'domain' },
+  { name: 'card.repository.ts', role: 'store' },
+  { name: 'card.routes.ts', role: 'edge' },
+  { name: 'card.workers.ts', role: 'edge' },
+  { name: 'card.deps.ts', role: 'contract' },
+  { name: 'events/ · errors/', role: 'contract' },
 ]
 </script>
 
 <template>
   <div ref="root" class="model" :data-playing="playing" :style="{ '--dwell': `${DWELL}s` }">
-    <ol class="steps" role="tablist" aria-label="newt's model, step by step">
+    <ol class="steps" role="tablist" :aria-label="ui.aria">
       <li v-for="(step, index) in steps" :key="step.key" role="tab" tabindex="0" :aria-selected="index === current" :class="{ on: index === current, done: index < current }"
           @click="pick(index)" @keydown.enter="pick(index)">
         <span class="n">{{ index + 1 }}</span>
@@ -87,7 +143,7 @@ const files = [
             <strong>{{ step.title }}</strong>
             <p>{{ step.text }}</p>
             <ul><li v-for="rule in step.rules" :key="rule">{{ rule }}</li></ul>
-            <a :href="withBase(step.link)" @click.stop>In the book →</a>
+            <a :href="withBase(step.link)" @click.stop>{{ ui.book }}</a>
           </div>
         </div>
         <span class="bar"><i v-if="index === current" :key="cycle" @animationend="next" /></span>
@@ -99,8 +155,8 @@ const files = [
         <ContextMap v-if="current === 0" key="application" />
 
         <div v-else-if="current === 1" key="context" class="scene graph">
-          <p class="scene-title"><span class="ctx boards">boards</span> its modules, and how they depend on each other</p>
-          <svg viewBox="0 0 620 320" role="img" aria-label="boards' modules and their dependencies">
+          <p class="scene-title"><span class="ctx boards">boards</span> {{ ui.graph }}</p>
+          <svg viewBox="0 0 620 320" role="img" :aria-label="ui.graphAria">
             <defs>
               <marker id="ask-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ask-head" /></marker>
               <marker id="hear-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="hear-head" /></marker>
@@ -123,7 +179,7 @@ const files = [
               <text x="505" y="54" class="small">access · tenant · user</text>
             </g>
           </svg>
-          <p class="legend"><span class="solid" /> asks: calls its use cases, in the request <span class="dashed" /> hears: its events, from a worker</p>
+          <p class="legend"><span class="solid" /> {{ ui.legendAsks }} <span class="dashed" /> {{ ui.legendHears }}</p>
         </div>
 
         <div v-else-if="current === 2" key="module" class="scene anatomy">
@@ -135,14 +191,14 @@ const files = [
           <div class="files">
             <div v-for="(file, index) in files" :key="file.name" class="file" :class="file.role" :style="{ '--i': index }">
               <code>{{ file.name }}</code>
-              <p>{{ file.text }}</p>
+              <p>{{ ui.files[index] }}</p>
             </div>
           </div>
         </div>
 
         <div v-else key="talk" class="scene talk">
           <div class="lane asks">
-            <p class="lane-head"><b>In the request</b> asks, to read</p>
+            <p class="lane-head"><b>{{ ui.request }}</b> {{ ui.requestWhat }}</p>
             <div class="track">
               <span class="chip req">POST /cards</span><i class="arrow" />
               <span class="chip uc">card.create</span><i class="arrow" />
@@ -154,9 +210,9 @@ const files = [
             </div>
             <span class="pulse" />
           </div>
-          <div class="commit"><span>COMMIT</span> the card, and card.created in the outbox</div>
+          <div class="commit"><span>COMMIT</span> {{ ui.commit }}</div>
           <div class="lane hears">
-            <p class="lane-head"><b>After the commit</b> hears, to write</p>
+            <p class="lane-head"><b>{{ ui.after }}</b> {{ ui.afterWhat }}</p>
             <div class="track">
               <span class="chip ev">◇ card.created</span><i class="arrow" />
               <div class="fanout">
@@ -166,10 +222,6 @@ const files = [
               </div>
             </div>
             <span class="pulse" />
-          </div>
-          <div class="refused">
-            <b>✕ Refused</b>
-            <code>[write rule] label.attach writes to boards.card outside a worker: write it from a worker reacting to an event, or list it in its writesTo</code>
           </div>
         </div>
       </Transition>
@@ -181,18 +233,18 @@ const files = [
 .model { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(28px, 5vw, 64px); align-items: start; }
 
 .steps { list-style: none; display: grid; gap: 6px; }
-.steps > li { position: relative; display: flex; gap: 14px; padding: 14px 16px 18px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; transition: background .3s ease, border-color .3s ease; }
+.steps > li { position: relative; display: flex; gap: 14px; padding: 14px 16px 18px; border-radius: 4px; border: 1px solid transparent; cursor: pointer; transition: background .3s ease, border-color .3s ease; }
 .steps > li:hover { background: var(--l-panel); }
 .steps > li.on { background: var(--l-panel); border-color: var(--l-border); box-shadow: var(--l-shadow); }
-.n { flex: none; width: 28px; height: 28px; border-radius: 4px; display: grid; place-items: center; font-family: var(--vp-font-family-mono); font-size: 13px; font-weight: 800; color: var(--l-ink-3); border: 1px solid var(--l-border-strong); transition: all .3s ease; }
+.n { flex: none; width: 26px; height: 26px; border-radius: 2px; display: grid; place-items: center; font-family: var(--vp-font-family-mono); font-size: 13px; font-weight: 800; color: var(--l-ink-3); border: 1px solid var(--l-border-strong); transition: all .3s ease; }
 .on .n { color: var(--l-on-accent); background: var(--l-orange); border-color: var(--l-orange); }
 .done .n { color: var(--l-on-accent); background: var(--l-green); border-color: var(--l-green); }
 .body { min-width: 0; }
-.label { display: block; padding-top: 3px; font-size: 16px; font-weight: 700; color: var(--l-ink-3); }
+.label { display: block; padding-top: 2px; font-size: 15.5px; font-weight: 600; color: var(--l-ink-3); }
 .on .label { color: var(--l-ink); }
 .more { max-height: 0; overflow: hidden; transition: max-height .6s ease; }
 .on .more { max-height: 420px; }
-.more strong { display: block; margin-top: 8px; font-size: 19px; line-height: 1.25; color: var(--l-ink); }
+.more strong { display: block; margin-top: 8px; font-size: 18px; font-weight: 650; line-height: 1.25; color: var(--l-ink); }
 .more p { margin-top: 8px; font-size: 14.5px; line-height: 1.6; color: var(--l-ink-2); }
 .more ul { list-style: none; display: grid; gap: 6px; margin-top: 12px; }
 .more ul li { position: relative; padding-left: 20px; font-size: 13.5px; color: var(--l-ink-2); }
@@ -206,7 +258,7 @@ const files = [
 @keyframes fill { to { transform: scaleX(1); } }
 
 .stage { min-height: 520px; }
-.scene { padding: 20px; border-radius: 6px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); }
+.scene { padding: 20px; border-radius: 4px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); }
 .scene-title { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 650; color: var(--l-ink-2); margin-bottom: 12px; }
 .scene-title code { font-size: 13px; color: var(--l-orange); }
 .scene-enter-active, .scene-leave-active { transition: opacity .35s ease, transform .35s ease; }
@@ -221,8 +273,8 @@ const files = [
 .node.other rect { stroke: var(--l-violet); stroke-dasharray: 5 4; fill: color-mix(in srgb, var(--l-violet) 8%, transparent); }
 .node.other .ctx-name { fill: var(--l-violet); font-size: 13px; }
 .node.other .small { font-size: 10.5px; font-weight: 500; fill: var(--l-ink-3); }
-.node { animation: pop .5s cubic-bezier(.3,1.4,.5,1) both; animation-delay: calc(var(--i) * 80ms); transform-box: fill-box; transform-origin: center; }
-@keyframes pop { from { opacity: 0; transform: scale(.85); } }
+.node { animation: pop .5s ease both; animation-delay: calc(var(--i) * 80ms); transform-box: fill-box; transform-origin: center; }
+@keyframes pop { from { opacity: 0; } }
 .ask path { fill: none; stroke: var(--l-blue); stroke-width: 1.8; stroke-dasharray: 100; stroke-dashoffset: 100; animation: draw .7s ease forwards; animation-delay: calc(.4s + var(--i) * 90ms); }
 .ask-head { fill: var(--l-blue); }
 @keyframes draw { to { stroke-dashoffset: 0; } }
@@ -273,9 +325,6 @@ const files = [
 @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .commit { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--l-ink-3); padding-left: 14px; }
 .commit span { padding: 3px 8px; border-radius: 3px; font-family: var(--vp-font-family-mono); font-size: 11.5px; font-weight: 800; color: var(--l-on-accent); background: var(--l-green); }
-.refused { display: grid; gap: 6px; padding: 12px 14px; border-radius: 4px; border: 1px dashed var(--l-red); background: color-mix(in srgb, var(--l-red) 6%, transparent); animation: rise .45s 1s ease both; }
-.refused b { font-size: 13px; color: var(--l-red); }
-.refused code { font-size: 12px; line-height: 1.55; color: var(--l-ink-2); }
 
 @media (max-width: 1000px) {
   .model { grid-template-columns: minmax(0, 1fr); }

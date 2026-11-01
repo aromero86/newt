@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useCopy, useLang } from './i18n'
 import { onInView, reducedMotion, useTimers } from './motion'
 
 /** An agent at work in a newt application: what the CLI writes, and what newt says when a rule breaks. */
-const lines: { kind: 'cmd' | 'out' | 'ok' | 'bad' | 'gap', text: string }[] = [
+const english: { kind: 'cmd' | 'out' | 'ok' | 'bad' | 'gap', text: string }[] = [
   { kind: 'cmd', text: 'bunx newt init' },
   { kind: 'out', text: 'wrote    AGENTS.md' },
   { kind: 'out', text: 'wrote    CLAUDE.md' },
@@ -21,12 +22,16 @@ const lines: { kind: 'cmd' | 'out' | 'ok' | 'bad' | 'gap', text: string }[] = [
   { kind: 'cmd', text: 'bun test && bun run lint' },
   { kind: 'ok', text: '✓ tests pass · ✓ the lint has nothing to say' },
 ]
+const lang = useLang()
+const lines = computed(() => lang.value === 'es'
+  ? english.map(line => line.text.startsWith('# the agent') ? { ...line, text: '# el agente mueve la escritura a un worker sobre label.attached' } : line)
+  : english)
 const shown = ref(0)
 const chars = ref(0)
 const timers = useTimers()
 
 function step() {
-  const line = lines[shown.value]
+  const line = lines.value[shown.value]
   if (!line) return
   if (line.kind === 'cmd' && chars.value < line.text.length) {
     chars.value++
@@ -35,22 +40,34 @@ function step() {
   }
   shown.value++
   chars.value = 0
-  const next = lines[shown.value]
+  const next = lines.value[shown.value]
   timers.after(!next ? 0 : next.kind === 'cmd' ? 500 : line.kind === 'cmd' ? 380 : 130, step)
 }
 const root = ref<HTMLElement>()
 onInView(root, () => {
   if (shown.value) return
-  if (reducedMotion()) { shown.value = lines.length; return }
+  if (reducedMotion()) { shown.value = lines.value.length; return }
   step()
 }, { threshold: 0.4, once: true })
 
 /** The three nets under every change, and what each catches. */
-const nets = [
+const englishNets = [
   { name: 'Types', command: 'bun check', catches: 'A field the schema lacks, a dependency nobody handed over, a use case answering the wrong shape.' },
   { name: 'The lint', command: 'newt-eslint', catches: 'A file outside a module\'s anatomy, an import across a boundary, a queue named wrong.' },
   { name: 'Runtime rules', command: 'bun test', catches: 'A write into another module from a request, a save that guards nothing, an event without a change.' },
 ]
+const nets = useCopy(englishNets, [
+  { name: 'Tipos', catches: 'Un campo que el esquema no tiene, una dependencia que nadie entregó, un caso de uso que responde con la forma equivocada.' },
+  { name: 'El lint', catches: 'Un fichero fuera de la anatomía de un módulo, un import que cruza una frontera, una cola mal nombrada.' },
+  { name: 'Reglas en ejecución', catches: 'Una escritura en otro módulo desde una petición, un guardado que no protege nada, un evento sin cambio.' },
+])
+const copy = useCopy({
+  eyebrow: 'Coding agents', title: 'Rails your AI', rest: 'can\'t jump.',
+  lead: 'Structure is what makes an agent useful. newt ships its rules in an AGENTS.md versioned with the package, writes modules the lint already accepts, and checks every change three ways, each saying what to do instead.',
+}, {
+  eyebrow: 'Agentes de código', title: 'Raíles que tu IA', rest: 'no puede saltarse.',
+  lead: 'La estructura es lo que hace útil a un agente. newt trae sus reglas en un AGENTS.md versionado con el paquete, genera módulos que el lint ya acepta, y comprueba cada cambio de tres maneras, cada una diciendo qué hacer en su lugar.',
+})
 </script>
 
 <template>
@@ -62,12 +79,9 @@ const nets = [
     </div>
 
     <div class="copy">
-      <p class="l-eyebrow">Built for coding agents</p>
-      <h2 class="l-h2">Rails your AI <span class="l-ink">can't jump.</span></h2>
-      <p class="l-lead">
-        Structure is what makes an agent useful. newt ships its rules in an AGENTS.md versioned with the package,
-        writes modules the lint already accepts, and checks every change three ways, each saying what to do instead.
-      </p>
+      <p class="l-eyebrow"><b>06</b> {{ copy.eyebrow }}</p>
+      <h2 class="l-h2">{{ copy.title }} <span class="l-ink">{{ copy.rest }}</span></h2>
+      <p class="l-lead">{{ copy.lead }}</p>
       <ol class="nets">
         <li v-for="(net, index) in nets" :key="net.name" :style="{ '--i': index }">
           <span class="layer">{{ index + 1 }}</span>
@@ -88,17 +102,15 @@ const nets = [
 .cmd { color: var(--l-code-ink); }
 .out { color: var(--l-code-dim); }
 .ok { color: var(--l-green); font-weight: 600; }
-.bad { display: inline-block; padding: 6px 10px; margin: 2px 0; border-radius: 4px; color: var(--l-red); background: color-mix(in srgb, var(--l-red) 10%, transparent); border-left: 3px solid var(--l-red); }
+.bad { display: inline-block; padding: 6px 10px; margin: 2px 0; border-radius: 0; color: var(--l-red); background: color-mix(in srgb, var(--l-red) 10%, transparent); border-left: 3px solid var(--l-red); }
 .caret { display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -2px; background: var(--l-green); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .nets { list-style: none; display: grid; gap: 0; margin-top: 32px; position: relative; }
 .nets li { position: relative; display: flex; gap: 16px; padding: 16px 0; }
 .nets li + li { border-top: 1px dashed var(--l-border-strong); }
-.layer { flex: none; width: 34px; height: 34px; border-radius: 4px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--l-on-accent); background: linear-gradient(135deg, var(--l-green), var(--l-yellow)); box-shadow: 0 8px 20px -8px var(--l-glow-green); }
-.nets li:nth-child(2) .layer { background: linear-gradient(135deg, var(--l-yellow), var(--l-blue)); }
-.nets li:nth-child(3) .layer { background: linear-gradient(135deg, var(--l-orange), var(--l-red)); }
-.nets h3 { font-size: 16.5px; font-weight: 750; color: var(--l-ink); }
+.layer { flex: none; width: 30px; height: 30px; border-radius: 2px; display: grid; place-items: center; font-family: var(--vp-font-family-mono); font-weight: 600; font-size: 13px; color: var(--l-orange); border: 1px solid var(--l-border-strong); }
+.nets h3 { font-size: 16px; font-weight: 650; color: var(--l-ink); }
 .nets h3 code { margin-left: 6px; padding: 2px 7px; border-radius: 3px; font-size: 12px; font-weight: 600; color: var(--l-ink-2); background: var(--l-bg-2); border: 1px solid var(--l-border); }
 .nets p { margin-top: 4px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 

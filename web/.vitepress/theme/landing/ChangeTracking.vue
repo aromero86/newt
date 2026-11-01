@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { highlight } from './highlight'
+import { useCopy } from './i18n'
 import { onInView, reducedMotion, useTimers } from './motion'
 
 /** What you write, a card that edits itself, and what newt does with it, one step at a time. */
@@ -21,13 +22,29 @@ const code = [
   `}`,
 ].map(highlight)
 
-const steps = [
+const english = [
   { lines: [1], title: 'Loaded', text: 'The repository hands back the card, and newt keeps a snapshot of it as it came: version 3.' },
   { lines: [2, 7], title: 'Changed', text: 'change() parses the fields with the schema and sets only those that really differ. newt stamps updatedAt.' },
   { lines: [8, 9, 10, 11, 12], title: 'Told', text: 'getChanges() is what differs from the snapshot; getPrevious(), what was there. The entity tracks one card.edited with both.' },
   { lines: [3], title: 'Saved', text: 'One transaction: an UPDATE with only what changed, guarded by the version, and the event\'s jobs in the outbox.' },
-  { lines: [3], title: 'Heard', text: 'After the commit, every worker that hears card.edited takes its job, in a transaction of its own.' },
+  { lines: [3], title: 'Heard', text: 'After the commit, every worker that hears card.edited takes its job, in a transaction of its own. One that fails is tried again later; after its last attempt, it waits among the dead jobs.' },
 ]
+const steps = useCopy(english, [
+  { title: 'Cargada', text: 'El repositorio te da la tarjeta, y newt guarda una foto de cómo llegó: versión 3.' },
+  { title: 'Cambiada', text: 'change() valida los campos con el esquema y asigna solo los que de verdad cambian. newt sella updatedAt.' },
+  { title: 'Contada', text: 'getChanges() es lo que difiere de la foto; getPrevious(), lo que había. La entidad registra un card.edited con ambos.' },
+  { title: 'Guardada', text: 'Una transacción: un UPDATE solo con lo que cambió, protegido por la versión, y los jobs del evento en el outbox.' },
+  { title: 'Escuchada', text: 'Tras el commit, cada worker que escucha card.edited coge su job, en su propia transacción. Si uno falla, se reintenta más tarde; tras su último intento, espera entre los jobs muertos.' },
+])
+const ui = useCopy({
+  write: 'what you write', aria: 'What newt does', sees: 'as newt sees it', saved: 'saved · version 4',
+  conflict: 'No row with version 3? Someone saved first: ConcurrencyConflict, and the use case runs again on the new card.',
+  after: 'card.edited, after the commit',
+}, {
+  write: 'lo que escribes tú', aria: 'Lo que hace newt', sees: 'tal como la ve newt', saved: 'guardada · versión 4',
+  conflict: '¿No hay fila con la versión 3? Alguien guardó antes: ConcurrencyConflict, y el caso de uso vuelve a ejecutarse con la tarjeta nueva.',
+  after: 'card.edited, tras el commit',
+})
 const DWELL = 3200
 
 const step = ref(-1)
@@ -35,9 +52,9 @@ const timers = useTimers()
 const shown = computed(() => Math.max(0, step.value))
 function play(from = 0) {
   timers.clear()
-  if (reducedMotion()) { step.value = steps.length - 1; return }
+  if (reducedMotion()) { step.value = steps.value.length - 1; return }
   step.value = from
-  const tick = () => timers.after(step.value === steps.length - 1 ? DWELL * 1.8 : DWELL, () => { step.value = (step.value + 1) % steps.length; tick() })
+  const tick = () => timers.after(step.value === steps.value.length - 1 ? DWELL * 1.8 : DWELL, () => { step.value = (step.value + 1) % steps.value.length; tick() })
   tick()
 }
 function pick(index: number) { play(index) }
@@ -57,12 +74,12 @@ const workers = ['activity.recordEdited', 'card.indexCard']
 <template>
   <div ref="root" class="tracking" :style="{ '--dwell': `${DWELL}ms` }">
     <div class="code l-window">
-      <div class="l-window-bar"><i /><i /><i /><em>what you write</em></div>
+      <div class="l-window-bar"><i /><i /><i /><em>{{ ui.write }}</em></div>
       <pre><code><span v-for="(line, index) in code" :key="index" class="line" :class="{ lit: steps[shown].lines.includes(index) }" v-html="line || ' '" /></code></pre>
     </div>
 
     <div class="engine">
-      <ol class="dots" role="tablist" aria-label="What newt does">
+      <ol class="dots" role="tablist" :aria-label="ui.aria">
         <li v-for="(each, index) in steps" :key="each.title" role="tab" tabindex="0" :aria-selected="index === shown" :class="{ on: index === shown, done: index < shown }"
             @click="pick(index)" @keydown.enter="pick(index)">
           <span>{{ index + 1 }}</span>{{ each.title }}
@@ -71,7 +88,7 @@ const workers = ['activity.recordEdited', 'card.indexCard']
       <Transition name="say" mode="out-in"><p :key="shown" class="say">{{ steps[shown].text }}</p></Transition>
 
       <div class="card-state" :class="`s${shown}`">
-        <p class="head"><b>card_9f2</b> as newt sees it <em v-if="shown >= 3">saved · version 4</em></p>
+        <p class="head"><b>card_9f2</b> {{ ui.sees }} <em v-if="shown >= 3">{{ ui.saved }}</em></p>
         <div v-for="field in fields" :key="field.name" class="field" :class="{ changes: field.changes && shown >= 1, stamped: field.stamped && shown >= 1, version: field.name === 'version' && shown >= 3 }">
           <code class="name">{{ field.name }}</code>
           <code class="value">
@@ -92,10 +109,10 @@ const workers = ['activity.recordEdited', 'card.indexCard']
           <code><b>UPDATE</b> card <b>SET</b> title = ?, updated_at = ?, version = 4 <b>WHERE</b> id = ? <b>AND</b> version = 3</code>
           <code><b>INSERT</b> jobs: activity.recordEdited.on.card.edited, card.indexCard.on.card.edited</code>
           <code><b class="ok">COMMIT ✓</b></code>
-          <p class="note">No row with version 3? Someone saved first: ConcurrencyConflict, and the use case runs again on the new card.</p>
+          <p class="note">{{ ui.conflict }}</p>
         </div>
         <div v-else-if="shown === 4" key="heard" class="box heard">
-          <p class="tag">◇ card.edited, after the commit</p>
+          <p class="tag">◇ {{ ui.after }}</p>
           <div class="workers"><span v-for="(worker, index) in workers" :key="worker" :style="{ '--i': index }">⚙ {{ worker }} <b>✓</b></span></div>
         </div>
         <div v-else key="idle" class="box idle">
@@ -115,9 +132,9 @@ const workers = ['activity.recordEdited', 'card.indexCard']
 .line { padding: 0 18px; border-left: 3px solid transparent; transition: background .3s ease, border-color .3s ease, opacity .3s ease; white-space: pre; }
 .line.lit { background: color-mix(in srgb, var(--l-orange) 12%, transparent); border-left-color: var(--l-orange); }
 
-.engine { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 6px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); overflow: hidden; }
+.engine { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 4px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); overflow: hidden; }
 .dots { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.dots li { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px 5px 5px; border-radius: 4px; font-size: 13px; font-weight: 650; color: var(--l-ink-3); border: 1px solid var(--l-border); cursor: pointer; transition: all .25s ease; }
+.dots li { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px 5px 5px; border-radius: 3px; font-size: 13px; font-weight: 650; color: var(--l-ink-3); border: 1px solid var(--l-border); cursor: pointer; transition: all .25s ease; }
 .dots li span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 3px; font-family: var(--vp-font-family-mono); font-size: 11px; background: var(--l-bg-2); }
 .dots li.on { color: var(--l-ink); border-color: var(--l-orange); }
 .dots li.on span { background: var(--l-orange); color: var(--l-on-accent); }
