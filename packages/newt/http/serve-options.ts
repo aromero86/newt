@@ -33,4 +33,10 @@ export type ServeOptions = {
    * so whoever balances the load sends it nothing new before it closes: none unless told.
    */
   drainMs?: number
+  /**
+   * How many proxies in front of it add to `X-Forwarded-For`, so the address a request
+   * came from (`clientIp`, a rate limit's `ip`) is the one the first of them saw: 1
+   * behind one load balancer. None unless told: the socket's address.
+   */
+  trustProxy?: number
 }

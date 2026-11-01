@@ -1,8 +1,12 @@
 import type { Cors } from './cors'
 import type { ErrorHandler } from './error-handler'
+import type { HttpRateLimit } from './http-rate-limit'
 import type { Idempotency } from './idempotency'
 
-/** A route's options; a group's and a router's are the same, and a route's own come first. */
+/**
+ * A route's options; a group's and a router's are the same, and a route's own come
+ * first, but its rate limits, which add up to those above it.
+ */
 export type RouteOptions = {
   /** Reachable without signing in. Every other route needs a session. */
   public?: boolean
@@ -12,4 +16,6 @@ export type RouteOptions = {
   onError?: ErrorHandler
   /** For a POST: one sent again with the same `Idempotency-Key` gets the first answer. See `Idempotency`. */
   idempotency?: Idempotency
+  /** How often each caller may call it: see `HttpRateLimit`. They add up to those above it; `false` leaves them out. */
+  rateLimit?: HttpRateLimit | HttpRateLimit[] | false
 }

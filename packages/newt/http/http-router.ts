@@ -1,5 +1,6 @@
 import type { BunRequest } from 'bun'
-import { runAsActor } from '../core'
+import { now, runAsActor, type Clock } from '../core'
+import { MemoryRateLimitStore, type RateLimitStore } from '../port-rate-limit'
 import { applicationTracer, applicationTraces, TRACE_HEADER, traceRoot } from '../core/internal'
 import type { Authenticator } from './authenticator'
 import type { Cors } from './cors'
@@ -10,6 +11,7 @@ import { NotSignedIn } from './errors/not-signed-in'
 import { handle } from './handle'
 import { HttpGroup } from './http-group'
 import { idempotent } from './idempotent'
+import { addLimits, rateLimited } from './rate-limited'
 import type { HttpMethod } from './http-method'
 import type { HttpRoute } from './http-route'
 import type { RouteOptions } from './route-options'
@@ -50,10 +52,14 @@ export class HttpRouter {
   /** What every route has unless it says otherwise. */
   private readonly defaults: RouteOptions
   private authenticator: Authenticator | null = null
+  private readonly rateLimits: RateLimitStore
+  private readonly clock: Clock
 
-  constructor({ prefix, ...defaults }: HttpRouterOptions = {}) {
+  constructor({ prefix, rateLimits, clock, ...defaults }: HttpRouterOptions = {}) {
     this.prefix = prefix ?? '/api'
     this.defaults = defaults
+    this.rateLimits = rateLimits ?? new MemoryRateLimitStore()
+    this.clock = clock ?? { now }
   }
 
   /** Tells who sends each request: set by the module that knows the sessions. */
@@ -146,10 +152,12 @@ export class HttpRouter {
     const fullPath = `${this.prefix}${path}`
     const entry = this.table.get(shapeOf(fullPath)) ?? { path: fullPath, byMethod: new Map<HttpMethod, Registered>() }
     if (entry.byMethod.has(method)) throw new Error(`Route ${method} ${fullPath} is registered twice`)
-    const options = { ...this.defaults, ...own }
+    const options = { ...this.defaults, ...own, rateLimit: addLimits(this.defaults.rateLimit, own?.rateLimit) }
     const any = route as unknown as HttpRoute
     const once = options.idempotency && method === 'POST' ? idempotent(any, options.idempotency) : any
-    const guarded = options.public ? once : this.signedIn(once)
+    // Counted as whoever is signed in: past the session, before anything else.
+    const limited = rateLimited(once, options.rateLimit || [], this.rateLimits, this.clock)
+    const guarded = options.public ? limited : this.signedIn(limited)
     entry.byMethod.set(method, { route: entry.path === fullPath ? guarded : renamingParams(entry.path, fullPath, guarded), options })
     this.table.set(shapeOf(fullPath), entry)
   }
