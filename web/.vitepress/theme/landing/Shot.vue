@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { withBase } from 'vitepress'
 
-/** A screenshot in the page's theme: the light one in light mode, the dark one in dark. */
-defineProps<{ name: string, alt: string }>()
+/** A screenshot of newt-monitor or cooper, light or dark as the page is, made light for the landing (webp). */
+defineProps<{ name: string, alt: string, eager?: boolean }>()
 </script>
 
 <template>
-  <figure class="shot">
-    <img class="shot-light" :src="withBase(`/screenshots/${name}-light.png`)" :alt="alt" loading="lazy">
-    <img class="shot-dark" :src="withBase(`/screenshots/${name}-dark.png`)" :alt="alt" loading="lazy">
-  </figure>
+  <div class="shot">
+    <img class="shot-light" :src="withBase(`/landing/${name}-light.webp`)" :alt="alt" :loading="eager ? 'eager' : 'lazy'" decoding="async">
+    <img class="shot-dark" :src="withBase(`/landing/${name}-dark.webp`)" :alt="alt" :loading="eager ? 'eager' : 'lazy'" decoding="async">
+  </div>
 </template>
 
 <style scoped>
-.shot { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--vp-c-divider); box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .35); background: var(--vp-c-bg); }
-.shot img { display: block; width: 100%; height: auto; }
+.shot img { width: 100%; height: auto; }
 </style>

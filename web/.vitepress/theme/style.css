@@ -81,9 +81,64 @@
   color: var(--vp-c-text-2);
 }
 
-/* The landing's pieces in dark mode (kept global: scoped styles cannot reach `.dark`). */
+/* The landing's tokens, light and dark (kept global: scoped styles cannot reach `.dark`). */
+:root {
+  --l-bg: #f6f9f7;
+  --l-bg-2: #edf3ef;
+  --l-panel: rgba(255, 255, 255, 0.78);
+  --l-panel-solid: #ffffff;
+  --l-border: rgba(12, 44, 32, 0.1);
+  --l-border-strong: rgba(12, 44, 32, 0.2);
+  --l-ink: #0a1611;
+  --l-ink-2: #3f5048;
+  --l-ink-3: #75867e;
+  --l-green: #0f9d76;
+  --l-green-ink: #0b7a5c;
+  --l-orange: #ea7317;
+  --l-blue: #2f6fe4;
+  --l-violet: #7c4dda;
+  --l-red: #dc3d43;
+  --l-glow-green: rgba(16, 185, 129, 0.22);
+  --l-glow-orange: rgba(249, 115, 22, 0.16);
+  --l-glow-blue: rgba(59, 130, 246, 0.14);
+  --l-grid: rgba(12, 44, 32, 0.06);
+  --l-shadow: 0 1px 2px rgba(10, 40, 28, 0.06), 0 24px 60px -24px rgba(10, 40, 28, 0.28);
+  --l-shadow-big: 0 2px 6px rgba(10, 40, 28, 0.05), 0 50px 120px -40px rgba(10, 40, 28, 0.42);
+  --l-code-bg: #0c1411;
+  --l-code-bar: #111c18;
+  --l-code-ink: #d7e4dd;
+  --l-code-dim: #6f8379;
+}
+.dark {
+  --l-bg: #060c0a;
+  --l-bg-2: #0a1310;
+  --l-panel: rgba(255, 255, 255, 0.035);
+  --l-panel-solid: #0d1714;
+  --l-border: rgba(255, 255, 255, 0.08);
+  --l-border-strong: rgba(255, 255, 255, 0.17);
+  --l-ink: #eef6f2;
+  --l-ink-2: #a5b6ad;
+  --l-ink-3: #6a7d74;
+  --l-green: #22c58f;
+  --l-green-ink: #4ee0aa;
+  --l-orange: #fb8a3c;
+  --l-blue: #5b95ff;
+  --l-violet: #a07bff;
+  --l-red: #ff5d62;
+  --l-glow-green: rgba(16, 185, 129, 0.3);
+  --l-glow-orange: rgba(249, 115, 22, 0.2);
+  --l-glow-blue: rgba(59, 130, 246, 0.2);
+  --l-grid: rgba(255, 255, 255, 0.045);
+  --l-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.8);
+  --l-shadow-big: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 50px 120px -40px rgba(0, 0, 0, 0.9);
+  --l-code-bg: #08100d;
+  --l-code-bar: #0d1714;
+}
+/* On the landing, the page and its bar take the landing's ground. */
+html:has(.landing) { --vp-c-bg: var(--l-bg); --vp-nav-bg-color: color-mix(in srgb, var(--l-bg) 80%, transparent); }
+html:has(.landing) .VPNav { backdrop-filter: saturate(160%) blur(14px); }
+.shot img { display: block; }
 .shot .shot-dark { display: none; }
 .dark .shot .shot-light { display: none; }
 .dark .shot .shot-dark { display: block; }
-.dark .flow .play,
-.dark .tour .tabs button.on { color: #052e22; }
+html:has(.landing) .VPLocalNav { display: none; }
