@@ -1,4 +1,5 @@
 import type { BunRequest } from 'bun'
+import { clearSessionCookie, setSessionCookie } from 'newt/http'
 import type { AuthBase } from '../../auth-base'
 import { SIGN_IN_LIMIT, SIGN_UP_LIMIT } from '../../../../shared/rate-limits'
 import type { Session_Module } from './session.module'
@@ -6,15 +7,10 @@ import { SessionCookie } from './session.schema'
 
 export function registerSessionRoutes(base: AuthBase, sessions: Session_Module): void {
   /** The session lives in a cookie the page's scripts cannot read, sent only to auth. */
-  const keep = (request: BunRequest, token: string, maxAge = sessions.options.days * 24 * 60 * 60) => request.cookies.set(SessionCookie, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge,
-    secure: sessions.options.secure,
-  })
+  const keep = (request: BunRequest, token: string) =>
+    setSessionCookie(request, SessionCookie, token, { secure: sessions.options.secure, maxAgeSeconds: sessions.options.days * 24 * 60 * 60 })
   /** Clears it with the attributes it was set with. */
-  const forget = (request: BunRequest) => keep(request, '', 0)
+  const forget = (request: BunRequest) => clearSessionCookie(request, SessionCookie, { secure: sessions.options.secure })
 
   // The use cases validate every body.
   base.http.post('/session/sign-up', async request => {
