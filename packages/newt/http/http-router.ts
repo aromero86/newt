@@ -11,6 +11,7 @@ import { NotSignedIn } from './errors/not-signed-in'
 import { handle } from './handle'
 import { HttpGroup } from './http-group'
 import { idempotent } from './idempotent'
+import { withHeaders } from './security-headers'
 import { addLimits, rateLimited } from './rate-limited'
 import type { HttpMethod } from './http-method'
 import type { HttpRoute } from './http-route'
@@ -105,6 +106,7 @@ export class HttpRouter {
    * path takes calls from other origins (`cors`): then it answers their preflight.
    * A 405 is the path's error, so it answers through its first route's `onError`
    * (the first registered on it, whatever the method): an OAuth path in OAuth's format.
+   * No answer is kept by a cache (`Cache-Control: no-store`) unless its route says otherwise.
    */
   routes(): Bun.Serve.Routes<undefined, string> {
     const routes: Record<string, Record<string, Answer> | Answer> = {}
@@ -127,17 +129,17 @@ export class HttpRouter {
         new Response(null, { status: 204, headers: corsHeaders(cors!, request, [...methods, 'OPTIONS']) })
 
       routes[path] = Object.fromEntries([
-        ...[...byMethod].map(([method, { route, options }]) => [method, traced(method, path, withCors(handle(route, options.onError), options.cors))]),
-        ...METHODS.filter(method => !byMethod.has(method)).map(method => [method, answerNotAllowed]),
-        ['OPTIONS', cors ? preflight : answerNotAllowed],
+        ...[...byMethod].map(([method, { route, options }]) => [method, noStore(traced(method, path, withCors(handle(route, options.onError), options.cors)))]),
+        ...METHODS.filter(method => !byMethod.has(method)).map(method => [method, noStore(answerNotAllowed)]),
+        ['OPTIONS', cors ? preflight : noStore(answerNotAllowed)],
       ])
     }
 
     // At the root, any other address is the frontend's.
     if (this.prefix === '') return routes as Bun.Serve.Routes<undefined, string>
-    const notFound = handle(request => {
+    const notFound = noStore(handle(request => {
       throw new ApiRouteNotFound(request.method, new URL(request.url).pathname)
-    }, this.defaults.onError)
+    }, this.defaults.onError))
     // A route registered at '' is the prefix itself, and one at '/*' all under it: they keep their place.
     routes[this.prefix] ??= notFound
     routes[`${this.prefix}/*`] ??= notFound
@@ -180,6 +182,11 @@ function renamingParams(registered: string, own: string, route: HttpRoute): Http
     Object.defineProperty(request, 'params', { value: params })
     return route(request)
   }
+}
+
+/** An answer no cache keeps, unless it says how itself: what an API answers is someone's, as it is now. */
+function noStore(answer: Answer): Answer {
+  return async request => withHeaders(await answer(request), { 'cache-control': 'no-store' })
 }
 
 /** An answer that says, when `cors` is given, what a page of another origin may read of it. */
