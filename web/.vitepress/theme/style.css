@@ -1,6 +1,6 @@
 /*
- * newt's colours are gruvbox's: its warm paper in light, its dark wood in dark. Aqua is newt's own colour,
- * orange what stands out; corners stay square-ish.
+ * newt's colours are gruvbox's: in light, nearly white paper inked with its dark tones; in dark, its wood.
+ * Aqua is newt's own colour, orange what stands out.
  */
 :root {
   --newt-green-1: #427b58;
@@ -11,16 +11,16 @@
   --newt-orange-2: #d65d0e;
   --newt-orange-soft: rgba(214, 93, 14, 0.14);
 
-  --vp-c-bg: #fbf1c7;
-  --vp-c-bg-alt: #f2e5bc;
-  --vp-c-bg-soft: #f2e5bc;
-  --vp-c-bg-elv: #f9f5d7;
-  --vp-c-text-1: #3c3836;
+  --vp-c-bg: #fcfbf8;
+  --vp-c-bg-alt: #f6f4ef;
+  --vp-c-bg-soft: #f3f1ec;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-text-1: #282828;
   --vp-c-text-2: #504945;
   --vp-c-text-3: #7c6f64;
-  --vp-c-divider: #d5c4a1;
-  --vp-c-border: #bdae93;
-  --vp-c-gutter: #ebdbb2;
+  --vp-c-divider: #ebe7de;
+  --vp-c-border: #ddd8cc;
+  --vp-c-gutter: #f3f1ec;
   --vp-c-default-1: #7c6f64;
   --vp-c-default-2: #928374;
   --vp-c-default-3: #a89984;
@@ -48,7 +48,7 @@
   --vp-c-danger-soft: rgba(204, 36, 29, 0.12);
   --vp-custom-block-info-bg: var(--vp-c-note-soft);
   --vp-custom-block-info-text: var(--vp-c-text-1);
-  --vp-code-block-bg: #f2e5bc;
+  --vp-code-block-bg: #f6f4ef;
   --vp-code-color: #af3a03;
   --vp-code-bg: rgba(214, 93, 14, 0.1);
 
@@ -161,12 +161,12 @@
 
 /* The landing's tokens, light and dark (kept global: scoped styles cannot reach `.dark`). */
 :root {
-  --l-bg: #fbf1c7;
-  --l-bg-2: #f2e5bc;
-  --l-panel: #f9f5d7;
-  --l-panel-solid: #f9f5d7;
-  --l-border: #e3d5ae;
-  --l-border-strong: #bdae93;
+  --l-bg: #fcfbf8;
+  --l-bg-2: #f6f4ef;
+  --l-panel: #ffffff;
+  --l-panel-solid: #ffffff;
+  --l-border: #ebe7de;
+  --l-border-strong: #d5cfc2;
   --l-ink: #282828;
   --l-ink-2: #504945;
   --l-ink-3: #7c6f64;
@@ -177,20 +177,20 @@
   --l-yellow: #b57614;
   --l-blue: #076678;
   --l-violet: #8f3f71;
-  --l-red: #9d0006;
-  --l-on-accent: #fbf1c7;
+  --l-red: #cc241d;
+  --l-on-accent: #ffffff;
   --l-glow-green: transparent;
   --l-glow-orange: transparent;
   --l-glow-blue: transparent;
   --l-grid: transparent;
   --l-shadow: none;
   --l-shadow-big: 0 24px 48px -36px rgba(60, 56, 54, 0.45);
-  --l-code-bg: #f9f5d7;
-  --l-code-bar: #ebdbb2;
-  --l-code-ink: #3c3836;
+  --l-code-bg: #ffffff;
+  --l-code-bar: #f6f4ef;
+  --l-code-ink: #282828;
   --l-code-dim: #7c6f64;
-  --l-code-line: rgba(60, 56, 54, 0.08);
-  --l-code-border: #d5c4a1;
+  --l-code-line: rgba(60, 56, 54, 0.06);
+  --l-code-border: #e3ded3;
   --tok-c: #928374;
   --tok-s: #79740e;
   --tok-d: #af3a03;
