@@ -1,5 +1,5 @@
-import { now } from 'newt-kit/core'
-import { TableRepository } from 'newt-kit/repository'
+import { now } from '@newt-kit/newt/core'
+import { TableRepository } from '@newt-kit/newt/repository'
 import type { AuthBase } from '../../auth-base'
 import { Token, type TokenEntityDTO } from './token'
 

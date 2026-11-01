@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { Entity, now, type EntityInput } from 'newt-kit/core'
+import { Entity, now, type EntityInput } from '@newt-kit/newt/core'
 import { SealedKeyUnreadable, type KeyCipher } from '../../../../shared/key-cipher'
 import { AppPublicSchema, AppSchema } from './app.schema'
 import { AppNotArchived } from './errors/app-not-archived'

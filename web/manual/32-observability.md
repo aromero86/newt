@@ -151,7 +151,7 @@ changing the code.
 
 Three things force a trace to be kept whatever its share, and record why in `forced`:
 
-- **`keepTrace(reason)`**, from `newt-kit/core`, in your code: a request worth seeing whole.
+- **`keepTrace(reason)`**, from `@newt-kit/newt/core`, in your code: a request worth seeing whole.
   ```ts
   if (order.total > 10_000) keepTrace('a large order')
   ```
@@ -175,7 +175,7 @@ more".
 
 ### Where traces are kept
 
-`setTraces(traces, options)` from `newt-kit/runtime` says where, once, where the application starts:
+`setTraces(traces, options)` from `@newt-kit/newt/runtime` says where, once, where the application starts:
 
 - **`MemoryTraces`**, in the process: one instance. The default once the monitor serves.
 - **`RedisTraces`**, in Redis: several instances, collected from one place.
@@ -194,7 +194,7 @@ if (config.monitor.redisUrl) {
 
 ## Logs in the trace
 
-`log` from `newt-kit/core` is the application's log: `log.debug`, `log.info`, `log.warn`, `log.error`,
+`log` from `@newt-kit/newt/core` is the application's log: `log.debug`, `log.info`, `log.warn`, `log.error`,
 each with a message and fields.
 
 ```ts
@@ -226,7 +226,7 @@ counted, because it never happened. Counting never writes to the application's s
 
 Use case timings are histograms, so the monitor can show percentiles (p50, p95, p99) per minute
 without keeping every call. `histogramBucketOf`, `histogramPercentile` and their constants are
-exported by `newt-kit/runtime` and `newt-kit/contract`, so the monitor's frontend computes them the same
+exported by `@newt-kit/newt/runtime` and `@newt-kit/newt/contract`, so the monitor's frontend computes them the same
 way.
 
 Where metrics are counted:
@@ -258,7 +258,7 @@ a request that crosses contexts is one trace. The application's tracer is set wi
 `runContexts(contexts, { tracer })`, which also flushes it when the application stops. A context's
 own `tracer` in `BaseOptions` goes before it. Unset, it is `NoopTracer`.
 
-`newt-kit/otel` ships one, `OtlpTracer`, which sends spans to an OpenTelemetry collector over
+`@newt-kit/newt/otel` ships one, `OtlpTracer`, which sends spans to an OpenTelemetry collector over
 OTLP/HTTP in JSON, **without the OpenTelemetry SDK**: no dependency at all.
 
 ```ts
@@ -292,7 +292,7 @@ for newt-monitor. You may run both, either, or neither.
 
 ## serveMonitor: the bridge to newt-monitor
 
-`serveMonitor` from `newt-kit/monitor` is what turns all of this on, and what lets newt-monitor read it:
+`serveMonitor` from `@newt-kit/newt/monitor` is what turns all of this on, and what lets newt-monitor read it:
 
 ```ts
 // cooper/backend/index.ts

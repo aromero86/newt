@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, now, SecretToken, type EntityInput } from 'newt-kit/core'
+import { Entity, now, SecretToken, type EntityInput } from '@newt-kit/newt/core'
 
 /** Not part of the contract: a session is only ever seen as "who is signed in". */
 const SessionEntitySchema = z.object({

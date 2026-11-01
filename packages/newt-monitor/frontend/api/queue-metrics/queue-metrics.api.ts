@@ -1,6 +1,6 @@
 import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
 import type { QueueSeriesDTO, QueueSeriesQueryDTO, QueueTotalDTO } from '../../../backend/contexts/monitor/modules/queue-metrics/queue-metrics.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `queueMetrics` module: how each queue of an application flows. */
 export class QueueMetricsApi extends Requester {

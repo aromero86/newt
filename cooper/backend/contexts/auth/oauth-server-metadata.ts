@@ -1,4 +1,4 @@
-import type { HttpRouter } from 'newt-kit/http'
+import type { HttpRouter } from '@newt-kit/newt/http'
 import { OPEN_TO_BROWSERS } from '../../shared/cors'
 
 /**

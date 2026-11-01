@@ -1,4 +1,4 @@
-import type { SqliteRow } from 'newt-kit/kysely'
+import type { SqliteRow } from '@newt-kit/newt/kysely'
 import type { ActivityRow } from './modules/activity/activity.repository'
 import type { BoardRow } from './modules/board/board.repository'
 import type { CardCounterRow, CardRow } from './modules/card/card.repository'

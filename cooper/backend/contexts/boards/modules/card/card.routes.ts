@@ -1,4 +1,4 @@
-import { pageRequestFrom, type KeptAnswer } from 'newt-kit/http'
+import { pageRequestFrom, type KeptAnswer } from '@newt-kit/newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Card_Deps } from './card.deps'

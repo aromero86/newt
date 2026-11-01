@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { ColumnSchema, type ColumnDTO } from './column.schema'
 import { Column_Added } from './events/column-added'
 import { Column_Moved } from './events/column-moved'

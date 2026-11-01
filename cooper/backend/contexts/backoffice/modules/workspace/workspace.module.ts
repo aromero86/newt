@@ -1,4 +1,4 @@
-import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { TenantDTO, TenantFilterDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import type { PersonDTO } from '../user/user.schema'

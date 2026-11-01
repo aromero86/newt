@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import type { CommitMessage } from '../../../../shared/commit-messages/commit-messages'
 import { DeploymentSchema, type DeploymentDTO } from './deployment.schema'
 import { Deployment_Recorded } from './events/deployment-recorded'

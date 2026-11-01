@@ -111,7 +111,7 @@ environment (public addresses, secrets, databases) should be impossible to forge
 cooper's backend is one file, `cooper/backend/index.ts`. Trimmed to its spine:
 
 ```ts
-import { runContexts } from 'newt-kit/application'
+import { runContexts } from '@newt-kit/newt/application'
 import { config } from './config'
 import { cooperTracer, openContexts } from './open-contexts'
 
@@ -125,7 +125,7 @@ for (const [name, server] of Object.entries(app.servers)) console.log(`${name} l
 ```
 
 `openContexts` opens each context after the ones it uses (see
-[Contexts working together](./11-between-contexts)). `runContexts`, from `newt-kit/application`, then:
+[Contexts working together](./11-between-contexts)). `runContexts`, from `@newt-kit/newt/application`, then:
 
 1. Serves each context that has `serve`, each on its own port.
 2. Starts each context's worker and schedules.
@@ -243,7 +243,7 @@ Headers, cookies and the CSP are in [Security](./27-security).
 
 newt-monitor is newt's own monitor: the structure of an application, its use cases' timings, its
 events, traces and queues, its instances. An application opens a small, signed endpoint for it with
-`serveMonitor`, from `newt-kit/monitor`, only when given a key. From `cooper/backend/index.ts`:
+`serveMonitor`, from `@newt-kit/newt/monitor`, only when given a key. From `cooper/backend/index.ts`:
 
 ```ts
 // What cooper is made of, for whoever monitors it: only with a key, on a port no domain points at.
@@ -267,7 +267,7 @@ never sent. The port is reached over the private network only. Connecting the tw
 ### OpenTelemetry
 
 Every request, use case, job and store call is a span. To send them to any OpenTelemetry collector,
-give `runContexts` an `OtlpTracer`, from `newt-kit/otel`. cooper does when `COOPER_OTLP_URL` is set, in
+give `runContexts` an `OtlpTracer`, from `@newt-kit/newt/otel`. cooper does when `COOPER_OTLP_URL` is set, in
 `open-contexts.ts`:
 
 ```ts

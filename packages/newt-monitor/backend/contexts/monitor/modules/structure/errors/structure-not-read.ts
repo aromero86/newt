@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt-kit/core'
+import { NotFoundError } from '@newt-kit/newt/core'
 
 /** An application whose structure the monitor has not read yet: it never answered a refresh. */
 export class StructureNotRead extends NotFoundError {

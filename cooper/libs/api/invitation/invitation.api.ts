@@ -1,4 +1,4 @@
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 import type { InvitationAcceptedDTO, InvitationCreateDTO, InvitationDTO, InvitationPreviewDTO } from './invitation.contract'
 
 /** Invitations to a workspace: auth's, through boards' origin. */

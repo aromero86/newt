@@ -1,5 +1,5 @@
 import { WebSessionApi, signInUrl, type SessionUserDTO } from '@cooper/api/web-session'
-import { ApiError, inject, Store } from 'newt-kit-react'
+import { ApiError, inject, Store } from '@newt-kit/react'
 
 type SessionState =
   | { status: 'checking', user: null }

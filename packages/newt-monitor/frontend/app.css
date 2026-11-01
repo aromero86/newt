@@ -1,4 +1,4 @@
-/* The monitor's styles: newt-kit-react-ui's theme, and its own components, which Tailwind
+/* The monitor's styles: @newt-kit/react-ui's theme, and its own components, which Tailwind
    reads for the classes they use. Pages use none. */
-@import "newt-kit-react-ui/theme.css";
+@import "@newt-kit/react-ui/theme.css";
 @source "./components";

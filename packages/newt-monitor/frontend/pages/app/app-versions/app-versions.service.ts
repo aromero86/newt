@@ -1,4 +1,4 @@
-import { ApiError, inject, ListStore, Store } from 'newt-kit-react'
+import { ApiError, inject, ListStore, Store } from '@newt-kit/react'
 import { StructureApi, type StructureVersionDTO, type StructureVersionSummaryDTO } from '../../../api/structure'
 import { AppService } from '../app.service'
 

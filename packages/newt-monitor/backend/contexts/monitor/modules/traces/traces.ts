@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { TracesFeedSchema, type TracesFeedDTO } from './traces.schema'
 
 export * from './traces.schema'

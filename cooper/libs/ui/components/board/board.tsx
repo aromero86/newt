@@ -1,8 +1,8 @@
 import { useContext, useState, type DragEvent, type ReactNode } from 'react'
 import { cn } from 'cn'
-import { Skeleton } from 'newt-kit-react-ui/skeleton'
-import { Avatar } from 'newt-kit-react-ui/avatar'
-import { LinkComponentContext } from 'newt-kit-react-ui/link'
+import { Skeleton } from '@newt-kit/react-ui/skeleton'
+import { Avatar } from '@newt-kit/react-ui/avatar'
+import { LinkComponentContext } from '@newt-kit/react-ui/link'
 
 /** What a dragged card carries: its id, under a type only boards read. */
 const DRAG_TYPE = 'application/x-cooper-card'

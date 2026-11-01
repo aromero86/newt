@@ -331,8 +331,8 @@ closes it after its store.
 tools on `@modelcontextprotocol/sdk`'s `McpServer`, each one a call to a module's use case, as
 a route is. Nothing in it reads a table.
 
-**Its pages** are a React app in `packages/newt-monitor/frontend`, built with `newt-kit-react` and
-`newt-kit-react-ui`, served by the monitor itself. Of the backend, they import only the modules'
+**Its pages** are a React app in `packages/newt-monitor/frontend`, built with `@newt-kit/react` and
+`@newt-kit/react-ui`, served by the monitor itself. Of the backend, they import only the modules'
 `*.schema.ts`, the contract both share. [Frontends](./30-frontends) covers that pattern.
 
 ::: tip In cooper

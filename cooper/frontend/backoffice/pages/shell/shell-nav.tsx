@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router'
 import { BarChart3Icon, LayersIcon, ListRestartIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react'
-import { SideNav, SideNavItem } from 'newt-kit-react-ui/side-nav'
+import { SideNav, SideNavItem } from '@newt-kit/react-ui/side-nav'
 
 /** The console's sections, in the order the menu shows them. */
 const SECTIONS = [

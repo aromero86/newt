@@ -40,8 +40,8 @@ The smallest test opens a `Base` on a store in memory, with its migrations, and 
 
 ```ts
 import { join } from 'node:path'
-import { SqliteStore } from 'newt-kit/adapter-sqlite'
-import { Base } from 'newt-kit/runtime'
+import { SqliteStore } from '@newt-kit/newt/adapter-sqlite'
+import { Base } from '@newt-kit/newt/runtime'
 
 let time = Date.parse('2027-03-15T12:00:00Z')
 const clock = { now: () => new Date(time) }               // move time by hand
@@ -194,12 +194,12 @@ More on clocks and schedules in [Time](./23-time).
 
 Use cases carry the rules, so most tests call them directly. A few should go through HTTP, to prove
 the wiring: the routes, sessions, cookies, status codes. `serve` the context on a free port and talk
-to it with `browser()`, from `newt-kit/testing`: a `fetch` that keeps each host's cookies and never
+to it with `browser()`, from `@newt-kit/newt/testing`: a `fetch` that keeps each host's cookies and never
 follows a redirect, so the test sees where it goes.
 
 ```ts
-import { serve } from 'newt-kit/http'
-import { browser, freePort } from 'newt-kit/testing'
+import { serve } from '@newt-kit/newt/http'
+import { browser, freePort } from '@newt-kit/newt/testing'
 
 beforeEach(async () => {
   contexts = await openContexts(testConfig(freePort(), freePort()), { mailer })
@@ -322,9 +322,9 @@ describeRateLimitContract('RedisRateLimitStore', {
 })
 ```
 
-`describeStoreContract` (from `newt-kit/port-store/contract`) checks transactions, isolation, versions,
+`describeStoreContract` (from `@newt-kit/newt/port-store/contract`) checks transactions, isolation, versions,
 criteria, the outbox and what is built on them, on SQLite, files, Postgres and MySQL alike.
-`describeRateLimitContract` (from `newt-kit/port-rate-limit/contract`) does the same for rate limit
+`describeRateLimitContract` (from `@newt-kit/newt/port-rate-limit/contract`) does the same for rate limit
 stores. cooper follows the pattern for its own port: `describeCardSearchContract`, in
 `cooper/backend/contexts/boards/search/card-search.contract.ts`, which the memory search runs and
 any real search engine would run too.
@@ -353,7 +353,7 @@ tests).
 - Act with `runAsActor` and `scope.run`; assert on error codes.
 - Wait for workers with `base.jobs.idle()`, never a sleep; `runAsWorker` to run a handler by hand.
 - Move time with the clock; tick schedules with `base.schedules.tick()`.
-- Test HTTP with `serve`, `freePort()` and `browser()` from `newt-kit/testing`.
+- Test HTTP with `serve`, `freePort()` and `browser()` from `@newt-kit/newt/testing`.
 - Test the hard cases: at once, twice, refused, limits, another tenant.
 - Prove every adapter of a port with its contract suite.
 

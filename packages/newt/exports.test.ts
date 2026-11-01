@@ -15,6 +15,6 @@ describe('exports', () => {
   })
 
   test('each one loads by its name', async () => {
-    for (const entry of Object.keys(manifest.exports)) expect(await import(`newt-kit/${entry.slice(2)}`)).toBeDefined()
+    for (const entry of Object.keys(manifest.exports)) expect(await import(`@newt-kit/newt/${entry.slice(2)}`)).toBeDefined()
   })
 })

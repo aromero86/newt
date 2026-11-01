@@ -1,4 +1,4 @@
-import { kyselyFor } from 'newt-kit/kysely'
+import { kyselyFor } from '@newt-kit/newt/kysely'
 import { CooperBase } from '../../shared/cooper-base'
 import type { BoardsDatabase } from './boards-database'
 

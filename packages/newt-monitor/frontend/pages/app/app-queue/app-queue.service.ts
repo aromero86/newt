@@ -1,4 +1,4 @@
-import { inject, Store } from 'newt-kit-react'
+import { inject, Store } from '@newt-kit/react'
 import { DEFAULT_BUCKET, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
 import { OutboxApi, type DeadJob, type DepthSeriesDTO, type OutboxQueueDTO } from '../../../api/outbox'
 import { QueueMetricsApi, type QueueSeriesDTO } from '../../../api/queue-metrics'

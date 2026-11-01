@@ -1,8 +1,8 @@
 import { sql, type RawBuilder } from 'kysely'
-import { SqliteStore } from 'newt-kit/adapter-sqlite'
-import type { PostgresStore } from 'newt-kit/adapter-postgres'
-import { kyselyFor } from 'newt-kit/kysely'
-import type { Analytics, AnalyticsRow } from 'newt-kit/port-analytics'
+import { SqliteStore } from '@newt-kit/newt/adapter-sqlite'
+import type { PostgresStore } from '@newt-kit/newt/adapter-postgres'
+import { kyselyFor } from '@newt-kit/newt/kysely'
+import type { Analytics, AnalyticsRow } from '@newt-kit/newt/port-analytics'
 import type { AnalyticsCount, AnalyticsCounts } from './analytics-counts'
 
 /** A field of a row, as a query names it: letters, digits and `_`, never a piece of SQL. */

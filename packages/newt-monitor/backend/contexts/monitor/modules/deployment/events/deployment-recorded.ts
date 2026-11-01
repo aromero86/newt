@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { DeploymentRecordedDTO } from '../deployment.schema'
 
 export class Deployment_Recorded implements DomainEvent<DeploymentRecordedDTO> {

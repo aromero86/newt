@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { bearerAuthenticator, HttpRouter, NotSignedIn, toErrorResponse } from 'newt-kit/http'
+import { bearerAuthenticator, HttpRouter, NotSignedIn, toErrorResponse } from '@newt-kit/newt/http'
 import { OPEN_TO_BROWSERS } from '../../../shared/cors/cors'
 import { mcpResourceOf, type Auth_Modules } from '../../auth/initialize-modules'
 import type { Monitor_Modules } from '../initialize-modules'

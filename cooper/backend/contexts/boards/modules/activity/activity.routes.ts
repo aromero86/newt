@@ -1,4 +1,4 @@
-import { pageRequestFrom } from 'newt-kit/http'
+import { pageRequestFrom } from '@newt-kit/newt/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Activity_Deps } from './activity.deps'

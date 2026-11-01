@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt-kit/core'
+import { Module, UseCase } from '@newt-kit/newt/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidClient } from './errors/invalid-client'
 import { OauthClientNotFound } from './errors/oauth-client-not-found'

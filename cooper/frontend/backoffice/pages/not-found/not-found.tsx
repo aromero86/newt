@@ -1,6 +1,6 @@
 import { CompassIcon } from 'lucide-react'
-import { Box, BoxEmpty } from 'newt-kit-react-ui/box'
-import { Button } from 'newt-kit-react-ui/button'
+import { Box, BoxEmpty } from '@newt-kit/react-ui/box'
+import { Button } from '@newt-kit/react-ui/button'
 
 /** An address that does not exist, or that you may not see: the same answer, as the backend gives. */
 export function NotFound() {

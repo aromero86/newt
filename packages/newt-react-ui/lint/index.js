@@ -1,27 +1,27 @@
 import tseslint from 'typescript-eslint'
 
-const STYLING = 'An app does not style: compose components of newt-kit-react-ui, or make one in the app\'s own components folder.'
-const ELEMENT = 'A page is made of components: use one of newt-kit-react-ui, or make one in the app\'s own components folder.'
-const PRIMITIVES = 'Build on newt-kit-react-ui\'s components: its primitives (Radix, Recharts, its shadcn pieces) are its own, or the app components folder\'s.'
+const STYLING = 'An app does not style: compose components of @newt-kit/react-ui, or make one in the app\'s own components folder.'
+const ELEMENT = 'A page is made of components: use one of @newt-kit/react-ui, or make one in the app\'s own components folder.'
+const PRIMITIVES = 'Build on @newt-kit/react-ui\'s components: its primitives (Radix, Recharts, its shadcn pieces) are its own, or the app components folder\'s.'
 const STYLING_TOOLS = 'Class names are made in the app\'s components folder only.'
 
 /** HTML elements a page may write as they are: none of them is ever styled. */
 const ELEMENTS = ['form', 'fieldset']
 
 /**
- * The imports newt-kit-react-ui's lint refuses outside an app's components folder: the
+ * The imports @newt-kit/react-ui's lint refuses outside an app's components folder: the
  * primitives, the library's internals and the tools that make class names. A config
  * that sets `no-restricted-imports` again for an app's files spreads them before its
  * own, so it adds to the library's restrictions instead of replacing them.
  */
 export const RESTRICTED_IMPORTS = [
   { group: ['radix-ui', '@radix-ui/*', 'recharts', 'recharts/*'], message: PRIMITIVES },
-  { group: ['newt-kit-react-ui/internal', 'newt-kit-react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
+  { group: ['@newt-kit/react-ui/internal', '@newt-kit/react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
   { group: ['cn', 'class-variance-authority', 'tailwind-merge', 'clsx'], message: STYLING_TOOLS },
 ]
 
 /**
- * newt-kit-react-ui's lint, for a React app that uses it. Its pages, and everything that is
+ * @newt-kit/react-ui's lint, for a React app that uses it. Its pages, and everything that is
  * not in its own components folder (`components`):
  *
  * - style nothing: no `className`, `class`, `style`, `class:`/`style:` attributes, nor those
@@ -36,7 +36,7 @@ export const RESTRICTED_IMPORTS = [
  * library's components, or makes its own. Nowhere else.
  *
  * ```js
- * import { newtReactUi } from 'newt-kit-react-ui/lint'
+ * import { newtReactUi } from '@newt-kit/react-ui/lint'
  * export default [
  *   ...newtReactUi({ files: ['web/**\/*.{ts,tsx}'], components: ['web/components/**'] }),
  * ]
@@ -84,7 +84,7 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
         // The app's components build on the library's, and on its primitives if they must: never on its internals.
         'no-restricted-imports': ['error', {
           patterns: [
-            { group: ['newt-kit-react-ui/internal', 'newt-kit-react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
+            { group: ['@newt-kit/react-ui/internal', '@newt-kit/react-ui/internal/*', '**/newt-react-ui/internal/**'], message: PRIMITIVES },
             ...imports,
           ],
         }],

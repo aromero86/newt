@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { ColumnDTO } from '../column.schema'
 
 export class Column_Added implements DomainEvent<ColumnDTO> {

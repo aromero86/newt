@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { EventSource, Json } from 'newt-kit/core'
-import { freePort, type Browser } from 'newt-kit/testing'
+import type { EventSource, Json } from '@newt-kit/newt/core'
+import { freePort, type Browser } from '@newt-kit/newt/testing'
 import { KeyCipher } from '../../../../shared/key-cipher'
 import { openTestMonitor, TEST_SECRET, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'

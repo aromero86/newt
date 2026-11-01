@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useParams } from 'react-router'
 import { WaypointsIcon } from 'lucide-react'
-import { Box, BoxEmpty } from 'newt-kit-react-ui/box'
-import { Skeleton } from 'newt-kit-react-ui/skeleton'
-import { useService } from 'newt-kit-react'
+import { Box, BoxEmpty } from '@newt-kit/react-ui/box'
+import { Skeleton } from '@newt-kit/react-ui/skeleton'
+import { useService } from '@newt-kit/react'
 import type { AppDTO } from '../../../api/app'
 import { TracesApi } from '../../../api/traces'
 

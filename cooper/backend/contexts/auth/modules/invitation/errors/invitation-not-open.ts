@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 /** Accepted, revoked or expired: it opens nothing any more. */
 export class InvitationNotOpen extends ConflictError {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { SqliteStore } from 'newt-kit/adapter-sqlite'
-import { describeAnalyticsContract } from 'newt-kit/port-analytics/contract'
+import { SqliteStore } from '@newt-kit/newt/adapter-sqlite'
+import { describeAnalyticsContract } from '@newt-kit/newt/port-analytics/contract'
 import { SqlAnalytics } from './sql-analytics'
 
 /** A store of its own, in memory, with the analytics table and nothing else. */

@@ -1,4 +1,4 @@
-import { inject, Store } from 'newt-kit-react'
+import { inject, Store } from '@newt-kit/react'
 import { AuthorizationsApi, type OauthGrantReviewDTO } from '../../api/authorizations'
 
 type AuthorizeState = {

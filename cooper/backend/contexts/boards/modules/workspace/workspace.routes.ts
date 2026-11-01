@@ -1,4 +1,4 @@
-import { allPages, currentActor } from 'newt-kit/core'
+import { allPages, currentActor } from '@newt-kit/newt/core'
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import { InvitationNotOpen } from '../../../auth/modules/invitation/errors/invitation-not-open'
 import type { BoardsBase } from '../../boards-base'

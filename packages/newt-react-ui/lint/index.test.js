@@ -18,7 +18,7 @@ async function complaints(path, code) {
 
 const STYLES = 'An app does not style'
 const ELEMENT = 'A page is made of components'
-const PRIMITIVE = 'Build on newt-kit-react-ui\'s components'
+const PRIMITIVE = 'Build on @newt-kit/react-ui\'s components'
 const TOOLS = 'Class names are made in the app\'s components folder only'
 
 beforeAll(async () => {
@@ -28,9 +28,9 @@ beforeAll(async () => {
 
 afterAll(() => rm(root, { recursive: true, force: true }))
 
-describe("newt-kit-react-ui's lint", () => {
+describe("@newt-kit/react-ui's lint", () => {
   test('lets a page compose the library\'s components, and its own', async () => {
-    const page = "import { Button } from 'newt-kit-react-ui/button'\nimport { AppCard } from '../components/app-card'\nexport const Page = () => <form><AppCard /><Button>Save</Button></form>\n"
+    const page = "import { Button } from '@newt-kit/react-ui/button'\nimport { AppCard } from '../components/app-card'\nexport const Page = () => <form><AppCard /><Button>Save</Button></form>\n"
 
     expect(await complaints('web/pages/apps.tsx', page)).toEqual([])
   })
@@ -51,7 +51,7 @@ describe("newt-kit-react-ui's lint", () => {
 
   test('refuses the primitives and the tools that make classes, outside the app\'s components', async () => {
     expect(await complaints('web/pages/f.tsx', "import { Dialog } from 'radix-ui'\nexport const F = Dialog\n")).toEqual([PRIMITIVE])
-    expect(await complaints('web/pages/g.tsx', "import { Button } from 'newt-kit-react-ui/internal/button'\nexport const G = Button\n")).toEqual([PRIMITIVE])
+    expect(await complaints('web/pages/g.tsx', "import { Button } from '@newt-kit/react-ui/internal/button'\nexport const G = Button\n")).toEqual([PRIMITIVE])
     expect(await complaints('web/pages/h.tsx', "import { cn } from 'cn'\nexport const H = cn\n")).toEqual([TOOLS])
   })
 
@@ -59,7 +59,7 @@ describe("newt-kit-react-ui's lint", () => {
     const wrapper = "import { Popover } from 'radix-ui'\nimport { cn } from 'cn'\nexport const AppCard = () => <div className={cn('rounded-lg border')}><Popover.Root /></div>\n"
 
     expect(await complaints('web/components/app-card.tsx', wrapper)).toEqual([])
-    expect(await complaints('web/components/x.tsx', "import { Button } from 'newt-kit-react-ui/internal/button'\nexport const X = Button\n")).toEqual([PRIMITIVE])
+    expect(await complaints('web/components/x.tsx', "import { Button } from '@newt-kit/react-ui/internal/button'\nexport const X = Button\n")).toEqual([PRIMITIVE])
   })
 
   test('takes the elements an app allows, and asks which files are the app\'s', () => {

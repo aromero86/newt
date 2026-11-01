@@ -1,4 +1,4 @@
-import 'newt-kit/core'
+import '@newt-kit/newt/core'
 
 /**
  * How someone reached cooper: its web apps, with a session cookie, or an AI assistant
@@ -10,7 +10,7 @@ export type ActorVia = 'web' | 'mcp'
 // here: every program loads it through `CooperBase`. Required, so every place that
 // says who acts says it too (`authenticateWith`, `runAsActor`): who someone is, never
 // what they may do.
-declare module 'newt-kit/core' {
+declare module '@newt-kit/newt/core' {
   interface Actor {
     via: ActorVia
   }

@@ -4,13 +4,13 @@ The five packages are published to npm together, at one version:
 
 | Package | Folder |
 |---|---|
-| `newt-kit` | `packages/newt` |
-| `newt-kit-eslint` | `packages/newt-eslint` |
-| `newt-kit-react-ui` | `packages/newt-react-ui` |
-| `newt-kit-react` | `packages/newt-react` |
-| `newt-kit-monitor` | `packages/newt-monitor` |
+| `@newt-kit/newt` | `packages/newt` |
+| `@newt-kit/eslint` | `packages/newt-eslint` |
+| `@newt-kit/react-ui` | `packages/newt-react-ui` |
+| `@newt-kit/react` | `packages/newt-react` |
+| `@newt-kit/monitor` | `packages/newt-monitor` |
 
-Each one ships its TypeScript as it is, and `newt-kit-monitor` its frontend built. What goes in
+Each one ships its TypeScript as it is, and `@newt-kit/monitor` its frontend built. What goes in
 is each `package.json`'s `files`: no tests, no fixtures, no `tsconfig.json`.
 
 ## A release
@@ -27,7 +27,7 @@ type checks, tests, lints, builds the monitor's frontend and publishes each pack
 others depend on first. `bun publish` turns `workspace:*` into the version it publishes.
 
 It needs one repository secret, `NPM_TOKEN`: an npm granular access token with read and
-write on the `newt-kit` packages.
+write on the `@newt-kit/newt` packages.
 
 ## By hand
 

@@ -47,7 +47,7 @@ const counts = [3, 25, 150, 28, 36]
         <div class="actions">
           <a class="l-btn primary" :href="withBase('/manual/00-how-to-read')">{{ copy.read }} <span class="arrow">→</span></a>
           <a class="l-btn ghost" href="#monitor">{{ copy.monitor }}</a>
-          <code class="install"><span>$</span> bunx newt-kit init</code>
+          <code class="install"><span>$</span> bunx @newt-kit/newt init</code>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { TenantDTO } from '../tenant.schema'
 
 /** A new workspace: boards gives it a first board from this. */

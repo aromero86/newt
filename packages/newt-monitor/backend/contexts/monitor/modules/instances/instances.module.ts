@@ -1,5 +1,5 @@
-import { eventsOf, Module, now, UseCase } from 'newt-kit/core'
-import type { InstanceMinute } from 'newt-kit/runtime'
+import { eventsOf, Module, now, UseCase } from '@newt-kit/newt/core'
+import type { InstanceMinute } from '@newt-kit/newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
 import { AppGone } from '../../../../shared/metrics-store/metrics-store'

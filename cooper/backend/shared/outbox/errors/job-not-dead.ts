@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 /** Only a dead job is retried: one waiting or running is on its way, one done is done. */
 export class JobNotDead extends ConflictError {

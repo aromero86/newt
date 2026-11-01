@@ -1,4 +1,4 @@
-import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { UserFilterDTO } from '../../../auth/modules/user/user.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import type { User_Deps } from './user.deps'

@@ -1,4 +1,4 @@
-import { UnauthorizedError } from 'newt-kit/core'
+import { UnauthorizedError } from '@newt-kit/newt/core'
 
 /** A user or a password that is not the monitor's: which of the two, it does not say. */
 export class WrongCredentials extends UnauthorizedError {

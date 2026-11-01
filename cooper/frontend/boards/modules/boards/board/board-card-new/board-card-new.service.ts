@@ -1,4 +1,4 @@
-import { FormStore, inject } from 'newt-kit-react'
+import { FormStore, inject } from '@newt-kit/react'
 import { BoardService } from '../board.service'
 import { CARD_FORM_MESSAGES, CardFormSchema } from '../board-card-form'
 

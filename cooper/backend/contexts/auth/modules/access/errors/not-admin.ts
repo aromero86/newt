@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt-kit/core'
+import { ForbiddenError } from '@newt-kit/newt/core'
 
 /** A member, or someone of the product, who may not manage who enters it. */
 export class NotAdmin extends ForbiddenError {

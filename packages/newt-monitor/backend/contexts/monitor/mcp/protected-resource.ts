@@ -1,4 +1,4 @@
-import type { HttpRouter } from 'newt-kit/http'
+import type { HttpRouter } from '@newt-kit/newt/http'
 
 /**
  * How an MCP client that only knows the MCP server's address finds out how to sign in

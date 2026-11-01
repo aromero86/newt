@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { EventMetricsFeedSchema, type EventMetricsFeedDTO } from './event-metrics.schema'
 
 export * from './event-metrics.schema'

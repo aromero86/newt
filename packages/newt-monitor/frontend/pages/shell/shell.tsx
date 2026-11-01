@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigation } from 'react-router'
-import { AppShell } from 'newt-kit-react-ui/app-shell'
-import { Spinner } from 'newt-kit-react-ui/spinner'
+import { AppShell } from '@newt-kit/react-ui/app-shell'
+import { Spinner } from '@newt-kit/react-ui/spinner'
 import { Brand } from '../../components/brand/brand'
 import { ShellThemeToggle } from './shell-theme-toggle'
 import { ShellUserMenu } from './shell-user-menu'

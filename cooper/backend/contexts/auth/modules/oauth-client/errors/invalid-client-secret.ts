@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt-kit/core'
+import { ValidationError } from '@newt-kit/newt/core'
 
 /** A client secret too short to be one: cooper's own are configured, never typed. */
 export class InvalidClientSecret extends ValidationError {

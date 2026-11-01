@@ -1,5 +1,5 @@
-import { signMonitorRequest, type MonitorIdentity } from 'newt-kit/monitor'
-import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from 'newt-kit/runtime'
+import { signMonitorRequest, type MonitorIdentity } from '@newt-kit/newt/monitor'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from '@newt-kit/newt/runtime'
 import { z } from 'zod'
 import { AppCallFailed } from './app-call-failed'
 import type { AppClient, Endpoint } from './app-client'

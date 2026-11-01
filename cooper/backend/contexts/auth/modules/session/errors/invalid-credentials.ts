@@ -1,4 +1,4 @@
-import { UnauthorizedError } from 'newt-kit/core'
+import { UnauthorizedError } from '@newt-kit/newt/core'
 
 /** The same answer for an unknown email and a wrong password: it tells nobody which accounts exist. */
 export class InvalidCredentials extends UnauthorizedError {

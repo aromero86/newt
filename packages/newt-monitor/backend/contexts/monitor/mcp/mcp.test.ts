@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { freePort, type Browser } from 'newt-kit/testing'
+import { freePort, type Browser } from '@newt-kit/newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../testing/serve-test-app'
 

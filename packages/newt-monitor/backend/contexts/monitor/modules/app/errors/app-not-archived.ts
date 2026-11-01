@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 /** Only an archived application is deleted: archiving first is the step back nobody takes by mistake. */
 export class AppNotArchived extends ConflictError {

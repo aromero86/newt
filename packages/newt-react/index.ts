@@ -1,9 +1,9 @@
-// newt-kit-react: what a React frontend of a newt application thinks with, apart from what
-// it looks like (newt-kit-react-ui): a service's state (Store), services and their
+// @newt-kit/react: what a React frontend of a newt application thinks with, apart from what
+// it looks like (@newt-kit/react-ui): a service's state (Store), services and their
 // injector, forms validated with the backend's own schemas (FormStore), lists paged as
 // newt pages them (ListStore), the requests to a newt API (Requester, ApiError), and
-// the theme. FormField, which ties a FormStore to newt-kit-react-ui's fields, is
-// `newt-kit-react/form-field`.
+// the theme. FormField, which ties a FormStore to @newt-kit/react-ui's fields, is
+// `@newt-kit/react/form-field`.
 
 export { Store } from './store/store'
 export { useValue } from './store/use-value'

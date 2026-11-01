@@ -30,7 +30,7 @@ to be told when it is saved. It has an id, a version, and the times it was creat
 last changed.
 :::
 
-An entity in newt is a class that extends `Entity`, from `newt-kit/core`:
+An entity in newt is a class that extends `Entity`, from `@newt-kit/newt/core`:
 
 ```mermaid
 classDiagram
@@ -69,7 +69,7 @@ An entity starts with its schema, in its module's `<m>.schema.ts`. Here is the i
 ```ts
 // cooper/backend/contexts/auth/modules/invitation/invitation.schema.ts
 import { z } from 'zod'
-import { Email } from 'newt-kit/contract'
+import { Email } from '@newt-kit/newt/contract'
 
 export const InvitationStatusSchema = z.enum(['pending', 'accepted', 'revoked'])
 
@@ -99,7 +99,7 @@ This one schema is many things at once:
 - the **contract with clients**: cooper's frontends import `invitation.schema.ts` through
   `cooper/libs/api` to type what the API answers.
 
-That is why the schema file may import only zod, `newt-kit/contract`, value objects and other
+That is why the schema file may import only zod, `@newt-kit/newt/contract`, value objects and other
 schemas (`newt/schema-imports` in the lint): a browser loads it.
 
 A few rules hold for every entity schema:
@@ -211,7 +211,7 @@ accepted it, it expires in so many days, it has no token yet. The use case canno
 of that wrong, because it does not set it.
 
 ::: warning Watch out
-Time is `now()` from `newt-kit/core`, never `new Date()`. `now()` reads the context's clock,
+Time is `now()` from `@newt-kit/newt/core`, never `new Date()`. `now()` reads the context's clock,
 which a test moves by hand. An entity that calls `new Date()` cannot be tested at
 "seven days later". See [Time and schedules](./23-time).
 :::
@@ -371,7 +371,7 @@ typed into the value, or refuses it). To the compiler, a plain string is not an 
 until it went through one of them.
 :::
 
-newt ships two, `Email` and `SecretToken` (exported by `newt-kit/core` and `newt-kit/contract`).
+newt ships two, `Email` and `SecretToken` (exported by `@newt-kit/newt/core` and `@newt-kit/newt/contract`).
 Here is one of cooper's own:
 
 ```ts

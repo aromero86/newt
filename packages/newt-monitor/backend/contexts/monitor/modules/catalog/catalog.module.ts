@@ -1,4 +1,4 @@
-import { mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { mapPage, Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { CatalogFilterSchema, CatalogItem, type CatalogItemDTO } from './catalog'
 import type { Catalog_Deps } from './catalog.deps'

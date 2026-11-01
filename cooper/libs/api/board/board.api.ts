@@ -1,7 +1,7 @@
 import type { BoardCreateDTO, BoardDTO, BoardUpdateDTO } from '../../../backend/contexts/boards/modules/board/board.schema'
 import type { BoardViewDTO } from '../../../backend/contexts/boards/modules/workspace/workspace.schema'
-import type { Page } from 'newt-kit/contract'
-import { type PageRequest, Requester } from 'newt-kit-react'
+import type { Page } from '@newt-kit/newt/contract'
+import { type PageRequest, Requester } from '@newt-kit/react'
 
 /** The backend's `board` module: a workspace's boards. */
 export class BoardApi extends Requester {

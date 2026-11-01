@@ -1,4 +1,4 @@
-import type { ErrorBody } from 'newt-kit/contract'
+import type { ErrorBody } from '@newt-kit/newt/contract'
 import { ApiError } from './api-error'
 import type { QueryParams } from './query-params'
 

@@ -1,8 +1,8 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router'
-import { Button } from 'newt-kit-react-ui/button'
-import { Card } from 'newt-kit-react-ui/card'
-import { NarrowPage } from 'newt-kit-react-ui/narrow-page'
-import { Text } from 'newt-kit-react-ui/text'
+import { Button } from '@newt-kit/react-ui/button'
+import { Card } from '@newt-kit/react-ui/card'
+import { NarrowPage } from '@newt-kit/react-ui/narrow-page'
+import { Text } from '@newt-kit/react-ui/text'
 import { NotFound } from '../not-found/not-found'
 
 /**

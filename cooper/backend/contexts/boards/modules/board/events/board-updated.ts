@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { BoardDTO } from '../board.schema'
 
 /** The whole board as it is now, the fields that changed (`changes`) and what they were (`previous`). */

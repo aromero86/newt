@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt-kit/repository'
+import { TableRepository } from '@newt-kit/newt/repository'
 import type { AuthBase } from '../../auth-base'
 import { EmailTaken } from './errors/email-taken'
 import { User, type UserEntityDTO } from './user'

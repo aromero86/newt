@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { BoardDTO } from '../board.schema'
 
 /** The board as it was when it was archived: it is kept, out of every list. */

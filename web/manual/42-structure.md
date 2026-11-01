@@ -93,7 +93,7 @@ Each piece answers a question you would otherwise grep for:
 
 | Field | The question |
 |---|---|
-| `uses` | Which contexts does this context's code depend on? (Found from its modules' deps, so it agrees with what newt-kit-eslint's `contexts.uses` declares.) |
+| `uses` | Which contexts does this context's code depend on? (Found from its modules' deps, so it agrees with what @newt-kit/eslint's `contexts.uses` declares.) |
 | `useCases[].writesTo` | Besides its own module, which modules may this use case write to? |
 | `useCases[].retryOnConflict` | Does it run again on a concurrency conflict, or not? |
 | `events[].schedule` | Is this event a schedule? With which cron? |

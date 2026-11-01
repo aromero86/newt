@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import type { Span, SpanAttributes, Tracer } from 'newt-kit/core'
+import type { Span, SpanAttributes, Tracer } from '@newt-kit/newt/core'
 
 /** A span as it is kept until its trace is written: what it was, how long, and what it called. */
 type TracedSpan = {

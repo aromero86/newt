@@ -1,4 +1,4 @@
-import { ApiError, inject, ListStore, Store } from 'newt-kit-react'
+import { ApiError, inject, ListStore, Store } from '@newt-kit/react'
 import { BackofficeWorkspaceApi, type WorkspaceBoardDTO, type WorkspaceDetailDTO, type WorkspaceMemberDTO } from '@cooper/api/backoffice-workspace'
 
 type WorkspacesDetailState = {

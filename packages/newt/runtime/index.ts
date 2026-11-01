@@ -1,4 +1,4 @@
-// newt-kit/runtime: a context at runtime. Its Base gives every module the store, the
+// @newt-kit/newt/runtime: a context at runtime. Its Base gives every module the store, the
 // invocations of its use cases, the event bus, the jobs of its handlers and its schedules; a
 // BoundedContext starts and stops it.
 

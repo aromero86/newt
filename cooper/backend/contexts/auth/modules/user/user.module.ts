@@ -1,4 +1,4 @@
-import { Email, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { Email, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { AuthBase } from '../../auth-base'
 import { EmailTaken } from './errors/email-taken'
 import { UserNotFound } from './errors/user-not-found'

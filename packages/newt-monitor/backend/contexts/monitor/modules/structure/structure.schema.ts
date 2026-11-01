@@ -1,4 +1,4 @@
-import type { ApplicationDescription } from 'newt-kit/contract'
+import type { ApplicationDescription } from '@newt-kit/newt/contract'
 import { z } from 'zod'
 
 /** What an application was made of at some time, as its endpoint described it (`describeApplication`). */

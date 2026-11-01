@@ -1,4 +1,4 @@
-import { Entity, now, SecretToken, type EntityInput } from 'newt-kit/core'
+import { Entity, now, SecretToken, type EntityInput } from '@newt-kit/newt/core'
 import { SessionSchema, type SessionDTO } from './session.schema'
 
 export * from './session.schema'

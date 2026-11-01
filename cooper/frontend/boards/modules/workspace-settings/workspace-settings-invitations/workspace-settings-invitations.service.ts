@@ -1,6 +1,6 @@
 import { InvitationApi, InvitationCreateSchema, type InvitationDTO } from '@cooper/api/invitation'
-import { FormStore, inject, Store } from 'newt-kit-react'
-import { toast } from 'newt-kit-react-ui/toast'
+import { FormStore, inject, Store } from '@newt-kit/react'
+import { toast } from '@newt-kit/react-ui/toast'
 
 type InvitationsState = {
   items: InvitationDTO[]

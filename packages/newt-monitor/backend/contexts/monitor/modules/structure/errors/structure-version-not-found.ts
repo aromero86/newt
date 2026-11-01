@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt-kit/core'
+import { NotFoundError } from '@newt-kit/newt/core'
 
 export class StructureVersionNotFound extends NotFoundError {
   readonly code = 'structure.version_not_found'

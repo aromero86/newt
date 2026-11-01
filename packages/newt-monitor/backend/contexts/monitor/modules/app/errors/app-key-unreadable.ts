@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt-kit/core'
+import { ValidationError } from '@newt-kit/newt/core'
 
 /**
  * A new address for an application whose kept key no longer opens (sealed with another

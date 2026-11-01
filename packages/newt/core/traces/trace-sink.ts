@@ -2,7 +2,7 @@ import type { Trace } from './trace'
 import type { TraceSampling } from './trace-sampling'
 
 /**
- * Where finished traces go: `MemoryTraces`, `RedisTraces` (`newt-kit/runtime`). `wanted` says
+ * Where finished traces go: `MemoryTraces`, `RedisTraces` (`@newt-kit/newt/runtime`). `wanted` says
  * whether the trace is kept on its own (it went wrong, ran again, or fell in the share);
  * one that is not may still be, with the chain of traces its events make.
  */

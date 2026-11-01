@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { InvitationDTO } from '../invitation.schema'
 
 /** An invitation no longer opens its workspace: its admin took it back, or the workspace is gone. */

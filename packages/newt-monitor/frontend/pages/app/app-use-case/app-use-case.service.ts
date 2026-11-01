@@ -1,4 +1,4 @@
-import { inject, Store } from 'newt-kit-react'
+import { inject, Store } from '@newt-kit/react'
 import { DEFAULT_BUCKET, type MetricsBucket, type MetricsWindow } from '../../../api/event-metrics'
 import { UseCaseErrorsApi, type ErrorCodeDTO, type ErrorsSeriesDTO, type ErrorsTopDTO } from '../../../api/use-case-errors'
 import { UseCaseMetricsApi, type UseCaseSeriesDTO, type UseCaseTopDTO } from '../../../api/use-case-metrics'

@@ -1,5 +1,5 @@
 import type { MeDTO, SignInDTO } from '../../../backend/contexts/auth/modules/session/session.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `session` module: who is signed in, in a cookie the page cannot read. */
 export class SessionApi extends Requester {

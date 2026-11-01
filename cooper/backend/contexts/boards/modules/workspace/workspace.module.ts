@@ -1,4 +1,4 @@
-import { allPages, currentActor, Module, UseCase } from 'newt-kit/core'
+import { allPages, currentActor, Module, UseCase } from '@newt-kit/newt/core'
 import { WORKSPACES_PRODUCT } from '../../../auth/modules/product/product.schema'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'

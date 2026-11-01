@@ -1,6 +1,6 @@
 import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
 import type { UseCaseSeriesDTO, UseCaseSeriesQueryDTO, UseCaseTopDTO, UseCaseTopQueryDTO, UseCaseTotalDTO } from '../../../backend/contexts/monitor/modules/use-case-metrics/use-case-metrics.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `useCaseMetrics` module: how each use case of an application went. */
 export class UseCaseMetricsApi extends Requester {

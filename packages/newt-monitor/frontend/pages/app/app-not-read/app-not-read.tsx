@@ -1,8 +1,8 @@
 import { BlocksIcon, RefreshCwIcon } from 'lucide-react'
-import { Box, BoxEmpty } from 'newt-kit-react-ui/box'
-import { Button } from 'newt-kit-react-ui/button'
-import { Icon } from 'newt-kit-react-ui/icon'
-import { useService, useValue } from 'newt-kit-react'
+import { Box, BoxEmpty } from '@newt-kit/react-ui/box'
+import { Button } from '@newt-kit/react-ui/button'
+import { Icon } from '@newt-kit/react-ui/icon'
+import { useService, useValue } from '@newt-kit/react'
 import type { AppDTO } from '../../../api/app'
 import { AppService } from '../app.service'
 

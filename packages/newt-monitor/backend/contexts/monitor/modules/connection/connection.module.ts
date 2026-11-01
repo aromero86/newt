@@ -1,5 +1,5 @@
-import { eventsOf, Module, UseCase } from 'newt-kit/core'
-import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from 'newt-kit/runtime'
+import { eventsOf, Module, UseCase } from '@newt-kit/newt/core'
+import type { ApplicationDescription, ClosedTraces, DeadJobs, EventCounts, Instances, OutboxState, QueueFlows, UseCaseTimings } from '@newt-kit/newt/runtime'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'

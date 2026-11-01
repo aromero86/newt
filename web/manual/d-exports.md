@@ -5,34 +5,34 @@ one table each: what the export is, in one line, and the chapter that covers it.
 where something is imported from, or what a name you met in code is for.</p>
 
 newt is one package with one entry per piece, its `exports` in `packages/newt/package.json`. There
-is no `import … from 'newt-kit'`: you always name the piece, so a frontend never pulls in the server
+is no `import … from '@newt-kit/newt'`: you always name the piece, so a frontend never pulls in the server
 and an application that never uses Kysely never loads it.
 
 The pieces build on each other; an arrow reads "is built on":
 
 ```mermaid
 flowchart TD
-  application["newt-kit/application"] --> runtime["newt-kit/runtime"]
-  application --> http["newt-kit/http"]
-  monitor["newt-kit/monitor"] --> runtime
-  http --> core["newt-kit/core"]
-  http --> ratelimit["newt-kit/port-rate-limit"]
+  application["@newt-kit/newt/application"] --> runtime["@newt-kit/newt/runtime"]
+  application --> http["@newt-kit/newt/http"]
+  monitor["@newt-kit/newt/monitor"] --> runtime
+  http --> core["@newt-kit/newt/core"]
+  http --> ratelimit["@newt-kit/newt/port-rate-limit"]
   runtime --> core
-  runtime --> portstore["newt-kit/port-store"]
-  repository["newt-kit/repository"] --> portstore
+  runtime --> portstore["@newt-kit/newt/port-store"]
+  repository["@newt-kit/newt/repository"] --> portstore
   repository --> core
-  adapters["newt/adapter-*"] --> sql["newt-kit/sql"]
+  adapters["newt/adapter-*"] --> sql["@newt-kit/newt/sql"]
   adapters --> portstore
-  contract["newt-kit/contract"] -.->|"part of"| core
+  contract["@newt-kit/newt/contract"] -.->|"part of"| core
 ```
 
 A few things to know before the tables:
 
-- **`newt-kit/contract` is the browser's part of `newt-kit/core`.** It re-exports the errors' base
+- **`@newt-kit/newt/contract` is the browser's part of `@newt-kit/newt/core`.** It re-exports the errors' base
   classes, the value objects, filters and pages, and the types the monitor reads. A module's
   `*.schema.ts` imports from it, never from core ([B](./b-lint#newt-schema-imports)).
-- **Some names come from two entries.** `newt-kit/runtime` re-exports the metric and trace types of
-  `newt-kit/contract`; `newt-kit/adapter-postgres` and `newt-kit/adapter-mysql` re-export `SqlTable`. They
+- **Some names come from two entries.** `@newt-kit/newt/runtime` re-exports the metric and trace types of
+  `@newt-kit/newt/contract`; `@newt-kit/newt/adapter-postgres` and `@newt-kit/newt/adapter-mysql` re-export `SqlTable`. They
   are the same thing; import from whichever entry you already use.
 - **`…/contract` subpaths are test suites** (`describeStoreContract` and friends): they run under
   `bun test` only.
@@ -42,32 +42,32 @@ A few things to know before the tables:
 
 | Subpath | What it is | Optional peer |
 |---|---|---|
-| [`newt-kit/core`](#newt-core) | Modules, entities, use cases, actor and scopes, time, errors, events, criteria, pages, value objects, tracing, logs. | |
-| [`newt-kit/contract`](#newt-contract) | What a backend and its clients share, and a browser may load. | |
-| [`newt-kit/port-store`](#newt-port-store) | The port every store implements. | |
-| [`newt-kit/port-store/contract`](#newt-port-store-contract) | The suite that checks a store. | |
-| [`newt-kit/port-outbox`](#newt-port-outbox) | The port of a store's outbox of jobs. | |
-| [`newt-kit/port-analytics`](#newt-port-analytics) | The port of an analytical database. | |
-| [`newt-kit/port-analytics/contract`](#newt-port-analytics-contract) | Its suite, and one in memory. | |
-| [`newt-kit/port-rate-limit`](#newt-port-rate-limit) | Where rate limits count, in memory and on a table. | |
-| [`newt-kit/port-rate-limit/contract`](#newt-port-rate-limit-contract) | The suite that checks a rate limit store. | |
-| [`newt-kit/repository`](#newt-repository) | Repositories. | |
-| [`newt-kit/runtime`](#newt-runtime) | A context at runtime: `Base`, `BoundedContext`, jobs, schedules, rate limits, metrics, traces. | |
-| [`newt-kit/sql`](#newt-sql) | What every SQL store shares. | |
-| [`newt-kit/adapter-sqlite`](#newt-adapter-sqlite) | The SQLite store. | |
-| [`newt-kit/adapter-postgres`](#newt-adapter-postgres) | The Postgres store. | |
-| [`newt-kit/adapter-mysql`](#newt-adapter-mysql) | The MySQL store. | |
-| [`newt-kit/adapter-files`](#newt-adapter-files) | A store of JSON files. | |
-| [`newt-kit/adapter-redis`](#newt-adapter-redis) | Rate limits on Redis. | |
-| [`newt-kit/adapter-duckdb`](#newt-adapter-duckdb) | Analytics on DuckDB. | `@duckdb/node-api` |
-| [`newt-kit/kysely`](#newt-kysely) | Kysely on a store's connection. | `kysely` |
-| [`newt-kit/http`](#newt-http) | A context's HTTP entry, on `Bun.serve`. | |
-| [`newt-kit/application`](#newt-application) | All contexts in one process. | |
-| [`newt-kit/otel`](#newt-otel) | A tracer that sends spans over OTLP. | |
-| [`newt-kit/monitor`](#newt-monitor) | The endpoint a monitor reads. | |
-| [`newt-kit/testing`](#newt-testing) | Helpers for HTTP tests. | |
+| [`@newt-kit/newt/core`](#newt-core) | Modules, entities, use cases, actor and scopes, time, errors, events, criteria, pages, value objects, tracing, logs. | |
+| [`@newt-kit/newt/contract`](#newt-contract) | What a backend and its clients share, and a browser may load. | |
+| [`@newt-kit/newt/port-store`](#newt-port-store) | The port every store implements. | |
+| [`@newt-kit/newt/port-store/contract`](#newt-port-store-contract) | The suite that checks a store. | |
+| [`@newt-kit/newt/port-outbox`](#newt-port-outbox) | The port of a store's outbox of jobs. | |
+| [`@newt-kit/newt/port-analytics`](#newt-port-analytics) | The port of an analytical database. | |
+| [`@newt-kit/newt/port-analytics/contract`](#newt-port-analytics-contract) | Its suite, and one in memory. | |
+| [`@newt-kit/newt/port-rate-limit`](#newt-port-rate-limit) | Where rate limits count, in memory and on a table. | |
+| [`@newt-kit/newt/port-rate-limit/contract`](#newt-port-rate-limit-contract) | The suite that checks a rate limit store. | |
+| [`@newt-kit/newt/repository`](#newt-repository) | Repositories. | |
+| [`@newt-kit/newt/runtime`](#newt-runtime) | A context at runtime: `Base`, `BoundedContext`, jobs, schedules, rate limits, metrics, traces. | |
+| [`@newt-kit/newt/sql`](#newt-sql) | What every SQL store shares. | |
+| [`@newt-kit/newt/adapter-sqlite`](#newt-adapter-sqlite) | The SQLite store. | |
+| [`@newt-kit/newt/adapter-postgres`](#newt-adapter-postgres) | The Postgres store. | |
+| [`@newt-kit/newt/adapter-mysql`](#newt-adapter-mysql) | The MySQL store. | |
+| [`@newt-kit/newt/adapter-files`](#newt-adapter-files) | A store of JSON files. | |
+| [`@newt-kit/newt/adapter-redis`](#newt-adapter-redis) | Rate limits on Redis. | |
+| [`@newt-kit/newt/adapter-duckdb`](#newt-adapter-duckdb) | Analytics on DuckDB. | `@duckdb/node-api` |
+| [`@newt-kit/newt/kysely`](#newt-kysely) | Kysely on a store's connection. | `kysely` |
+| [`@newt-kit/newt/http`](#newt-http) | A context's HTTP entry, on `Bun.serve`. | |
+| [`@newt-kit/newt/application`](#newt-application) | All contexts in one process. | |
+| [`@newt-kit/newt/otel`](#newt-otel) | A tracer that sends spans over OTLP. | |
+| [`@newt-kit/newt/monitor`](#newt-monitor) | The endpoint a monitor reads. | |
+| [`@newt-kit/newt/testing`](#newt-testing) | Helpers for HTTP tests. | |
 
-## `newt-kit/core`
+## `@newt-kit/newt/core`
 
 What an application builds its modules with. Everything not exported here is private.
 
@@ -205,10 +205,10 @@ What an application builds its modules with. Everything not exported here is pri
 | `TraceSampling` | type | The share of uneventful traces kept, overall or by use case, route, queue or context. | [Traces](./44-traces) |
 | `SamplingRules` | type | Those shares by name. | [Traces](./44-traces) |
 
-## `newt-kit/contract`
+## `@newt-kit/newt/contract`
 
 What a backend and its clients share. Nothing here keeps a scope, so a frontend imports it as it
-is. Everything is also in `newt-kit/core` (or, for the monitor's types, `newt-kit/runtime`).
+is. Everything is also in `@newt-kit/newt/core` (or, for the monitor's types, `@newt-kit/newt/runtime`).
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -230,7 +230,7 @@ is. Everything is also in `newt-kit/core` (or, for the monitor's types, `newt-ki
 | `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile` | function | Duration histograms: a duration's bucket, a bucket's time, a percentile. | [Metrics](./43-metrics) |
 | `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` | const | The shortest time told apart (0.1 ms); each bucket 10% longer. | [Metrics](./43-metrics) |
 
-## `newt-kit/port-store`
+## `@newt-kit/newt/port-store`
 
 The port a store implements: tables, transactions, outbox and migrations.
 
@@ -249,7 +249,7 @@ The port a store implements: tables, transactions, outbox and migrations.
 | `TransactionScope` | class | The transaction machinery every adapter builds on. | [Stores](./26-stores) |
 | `noteRead` | function | Tells the save in progress a table read rows, for the guard rule. | [Stores](./26-stores) |
 
-## `newt-kit/port-store/contract`
+## `@newt-kit/newt/port-store/contract`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -257,7 +257,7 @@ The port a store implements: tables, transactions, outbox and migrations.
 | `StoreFixture` | type | How the suite opens fresh stores of an adapter. | [Stores](./26-stores) |
 | `ThingRow` | type | The row of the suite's table. | [Stores](./26-stores) |
 
-## `newt-kit/port-outbox`
+## `@newt-kit/newt/port-outbox`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -270,14 +270,14 @@ The port a store implements: tables, transactions, outbox and migrations.
 | `depthOf` | function | A queue's depth from its jobs, for adapters that read them all. | [Stores](./26-stores) |
 | `isSameClaim` | function | Whether a write on a job still belongs to its claim. | [Stores](./26-stores) |
 
-## `newt-kit/port-analytics`
+## `@newt-kit/newt/port-analytics`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `Analytics` | type | An analytical database, only appended to, fed by workers. | [Stores](./26-stores) |
 | `AnalyticsRow` | type | A row of a dataset: anything, with an id. | [Stores](./26-stores) |
 
-## `newt-kit/port-analytics/contract`
+## `@newt-kit/newt/port-analytics/contract`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -285,7 +285,7 @@ The port a store implements: tables, transactions, outbox and migrations.
 | `AnalyticsFixture` | type | How the suite opens and reads an adapter. | [Stores](./26-stores) |
 | `MemoryAnalytics` | class | Analytics in memory, for tests. | [Stores](./26-stores) |
 
-## `newt-kit/port-rate-limit`
+## `@newt-kit/newt/port-rate-limit`
 
 Where rate limits count what each key did lately.
 
@@ -301,14 +301,14 @@ Where rate limits count what each key did lately.
 | `MemoryRateLimitStore` | class | Counts in the process's memory: one instance. The default. | [Rate limits](./28-rate-limits) |
 | `TableRateLimitStore` | class | Counts on a table of any store (`rate_limit`): every instance sharing the store. | [Rate limits](./28-rate-limits) |
 
-## `newt-kit/port-rate-limit/contract`
+## `@newt-kit/newt/port-rate-limit/contract`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `describeRateLimitContract` | function | The suite that checks a rate limit store. | [Rate limits](./28-rate-limits) |
 | `RateLimitFixture` | type | How the suite opens and closes a store. | [Rate limits](./28-rate-limits) |
 
-## `newt-kit/repository`
+## `@newt-kit/newt/repository`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -319,7 +319,7 @@ Where rate limits count what each key did lately.
 | `RepositoryScope` | type | `{ field, current }`: what the rows belong to. | [Tenants](./22-tenants) |
 | `TableRepositoryOptions` | type | `scope` (required) and `softDelete`. | [Repositories](./07-repositories) |
 
-## `newt-kit/runtime`
+## `@newt-kit/newt/runtime`
 
 A context at runtime.
 
@@ -337,7 +337,7 @@ A context at runtime.
 | `RateLimits` | type | `base.rateLimits`: `define('<module>.<name>', rule)`. | [Rate limits](./28-rate-limits) |
 | `RateLimit` | type | A defined limit: `take(key)`, `forget(key)`. | [Rate limits](./28-rate-limits) |
 | `describeApplication` | function | The running application as it describes itself. | [Structure](./42-structure) |
-| `ApplicationDescription`, `ContextDescription`, `ModuleDescription`, `UseCaseDescription`, `EventDescription`, `ModuleDependency`, `SubscriptionDescription` | type | As in `newt-kit/contract`. | [Structure](./42-structure) |
+| `ApplicationDescription`, `ContextDescription`, `ModuleDescription`, `UseCaseDescription`, `EventDescription`, `ModuleDependency`, `SubscriptionDescription` | type | As in `@newt-kit/newt/contract`. | [Structure](./42-structure) |
 
 ### Metrics
 
@@ -348,11 +348,11 @@ A context at runtime.
 | `RedisMetrics`, `RedisMetricsOptions` | class, type | In Redis: any number of instances, summed. | [Running the monitor](./47-running-the-monitor) |
 | `setMetrics` | function | Where every context counts, set once at startup. | [Running the monitor](./47-running-the-monitor) |
 | `CountedEvent`, `TimedCall`, `QueueFlowEntry` | type | One event told, one call timed, one job's step: what is counted. | [Metrics](./43-metrics) |
-| `EventCount`, `EventCounts`, `UseCaseTiming`, `UseCaseTimings`, `Outcome`, `QueueFlow`, `QueueFlows` | type | As in `newt-kit/contract`. | [Metrics](./43-metrics) |
+| `EventCount`, `EventCounts`, `UseCaseTiming`, `UseCaseTimings`, `Outcome`, `QueueFlow`, `QueueFlows` | type | As in `@newt-kit/newt/contract`. | [Metrics](./43-metrics) |
 | `InstanceSample`, `InstanceMinute`, `Instances`, `InstanceState`, `MeanMax`, `MeanMin`, `ProcessReading`, `ServerReading` | type | What each instance tells of itself and its machine, every 10 seconds. | [Metrics](./43-metrics) |
 | `SAMPLE_EVERY_MS`, `LOST_AFTER_MS` | const | How often an instance samples itself; when it is taken for lost (three samples). | [Metrics](./43-metrics) |
-| `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` | type | As in `newt-kit/contract`. | [Queues](./45-queues) |
-| `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` | function, const | As in `newt-kit/contract`. | [Metrics](./43-metrics) |
+| `DeadJob`, `DeadJobs`, `OutboxState`, `QueueState` | type | As in `@newt-kit/newt/contract`. | [Queues](./45-queues) |
+| `histogramBucketOf`, `histogramBucketMs`, `histogramPercentile`, `HISTOGRAM_FLOOR_MS`, `HISTOGRAM_GROWTH` | function, const | As in `@newt-kit/newt/contract`. | [Metrics](./43-metrics) |
 
 ### Traces
 
@@ -363,9 +363,9 @@ A context at runtime.
 | `RedisTraces`, `RedisTracesOptions` | class, type | In Redis: any number of instances. | [Running the monitor](./47-running-the-monitor) |
 | `setTraces`, `SetTracesOptions` | function, type | Where traces are kept, their sampling, how many log lines each keeps. | [Traces](./44-traces) |
 | `enableTraces` | function | Turns traces on; `serveMonitor` calls it. | [Traces](./44-traces) |
-| `ClosedTraces`, `Trace`, `TraceSpan`, `TraceJob`, `TraceLog`, `TracedEvent`, `SpanKind`, `SpanAttributeValue` | type | As in `newt-kit/contract`. | [Traces](./44-traces) |
+| `ClosedTraces`, `Trace`, `TraceSpan`, `TraceJob`, `TraceLog`, `TracedEvent`, `SpanKind`, `SpanAttributeValue` | type | As in `@newt-kit/newt/contract`. | [Traces](./44-traces) |
 
-## `newt-kit/sql`
+## `@newt-kit/newt/sql`
 
 What every SQL store shares, for an adapter to build on.
 
@@ -381,7 +381,7 @@ What every SQL store shares, for an adapter to build on.
 | `SqlMigrationRunner` | class | Migrations of a server store. | [Stores](./26-stores) |
 | `errorCode` | function | The database's own code of an error (`23505`, `1062`). | [Stores](./26-stores) |
 
-## `newt-kit/adapter-sqlite`
+## `@newt-kit/newt/adapter-sqlite`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -390,23 +390,23 @@ What every SQL store shares, for an adapter to build on.
 | `SqliteOutbox` | class | Its outbox. | [Stores](./26-stores) |
 | `MigrationRunner` | class | Applies and reverts a folder's migrations. | [Stores](./26-stores) |
 
-## `newt-kit/adapter-postgres`
+## `@newt-kit/newt/adapter-postgres`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `PostgresStore` | class | The Postgres store on `Bun.SQL`; migrations all or none. | [Stores](./26-stores), [Production](./13-production) |
 | `PostgresStoreOptions` | type | `SqlStoreOptions`, by its name here. | [Stores](./26-stores) |
-| `SqlTable` | class | As in `newt-kit/sql`. | [Stores](./26-stores) |
+| `SqlTable` | class | As in `@newt-kit/newt/sql`. | [Stores](./26-stores) |
 
-## `newt-kit/adapter-mysql`
+## `@newt-kit/newt/adapter-mysql`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `MySqlStore` | class | The MySQL store on `Bun.SQL`. | [Stores](./26-stores) |
 | `MySqlStoreOptions` | type | `SqlStoreOptions`, by its name here. | [Stores](./26-stores) |
-| `SqlTable` | class | As in `newt-kit/sql`. | [Stores](./26-stores) |
+| `SqlTable` | class | As in `@newt-kit/newt/sql`. | [Stores](./26-stores) |
 
-## `newt-kit/adapter-files`
+## `@newt-kit/newt/adapter-files`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -418,14 +418,14 @@ What every SQL store shares, for an adapter to build on.
 | `FileMigration` | type | A migration: `up` and `down` functions over the collections. | [Stores](./26-stores) |
 | `FileMigrations` | class | Its migrations, kept in `_migrations`. | [Stores](./26-stores) |
 
-## `newt-kit/adapter-redis`
+## `@newt-kit/newt/adapter-redis`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `RedisRateLimitStore` | class | Rate limits on Redis, for several instances: one key per count, expiring on its own. | [Rate limits](./28-rate-limits) |
 | `RedisRateLimitStoreOptions` | type | Its options. | [Rate limits](./28-rate-limits) |
 
-## `newt-kit/adapter-duckdb`
+## `@newt-kit/newt/adapter-duckdb`
 
 Needs `@duckdb/node-api`.
 
@@ -436,7 +436,7 @@ Needs `@duckdb/node-api`.
 | `DuckDbColumnType` | type | The types its columns may have. | [Stores](./26-stores) |
 | `DuckDbParam` | type | A value a query may be given. | [Stores](./26-stores) |
 
-## `newt-kit/kysely`
+## `@newt-kit/newt/kysely`
 
 Needs `kysely`.
 
@@ -446,7 +446,7 @@ Needs `kysely`.
 | `whereOf` | function | Criteria as a Kysely condition, answered as `find` answers them. | [Queries](./25-queries) |
 | `SqliteRow` | type | A row as SQLite returns it to your own query. | [Queries](./25-queries) |
 
-## `newt-kit/http`
+## `@newt-kit/newt/http`
 
 A context's HTTP entry, on `Bun.serve`.
 
@@ -510,7 +510,7 @@ A context's HTTP entry, on `Bun.serve`.
 | `PayloadTooLarge` | class | 413 `payload_too_large`. | [Security](./27-security) |
 | `CrossOriginRefused` | class | 403 `cross_origin_refused`. | [Security](./27-security) |
 
-## `newt-kit/application`
+## `@newt-kit/newt/application`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -519,13 +519,13 @@ A context's HTTP entry, on `Bun.serve`.
 | `RunContextsOptions` | type | `tracer` for all contexts, `signals`, `stopTimeoutMs`. | [Production](./13-production) |
 | `RunningContexts` | type | What it returns: each context's server, and `stop()`. | [Production](./13-production) |
 
-## `newt-kit/otel`
+## `@newt-kit/newt/otel`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
 | `OtlpTracer`, `OtlpTracerOptions` | class, type | newt's `Tracer` sending spans to an OpenTelemetry collector over OTLP/HTTP JSON, without the SDK. | [Observability](./32-observability) |
 
-## `newt-kit/monitor`
+## `@newt-kit/newt/monitor`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -535,7 +535,7 @@ A context's HTTP entry, on `Bun.serve`.
 | `MemoryNonces`, `RedisNonces`, `NonceStore` | class, type | Where the endpoint remembers nonces, so a request is never replayed. | [Running the monitor](./47-running-the-monitor) |
 | `signTraceHeader`, `TRACE_HEADER`, `TRACE_HEADER_MAX_MS` | function, const | An `x-newt-trace` header that keeps a request's trace, signed, and how long it may last. | [Traces](./44-traces) |
 
-## `newt-kit/testing`
+## `@newt-kit/newt/testing`
 
 | Export | Kind | What it is | Chapter |
 |---|---|---|---|
@@ -546,10 +546,10 @@ A context's HTTP entry, on `Bun.serve`.
 
 ## Recap
 
-- One subpath per piece; there is no bare `newt-kit` import.
-- A schema and a frontend import `newt-kit/contract`, never `newt-kit/core`.
+- One subpath per piece; there is no bare `@newt-kit/newt` import.
+- A schema and a frontend import `@newt-kit/newt/contract`, never `@newt-kit/newt/core`.
 - Ports are `newt/port-*`; adapters are `newt/adapter-*`; `…/contract` subpaths are test suites.
-- The newest pieces: `newt-kit/port-rate-limit`, `newt-kit/adapter-redis`, and in `newt-kit/http` the rate
+- The newest pieces: `@newt-kit/newt/port-rate-limit`, `@newt-kit/newt/adapter-redis`, and in `@newt-kit/newt/http` the rate
   limit, security header, CSP and session cookie exports.
 
 ## Going further

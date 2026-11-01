@@ -1,4 +1,4 @@
-import { log } from 'newt-kit/core'
+import { log } from '@newt-kit/newt/core'
 
 /**
  * Runs something for each application, one after another. One that throws (its DuckDB

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { Page } from 'newt-kit/core'
-import type { Browser } from 'newt-kit/testing'
+import type { Page } from '@newt-kit/newt/core'
+import type { Browser } from '@newt-kit/newt/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { DeploymentDTO } from './deployment'

@@ -1,5 +1,5 @@
 import { BackofficeStaffApi, StaffGrantSchema, type StaffMemberDTO } from '@cooper/api/backoffice-staff'
-import { FormStore, inject, ListStore } from 'newt-kit-react'
+import { FormStore, inject, ListStore } from '@newt-kit/react'
 
 /** Who may use the backoffice: listed, given access by email, and taken it away. */
 export class StaffService {

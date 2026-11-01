@@ -1,5 +1,5 @@
 {
-  "name": "newt-kit",
+  "name": "@newt-kit/newt",
   "version": "0.1.0",
   "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
   "license": "MIT",
@@ -35,7 +35,6 @@
   "type": "module",
   "sideEffects": false,
   "bin": {
-    "newt-kit": "./cli/newt.ts",
     "newt": "./cli/newt.ts"
   },
   "exports": {

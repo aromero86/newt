@@ -1,4 +1,4 @@
-import { pageRequestFrom } from 'newt-kit/http'
+import { pageRequestFrom } from '@newt-kit/newt/http'
 import type { MonitorBase } from '../../../../monitor-base'
 import type { Catalog_Module } from './catalog.module'
 

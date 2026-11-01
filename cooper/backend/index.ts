@@ -1,8 +1,8 @@
 // bun cooper/backend/index.ts: cooper's backend. Every context in one process, each one
 // served on its own port, with the worker of its jobs running, until SIGINT or SIGTERM.
-import { runContexts } from 'newt-kit/application'
-import { RedisNonces, serveMonitor } from 'newt-kit/monitor'
-import { RedisMetrics, RedisTraces, setMetrics, setTraces } from 'newt-kit/runtime'
+import { runContexts } from '@newt-kit/newt/application'
+import { RedisNonces, serveMonitor } from '@newt-kit/newt/monitor'
+import { RedisMetrics, RedisTraces, setMetrics, setTraces } from '@newt-kit/newt/runtime'
 import { config } from './config'
 import { frontendSources } from './frontend-sources'
 import { cooperTracer, openContexts } from './open-contexts'

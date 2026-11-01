@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineFilter, Email } from 'newt-kit/contract'
+import { defineFilter, Email } from '@newt-kit/newt/contract'
 
 /** An account, as anyone sees it: never its password, nor its hash. */
 export const UserSchema = z.object({

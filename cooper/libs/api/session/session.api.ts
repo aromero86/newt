@@ -1,6 +1,6 @@
 import type { SessionSignInDTO, SessionSignUpDTO } from '../../../backend/contexts/auth/modules/session/session.schema'
 import type { UserDTO } from '../../../backend/contexts/auth/modules/user/user.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** auth's own session: signing up, in and out, and who is signed in. */
 export class SessionApi extends Requester {

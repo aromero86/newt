@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { EarIcon, WorkflowIcon } from 'lucide-react'
-import { Box, BoxBody, BoxHeader } from 'newt-kit-react-ui/box'
-import { Button } from 'newt-kit-react-ui/button'
-import { Graph } from 'newt-kit-react-ui/graph'
-import { Icon } from 'newt-kit-react-ui/icon'
-import { Text } from 'newt-kit-react-ui/text'
+import { Box, BoxBody, BoxHeader } from '@newt-kit/react-ui/box'
+import { Button } from '@newt-kit/react-ui/button'
+import { Graph } from '@newt-kit/react-ui/graph'
+import { Icon } from '@newt-kit/react-ui/icon'
+import { Text } from '@newt-kit/react-ui/text'
 import type { StructureGraph } from '../app-structure'
 
 type AppGraphProps = {

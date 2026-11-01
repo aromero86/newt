@@ -1,6 +1,6 @@
 import type { BunRequest } from 'bun'
-import { DomainError } from 'newt-kit/core'
-import { clearSessionCookie, setSessionCookie } from 'newt-kit/http'
+import { DomainError } from '@newt-kit/newt/core'
+import { clearSessionCookie, setSessionCookie } from '@newt-kit/newt/http'
 import type { CooperBase } from '../cooper-base'
 import { ownPath, type WebSession_Module } from './web-session.module'
 import type { WebSession_Options } from './web-session-options'

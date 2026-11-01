@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt-kit/core'
+import { NotFoundError } from '@newt-kit/newt/core'
 
 export class AuthorizationNotFound extends NotFoundError {
   readonly code = 'oauthGrant.not_found'

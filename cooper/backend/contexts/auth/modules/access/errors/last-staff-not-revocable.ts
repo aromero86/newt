@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 /** A product keeps someone of the staff: the last one, or someone taken away meanwhile, revokes no one. */
 export class LastStaffNotRevocable extends ConflictError {

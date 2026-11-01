@@ -1,6 +1,6 @@
 import type { StaffGrantDTO, StaffMemberDTO } from '../../../backend/contexts/backoffice/modules/staff/staff.schema'
-import type { Page } from 'newt-kit/contract'
-import { type PageRequest, Requester } from 'newt-kit-react'
+import type { Page } from '@newt-kit/newt/contract'
+import { type PageRequest, Requester } from '@newt-kit/react'
 
 /** The backoffice's `staff` module: who may use the backoffice. */
 export class BackofficeStaffApi extends Requester {
