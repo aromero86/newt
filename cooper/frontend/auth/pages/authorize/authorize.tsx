@@ -101,6 +101,8 @@ function AuthorizeWrapped() {
           {failure && <Alert tone="bad" title="Could not answer">{failure}</Alert>}
           <Text size="sm">It will act for you in {review.product.name}: read your workspaces and boards, and create, move and assign cards, as you would.</Text>
           <Text size="sm" tone="muted">{`Authorizing sends you back to ${review.redirectHost}.`}</Text>
+          {/* Anyone registers a client, under any name: the name proves nothing, where it is answered does. */}
+          <Alert tone="warn" title="Its name is not checked">{`Authorize it only if you are connecting it yourself right now, and ${review.redirectHost} is the application you expect.`}</Alert>
         </Stack>
       </Card>
     </>

@@ -1,6 +1,7 @@
 import { toOauthErrorResponse } from 'newt/http'
 import { z } from 'zod'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors'
+import { REGISTER_LIMIT, REGISTRATION_MAX_BYTES } from '../../../../shared/rate-limits'
 import type { AuthBase } from '../../auth-base'
 import type { OauthClient_Module } from './oauth-client.module'
 
@@ -12,7 +13,8 @@ const RegistrationRequest = z.object({ client_name: z.unknown(), redirect_uris: 
 
 export function registerOauthClientRoutes(base: AuthBase, clients: OauthClient_Module): void {
   // Dynamic client registration (RFC 7591), for MCP clients. Public: whoever registers
-  // is nobody in cooper yet. It speaks OAuth's wire format, errors included.
+  // is nobody in cooper yet, so each address registers a few, and small. It speaks
+  // OAuth's wire format, errors included.
   base.oauth.post('/oauth/register', async request => {
     const body = RegistrationRequest.parse(await request.json())
     if (body.token_endpoint_auth_method !== undefined && body.token_endpoint_auth_method !== 'none') {
@@ -32,5 +34,5 @@ export function registerOauthClientRoutes(base: AuthBase, clients: OauthClient_M
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
     }, { status: 201, headers: { 'cache-control': 'no-store' } })
-  }, { cors: OPEN_TO_BROWSERS, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
+  }, { cors: OPEN_TO_BROWSERS, rateLimit: REGISTER_LIMIT, maxBodyBytes: REGISTRATION_MAX_BYTES, onError: error => toOauthErrorResponse(error, 'invalid_client_metadata') })
 }
