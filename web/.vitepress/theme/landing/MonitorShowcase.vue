@@ -2,13 +2,14 @@
 import { computed, ref } from 'vue'
 import { withBase } from 'vitepress'
 import Shot from './Shot.vue'
-import { onInView, reducedMotion, trackPointer } from './motion'
+import { useCopy } from './i18n'
+import { onInView, reducedMotion } from './motion'
 
 /**
  * What newt-monitor shows of an application, one screen each, with what to look at on it: each hotspot is where
  * it is on the screenshot, in percent of its width and height. `ratio` is the screenshot's height over its width.
  */
-const screens = [
+const english = [
   {
     key: 'overview', label: 'Overview', shot: 'monitor-overview', ratio: 0.625, path: 'cooper',
     title: 'The whole application, at a glance',
@@ -17,7 +18,7 @@ const screens = [
     spots: [
       { x: 53, y: 29, label: '150 use cases, read from the code' },
       { x: 61, y: 60, label: '0 failures nobody expected' },
-      { x: 67, y: 76, label: 'A deploy, marked on every chart' },
+      { x: 56.5, y: 76, label: 'A deploy, marked on every chart' },
     ],
   },
   {
@@ -38,10 +39,10 @@ const screens = [
     text: 'Calls, errors by code, failures nobody expected, conflicts that ran it again, p50 to p99, beside the window before. Errors it says may happen are told apart from the ones that should not.',
     link: '/book/43-metrics',
     spots: [
-      { x: 53, y: 31.5, label: '368 errors it says may happen' },
+      { x: 53, y: 31.5, label: '591 errors it says may happen' },
       { x: 74, y: 31.5, label: '0 failures' },
       { x: 68.5, y: 40.5, label: 'p99, beside the hour before' },
-      { x: 38, y: 51.2, label: 'Since the deploy' },
+      { x: 33.3, y: 51.2, label: 'Since the deploy' },
     ],
   },
   {
@@ -87,6 +88,44 @@ const screens = [
     spots: [],
   },
 ]
+const screens = useCopy(english, [
+  {
+    label: 'Resumen', title: 'Toda la aplicación, de un vistazo',
+    text: 'De qué está hecha, leído de su código. Sus instancias, disco, memoria y event loop. Las llamadas, errores, fallos y tiempos de cada caso de uso, de la última hora al último año, con cada despliegue marcado.',
+    spots: [{ label: '150 casos de uso, leídos del código' }, { label: '0 fallos que nadie esperaba' }, { label: 'Un despliegue, marcado en cada gráfica' }],
+  },
+  {
+    label: 'Estructura', title: 'Qué usa qué, dibujado desde el código',
+    text: 'Cada módulo con lo que usa y lo que lo usa, entre contextos. Cada caso de uso dice si escribe solo en su módulo, y si vuelve a ejecutarse ante un conflicto.',
+    spots: [{ label: 'card, y sus dependencias' }, { label: 'auth: otro contexto' }, { label: 'backoffice lo escucha' }, { label: 'Escribe solo en su módulo' }],
+  },
+  {
+    label: 'Casos de uso', title: 'Cada caso de uso, medido',
+    text: 'Llamadas, errores por código, fallos que nadie esperaba, conflictos que lo repitieron, de p50 a p99, junto a la ventana anterior. Los errores que dice que pueden pasar se separan de los que no deberían.',
+    spots: [{ label: '591 errores que dice que pueden pasar' }, { label: '0 fallos' }, { label: 'p99, junto a la hora anterior' }, { label: 'Desde el despliegue' }],
+  },
+  {
+    label: 'Trazas', title: 'Una petición, hasta la última consulta',
+    text: 'Los casos de uso a los que llamó, en su contexto y en otros, cada consulta con sus criterios y filas, la transacción, el evento contado y los workers que vinieron después.',
+    spots: [{ label: '4 ms, la petición entera' }, { label: 'auth, llamado por su caso de uso' }, { label: 'Una transacción' }, { label: 'card.created, contado tras el commit' }, { label: 'Sus workers, tras la respuesta' }],
+  },
+  {
+    label: 'Colas', title: 'El outbox, en directo',
+    text: 'Cada cola: lo que espera, lo que corre, cuánto esperan los jobs, lo que murió. Una cola que nadie atiende tras un despliegue queda marcada. La profundidad en el tiempo te dice que un worker se quedó atrás antes que tus usuarios.',
+    spots: [{ label: 'Un job agotó sus intentos' }, { label: 'Cuánto esperaron los jobs' }, { label: 'Cada cola, con el nombre de lo que ejecuta' }],
+  },
+  {
+    label: 'Jobs muertos', title: 'Qué murió, y por qué',
+    text: 'Un job que falló todos sus intentos guarda su evento y su último error. Lee por qué, arregla la causa y deja que tu aplicación lo vuelva a poner: en cooper, el backoffice lo hace con un botón.',
+    spots: [{ label: 'Muerto ahora' }, { label: 'Su último error' }, { label: '5 intentos' }],
+  },
+  {
+    label: 'Sistema', title: 'Sus instancias, y sus máquinas',
+    text: 'CPU, memoria, retraso del event loop y disco de cada instancia, y cuántas estaban vivas, minuto a minuto, entre despliegues.',
+  },
+])
+const ui = useCopy({ aria: 'What newt-monitor shows', book: 'In the book →' }, { aria: 'Lo que enseña newt-monitor', book: 'En el libro →' })
+
 /** Each screen shows this long, and its screenshot scrolls in the frame's 16:10. */
 const DWELL = 8
 const FRAME = 0.625
@@ -94,7 +133,7 @@ const FRAME = 0.625
 const current = ref(0)
 const cycle = ref(0)
 const playing = ref(false)
-const screen = computed(() => screens[current.value]!)
+const screen = computed(() => screens.value[current.value]!)
 
 /** When each hotspot shows: once the scrolling screenshot brings it into the frame, and one after the other. */
 const spots = computed(() => {
@@ -109,45 +148,31 @@ const spots = computed(() => {
 const pan = computed(() => `${(-Math.max(0, screen.value.ratio - FRAME) / screen.value.ratio * 100).toFixed(2)}%`)
 
 function pick(index: number) { current.value = index; cycle.value++ }
-function next() { if (!reducedMotion()) pick((current.value + 1) % screens.length) }
+function next() { if (!reducedMotion()) pick((current.value + 1) % screens.value.length) }
 
 const root = ref<HTMLElement>()
 onInView(root, () => { playing.value = true }, { threshold: 0.3, leave: () => { playing.value = false } })
 
-function tilt(event: PointerEvent) {
-  trackPointer(event)
-  const element = event.currentTarget as HTMLElement
-  const box = element.getBoundingClientRect()
-  element.style.setProperty('--rx', `${((event.clientY - box.top) / box.height - 0.5) * -5}deg`)
-  element.style.setProperty('--ry', `${((event.clientX - box.left) / box.width - 0.5) * 6}deg`)
-}
-function untilt(event: PointerEvent) {
-  const element = event.currentTarget as HTMLElement
-  element.style.setProperty('--rx', '0deg')
-  element.style.setProperty('--ry', '0deg')
-}
 </script>
 
 <template>
   <div ref="root" class="showcase" :data-playing="playing" :style="{ '--dwell': `${DWELL}s` }">
-    <div class="tabs" role="tablist" aria-label="What newt-monitor shows">
+    <div class="tabs" role="tablist" :aria-label="ui.aria">
       <div v-for="(each, index) in screens" :key="each.key" role="tab" tabindex="0" @keydown.enter="pick(index)" :aria-selected="index === current" :class="{ on: index === current }" @click="pick(index)">
         <span class="tab-label">{{ each.label }}</span>
         <span class="tab-body">
           <strong>{{ each.title }}</strong>
           <span>{{ each.text }}</span>
-          <a :href="withBase(each.link)" @click.stop>In the book →</a>
+          <a :href="withBase(each.link)" @click.stop>{{ ui.book }}</a>
         </span>
         <span class="progress"><i v-if="index === current" :key="cycle" @animationend="next" /></span>
       </div>
     </div>
 
-    <div class="stage" @pointermove="tilt" @pointerleave="untilt">
-      <div class="halo" aria-hidden="true" />
+    <div class="stage">
       <div class="browser">
         <div class="bar">
-          <span class="lights"><i /><i /><i /></span>
-          <span class="url"><b>🔒</b> monitor.your-company.dev/apps/{{ screen.path }}</span>
+          <span class="url">monitor.your-company.dev/apps/{{ screen.path }}</span>
         </div>
         <div class="frame">
           <div :key="`${current}-${cycle}`" class="pan" :style="{ '--pan': pan }">
@@ -156,7 +181,6 @@ function untilt(event: PointerEvent) {
               <i /><em>{{ spot.label }}</em>
             </span>
           </div>
-          <div class="sheen" aria-hidden="true" />
         </div>
       </div>
     </div>
@@ -167,47 +191,39 @@ function untilt(event: PointerEvent) {
 .showcase { display: grid; grid-template-columns: minmax(0, .62fr) minmax(0, 1.38fr); gap: clamp(24px, 4vw, 48px); align-items: center; }
 
 .tabs { display: grid; gap: 4px; }
-.tabs > [role=tab] { cursor: pointer; outline-offset: 2px; position: relative; display: block; width: 100%; text-align: left; padding: 14px 18px 16px; border-radius: 6px; border: 1px solid transparent; transition: background .3s ease, border-color .3s ease; }
+.tabs > [role=tab] { cursor: pointer; outline-offset: 2px; position: relative; display: block; width: 100%; text-align: left; padding: 14px 18px 16px; border-radius: 4px; border: 1px solid transparent; transition: background .3s ease, border-color .3s ease; }
 .tabs > [role=tab]:hover { background: var(--l-panel); }
 .tabs > [role=tab].on { background: var(--l-panel); border-color: var(--l-border); box-shadow: var(--l-shadow); }
-.tab-label { display: block; font-size: 15.5px; font-weight: 700; color: var(--l-ink-3); transition: color .3s ease; }
+.tab-label { display: block; font-size: 15px; font-weight: 600; color: var(--l-ink-3); transition: color .3s ease; }
 .on .tab-label { color: var(--l-ink); }
 .tab-body { display: flex; flex-direction: column; overflow: hidden; max-height: 0; transition: max-height .6s ease; }
 .on .tab-body { max-height: 260px; }
-.tab-body strong { margin-top: 8px; font-size: 18px; line-height: 1.25; color: var(--l-ink); letter-spacing: -0.01em; }
+.tab-body strong { margin-top: 8px; font-size: 17px; font-weight: 650; line-height: 1.25; color: var(--l-ink); letter-spacing: -0.01em; }
 .tab-body span { margin-top: 6px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 .tab-body a { margin-top: 8px; font-size: 13.5px; font-weight: 650; color: var(--l-green-ink); }
 .progress { position: absolute; left: 18px; right: 18px; bottom: 6px; height: 2px; border-radius: 2px; background: transparent; overflow: hidden; }
 .on .progress { background: var(--l-border); }
-.progress i { display: block; height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--l-green), var(--l-orange)); animation: progress var(--dwell) linear forwards; animation-play-state: paused; }
+.progress i { display: block; height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--l-orange); animation: progress var(--dwell) linear forwards; animation-play-state: paused; }
 .showcase[data-playing="true"] .progress i { animation-play-state: running; }
 .showcase:hover .progress i { animation-play-state: paused; }
 @keyframes progress { to { transform: scaleX(1); } }
 
-.stage { --rx: 0deg; --ry: 0deg; position: relative; perspective: 1600px; }
-.halo { position: absolute; inset: 6% 4% -4%; z-index: -1; background: radial-gradient(ellipse at var(--x, 50%) var(--y, 50%), var(--l-glow-green), transparent 65%), radial-gradient(ellipse at 80% 90%, var(--l-glow-orange), transparent 60%); filter: blur(40px); }
-.browser { border-radius: 6px; overflow: hidden; background: var(--l-code-bg); border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .25s ease-out; }
-.bar { display: flex; align-items: center; gap: 16px; height: 42px; padding: 0 16px; background: var(--l-code-bar); border-bottom: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); }
-.lights { display: flex; gap: 7px; }
-.lights i { width: 11px; height: 11px; border-radius: 50%; background: #cc241d; }
-.lights i:nth-child(2) { background: #d79921; }
-.lights i:nth-child(3) { background: #98971a; }
-.url { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 4px; background: color-mix(in srgb, var(--l-code-ink) 5%, transparent); color: var(--l-code-dim); font-size: 12px; font-family: var(--vp-font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.url b { font-size: 10px; filter: grayscale(1); }
+.stage { position: relative; }
+.browser { border-radius: 4px; overflow: hidden; background: var(--l-code-bg); border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); }
+.bar { display: flex; align-items: center; gap: 16px; height: 36px; padding: 0 14px; background: var(--l-code-bar); border-bottom: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); }
+.url { flex: 1; min-width: 0; display: flex; align-items: center; color: var(--l-code-dim); font-size: 12px; font-family: var(--vp-font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .frame { position: relative; aspect-ratio: 16 / 10; overflow: hidden; }
 .pan { position: relative; animation: pan var(--dwell) ease-in-out both, enter .6s ease both; animation-play-state: paused; }
 .showcase[data-playing="true"] .pan { animation-play-state: running; }
 .showcase:hover .pan, .showcase:hover .spot { animation-play-state: paused; }
 @keyframes pan { 0%, 30% { transform: translateY(0); } 85%, 100% { transform: translateY(var(--pan)); } }
-@keyframes enter { from { opacity: 0; filter: blur(6px); } to { opacity: 1; filter: none; } }
-.sheen { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(500px circle at var(--x, 50%) var(--y, 0%), color-mix(in srgb, var(--l-code-ink) 7%, transparent), transparent 60%); }
+@keyframes enter { from { opacity: 0; } }
 
-.spot { position: absolute; z-index: 1; width: 0; height: 0; opacity: 0; animation: spot .5s cubic-bezier(.3,1.5,.5,1) both; animation-play-state: paused; }
+.spot { position: absolute; z-index: 1; width: 0; height: 0; opacity: 0; animation: spot .4s ease both; animation-play-state: paused; }
 .showcase[data-playing="true"] .spot { animation-play-state: running; }
-@keyframes spot { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
-.spot i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--l-orange); border: 2px solid var(--l-bg); box-shadow: 0 0 0 0 color-mix(in srgb, var(--l-orange) 70%, transparent); animation: ring 1.8s infinite; }
-@keyframes ring { to { box-shadow: 0 0 0 16px color-mix(in srgb, var(--l-orange) 0%, transparent); } }
-.spot em { position: absolute; left: 16px; top: -15px; padding: 6px 11px; border-radius: 4px; font-style: normal; font-size: 12.5px; font-weight: 650; white-space: nowrap; color: var(--l-bg); background: var(--l-ink); border-left: 3px solid var(--l-orange); box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
+@keyframes spot { from { opacity: 0; transform: translateY(4px); } }
+.spot i { position: absolute; left: -7px; top: -7px; width: 12px; height: 12px; border-radius: 50%; background: var(--l-orange); border: 2px solid var(--l-bg); }
+.spot em { position: absolute; left: 16px; top: -15px; padding: 5px 10px; border-radius: 2px; font-style: normal; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--l-bg); background: var(--l-ink); border-left: 3px solid var(--l-orange); }
 .spot.left em { left: auto; right: 16px; }
 
 @media (max-width: 1000px) {

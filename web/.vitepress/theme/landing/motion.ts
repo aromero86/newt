@@ -36,11 +36,3 @@ export function useTimers() {
     clear() { for (const each of pending) clearTimeout(each); pending.clear() },
   }
 }
-
-/** A pointer's place inside an element, as --x and --y, for the spotlights that follow it. */
-export function trackPointer(event: PointerEvent): void {
-  const element = event.currentTarget as HTMLElement
-  const box = element.getBoundingClientRect()
-  element.style.setProperty('--x', `${event.clientX - box.left}px`)
-  element.style.setProperty('--y', `${event.clientY - box.top}px`)
-}

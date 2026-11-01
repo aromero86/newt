@@ -73,6 +73,26 @@ const sidebar: DefaultTheme.Sidebar = {
 export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun, with a monitor that sees everything it runs',
+  // The landing speaks English and Spanish; the book, English only, so the language menu leads to each landing.
+  locales: {
+    root: { label: 'English', lang: 'en' },
+    es: {
+      label: 'Español',
+      lang: 'es',
+      description: 'Un framework de backend para Bun, con un monitor que ve todo lo que ejecuta',
+      themeConfig: {
+        nav: [
+          { text: 'El libro', link: '/book/00-how-to-read' },
+          { text: 'Más a fondo', link: '/book/20-concurrency' },
+          { text: 'Monitor', link: '/book/40-monitor' },
+          { text: 'Apéndices', link: '/book/a-rules' },
+        ],
+        darkModeSwitchLabel: 'Apariencia',
+        langMenuLabel: 'Idioma',
+        returnToTopLabel: 'Volver arriba',
+      },
+    },
+  },
   cleanUrls: true,
   head: [['meta', { name: 'theme-color', content: '#427b58' }]],
   markdown: {
@@ -96,7 +116,15 @@ export default defineConfig({
     ],
     sidebar,
     outline: { level: [2, 3] },
-    search: { provider: 'local' },
+    search: {
+      provider: 'local',
+      options: {
+        locales: {
+          es: { translations: { button: { buttonText: 'Buscar', buttonAriaLabel: 'Buscar' }, modal: { noResultsText: 'Sin resultados para', footer: { selectText: 'elegir', navigateText: 'moverse', closeText: 'cerrar' } } } },
+        },
+      },
+    },
+    i18nRouting: false,
     socialLinks: [{ icon: 'github', link: 'https://github.com/aromero86/newt' }],
   },
 })
