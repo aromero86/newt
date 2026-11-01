@@ -4,7 +4,7 @@
   "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
   "license": "MIT",
   "author": "Angel Romero",
-  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt#readme",
+  "homepage": "https://aromero86.github.io/newt/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aromero86/newt.git",

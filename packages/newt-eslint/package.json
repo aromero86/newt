@@ -4,7 +4,7 @@
   "description": "The lint of an application built with newt: every module made of the same files, reaching others only through what they offer, and writing only through its repository.",
   "license": "MIT",
   "author": "Angel Romero",
-  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt-eslint#readme",
+  "homepage": "https://aromero86.github.io/newt/manual/b-lint",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aromero86/newt.git",

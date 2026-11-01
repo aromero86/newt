@@ -5,7 +5,7 @@ entities and domain events with a transactional outbox, kept in stores you can s
 And **newt-monitor**, which shows a newt application running in production in its own words:
 its contexts, use cases, events, queues and traces, down to the last query.
 
-**[Read the manual](https://newt-docs.46.224.177.167.sslip.io/manual/00-how-to-read)**: newt
+**[Read the manual](https://aromero86.github.io/newt/manual/00-how-to-read)**: newt
 explained through cooper, a real application, from the essentials to the monitor.
 
 ## Getting started
