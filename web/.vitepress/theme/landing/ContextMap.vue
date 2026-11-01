@@ -52,17 +52,17 @@ const lit = (edge: typeof edges[number]) => active.value === edge.from || active
 
         <g v-for="context in contexts" :key="context.name" class="context" :class="[context.name, { dim: active && active !== context.name }]" tabindex="0"
            @mouseenter="active = context.name" @mouseleave="active = null" @focus="active = context.name" @blur="active = null">
-          <rect :x="context.x" :y="context.y" :width="W" :height="heightOf(context.modules.length)" rx="18" class="box" />
-          <rect :x="context.x" :y="context.y" :width="W" height="4" rx="2" class="accent" />
+          <rect :x="context.x" :y="context.y" :width="W" :height="heightOf(context.modules.length)" rx="6" class="box" />
+          <rect :x="context.x" :y="context.y" :width="W" height="4" rx="3" class="accent" />
           <text :x="context.x + 18" :y="context.y + 34" class="name">{{ context.name }}</text>
           <text :x="context.x + 20 + context.name.length * 11" :y="context.y + 34" class="count">{{ context.modules.length }} modules</text>
           <g class="db" :transform="`translate(${context.x + W - 38}, ${context.y + 16})`">
-            <ellipse cx="11" cy="4" rx="11" ry="4" />
+            <ellipse cx="11" cy="4" rx="6" ry="4" />
             <path d="M0,4 V18 A11,4 0 0 0 22,18 V4" />
             <path d="M0,11 A11,4 0 0 0 22,11" class="ring" />
           </g>
           <g v-for="(module, index) in context.modules" :key="module">
-            <rect :x="context.x + 14 + (index % 2) * 124" :y="context.y + 52 + Math.floor(index / 2) * 32" width="116" height="25" rx="8" class="module" />
+            <rect :x="context.x + 14 + (index % 2) * 124" :y="context.y + 52 + Math.floor(index / 2) * 32" width="116" height="25" rx="6" class="module" />
             <text :x="context.x + 72 + (index % 2) * 124" :y="context.y + 69 + Math.floor(index / 2) * 32" class="module-name">{{ module }}</text>
           </g>
         </g>
@@ -91,7 +91,7 @@ const lit = (edge: typeof edges[number]) => active.value === edge.from || active
 </template>
 
 <style scoped>
-.canvas { padding: 18px 18px 22px; border-radius: 24px; }
+.canvas { padding: 18px 18px 22px; border-radius: 6px; }
 svg { display: block; width: 100%; height: auto; overflow: visible; }
 .stop-a { stop-color: var(--l-panel-solid); }
 .stop-b { stop-color: var(--l-bg-2); }
@@ -120,7 +120,7 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 @keyframes dash { to { stroke-dashoffset: -11; } }
 .forbidden path { fill: none; stroke: var(--l-red); stroke-width: 2.4; stroke-dasharray: 7 6; animation: dash 1s linear infinite; }
 .forbidden circle { fill: var(--l-red); filter: drop-shadow(0 0 8px var(--l-red)); animation: pop .4s cubic-bezier(.3,1.6,.5,1); transform-origin: 320px -18px; }
-.forbidden text { font-size: 14px; font-weight: 800; fill: #fff; text-anchor: middle; }
+.forbidden text { font-size: 14px; font-weight: 800; fill: var(--l-on-accent); text-anchor: middle; }
 @keyframes pop { from { transform: scale(0); } }
 .note { min-height: 48px; margin-top: 10px; text-align: center; font-size: 15px; line-height: 1.55; color: var(--l-ink-2); }
 
@@ -128,9 +128,9 @@ svg { display: block; width: 100%; height: auto; overflow: visible; }
 .try .l-btn.on { border-color: var(--l-red); color: var(--l-red); }
 .toast { margin-top: 14px; }
 .toast pre { font-size: 12px; line-height: 1.7; }
-.file { color: #e6f0eb; text-decoration: underline; text-underline-offset: 3px; }
-.err { color: #ff5d62; font-weight: 700; }
-.rule { color: #6f8379; }
+.file { color: var(--l-code-ink); text-decoration: underline; text-underline-offset: 3px; }
+.err { color: var(--l-red); font-weight: 700; }
+.rule { color: var(--l-code-dim); }
 .toast-enter-active, .toast-leave-active { transition: opacity .35s ease, transform .35s cubic-bezier(.3,1.4,.5,1); }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px) scale(.98); }
 </style>

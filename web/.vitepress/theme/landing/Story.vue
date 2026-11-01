@@ -257,8 +257,8 @@ onBeforeUnmount(() => observer?.disconnect())
 .index { font-family: var(--vp-font-family-mono); font-size: 13px; font-weight: 700; color: var(--l-red); letter-spacing: .08em; }
 .pain { margin-top: 10px; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 800; color: var(--l-ink); }
 .tale { margin-top: 14px; font-size: 17px; line-height: 1.6; color: var(--l-ink-2); }
-.answer { display: flex; gap: 14px; margin-top: 28px; padding: 20px 22px; border-radius: 16px; background: color-mix(in srgb, var(--l-green) 9%, transparent); border: 1px solid color-mix(in srgb, var(--l-green) 30%, transparent); }
-.tick { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #fff; background: var(--l-green); box-shadow: 0 0 0 5px color-mix(in srgb, var(--l-green) 18%, transparent); }
+.answer { display: flex; gap: 14px; margin-top: 28px; padding: 20px 22px; border-radius: 6px; background: color-mix(in srgb, var(--l-green) 9%, transparent); border: 1px solid color-mix(in srgb, var(--l-green) 30%, transparent); }
+.tick { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: var(--l-on-accent); background: var(--l-green); box-shadow: 0 0 0 5px color-mix(in srgb, var(--l-green) 18%, transparent); }
 .answer h3 { font-size: 18px; font-weight: 750; color: var(--l-green-ink); }
 .answer p { margin-top: 6px; font-size: 15px; line-height: 1.6; color: var(--l-ink-2); }
 .answer a { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 650; color: var(--l-green-ink); }
@@ -266,18 +266,18 @@ onBeforeUnmount(() => observer?.disconnect())
 
 .sticky { position: relative; }
 .panel { position: sticky; top: calc(var(--vp-nav-height, 64px) + 12vh); }
-.switch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; padding: 4px; margin-bottom: 18px; border-radius: 999px; background: var(--l-panel); border: 1px solid var(--l-border); }
-.switch button { position: relative; z-index: 1; height: 36px; padding: 0 18px; border-radius: 999px; font-size: 13.5px; font-weight: 650; color: var(--l-ink-3); transition: color .3s ease; }
-.switch button.on { color: #fff; }
-.thumb { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px; background: var(--l-red); transition: transform .5s cubic-bezier(.6,.0,.2,1), background .5s ease; box-shadow: 0 6px 18px -6px var(--l-red); }
+.switch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; padding: 4px; margin-bottom: 18px; border-radius: 4px; background: var(--l-panel); border: 1px solid var(--l-border); }
+.switch button { position: relative; z-index: 1; height: 36px; padding: 0 18px; border-radius: 4px; font-size: 13.5px; font-weight: 650; color: var(--l-ink-3); transition: color .3s ease; }
+.switch button.on { color: var(--l-on-accent); }
+.thumb { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 4px; background: var(--l-red); transition: transform .5s cubic-bezier(.6,.0,.2,1), background .5s ease; box-shadow: 0 6px 18px -6px var(--l-red); }
 .thumb.after { transform: translateX(100%); background: var(--l-green); box-shadow: 0 6px 18px -6px var(--l-green); }
 
 .code { min-height: 300px; transition: box-shadow .6s ease, border-color .6s ease; }
 .code.before { border-color: color-mix(in srgb, var(--l-red) 45%, transparent); box-shadow: var(--l-shadow-big), 0 0 0 1px color-mix(in srgb, var(--l-red) 25%, transparent), 0 30px 80px -30px color-mix(in srgb, var(--l-red) 60%, transparent); }
 .code.after { border-color: color-mix(in srgb, var(--l-green) 45%, transparent); box-shadow: var(--l-shadow-big), 0 0 0 1px color-mix(in srgb, var(--l-green) 25%, transparent), 0 30px 80px -30px color-mix(in srgb, var(--l-green) 70%, transparent); }
 .code.before pre { filter: saturate(.6); }
-.scan { position: absolute; left: 0; right: 0; top: 40px; height: 60px; background: linear-gradient(transparent, rgba(255, 93, 98, .12), transparent); animation: scan 2.4s linear infinite; pointer-events: none; }
-.code.after .scan { background: linear-gradient(transparent, rgba(34, 197, 143, .12), transparent); }
+.scan { position: absolute; left: 0; right: 0; top: 40px; height: 60px; background: linear-gradient(transparent, color-mix(in srgb, var(--l-red) 12%, transparent), transparent); animation: scan 2.4s linear infinite; pointer-events: none; }
+.code.after .scan { background: linear-gradient(transparent, color-mix(in srgb, var(--l-green) 12%, transparent), transparent); }
 @keyframes scan { from { transform: translateY(-60px); } to { transform: translateY(300px); } }
 
 .verdict { display: flex; gap: 10px; align-items: baseline; margin-top: 18px; font-size: 15.5px; font-weight: 600; line-height: 1.5; }

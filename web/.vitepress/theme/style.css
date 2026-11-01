@@ -1,46 +1,124 @@
-/* newt's colours: a newt's green back, and its orange belly for what stands out. */
+/*
+ * newt's colours are gruvbox's: its warm paper in light, its dark wood in dark. Aqua is newt's own colour,
+ * orange what stands out; corners stay square-ish.
+ */
 :root {
-  --newt-green-1: #0b7a5c;
-  --newt-green-2: #0f9d76;
-  --newt-green-3: #34c39a;
-  --newt-green-soft: rgba(15, 157, 118, 0.12);
-  --newt-orange-1: #c2560c;
-  --newt-orange-2: #ea7317;
-  --newt-orange-soft: rgba(234, 115, 23, 0.12);
+  --newt-green-1: #427b58;
+  --newt-green-2: #689d6a;
+  --newt-green-3: #8ec07c;
+  --newt-green-soft: rgba(104, 157, 106, 0.16);
+  --newt-orange-1: #af3a03;
+  --newt-orange-2: #d65d0e;
+  --newt-orange-soft: rgba(214, 93, 14, 0.14);
 
-  --vp-c-brand-1: var(--newt-green-1);
-  --vp-c-brand-2: var(--newt-green-2);
-  --vp-c-brand-3: var(--newt-green-2);
-  --vp-c-brand-soft: var(--newt-green-soft);
+  --vp-c-bg: #fbf1c7;
+  --vp-c-bg-alt: #f2e5bc;
+  --vp-c-bg-soft: #f2e5bc;
+  --vp-c-bg-elv: #f9f5d7;
+  --vp-c-text-1: #3c3836;
+  --vp-c-text-2: #504945;
+  --vp-c-text-3: #7c6f64;
+  --vp-c-divider: #d5c4a1;
+  --vp-c-border: #bdae93;
+  --vp-c-gutter: #ebdbb2;
+  --vp-c-default-1: #7c6f64;
+  --vp-c-default-2: #928374;
+  --vp-c-default-3: #a89984;
+  --vp-c-default-soft: rgba(146, 131, 116, 0.16);
 
-  --vp-c-tip-1: var(--newt-green-1);
-  --vp-c-tip-2: var(--newt-green-2);
-  --vp-c-tip-3: var(--newt-green-2);
-  --vp-c-tip-soft: var(--newt-green-soft);
+  --vp-c-brand-1: #427b58;
+  --vp-c-brand-2: #689d6a;
+  --vp-c-brand-3: #689d6a;
+  --vp-c-brand-soft: rgba(104, 157, 106, 0.16);
+  --vp-c-tip-1: #427b58;
+  --vp-c-tip-2: #689d6a;
+  --vp-c-tip-3: #689d6a;
+  --vp-c-tip-soft: rgba(104, 157, 106, 0.14);
+  --vp-c-note-1: #076678;
+  --vp-c-note-2: #458588;
+  --vp-c-note-3: #458588;
+  --vp-c-note-soft: rgba(69, 133, 136, 0.14);
+  --vp-c-warning-1: #b57614;
+  --vp-c-warning-2: #d79921;
+  --vp-c-warning-3: #d79921;
+  --vp-c-warning-soft: rgba(215, 153, 33, 0.16);
+  --vp-c-danger-1: #9d0006;
+  --vp-c-danger-2: #cc241d;
+  --vp-c-danger-3: #cc241d;
+  --vp-c-danger-soft: rgba(204, 36, 29, 0.12);
+  --vp-custom-block-info-bg: var(--vp-c-note-soft);
+  --vp-custom-block-info-text: var(--vp-c-text-1);
+  --vp-code-block-bg: #f2e5bc;
+  --vp-code-color: #af3a03;
+  --vp-code-bg: rgba(214, 93, 14, 0.1);
 
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(120deg, var(--newt-green-2) 20%, var(--newt-orange-2));
+  --vp-home-hero-name-background: linear-gradient(120deg, #427b58 20%, #af3a03);
 }
 
 .dark {
-  --newt-green-1: #34d399;
-  --newt-green-2: #10b981;
-  --newt-green-soft: rgba(16, 185, 129, 0.16);
-  --newt-orange-1: #fb923c;
-  --newt-orange-2: #f97316;
-  --newt-orange-soft: rgba(249, 115, 22, 0.16);
+  --newt-green-1: #8ec07c;
+  --newt-green-2: #689d6a;
+  --newt-green-3: #8ec07c;
+  --newt-green-soft: rgba(142, 192, 124, 0.14);
+  --newt-orange-1: #fe8019;
+  --newt-orange-2: #d65d0e;
+  --newt-orange-soft: rgba(254, 128, 25, 0.14);
+
+  --vp-c-bg: #1d2021;
+  --vp-c-bg-alt: #282828;
+  --vp-c-bg-soft: #282828;
+  --vp-c-bg-elv: #32302f;
+  --vp-c-text-1: #ebdbb2;
+  --vp-c-text-2: #d5c4a1;
+  --vp-c-text-3: #a89984;
+  --vp-c-divider: #3c3836;
+  --vp-c-border: #504945;
+  --vp-c-gutter: #141617;
+  --vp-c-default-1: #a89984;
+  --vp-c-default-2: #928374;
+  --vp-c-default-3: #7c6f64;
+  --vp-c-default-soft: rgba(146, 131, 116, 0.16);
+
+  --vp-c-brand-1: #8ec07c;
+  --vp-c-brand-2: #689d6a;
+  --vp-c-brand-3: #689d6a;
+  --vp-c-brand-soft: rgba(142, 192, 124, 0.14);
+  --vp-c-tip-1: #8ec07c;
+  --vp-c-tip-2: #689d6a;
+  --vp-c-tip-3: #689d6a;
+  --vp-c-tip-soft: rgba(142, 192, 124, 0.12);
+  --vp-c-note-1: #83a598;
+  --vp-c-note-2: #458588;
+  --vp-c-note-3: #458588;
+  --vp-c-note-soft: rgba(131, 165, 152, 0.13);
+  --vp-c-warning-1: #fabd2f;
+  --vp-c-warning-2: #d79921;
+  --vp-c-warning-3: #d79921;
+  --vp-c-warning-soft: rgba(250, 189, 47, 0.12);
+  --vp-c-danger-1: #fb4934;
+  --vp-c-danger-2: #cc241d;
+  --vp-c-danger-3: #cc241d;
+  --vp-c-danger-soft: rgba(251, 73, 52, 0.12);
+  --vp-code-block-bg: #282828;
+  --vp-code-color: #fe8019;
+  --vp-code-bg: rgba(254, 128, 25, 0.1);
 }
+
+/* Square-ish corners, everywhere. */
+.vp-doc div[class*='language-'], .VPButton, .VPFeature, .DocSearch-Button, .VPNavBarSearchButton,
+.vp-doc table, .VPDocFooter .pager-link, .vp-doc :not(pre) > code, .VPLocalSearchBox .shell { border-radius: 4px !important; }
 
 /* Callouts: a concept (info), how cooper does it (tip), a trap (warning), a broken rule (danger). */
 .vp-doc .custom-block {
-  border-radius: 10px;
+  border-radius: 4px;
   border-left-width: 4px;
   border-left-style: solid;
 }
-.vp-doc .custom-block.info { border-left-color: #3b82f6; }
-.vp-doc .custom-block.tip { border-left-color: var(--newt-green-2); }
-.vp-doc .custom-block.warning { border-left-color: #eab308; }
-.vp-doc .custom-block.danger { border-left-color: #ef4444; }
+.vp-doc .custom-block.info { border-left-color: var(--vp-c-note-2); }
+.vp-doc .custom-block.tip { border-left-color: var(--vp-c-tip-2); }
+.vp-doc .custom-block.warning { border-left-color: var(--vp-c-warning-2); }
+.vp-doc .custom-block.danger { border-left-color: var(--vp-c-danger-2); }
 .vp-doc .custom-block.details { border-left-color: var(--vp-c-divider); }
 .vp-doc .custom-block .custom-block-title { font-size: 15px; }
 
@@ -51,7 +129,7 @@
   margin: 24px 0;
   padding: 16px;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
+  border-radius: 4px;
   background: var(--vp-c-bg-soft);
   overflow-x: auto;
 }
@@ -60,9 +138,9 @@
 /* A screenshot: framed like a window, with its caption under it. */
 .vp-doc figure.screenshot { margin: 24px 0; }
 .vp-doc figure.screenshot img {
-  border-radius: 10px;
+  border-radius: 4px;
   border: 1px solid var(--vp-c-divider);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 32px rgba(40, 40, 40, 0.14);
 }
 .vp-doc figure.screenshot figcaption {
   margin-top: 8px;
@@ -83,62 +161,86 @@
 
 /* The landing's tokens, light and dark (kept global: scoped styles cannot reach `.dark`). */
 :root {
-  --l-bg: #f6f9f7;
-  --l-bg-2: #edf3ef;
-  --l-panel: rgba(255, 255, 255, 0.78);
-  --l-panel-solid: #ffffff;
-  --l-border: rgba(12, 44, 32, 0.1);
-  --l-border-strong: rgba(12, 44, 32, 0.2);
-  --l-ink: #0a1611;
-  --l-ink-2: #3f5048;
-  --l-ink-3: #75867e;
-  --l-green: #0f9d76;
-  --l-green-ink: #0b7a5c;
-  --l-orange: #ea7317;
-  --l-blue: #2f6fe4;
-  --l-violet: #7c4dda;
-  --l-red: #dc3d43;
-  --l-glow-green: rgba(16, 185, 129, 0.22);
-  --l-glow-orange: rgba(249, 115, 22, 0.16);
-  --l-glow-blue: rgba(59, 130, 246, 0.14);
-  --l-grid: rgba(12, 44, 32, 0.06);
-  --l-shadow: 0 1px 2px rgba(10, 40, 28, 0.06), 0 24px 60px -24px rgba(10, 40, 28, 0.28);
-  --l-shadow-big: 0 2px 6px rgba(10, 40, 28, 0.05), 0 50px 120px -40px rgba(10, 40, 28, 0.42);
-  --l-code-bg: #0c1411;
-  --l-code-bar: #111c18;
-  --l-code-ink: #d7e4dd;
-  --l-code-dim: #6f8379;
+  --l-bg: #fbf1c7;
+  --l-bg-2: #f2e5bc;
+  --l-panel: #f9f5d7;
+  --l-panel-solid: #f9f5d7;
+  --l-border: #e0d1a8;
+  --l-border-strong: #bdae93;
+  --l-ink: #282828;
+  --l-ink-2: #504945;
+  --l-ink-3: #7c6f64;
+  --l-green: #427b58;
+  --l-green-ink: #427b58;
+  --l-lime: #79740e;
+  --l-orange: #af3a03;
+  --l-yellow: #b57614;
+  --l-blue: #076678;
+  --l-violet: #8f3f71;
+  --l-red: #9d0006;
+  --l-on-accent: #fbf1c7;
+  --l-glow-green: rgba(104, 157, 106, 0.2);
+  --l-glow-orange: rgba(214, 93, 14, 0.14);
+  --l-glow-blue: rgba(215, 153, 33, 0.16);
+  --l-grid: rgba(60, 56, 54, 0.07);
+  --l-shadow: 0 1px 0 rgba(60, 56, 54, 0.06), 0 14px 30px -20px rgba(60, 56, 54, 0.45);
+  --l-shadow-big: 0 1px 0 rgba(60, 56, 54, 0.06), 0 34px 70px -34px rgba(60, 56, 54, 0.55);
+  --l-code-bg: #f9f5d7;
+  --l-code-bar: #ebdbb2;
+  --l-code-ink: #3c3836;
+  --l-code-dim: #7c6f64;
+  --l-code-line: rgba(60, 56, 54, 0.08);
+  --l-code-border: #d5c4a1;
+  --tok-c: #928374;
+  --tok-s: #79740e;
+  --tok-d: #af3a03;
+  --tok-k: #9d0006;
+  --tok-t: #b57614;
+  --tok-n: #8f3f71;
 }
 .dark {
-  --l-bg: #060c0a;
-  --l-bg-2: #0a1310;
-  --l-panel: rgba(255, 255, 255, 0.035);
-  --l-panel-solid: #0d1714;
-  --l-border: rgba(255, 255, 255, 0.08);
-  --l-border-strong: rgba(255, 255, 255, 0.17);
-  --l-ink: #eef6f2;
-  --l-ink-2: #a5b6ad;
-  --l-ink-3: #6a7d74;
-  --l-green: #22c58f;
-  --l-green-ink: #4ee0aa;
-  --l-orange: #fb8a3c;
-  --l-blue: #5b95ff;
-  --l-violet: #a07bff;
-  --l-red: #ff5d62;
-  --l-glow-green: rgba(16, 185, 129, 0.3);
-  --l-glow-orange: rgba(249, 115, 22, 0.2);
-  --l-glow-blue: rgba(59, 130, 246, 0.2);
-  --l-grid: rgba(255, 255, 255, 0.045);
-  --l-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 60px -24px rgba(0, 0, 0, 0.8);
-  --l-shadow-big: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 50px 120px -40px rgba(0, 0, 0, 0.9);
-  --l-code-bg: #08100d;
-  --l-code-bar: #0d1714;
+  --l-bg: #1d2021;
+  --l-bg-2: #282828;
+  --l-panel: #282828;
+  --l-panel-solid: #32302f;
+  --l-border: #3c3836;
+  --l-border-strong: #504945;
+  --l-ink: #fbf1c7;
+  --l-ink-2: #d5c4a1;
+  --l-ink-3: #a89984;
+  --l-green: #8ec07c;
+  --l-green-ink: #8ec07c;
+  --l-lime: #b8bb26;
+  --l-orange: #fe8019;
+  --l-yellow: #fabd2f;
+  --l-blue: #83a598;
+  --l-violet: #d3869b;
+  --l-red: #fb4934;
+  --l-on-accent: #1d2021;
+  --l-glow-green: rgba(142, 192, 124, 0.16);
+  --l-glow-orange: rgba(254, 128, 25, 0.13);
+  --l-glow-blue: rgba(250, 189, 47, 0.1);
+  --l-grid: rgba(235, 219, 178, 0.045);
+  --l-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  --l-shadow-big: 0 40px 90px -40px rgba(0, 0, 0, 0.9);
+  --l-code-bg: #282828;
+  --l-code-bar: #32302f;
+  --l-code-ink: #ebdbb2;
+  --l-code-dim: #928374;
+  --l-code-line: rgba(235, 219, 178, 0.06);
+  --l-code-border: #3c3836;
+  --tok-c: #928374;
+  --tok-s: #b8bb26;
+  --tok-d: #fe8019;
+  --tok-k: #fb4934;
+  --tok-t: #fabd2f;
+  --tok-n: #d3869b;
 }
 /* On the landing, the page and its bar take the landing's ground. */
-html:has(.landing) { --vp-c-bg: var(--l-bg); --vp-nav-bg-color: color-mix(in srgb, var(--l-bg) 80%, transparent); }
-html:has(.landing) .VPNav { backdrop-filter: saturate(160%) blur(14px); }
+html:has(.landing) { --vp-nav-bg-color: color-mix(in srgb, var(--l-bg) 86%, transparent); }
+html:has(.landing) .VPNav { backdrop-filter: saturate(140%) blur(10px); }
+html:has(.landing) .VPLocalNav { display: none; }
 .shot img { display: block; }
 .shot .shot-dark { display: none; }
 .dark .shot .shot-light { display: none; }
 .dark .shot .shot-dark { display: block; }
-html:has(.landing) .VPLocalNav { display: none; }

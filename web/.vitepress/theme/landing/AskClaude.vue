@@ -71,19 +71,19 @@ const tools = ['list_apps', 'get_structure', 'use_case_totals', 'use_case_series
 <style scoped>
 .ask { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 32px; }
-.tools code { padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--l-ink-2); background: var(--l-panel); border: 1px solid var(--l-border); transition: all .2s ease; }
+.tools code { padding: 6px 10px; border-radius: 4px; font-size: 12px; color: var(--l-ink-2); background: var(--l-panel); border: 1px solid var(--l-border); transition: all .2s ease; }
 .tools code:hover { color: var(--l-green-ink); border-color: var(--l-green); transform: translateY(-2px); }
 .tools-note { margin-top: 14px; font-size: 13.5px; color: var(--l-ink-3); }
 
-.chat { min-height: 420px; padding: 24px; border-radius: 24px; display: flex; flex-direction: column; gap: 16px; }
-.msg { max-width: 92%; padding: 14px 18px; border-radius: 18px; font-size: 15px; line-height: 1.6; }
+.chat { min-height: 420px; padding: 24px; border-radius: 6px; display: flex; flex-direction: column; gap: 16px; }
+.msg { max-width: 92%; padding: 14px 18px; border-radius: 6px; font-size: 15px; line-height: 1.6; }
 .msg p { color: inherit; }
 .who { display: block; margin-bottom: 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; opacity: .7; }
-.who b { color: #d97757; }
-.user { align-self: flex-end; color: #fff; background: linear-gradient(180deg, #17b083, #0c8d69); border-bottom-right-radius: 6px; box-shadow: 0 12px 30px -12px var(--l-glow-green); }
-.claude { align-self: flex-start; color: var(--l-ink); background: var(--l-panel-solid); border: 1px solid var(--l-border); border-bottom-left-radius: 6px; animation: in .4s ease; }
+.who b { color: var(--l-orange); }
+.user { align-self: flex-end; color: var(--l-on-accent); background: linear-gradient(180deg, var(--l-green), var(--l-green)); border-bottom-right-radius: 2px; box-shadow: 0 12px 30px -12px var(--l-glow-green); }
+.claude { align-self: flex-start; color: var(--l-ink); background: var(--l-panel-solid); border: 1px solid var(--l-border); border-bottom-left-radius: 2px; animation: in .4s ease; }
 .calls { display: grid; gap: 8px; }
-.call { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; background: var(--l-bg-2); border: 1px dashed var(--l-border-strong); }
+.call { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 4px; font-size: 13px; background: var(--l-bg-2); border: 1px dashed var(--l-border-strong); }
 .call .mcp { font-size: 11px; font-weight: 700; color: var(--l-ink-3); text-transform: uppercase; letter-spacing: .06em; }
 .call code { font-size: 12.5px; color: var(--l-orange); font-weight: 700; }
 .call em { font-style: normal; font-size: 12px; color: var(--l-ink-3); }

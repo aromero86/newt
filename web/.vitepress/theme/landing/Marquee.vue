@@ -23,6 +23,6 @@ const rows = [
 .row.reverse .track { animation-direction: reverse; animation-duration: 70s; }
 .marquee:hover .track { animation-play-state: paused; }
 @keyframes scroll { to { transform: translateX(calc(-50% - 7px)); } }
-.item { display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 18px; border-radius: 999px; font-size: 14.5px; font-weight: 600; color: var(--l-ink-2); background: var(--l-panel); border: 1px solid var(--l-border); white-space: nowrap; }
+.item { display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 18px; border-radius: 4px; font-size: 14.5px; font-weight: 600; color: var(--l-ink-2); background: var(--l-panel); border: 1px solid var(--l-border); white-space: nowrap; }
 .item i { width: 7px; height: 7px; border-radius: 2px; transform: rotate(45deg); background: linear-gradient(135deg, var(--l-green), var(--l-orange)); }
 </style>

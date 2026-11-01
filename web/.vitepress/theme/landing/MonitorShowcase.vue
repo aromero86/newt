@@ -129,7 +129,7 @@ function untilt(event: PointerEvent) {
 </script>
 
 <template>
-  <div ref="root" class="showcase" :class="{ playing }" :style="{ '--dwell': `${DWELL}s` }">
+  <div ref="root" class="showcase" :data-playing="playing" :style="{ '--dwell': `${DWELL}s` }">
     <div class="tabs" role="tablist" aria-label="What newt-monitor shows">
       <div v-for="(each, index) in screens" :key="each.key" role="tab" tabindex="0" @keydown.enter="pick(index)" :aria-selected="index === current" :class="{ on: index === current }" @click="pick(index)">
         <span class="tab-label">{{ each.label }}</span>
@@ -167,7 +167,7 @@ function untilt(event: PointerEvent) {
 .showcase { display: grid; grid-template-columns: minmax(0, .62fr) minmax(0, 1.38fr); gap: clamp(24px, 4vw, 48px); align-items: center; }
 
 .tabs { display: grid; gap: 4px; }
-.tabs > [role=tab] { cursor: pointer; outline-offset: 2px; position: relative; display: block; width: 100%; text-align: left; padding: 14px 18px 16px; border-radius: 16px; border: 1px solid transparent; transition: background .3s ease, border-color .3s ease; }
+.tabs > [role=tab] { cursor: pointer; outline-offset: 2px; position: relative; display: block; width: 100%; text-align: left; padding: 14px 18px 16px; border-radius: 6px; border: 1px solid transparent; transition: background .3s ease, border-color .3s ease; }
 .tabs > [role=tab]:hover { background: var(--l-panel); }
 .tabs > [role=tab].on { background: var(--l-panel); border-color: var(--l-border); box-shadow: var(--l-shadow); }
 .tab-label { display: block; font-size: 15.5px; font-weight: 700; color: var(--l-ink-3); transition: color .3s ease; }
@@ -180,34 +180,34 @@ function untilt(event: PointerEvent) {
 .progress { position: absolute; left: 18px; right: 18px; bottom: 6px; height: 2px; border-radius: 2px; background: transparent; overflow: hidden; }
 .on .progress { background: var(--l-border); }
 .progress i { display: block; height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--l-green), var(--l-orange)); animation: progress var(--dwell) linear forwards; animation-play-state: paused; }
-.playing .progress i { animation-play-state: running; }
+.showcase[data-playing="true"] .progress i { animation-play-state: running; }
 .showcase:hover .progress i { animation-play-state: paused; }
 @keyframes progress { to { transform: scaleX(1); } }
 
 .stage { --rx: 0deg; --ry: 0deg; position: relative; perspective: 1600px; }
 .halo { position: absolute; inset: 6% 4% -4%; z-index: -1; background: radial-gradient(ellipse at var(--x, 50%) var(--y, 50%), var(--l-glow-green), transparent 65%), radial-gradient(ellipse at 80% 90%, var(--l-glow-orange), transparent 60%); filter: blur(40px); }
-.browser { border-radius: 18px; overflow: hidden; background: var(--l-code-bg); border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .25s ease-out; }
-.bar { display: flex; align-items: center; gap: 16px; height: 42px; padding: 0 16px; background: var(--l-code-bar); border-bottom: 1px solid rgba(255,255,255,.06); }
+.browser { border-radius: 6px; overflow: hidden; background: var(--l-code-bg); border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .25s ease-out; }
+.bar { display: flex; align-items: center; gap: 16px; height: 42px; padding: 0 16px; background: var(--l-code-bar); border-bottom: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); }
 .lights { display: flex; gap: 7px; }
-.lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
-.lights i:nth-child(2) { background: #febc2e; }
-.lights i:nth-child(3) { background: #28c840; }
-.url { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 8px; background: rgba(255,255,255,.05); color: #8ea39a; font-size: 12px; font-family: var(--vp-font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lights i { width: 11px; height: 11px; border-radius: 50%; background: #cc241d; }
+.lights i:nth-child(2) { background: #d79921; }
+.lights i:nth-child(3) { background: #98971a; }
+.url { flex: 1; min-width: 0; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 4px; background: color-mix(in srgb, var(--l-code-ink) 5%, transparent); color: var(--l-code-dim); font-size: 12px; font-family: var(--vp-font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .url b { font-size: 10px; filter: grayscale(1); }
 .frame { position: relative; aspect-ratio: 16 / 10; overflow: hidden; }
 .pan { position: relative; animation: pan var(--dwell) ease-in-out both, enter .6s ease both; animation-play-state: paused; }
-.playing .pan { animation-play-state: running; }
+.showcase[data-playing="true"] .pan { animation-play-state: running; }
 .showcase:hover .pan, .showcase:hover .spot { animation-play-state: paused; }
 @keyframes pan { 0%, 30% { transform: translateY(0); } 85%, 100% { transform: translateY(var(--pan)); } }
 @keyframes enter { from { opacity: 0; filter: blur(6px); } to { opacity: 1; filter: none; } }
-.sheen { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(500px circle at var(--x, 50%) var(--y, 0%), rgba(255,255,255,.07), transparent 60%); }
+.sheen { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(500px circle at var(--x, 50%) var(--y, 0%), color-mix(in srgb, var(--l-code-ink) 7%, transparent), transparent 60%); }
 
 .spot { position: absolute; z-index: 1; width: 0; height: 0; opacity: 0; animation: spot .5s cubic-bezier(.3,1.5,.5,1) both; animation-play-state: paused; }
-.playing .spot { animation-play-state: running; }
+.showcase[data-playing="true"] .spot { animation-play-state: running; }
 @keyframes spot { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
-.spot i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--l-orange); border: 2px solid #fff; box-shadow: 0 0 0 0 rgba(251,138,60,.7); animation: ring 1.8s infinite; }
-@keyframes ring { to { box-shadow: 0 0 0 16px rgba(251,138,60,0); } }
-.spot em { position: absolute; left: 16px; top: -15px; padding: 6px 11px; border-radius: 10px; font-style: normal; font-size: 12.5px; font-weight: 650; white-space: nowrap; color: #fff; background: rgba(12, 20, 17, .88); border: 1px solid rgba(251,138,60,.55); box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); backdrop-filter: blur(6px); }
+.spot i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--l-orange); border: 2px solid var(--l-bg); box-shadow: 0 0 0 0 color-mix(in srgb, var(--l-orange) 70%, transparent); animation: ring 1.8s infinite; }
+@keyframes ring { to { box-shadow: 0 0 0 16px color-mix(in srgb, var(--l-orange) 0%, transparent); } }
+.spot em { position: absolute; left: 16px; top: -15px; padding: 6px 11px; border-radius: 4px; font-style: normal; font-size: 12.5px; font-weight: 650; white-space: nowrap; color: var(--l-bg); background: var(--l-ink); border-left: 3px solid var(--l-orange); box-shadow: 0 10px 30px -10px rgba(0,0,0,.6); }
 .spot.left em { left: auto; right: 16px; }
 
 @media (max-width: 1000px) {

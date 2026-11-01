@@ -6,7 +6,8 @@ import Marquee from './Marquee.vue'
 import Story from './Story.vue'
 import RequestJourney from './RequestJourney.vue'
 import EventBirth from './EventBirth.vue'
-import ContextMap from './ContextMap.vue'
+import ModelExplorer from './ModelExplorer.vue'
+import ChangeTracking from './ChangeTracking.vue'
 import MonitorShowcase from './MonitorShowcase.vue'
 import AskClaude from './AskClaude.vue'
 import AgentTerminal from './AgentTerminal.vue'
@@ -113,6 +114,22 @@ const numbers = [
       </div>
     </section>
 
+    <!-- Change tracking -->
+    <section id="changes" class="l-section">
+      <div class="l-container">
+        <header class="l-head l-reveal">
+          <p class="l-eyebrow">Change tracking</p>
+          <h2 class="l-h2">You change the entity. <span class="l-ink">newt does the rest.</span></h2>
+          <p class="l-lead">
+            You never write an UPDATE, never diff, never publish. The entity knows what changed and tells it; the
+            repository writes only that, guarded by the version, and the event leaves with it. A change undone writes
+            nothing and tells nothing.
+          </p>
+        </header>
+        <ChangeTracking class="l-reveal" />
+      </div>
+    </section>
+
     <!-- Events -->
     <section id="events" class="l-section">
       <div class="l-container">
@@ -122,23 +139,16 @@ const numbers = [
 
     <!-- Contexts and modules -->
     <section id="contexts" class="l-section contexts">
-      <div class="l-container two">
-        <div class="l-reveal">
-          <p class="l-eyebrow">Contexts and modules</p>
-          <h2 class="l-h2">Boundaries you can see. <span class="l-ink">And that hold.</span></h2>
+      <div class="l-container">
+        <header class="l-head l-reveal">
+          <p class="l-eyebrow">The model</p>
+          <h2 class="l-h2">Contexts, modules, and how they talk. <span class="l-ink">Boundaries that hold.</span></h2>
           <p class="l-lead">
-            An application is bounded contexts, each with its own database. A context is modules, each owning one
-            entity. They meet only through each other's use cases and events, never through a table.
+            An application is bounded contexts. A context is modules, each owning one entity. A module asks another to
+            read, and hears another to write. Four steps, and you know where everything goes.
           </p>
-          <ul class="checks">
-            <li>A context imports only the contexts it says it uses, and the lint keeps it.</li>
-            <li>A use case writes into another module only from a worker reacting to an event.</li>
-            <li>No cycles, between modules or between contexts.</li>
-            <li>The application describes all of it, and the monitor draws it.</li>
-          </ul>
-          <a class="l-link" :href="withBase('/book/03-contexts')">Bounded contexts, in the book →</a>
-        </div>
-        <ContextMap class="l-reveal" style="--i: 1" />
+        </header>
+        <ModelExplorer class="l-reveal" />
       </div>
     </section>
 
@@ -267,13 +277,13 @@ const numbers = [
 
 <style scoped>
 .scroll-line { position: fixed; top: var(--vp-nav-height, 64px); left: 0; right: 0; z-index: 30; height: 2px; pointer-events: none; }
-.scroll-line i { display: block; height: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--l-green), #19b3a0, var(--l-orange)); box-shadow: 0 0 10px var(--l-glow-green); }
+.scroll-line i { display: block; height: 100%; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--l-green), var(--l-yellow), var(--l-orange)); box-shadow: 0 0 10px var(--l-glow-green); }
 
 .journey { background: linear-gradient(180deg, transparent, var(--l-bg-2) 18%, var(--l-bg-2) 82%, transparent); }
 .two { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
 .checks { list-style: none; display: grid; gap: 14px; margin-top: 28px; }
 .checks li { position: relative; padding-left: 34px; font-size: 15.5px; line-height: 1.55; color: var(--l-ink-2); }
-.checks li::before { content: '✓'; position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: var(--l-green); }
+.checks li::before { content: '✓'; position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 3px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--l-on-accent); background: var(--l-green); }
 
 .monitor { overflow: hidden; }
 .monitor-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(900px 500px at 15% 10%, var(--l-glow-green), transparent 60%), radial-gradient(800px 500px at 90% 40%, var(--l-glow-blue), transparent 60%), radial-gradient(700px 500px at 30% 90%, var(--l-glow-orange), transparent 60%); opacity: .55; }
@@ -282,18 +292,18 @@ const numbers = [
 .versus { display: grid; grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr); gap: 16px; align-items: stretch; margin-bottom: clamp(64px, 9vw, 112px); }
 .tag { margin-bottom: 12px; font-size: 13px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--l-ink-3); }
 .tag.good { color: var(--l-green-ink); }
-.log-window { position: relative; height: 290px; overflow: hidden; padding: 0 18px; border-radius: 18px; background: var(--l-code-bg); border: 1px solid rgba(255,255,255,.06); mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
+.log-window { position: relative; height: 290px; overflow: hidden; padding: 0 18px; border-radius: 6px; background: var(--l-code-bg); border: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
 .log-track { display: flex; flex-direction: column; gap: 9px; animation: logs 22s linear infinite; }
-.log-track code { font-size: 12px; color: #5d7068; white-space: nowrap; }
+.log-track code { font-size: 12px; color: var(--l-code-dim); white-space: nowrap; }
 @keyframes logs { to { transform: translateY(calc(-50% - 4.5px)); } }
 .vs { display: grid; place-items: center; font-size: 26px; color: var(--l-ink-3); }
 .insights { display: grid; align-content: start; gap: 10px; }
-.insight { padding: 16px 18px; border-radius: 16px; background: var(--l-panel); border: 1px solid color-mix(in srgb, var(--l-green) 30%, transparent); box-shadow: var(--l-shadow); backdrop-filter: blur(10px); }
+.insight { padding: 16px 18px; border-radius: 6px; background: var(--l-panel); border: 1px solid color-mix(in srgb, var(--l-green) 30%, transparent); box-shadow: var(--l-shadow); backdrop-filter: blur(10px); }
 .insight-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .insight-head code { font-size: 13px; font-weight: 700; color: var(--l-ink); overflow-wrap: anywhere; }
 .insight p { margin-top: 6px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 
-.numbers { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: clamp(64px, 9vw, 112px); border-radius: 22px; overflow: hidden; border: 1px solid var(--l-border); background: var(--l-panel); backdrop-filter: blur(10px); }
+.numbers { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: clamp(64px, 9vw, 112px); border-radius: 6px; overflow: hidden; border: 1px solid var(--l-border); background: var(--l-panel); backdrop-filter: blur(10px); }
 .number { padding: 30px 20px; text-align: center; }
 .number + .number { border-left: 1px solid var(--l-border); }
 .number strong { display: block; font-size: clamp(30px, 4vw, 46px); font-weight: 850; letter-spacing: -0.04em; line-height: 1; color: var(--l-ink); }
@@ -301,8 +311,8 @@ const numbers = [
 .numbers-note { margin-top: 12px; text-align: center; font-size: 12.5px; color: var(--l-ink-3); }
 
 .promises { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: clamp(56px, 8vw, 96px) 0; }
-.promise { padding: 26px; border-radius: 20px; background: var(--l-panel); border: 1px solid var(--l-border); }
-.icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 16px; border-radius: 12px; font-size: 20px; color: var(--l-green-ink); background: color-mix(in srgb, var(--l-green) 14%, transparent); }
+.promise { padding: 26px; border-radius: 6px; background: var(--l-panel); border: 1px solid var(--l-border); }
+.icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 16px; border-radius: 4px; font-size: 20px; color: var(--l-green-ink); background: color-mix(in srgb, var(--l-green) 14%, transparent); }
 .promise h3 { font-size: 17.5px; font-weight: 750; color: var(--l-ink); }
 .promise p { margin-top: 8px; font-size: 14.5px; line-height: 1.6; color: var(--l-ink-2); }
 .ask { margin-bottom: clamp(56px, 8vw, 96px); }
@@ -310,7 +320,7 @@ const numbers = [
 
 .cooper .go { margin-top: 32px; }
 .fan { position: relative; height: clamp(300px, 34vw, 460px); perspective: 1600px; }
-.fan :deep(.card) { position: absolute; width: 82%; border-radius: 14px; overflow: hidden; border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transition: transform .6s cubic-bezier(.2,.7,.2,1); }
+.fan :deep(.card) { position: absolute; width: 82%; border-radius: 6px; overflow: hidden; border: 1px solid var(--l-border-strong); box-shadow: var(--l-shadow-big); transition: transform .6s cubic-bezier(.2,.7,.2,1); }
 .fan :deep(.back2) { right: 0; top: 0; transform: rotateY(-14deg) rotateZ(4deg) translateZ(-80px); opacity: .85; }
 .fan :deep(.back1) { right: 6%; top: 8%; transform: rotateY(-10deg) rotateZ(2deg) translateZ(-40px); }
 .fan :deep(.front) { left: 0; top: 18%; transform: rotateY(-6deg); }
@@ -318,7 +328,7 @@ const numbers = [
 .fan:hover :deep(.back1) { transform: rotateY(-4deg) rotateZ(3deg) translate(14px, -10px); }
 .fan:hover :deep(.front) { transform: rotateY(0) translate(-12px, 18px); }
 
-.cta-box { position: relative; overflow: hidden; isolation: isolate; padding: clamp(56px, 9vw, 112px) 24px; border-radius: 32px; text-align: center; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow-big); }
+.cta-box { position: relative; overflow: hidden; isolation: isolate; padding: clamp(56px, 9vw, 112px) 24px; border-radius: 6px; text-align: center; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow-big); }
 .cta-box .l-grid-bg { z-index: -1; }
 .cta-glow { position: absolute; inset: -30%; z-index: -2; background: conic-gradient(from 0deg at 50% 50%, var(--l-glow-green), var(--l-glow-orange), var(--l-glow-blue), var(--l-glow-green)); filter: blur(60px); animation: turn 18s linear infinite; opacity: .8; }
 @keyframes turn { to { transform: rotate(360deg); } }
