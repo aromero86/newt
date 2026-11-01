@@ -137,6 +137,38 @@ Every demo account's password is `cooper-demo`. The databases are SQLite files i
 for coding agents, and both make a good cheat sheet for people too.
 :::
 
+## Your own application
+
+The manual reads cooper from the repository, but newt itself comes from npm, in five packages
+under `@newt-kit`:
+
+| Package | What it is |
+|---|---|
+| `@newt-kit/newt` | The framework, one subpath per piece (`@newt-kit/newt/core`, `@newt-kit/newt/http`…), and the `newt` command |
+| `@newt-kit/eslint` | Its lint ([appendix B](./b-lint)) |
+| `@newt-kit/react` | What a React frontend thinks with ([Frontends](./30-frontends)) |
+| `@newt-kit/react-ui` | Its components, and the lint that keeps them as they are |
+| `@newt-kit/monitor` | newt-monitor ([part III](./40-monitor)) |
+
+A new application starts like this:
+
+```sh
+bun init -y
+bun remove typescript         # bun init's TypeScript 7: newt's lint runs on 6 for now
+bun add @newt-kit/newt zod
+bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+bunx @newt-kit/newt init      # AGENTS.md, CLAUDE.md and newt's lint
+bunx @newt-kit/newt add module src/contexts/shop order
+```
+
+`newt init` and `newt add module` are in [appendix C](./c-cli). The module it writes compiles,
+passes the lint and has a test: `bun check && bun test && bunx eslint` are green from the start.
+
+A React frontend adds `@newt-kit/react` and `@newt-kit/react-ui`, `react` and `react-dom`, and
+`bun-plugin-tailwind` to build its styles. Its `tsconfig.json` has the DOM in `lib`
+(`["ESNext", "DOM", "DOM.Iterable"]`), and its stylesheet imports
+`@newt-kit/react-ui/theme.css`: [Frontends](./30-frontends) tells the rest.
+
 You are ready. The next chapter tells the story of why newt exists.
 
 ## Going further

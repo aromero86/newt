@@ -14,21 +14,24 @@ explained.
 
 ## Starting it
 
-The monitor is a newt application with one entry point. In production:
+The monitor is a newt application with one entry point, published as `@newt-kit/monitor`
+with its pages built. Anywhere Bun runs:
 
 ```sh
 NEWT_MONITOR_USER=ana \
 NEWT_MONITOR_PASSWORD='a long password' \
 NEWT_MONITOR_SECRET="$(openssl rand -base64 48)" \
-bun packages/newt-monitor/backend/index.ts
+bunx @newt-kit/monitor
 ```
+
+From the repository it is the same entry point, `bun packages/newt-monitor/backend/index.ts`.
 
 ```text
 newt-monitor listening on http://localhost:4800/
 ```
 
-Its pages are built first, with `bun run monitor:build` at the repository's root (the image
-does it). In development, `bun run monitor` starts it with `--watch`, and serves its pages
+From the repository, its pages are built first, with `bun run monitor:build` at the root (the
+image does it). In development, `bun run monitor` starts it with `--watch`, and serves its pages
 from their sources, rebuilt and reloaded as they change; its user, password and secret come
 from the environment (or `.env`) all the same.
 

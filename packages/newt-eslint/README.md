@@ -4,7 +4,7 @@ The lint of an application built with newt: what keeps every module the same,
 whoever writes it.
 
 ```bash
-bun add -d @newt-kit/eslint eslint
+bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
 ```
 
 ```js
