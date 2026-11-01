@@ -31,6 +31,16 @@ describe('HttpAppClient', () => {
     await other.stop(true)
   })
 
+  test('never follows an answer that sends it elsewhere: it asks the address it was given only', async () => {
+    let followed = false
+    const elsewhere = Bun.serve({ port: 0, fetch: () => { followed = true; return Response.json({ name: 'shop' }) } })
+    const redirecting = Bun.serve({ port: 0, fetch: request => Response.redirect(`${elsewhere.url.origin}${new URL(request.url).pathname}`, 302) })
+
+    expect(await failure(client.identity({ url: redirecting.url.origin, key: app.key }))).toBe('bad_answer')
+    expect(followed).toBe(false)
+    await Promise.all([elsewhere.stop(true), redirecting.stop(true)])
+  })
+
   test('a body that does not arrive in time is no answer, not a wrong one', async () => {
     const stalled = Bun.serve({
       port: 0,

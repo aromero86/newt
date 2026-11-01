@@ -1,5 +1,6 @@
 import { DomainError } from 'newt/core'
 import { toErrorResponse } from 'newt/http'
+import { AUTHORIZE_LIMIT } from '../../../../shared/rate-limits'
 import type { AuthBase } from '../../auth-base'
 import type { OauthGrant_Module } from './oauth-grant.module'
 import type { OauthGrant_Options } from './oauth-grant-options'
@@ -8,7 +9,8 @@ export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Modu
   // The authorization endpoint (RFC 6749 §3.1), where a client sends the browser. The
   // request is kept, and the browser goes on to the monitor's consent page, which signs
   // the person in and asks them. A request the monitor cannot answer is shown there by
-  // its error's code, never sent back to an address nobody vouched for.
+  // its error's code, never sent back to an address nobody vouched for. Each one is a
+  // row, so each address leaves a few.
   base.oauth.get('/oauth/authorize', async request => {
     const query = new URL(request.url).searchParams
     const field = (name: string) => query.get(name) ?? undefined
@@ -23,6 +25,7 @@ export function registerOauthGrantRoutes(base: AuthBase, grants: OauthGrant_Modu
     })
     return Response.redirect(`${options.publicUrl}/authorize/${id}`, 302)
   }, {
+    rateLimit: AUTHORIZE_LIMIT,
     onError: error => error instanceof DomainError
       ? Response.redirect(`${options.publicUrl}/authorize/error?${new URLSearchParams({ error: error.code })}`, 302)
       : toErrorResponse(error),

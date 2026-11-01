@@ -36,6 +36,16 @@ export class Token_Repository extends TableRepository<Token, TokenRow, AuthBase>
     return removed
   }
 
+  /** Removes every token, with every refresh token they replaced: how many it removed. */
+  async removeAll(): Promise<number> {
+    let removed = 0
+    await this.saveRows(async () => {
+      removed = await this.table.deleteMany({})
+      await this.spent.deleteMany({})
+    })
+    return removed
+  }
+
   /** The grant whose token once had this refresh token, replaced since; undefined when none did. */
   async grantThatSpent(refreshTokenHash: string): Promise<string | undefined> {
     const [spent] = await this.spent.find({ id: refreshTokenHash })

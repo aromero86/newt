@@ -44,10 +44,12 @@ export class Monitor_Context extends BoundedContext<MonitorBase> {
   /**
    * How it is served (`runContexts`): its modules' API under `/api`, `GET /api/health`
    * for whoever watches it is up, its MCP server at `/mcp`, the routes it is handed
-   * beside them (auth's), and its built frontend for any other address.
+   * beside them (auth's), and its built frontend for any other address. Opened on
+   * `https`, browsers are told to keep to it (HSTS).
    */
   serving(beside: Bun.Serve.Routes<undefined, string> = {}): ServeOptions {
     const routes = { ...mcpRoutes(this.modules, this.deps.auth, this.config.publicUrl), ...beside }
-    return { port: this.config.port, router: this.base.http, health: true, frontend: this.config.frontend, routes }
+    const hsts = new URL(this.config.publicUrl).protocol === 'https:'
+    return { port: this.config.port, router: this.base.http, health: true, frontend: this.config.frontend, routes, hsts, trustProxy: this.config.trustProxy }
   }
 }
