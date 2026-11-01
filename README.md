@@ -9,7 +9,7 @@ and domain events with a transactional outbox, kept in stores you can swap or wr
 | [`packages/newt-eslint`](packages/newt-eslint) | The lint of an application built with newt |
 | [`packages/newt-react-ui`](packages/newt-react-ui) | The components of a newt application's React frontend, and the lint that keeps an app from restyling them |
 | [`packages/newt-react`](packages/newt-react) | What that frontend thinks with: stores, services, forms, lists, the requests to a newt API |
-| [`web`](web) | The documentation site: a landing and [the newt book](web/book/00-how-to-read.md), which explains newt through cooper, from the essentials to newt-monitor (`bun run docs:dev`) |
+| [`web`](web) | The documentation site: a landing and [the newt manual](web/manual/00-how-to-read.md), which explains newt through cooper, from the essentials to newt-monitor (`bun run docs:dev`) |
 | [`cooper`](cooper) | The example application built on it as any would be: a small Trello-like SaaS, its staff's backoffice and the OAuth server they sign in with |
 
 ```bash

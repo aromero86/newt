@@ -1,11 +1,12 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
+import { classFragments } from './fragments'
 import { gruvboxDark, gruvboxLight } from './gruvbox'
 
 type Page = [slug: string, title: string]
 
 /** Part I: what everyone reads, in order, to build with newt. */
 const ESSENTIALS: Page[] = [
-  ['00-how-to-read', 'How to read this book'],
+  ['00-how-to-read', 'How to read this manual'],
   ['01-why-newt', 'Why newt'],
   ['02-meet-cooper', 'Meet cooper'],
   ['03-contexts', 'Bounded contexts'],
@@ -59,10 +60,10 @@ const APPENDICES: Page[] = [
   ['e-problems', 'E. Common problems'],
 ]
 
-const items = (pages: Page[]) => pages.map(([slug, text]) => ({ text, link: `/book/${slug}` }))
+const items = (pages: Page[]) => pages.map(([slug, text]) => ({ text, link: `/manual/${slug}` }))
 
 const sidebar: DefaultTheme.Sidebar = {
-  '/book/': [
+  '/manual/': [
     { text: 'I. The essentials', items: items(ESSENTIALS) },
     { text: 'II. Going deeper', collapsed: false, items: items(DEEPER) },
     { text: 'III. The monitor', collapsed: false, items: items(MONITOR) },
@@ -73,7 +74,7 @@ const sidebar: DefaultTheme.Sidebar = {
 export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun, with a monitor that sees everything it runs',
-  // The landing speaks English and Spanish; the book, English only, so the language menu leads to each landing.
+  // The landing speaks English and Spanish; the manual, English only, so the language menu leads to each landing.
   locales: {
     root: { label: 'English', lang: 'en' },
     es: {
@@ -82,10 +83,10 @@ export default defineConfig({
       description: 'Un framework de backend para Bun, con un monitor que ve todo lo que ejecuta',
       themeConfig: {
         nav: [
-          { text: 'El libro', link: '/book/00-how-to-read' },
-          { text: 'Más a fondo', link: '/book/20-concurrency' },
-          { text: 'Monitor', link: '/book/40-monitor' },
-          { text: 'Apéndices', link: '/book/a-rules' },
+          { text: 'El manual', link: '/manual/00-how-to-read' },
+          { text: 'Más a fondo', link: '/manual/20-concurrency' },
+          { text: 'Monitor', link: '/manual/40-monitor' },
+          { text: 'Apéndices', link: '/manual/a-rules' },
         ],
         darkModeSwitchLabel: 'Apariencia',
         langMenuLabel: 'Idioma',
@@ -94,9 +95,15 @@ export default defineConfig({
     },
   },
   cleanUrls: true,
-  head: [['meta', { name: 'theme-color', content: '#427b58' }]],
+  head: [
+    ['meta', { name: 'theme-color', content: '#427b58' }],
+    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: '/favicon.ico', sizes: '48x48' }],
+    ['link', { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }],
+  ],
   markdown: {
     theme: { light: gruvboxLight, dark: gruvboxDark },
+    codeTransformers: [classFragments],
     // A ```mermaid fence is a diagram, drawn in the browser in the page's theme.
     config(md) {
       const fence = md.renderer.rules.fence!
@@ -108,11 +115,12 @@ export default defineConfig({
     },
   },
   themeConfig: {
+    siteTitle: false,
     nav: [
-      { text: 'The book', link: '/book/00-how-to-read', activeMatch: '/book/(0|1)' },
-      { text: 'Going deeper', link: '/book/20-concurrency', activeMatch: '/book/(2|3)' },
-      { text: 'Monitor', link: '/book/40-monitor', activeMatch: '/book/4' },
-      { text: 'Appendices', link: '/book/a-rules', activeMatch: '/book/[a-e]-' },
+      { text: 'The manual', link: '/manual/00-how-to-read', activeMatch: '/manual/(0|1)' },
+      { text: 'Going deeper', link: '/manual/20-concurrency', activeMatch: '/manual/(2|3)' },
+      { text: 'Monitor', link: '/manual/40-monitor', activeMatch: '/manual/4' },
+      { text: 'Appendices', link: '/manual/a-rules', activeMatch: '/manual/[a-e]-' },
     ],
     sidebar,
     outline: { level: [2, 3] },

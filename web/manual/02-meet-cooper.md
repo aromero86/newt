@@ -1,6 +1,6 @@
 # Meet cooper
 
-<p class="chapter-lead">Every chapter of this book explains newt through one application: cooper, a small SaaS of boards and cards for teams. This chapter walks you through what cooper does, how its backend is cut into three contexts, where its code lives, and how to run it on your computer.</p>
+<p class="chapter-lead">Every chapter of this manual explains newt through one application: cooper, a small SaaS of boards and cards for teams. This chapter walks you through what cooper does, how its backend is cut into three contexts, where its code lives, and how to run it on your computer.</p>
 
 ## The problem
 
@@ -9,7 +9,7 @@ list has no tenants, no second service, no emails, no background work and nobody
 editing the same row. The trouble newt is built for only shows up when those things are
 there.
 
-So the book uses a real application instead. cooper is small enough to read in a weekend
+So the manual uses a real application instead. cooper is small enough to read in a weekend
 and big enough to have the problems a real SaaS has: workspaces that must not see each
 other, people who sign in through an OAuth server, invitations by email, two people
 dragging the same card, an AI assistant calling the API, and a staff console that reads

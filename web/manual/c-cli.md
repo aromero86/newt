@@ -179,7 +179,7 @@ with your context's own base (cooper's `BoardsBase`), as its comment says.
 
 ## Scripts of this repository
 
-These are not newt's commands but the root `package.json`'s scripts, which the book uses to run
+These are not newt's commands but the root `package.json`'s scripts, which the manual uses to run
 cooper and the monitor.
 
 | Script | Runs | What it does |
@@ -195,7 +195,7 @@ cooper and the monitor.
 | `bun run monitor` | `packages/newt-monitor/scripts/dev.ts` | newt-monitor in development. |
 | `bun run monitor:build` | `packages/newt-monitor/scripts/build.ts` | Builds newt-monitor's frontend. |
 | `bun run ui` | `packages/newt-react-ui/gallery/serve.ts` | newt-react-ui's gallery of components. |
-| `bun run docs:dev`, `docs:build` | VitePress | This book. |
+| `bun run docs:dev`, `docs:build` | VitePress | This manual. |
 
 ## Recap
 

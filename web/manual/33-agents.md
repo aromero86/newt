@@ -71,7 +71,7 @@ describes exactly the code next to it. Upgrade newt, and the rules upgrade with 
 What is in it is dense on purpose: what newt is in five lines, the thirteen golden rules, a
 module's anatomy as a table, the shape of an entity, a repository, a use case, a save, an event, a
 worker, a route, a scope, an error; a table of **every message newt throws** with what it means and
-what to do; every lint rule; how to test; and a definition of done. It is the book's Part I,
+what to do; every lint rule; how to test; and a definition of done. It is the manual's Part I,
 compressed for a reader who reads it every time.
 
 ::: tip In cooper

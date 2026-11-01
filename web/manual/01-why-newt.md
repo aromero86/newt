@@ -1,6 +1,6 @@
 # Why newt
 
-<p class="chapter-lead">Most backends start clean and slowly rot. This chapter tells how that happens, one familiar step at a time, and shows the handful of ideas newt is built on to stop it. By the end you will have the mental model the rest of the book fills in.</p>
+<p class="chapter-lead">Most backends start clean and slowly rot. This chapter tells how that happens, one familiar step at a time, and shows the handful of ideas newt is built on to stop it. By the end you will have the mental model the rest of the manual fills in.</p>
 
 ## The problem
 

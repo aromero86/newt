@@ -2,7 +2,7 @@
 
 The rules of building an application with newt, versioned with the package. Read it
 before writing code; the full docs are the guide and the reference in newt's
-repository (`web/book`; the rules in `a-rules.md`, the lint in `b-lint.md`).
+repository (`web/manual`; the rules in `a-rules.md`, the lint in `b-lint.md`).
 
 ## What newt is
 
