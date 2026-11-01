@@ -1,5 +1,6 @@
 import type { HTMLBundle } from 'bun'
 import type { HttpRouter } from './http-router'
+import type { Hsts, SecurityHeaders } from './security-headers'
 
 export type ServeOptions = {
   port: number
@@ -39,4 +40,15 @@ export type ServeOptions = {
    * behind one load balancer. None unless told: the socket's address.
    */
   trustProxy?: number
+  /**
+   * The headers every answer carries unless it has its own: newt's (`SECURITY_HEADERS`:
+   * `nosniff`, a referrer policy, never framed), each one given replacing newt's and
+   * `null` leaving it out; `false` for none.
+   */
+  securityHeaders?: SecurityHeaders | false
+  /**
+   * HSTS: browsers come back only over HTTPS, for a year unless told. For a server whose
+   * public address is HTTPS, even when the proxy before it speaks HTTP to it. Off unless told.
+   */
+  hsts?: Hsts | boolean
 }

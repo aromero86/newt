@@ -7,12 +7,15 @@ export type ServedContextConfig = {
   port: number
   /** The built frontend it hands out for every address its routes do not take. */
   frontendFolder: string
+  /** Where people open it: over HTTPS, browsers are told to come back only so (HSTS). */
+  publicUrl: string
 }
 
 /**
  * A context of cooper's: its own server, on its own port and, in production, its own
  * domain, so its sessions (cookies) are its own too. It answers `GET /api/health`
- * without a session, for whoever watches it is up.
+ * without a session, for whoever watches it is up, and, on an HTTPS address, tells
+ * browsers to come back only over HTTPS.
  */
 export abstract class ServedContext extends BoundedContext<CooperBase> {
 
@@ -27,6 +30,7 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
 
   /** How it is served (`runContexts`, `serve`): its modules' API, what it adds, its health, and its frontend for any other address. */
   serving(): ServeOptions {
-    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true }
+    const hsts = new URL(this.served.publicUrl).protocol === 'https:'
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true, hsts }
   }
 }
