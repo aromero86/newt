@@ -74,7 +74,8 @@ export function LineChart({ label, times, series, formatTime = at => new Date(at
               hide={hidden.has(each.key)}
               type="monotone"
               stroke={`var(--color-${each.key})`}
-              strokeWidth={each.dashed ? 1.5 : 2}
+              strokeWidth={each.dashed ? 1.5 : 2.5}
+              strokeLinecap="round"
               strokeDasharray={each.dashed ? '5 4' : undefined}
               dot={false}
               connectNulls={false}
