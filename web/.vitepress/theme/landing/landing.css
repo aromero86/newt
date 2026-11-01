@@ -1,0 +1,89 @@
+/* The landing's shared pieces: layout, type, buttons, windows, code colours and the reveal on scroll. */
+.landing {
+  --gap: clamp(80px, 10vw, 136px);
+  --radius: 20px;
+  background: var(--l-bg);
+  color: var(--l-ink);
+  overflow-x: clip;
+  font-feature-settings: 'ss01', 'cv11';
+}
+:where(.landing) *, :where(.landing) *::before, :where(.landing) *::after { box-sizing: border-box; }
+:where(.landing) :where(p, h1, h2, h3, ul, ol) { margin: 0; padding: 0; }
+:where(.landing) a { text-decoration: none; }
+:where(.landing) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.landing code, .landing pre { font-family: var(--vp-font-family-mono); }
+
+.l-container { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+.l-section { position: relative; padding: var(--gap) 0; }
+.l-head { max-width: 780px; margin: 0 auto 64px; text-align: center; }
+.l-head.left { margin-left: 0; text-align: left; }
+.l-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--l-green-ink);
+}
+.l-eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--l-green), var(--l-orange)); }
+.l-h2 { margin-top: 16px; font-size: clamp(34px, 5vw, 60px); line-height: 1.02; letter-spacing: -0.038em; font-weight: 800; color: var(--l-ink); text-wrap: balance; }
+.l-h3 { font-size: 20px; line-height: 1.3; letter-spacing: -0.01em; font-weight: 700; color: var(--l-ink); }
+.l-lead { margin-top: 20px; font-size: clamp(16.5px, 1.5vw, 19px); line-height: 1.65; color: var(--l-ink-2); text-wrap: pretty; }
+.l-head .l-lead { margin-left: auto; margin-right: auto; max-width: 660px; }
+.l-head.left .l-lead { margin-left: 0; }
+.l-ink { background: linear-gradient(100deg, var(--l-green) 10%, #19b3a0 45%, var(--l-orange) 90%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.l-btn {
+  position: relative; isolation: isolate; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 24px; border-radius: 999px;
+  font-size: 15px; font-weight: 650; letter-spacing: -0.005em; white-space: nowrap;
+  transition: transform .2s ease, box-shadow .25s ease, background .2s ease, border-color .2s ease;
+}
+.l-btn.primary { color: #fff; background: linear-gradient(180deg, #17b083, #0c8d69); box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 12px 32px -10px var(--l-glow-green), 0 0 0 1px rgba(8, 90, 66, .6); }
+.l-btn.primary::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); transform: translateX(-120%); transition: transform .7s ease; }
+.l-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 18px 40px -10px var(--l-glow-green), 0 0 0 1px rgba(8, 90, 66, .6); }
+.l-btn.primary:hover::after { transform: translateX(120%); }
+.l-btn.ghost { color: var(--l-ink); background: var(--l-panel); border: 1px solid var(--l-border-strong); backdrop-filter: blur(8px); }
+.l-btn.ghost:hover { transform: translateY(-2px); border-color: var(--l-green); }
+.l-btn .arrow { transition: transform .2s ease; }
+.l-btn:hover .arrow { transform: translateX(3px); }
+.l-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 28px; font-weight: 650; color: var(--l-green-ink); }
+.l-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* A window: a code editor, a terminal or a browser, dark in both themes. */
+.l-window { position: relative; border-radius: 16px; background: var(--l-code-bg); border: 1px solid rgba(255,255,255,.08); box-shadow: var(--l-shadow-big); overflow: hidden; color: var(--l-code-ink); }
+.l-window-bar { display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; background: var(--l-code-bar); border-bottom: 1px solid rgba(255,255,255,.06); }
+.l-window-bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.l-window-bar i:nth-child(2) { background: #febc2e; }
+.l-window-bar i:nth-child(3) { background: #28c840; }
+.l-window-bar em { margin-left: 10px; font-style: normal; font-size: 12px; color: var(--l-code-dim); font-family: var(--vp-font-family-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l-window pre { margin: 0; padding: 20px 22px; font-size: 13px; line-height: 1.75; overflow-x: auto; white-space: pre; }
+.tok-c { color: #6f8379; font-style: italic; }
+.tok-s { color: #f6b26b; }
+.tok-d { color: #fb8a3c; }
+.tok-k { color: #c49bff; }
+.tok-t { color: #5fd4b0; }
+.tok-n { color: #ff9b85; }
+
+/* A glass card. */
+.l-glass { background: var(--l-panel); border: 1px solid var(--l-border); border-radius: var(--radius); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); box-shadow: var(--l-shadow); }
+
+/* A context's colour: boards blue, auth violet, backoffice orange. */
+.ctx { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 650; font-family: var(--vp-font-family-mono); letter-spacing: 0; }
+.ctx::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ctx.boards { color: var(--l-blue); background: color-mix(in srgb, var(--l-blue) 14%, transparent); }
+.ctx.auth { color: var(--l-violet); background: color-mix(in srgb, var(--l-violet) 14%, transparent); }
+.ctx.backoffice { color: var(--l-orange); background: color-mix(in srgb, var(--l-orange) 14%, transparent); }
+
+/* Reveal on scroll, children one after the other (--i). */
+.l-reveal { opacity: 0; transform: translateY(28px); filter: blur(6px); transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1), filter .9s ease; transition-delay: calc(var(--i, 0) * 90ms); }
+.l-reveal.is-in { opacity: 1; transform: none; filter: none; }
+
+/* A soft grid behind a section, fading at its edges. */
+.l-grid-bg { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(var(--l-grid) 1px, transparent 1px), linear-gradient(90deg, var(--l-grid) 1px, transparent 1px); background-size: 56px 56px; mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%); -webkit-mask-image: radial-gradient(ellipse at center, #000 20%, transparent 72%); }
+
+@media (max-width: 640px) {
+  .l-container { padding: 0 16px; }
+  .l-head { margin-bottom: 40px; }
+  .l-window pre { font-size: 12px; padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .l-reveal { opacity: 1; transform: none; filter: none; transition: none; }
+  .landing *, .landing *::before, .landing *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
