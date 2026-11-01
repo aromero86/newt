@@ -1,4 +1,4 @@
-import type { DuckDbParam } from 'newt-kit/adapter-duckdb'
+import type { DuckDbParam } from '@newt-kit/newt/adapter-duckdb'
 
 /** What a metrics query is about: one event or use case, in a context, or all of them (neither given); maybe one scope's or one actor's. */
 export type MetricsFilter = { context?: string, name?: string, scope?: string, actor?: string }

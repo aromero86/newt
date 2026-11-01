@@ -1,5 +1,5 @@
 import type { BunRequest } from 'bun'
-import { toOauthErrorResponse, type RouteOptions } from 'newt-kit/http'
+import { toOauthErrorResponse, type RouteOptions } from '@newt-kit/newt/http'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors/cors'
 import type { AuthBase } from '../../auth-base'
 import { InvalidClient } from '../oauth-client/errors/invalid-client'

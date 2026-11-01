@@ -1,6 +1,6 @@
 import { BackofficeMetricApi, type MetricsOverviewDTO } from '@cooper/api/backoffice-metric'
 import { BackofficeWorkspaceApi, type RecentBoardDTO } from '@cooper/api/backoffice-workspace'
-import { inject, Store } from 'newt-kit-react'
+import { inject, Store } from '@newt-kit/react'
 
 type OverviewState = {
   metrics: MetricsOverviewDTO | null

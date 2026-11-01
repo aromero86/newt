@@ -11,7 +11,7 @@ import { useCase } from './rules/use-case.js'
 
 /** The rules of newt that no other plugin has. */
 export const plugin = {
-  meta: { name: 'newt-kit-eslint' },
+  meta: { name: '@newt-kit/eslint' },
   rules: {
     'context-boundaries': contextBoundaries,
     'module-anatomy': moduleAnatomy,
@@ -34,7 +34,7 @@ const MODULES = '**/modules/*/**/*.ts'
  * - a module is made of the files every module has, and reaches another only
  *   through its use cases, schema, events, errors and value objects;
  * - a module's schema, which a frontend may import, takes from newt only
- *   `newt-kit/contract`;
+ *   `@newt-kit/newt/contract`;
  * - a module writes through its repository's `save` or `saveRows`, never in a
  *   transaction of its own, and a handler's queue names who reacts with what to
  *   which event;
@@ -57,7 +57,7 @@ const MODULES = '**/modules/*/**/*.ts'
  *
  * ```js
  * // eslint.config.js
- * import { newt } from 'newt-kit-eslint'
+ * import { newt } from '@newt-kit/eslint'
  * export default newt({ root: import.meta.dirname, contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
  * ```
  *

@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card, assigned to nobody now, who had it, and who took it from them: nobody when a member left the workspace. */

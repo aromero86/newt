@@ -1,5 +1,5 @@
 import type { OauthGrantRedirectDTO, OauthGrantReviewDTO } from '../../../backend/contexts/auth/modules/oauth-grant/oauth-grant.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** auth's `oauthGrant` module: an application's request for access to the monitor's MCP server, and the person's answer. */
 export class AuthorizationsApi extends Requester {

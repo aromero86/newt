@@ -1,6 +1,6 @@
 import type { ActivityDTO } from '../../../backend/contexts/boards/modules/activity/activity.schema'
-import type { Page } from 'newt-kit/contract'
-import { type PageRequest, Requester } from 'newt-kit-react'
+import type { Page } from '@newt-kit/newt/contract'
+import { type PageRequest, Requester } from '@newt-kit/react'
 
 /** The backend's `activity` module: what happened to each card, and who did it. */
 export class ActivityApi extends Requester {

@@ -1,4 +1,4 @@
-// newt-kit/http: a context's HTTP entry, on Bun.serve.
+// @newt-kit/newt/http: a context's HTTP entry, on Bun.serve.
 export { HttpRouter, MAX_BODY_BYTES } from './http-router'
 export type { HttpRouterOptions } from './http-router-options'
 export type { HttpRoute } from './http-route'

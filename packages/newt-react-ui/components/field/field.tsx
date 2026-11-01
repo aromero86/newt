@@ -8,7 +8,7 @@ type FieldProps = {
   description?: ReactNode
   /** When set, the control is marked invalid and this message is read with it. */
   error?: ReactNode
-  /** One control from newt-kit-react-ui: `Input`, `Textarea` or `Select`. */
+  /** One control from @newt-kit/react-ui: `Input`, `Textarea` or `Select`. */
   children: ReactNode
 }
 

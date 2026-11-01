@@ -1,4 +1,4 @@
-import { defineScope } from 'newt-kit/core'
+import { defineScope } from '@newt-kit/newt/core'
 import type { Member_Module } from './modules/member/member.module'
 
 /** The workspace the work in progress is about: an auth tenant, by its id. */

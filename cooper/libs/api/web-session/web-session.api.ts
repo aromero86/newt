@@ -1,4 +1,4 @@
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 import type { SessionDTO, SessionSignOutDTO } from './web-session.contract'
 
 /**

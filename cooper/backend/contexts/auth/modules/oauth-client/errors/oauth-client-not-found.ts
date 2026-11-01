@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt-kit/core'
+import { NotFoundError } from '@newt-kit/newt/core'
 
 export class OauthClientNotFound extends NotFoundError {
   readonly code = 'oauthClient.not_found'

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { PostgresStore } from 'newt-kit/adapter-postgres'
-import { SqliteStore } from 'newt-kit/adapter-sqlite'
+import { PostgresStore } from '@newt-kit/newt/adapter-postgres'
+import { SqliteStore } from '@newt-kit/newt/adapter-sqlite'
 
 /** A store cooper runs on: SQLite, or Postgres. */
 export type CooperStore = SqliteStore | PostgresStore

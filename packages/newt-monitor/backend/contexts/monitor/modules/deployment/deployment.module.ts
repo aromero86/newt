@@ -1,4 +1,4 @@
-import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import type { InstanceStartedDTO } from '../instances/instances.schema'
 import { Deployment, type DeploymentDTO } from './deployment'

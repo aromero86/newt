@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt-kit/core'
+import { Module, UseCase } from '@newt-kit/newt/core'
 import type { AuthBase } from '../../auth-base'
 import { ProductNotFound } from './errors/product-not-found'
 import type { Product_Options } from './product-options'

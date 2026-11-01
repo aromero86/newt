@@ -1,4 +1,4 @@
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 import type { WorkspaceMemberDTO } from './workspace-member.contract'
 
 /** A workspace's members: auth's access to the tenant, through boards' origin. */

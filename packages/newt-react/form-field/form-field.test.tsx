@@ -8,7 +8,7 @@ const AppSchema = z.object({ name: z.string().min(1, 'Say a name'), url: z.url('
 const form = () => new FormStore(AppSchema, { name: '', url: 'http://cooper:3010', kind: 'app' })
 
 describe('FormField', () => {
-  test('shows a value of its form, in newt-kit-react-ui\'s field, by name', () => {
+  test('shows a value of its form, in @newt-kit/react-ui\'s field, by name', () => {
     const html = renderToStaticMarkup(<FormField form={form()} name="url" label="Address" />)
 
     expect(html).toContain('>Address</label>')

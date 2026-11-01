@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { ApiError, Requester } from 'newt-kit-react'
+import { ApiError, Requester } from '@newt-kit/react'
 import { openTestMonitor, TEST_ADMIN, type TestMonitor } from '../../backend/testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../backend/testing/serve-test-app'
 import { AppApi } from './app'

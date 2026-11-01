@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { ConnectionChangedDTO } from '../connection.schema'
 
 export class Connection_Restored implements DomainEvent<ConnectionChangedDTO> {

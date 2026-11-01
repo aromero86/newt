@@ -1,7 +1,7 @@
 {
-  "name": "newt-kit-react",
+  "name": "@newt-kit/react",
   "version": "0.1.0",
-  "description": "What a React frontend of a newt application thinks with: a service's state, services and their injector, forms validated with the backend's own schemas, lists paged as newt pages them, and the requests to a newt API. How it looks is newt-kit-react-ui's.",
+  "description": "What a React frontend of a newt application thinks with: a service's state, services and their injector, forms validated with the backend's own schemas, lists paged as newt pages them, and the requests to a newt API. How it looks is @newt-kit/react-ui's.",
   "license": "MIT",
   "author": "Angel Romero",
   "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt-react#readme",
@@ -40,13 +40,13 @@
     "@preact/signals-core": "1.14.4"
   },
   "peerDependencies": {
-    "newt-kit": "^0.1.0",
-    "newt-kit-react-ui": "^0.1.0",
+    "@newt-kit/newt": "^0.1.0",
+    "@newt-kit/react-ui": "^0.1.0",
     "react": "^19.3.0",
     "zod": "^4.3.6"
   },
   "peerDependenciesMeta": {
-    "newt-kit-react-ui": {
+    "@newt-kit/react-ui": {
       "optional": true
     }
   },

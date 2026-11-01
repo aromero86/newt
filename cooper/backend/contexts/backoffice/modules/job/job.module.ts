@@ -1,4 +1,4 @@
-import { Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import { Module, UseCase, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import type { Job_Deps } from './job.deps'
 import { registerJobRoutes } from './job.routes'

@@ -204,7 +204,7 @@ flowchart TD
 ```
 
 - `cooper/backend/index.ts` starts the backend: it opens the contexts, serves each one on
-  its port and starts their workers, with `runContexts` from `newt-kit/application`.
+  its port and starts their workers, with `runContexts` from `@newt-kit/newt/application`.
 - `cooper/backend/open-contexts.ts` opens the three contexts in order (auth, then boards,
   then backoffice), handing each the modules of the contexts it uses.
 - `cooper/backend/config.ts` reads every setting from environment variables, with what
@@ -244,8 +244,8 @@ Each context serves a React frontend beside its API, from `cooper/frontend/<cont
   invitations.
 - **backoffice**: an overview, users, workspaces, staff and dead jobs.
 
-They are built with newt's frontend packages (`newt-kit-react` for stores, forms and requests,
-`newt-kit-react-ui` for components) and reach the backend only through `cooper/libs/api`, the
+They are built with newt's frontend packages (`@newt-kit/react` for stores, forms and requests,
+`@newt-kit/react-ui` for components) and reach the backend only through `cooper/libs/api`, the
 API clients, which import nothing of the backend but its modules' `*.schema.ts` files.
 The lint keeps it that way. [Frontends](./30-frontends) tells the whole story.
 

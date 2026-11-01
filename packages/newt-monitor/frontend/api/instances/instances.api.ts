@@ -1,5 +1,5 @@
 import type { InstanceCountQueryDTO, InstanceCountSeriesDTO, InstancesDTO, SystemSeriesDTO, SystemSeriesQueryDTO } from '../../../backend/contexts/monitor/modules/instances/instances.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `instances` module: an application's instances and its system. */
 export class InstancesApi extends Requester {

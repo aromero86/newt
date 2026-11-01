@@ -1,5 +1,5 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
-import { LOST_AFTER_MS, type InstanceState } from 'newt-kit/runtime'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
+import { LOST_AFTER_MS, type InstanceState } from '@newt-kit/newt/runtime'
 import { Instances_Started } from './events/instances-started'
 import { InstanceSchema, InstancesFeedSchema, type InstanceDTO, type InstanceRowDTO, type InstanceStatus, type InstancesFeedDTO } from './instances.schema'
 

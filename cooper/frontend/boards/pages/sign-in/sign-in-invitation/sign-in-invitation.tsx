@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { Alert } from 'newt-kit-react-ui/alert'
-import { Button } from 'newt-kit-react-ui/button'
-import { Card } from 'newt-kit-react-ui/card'
-import { Skeleton } from 'newt-kit-react-ui/skeleton'
-import { Stack } from 'newt-kit-react-ui/stack'
-import { Strong, Text } from 'newt-kit-react-ui/text'
-import { Provide, useService, useValue } from 'newt-kit-react'
+import { Alert } from '@newt-kit/react-ui/alert'
+import { Button } from '@newt-kit/react-ui/button'
+import { Card } from '@newt-kit/react-ui/card'
+import { Skeleton } from '@newt-kit/react-ui/skeleton'
+import { Stack } from '@newt-kit/react-ui/stack'
+import { Strong, Text } from '@newt-kit/react-ui/text'
+import { Provide, useService, useValue } from '@newt-kit/react'
 import { SignInInvitationService } from './sign-in-invitation.service'
 
 type SignInInvitationProps = {

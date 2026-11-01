@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt-kit/core'
+import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { AppDeletedDTO } from '../app.schema'
 
 export class App_Deleted implements DomainEvent<AppDeletedDTO> {

@@ -1,5 +1,5 @@
 import type { ConnectionStatusDTO } from '../../../backend/contexts/monitor/modules/connection/connection.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `connection` module: whether an application answers. */
 export class ConnectionApi extends Requester {

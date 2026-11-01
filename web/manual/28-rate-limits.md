@@ -155,8 +155,8 @@ newt ships three:
 | Store | Where the counts live | For |
 |---|---|---|
 | `MemoryRateLimitStore` | a `Map` in the process | one instance, tests; the default |
-| `TableRateLimitStore` | a table of the context's store (`newt-kit/port-rate-limit`) | several instances sharing a database, no Redis |
-| `RedisRateLimitStore` | one Redis key per key (`newt-kit/adapter-redis`) | several instances, a Redis at hand |
+| `TableRateLimitStore` | a table of the context's store (`@newt-kit/newt/port-rate-limit`) | several instances sharing a database, no Redis |
+| `RedisRateLimitStore` | one Redis key per key (`@newt-kit/newt/adapter-redis`) | several instances, a Redis at hand |
 
 ### In memory
 
@@ -223,21 +223,21 @@ CREATE INDEX rate_limit_expires_at ON rate_limit (expires_at);
 
 ### On Redis
 
-`RedisRateLimitStore`, in `newt-kit/adapter-redis`, keeps each key's `WindowCount` as JSON in one Redis
+`RedisRateLimitStore`, in `@newt-kit/newt/adapter-redis`, keeps each key's `WindowCount` as JSON in one Redis
 key, under a prefix (`newt:rate` unless told, so several applications share one Redis). It does the
 same compare-and-swap as the table, with a small Lua script that writes the new count only if the
 key still holds what was read, and sets it to expire once both windows have slid away. Redis forgets
 old keys on its own; nothing needs sweeping.
 
 ```ts
-import { RedisRateLimitStore } from 'newt-kit/adapter-redis'
+import { RedisRateLimitStore } from '@newt-kit/newt/adapter-redis'
 
 const rateLimits = new RedisRateLimitStore({ url: process.env.REDIS_URL!, prefix: 'cooper:rate' })
 ```
 
 ::: details The contract suite
 Every store proves it keeps the port's promises by running `describeRateLimitContract(name,
-fixture)`, from `newt-kit/port-rate-limit/contract`. The suite takes a fixture that opens a fresh store
+fixture)`, from `@newt-kit/newt/port-rate-limit/contract`. The suite takes a fixture that opens a fresh store
 and closes it, and checks everything this section said: up to the limit with what is left, refused
 past it with an exact wait, a refused take not counted, the previous window counted as it overlaps,
 keys apart, `forget`, takes at once, and a rule that cannot count refused. `MemoryRateLimitStore`,

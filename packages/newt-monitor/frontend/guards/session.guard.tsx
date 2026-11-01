@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router'
-import { NarrowPage } from 'newt-kit-react-ui/narrow-page'
-import { Spinner } from 'newt-kit-react-ui/spinner'
-import { useService, useValue } from 'newt-kit-react'
+import { NarrowPage } from '@newt-kit/react-ui/narrow-page'
+import { Spinner } from '@newt-kit/react-ui/spinner'
+import { useService, useValue } from '@newt-kit/react'
 import { SignIn } from '../pages/sign-in/sign-in'
 import { SessionService } from '../services/session/session.service'
 

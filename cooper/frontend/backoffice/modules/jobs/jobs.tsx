@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
 import { JOB_CONTEXTS, type JobContext } from '@cooper/api/backoffice-job'
-import { PageHeader } from 'newt-kit-react-ui/page-header'
-import { Stack } from 'newt-kit-react-ui/stack'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from 'newt-kit-react-ui/tabs'
-import { Provide, useService, useValue } from 'newt-kit-react'
+import { PageHeader } from '@newt-kit/react-ui/page-header'
+import { Stack } from '@newt-kit/react-ui/stack'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@newt-kit/react-ui/tabs'
+import { Provide, useService, useValue } from '@newt-kit/react'
 import { JobsList } from './jobs-list'
 import { JobsService } from './jobs.service'
 

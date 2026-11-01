@@ -1,5 +1,5 @@
 import { SessionApi, SessionSignInSchema } from '@cooper/api/session'
-import { FormStore, inject } from 'newt-kit-react'
+import { FormStore, inject } from '@newt-kit/react'
 import { SessionService } from '../../services/session/session.service'
 
 /** Signing in with an email and a password. */

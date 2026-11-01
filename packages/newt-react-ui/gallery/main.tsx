@@ -30,7 +30,7 @@ import { Text } from '../components/text'
 import { Toaster, toast } from '../components/toast'
 
 /**
- * newt-kit-react-ui's components, each as an app would use it: `bun run ui`. It follows
+ * @newt-kit/react-ui's components, each as an app would use it: `bun run ui`. It follows
  * the library's own rule: no class, no style, only components.
  */
 function Gallery() {
@@ -46,7 +46,7 @@ function Gallery() {
   const hourAgo = new Date(Date.now() - 3600_000).toISOString()
 
   return (
-    <AppShell brand={<Text weight="semibold">newt-kit-react-ui</Text>} actions={<Button variant="ghost" onClick={switchTheme}>{dark ? 'Light' : 'Dark'}</Button>}>
+    <AppShell brand={<Text weight="semibold">@newt-kit/react-ui</Text>} actions={<Button variant="ghost" onClick={switchTheme}>{dark ? 'Light' : 'Dark'}</Button>}>
       <PageBody>
         <Stack gap={8}>
           <PageHeader title="Components" description="What a newt app's pages are made of: they compose these, and style nothing." />

@@ -1,5 +1,5 @@
 {
-  "name": "newt-kit-eslint",
+  "name": "@newt-kit/eslint",
   "version": "0.1.0",
   "description": "The lint of an application built with newt: every module made of the same files, reaching others only through what they offer, and writing only through its repository.",
   "license": "MIT",

@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt-kit/core'
+import { ValidationError } from '@newt-kit/newt/core'
 
 /** Daily summaries kept for less time than the minutes they are made of: the days between would read as nothing. */
 export class DaysShorterThanMinutes extends ValidationError {

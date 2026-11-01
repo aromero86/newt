@@ -1,6 +1,6 @@
-import type { Page } from 'newt-kit/contract'
+import type { Page } from '@newt-kit/newt/contract'
 import type { AppDTO, AppRegisterDTO, AppUpdateDTO } from '../../../backend/contexts/monitor/modules/app/app.schema'
-import { type PageRequest, Requester } from 'newt-kit-react'
+import { type PageRequest, Requester } from '@newt-kit/react'
 
 /** Which applications a list shows. */
 export type AppStatus = 'active' | 'archived' | 'all'

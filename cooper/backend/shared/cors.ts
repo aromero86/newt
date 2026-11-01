@@ -1,4 +1,4 @@
-import type { Cors } from 'newt-kit/http'
+import type { Cors } from '@newt-kit/newt/http'
 
 /**
  * What a page of another origin may send and read: the MCP inspector, for one, runs

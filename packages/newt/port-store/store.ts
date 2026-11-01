@@ -26,7 +26,7 @@ import type { TableOptions } from './table-options'
  *   it since it was read), or a new row whose key or unique value is taken, throws
  *   `ConcurrencyConflict`.
  *
- * `newt-kit/port-store/contract` has the suite that checks an adapter keeps every promise.
+ * `@newt-kit/newt/port-store/contract` has the suite that checks an adapter keeps every promise.
  */
 export interface Store {
   /** Runs `fn` in a transaction, or in the one in progress; resolves once it commits. */

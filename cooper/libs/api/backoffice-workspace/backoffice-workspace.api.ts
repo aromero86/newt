@@ -1,6 +1,6 @@
 import type { RecentBoardDTO, WorkspaceBoardDTO, WorkspaceDetailDTO, WorkspaceMemberDTO, WorkspaceSummaryDTO } from '../../../backend/contexts/backoffice/modules/workspace/workspace.schema'
-import type { Page } from 'newt-kit/contract'
-import { type PageRequest, Requester } from 'newt-kit-react'
+import type { Page } from '@newt-kit/newt/contract'
+import { type PageRequest, Requester } from '@newt-kit/react'
 
 /** The backoffice's `workspace` module: every workspace of cooper, as the staff see them. */
 export class BackofficeWorkspaceApi extends Requester {

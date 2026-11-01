@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt-kit/repository'
+import { TableRepository } from '@newt-kit/newt/repository'
 import type { MonitorBase } from '../../../../monitor-base'
 import { Retention, type RetentionRowDTO } from './retention'
 

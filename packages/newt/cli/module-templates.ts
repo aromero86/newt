@@ -25,7 +25,7 @@ export type ${M}DTO = z.infer<typeof ${M}Schema>
 export type ${M}CreateDTO = z.input<typeof ${M}CreateSchema>
 `,
 
-    [`${n.folder}.ts`]: `import { Entity, type EntityInput } from 'newt-kit/core'
+    [`${n.folder}.ts`]: `import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { ${M}_Created } from './events/${n.folder}-created'
 import { ${M}Schema, type ${M}DTO } from './${n.folder}.schema'
 
@@ -50,8 +50,8 @@ export class ${M} extends Entity<typeof ${M}Schema> {
 }
 `,
 
-    [`${n.folder}.repository.ts`]: `import { TableRepository } from 'newt-kit/repository'
-import type { Base } from 'newt-kit/runtime'
+    [`${n.folder}.repository.ts`]: `import { TableRepository } from '@newt-kit/newt/repository'
+import type { Base } from '@newt-kit/newt/runtime'
 import { ${M}, type ${M}DTO } from './${n.folder}'
 
 export type ${M}Row = ${M}DTO & { version: number }
@@ -71,9 +71,9 @@ export class ${M}_Repository extends TableRepository<${M}, ${M}Row> {
 }
 `,
 
-    [`${n.folder}.module.ts`]: `import { eventsOf, Module, UseCase } from 'newt-kit/core'
-import type { HttpRouter } from 'newt-kit/http'
-import type { Base } from 'newt-kit/runtime'
+    [`${n.folder}.module.ts`]: `import { eventsOf, Module, UseCase } from '@newt-kit/newt/core'
+import type { HttpRouter } from '@newt-kit/newt/http'
+import type { Base } from '@newt-kit/newt/runtime'
 import { ${M}NotFound } from './errors/${n.folder}-not-found'
 import { ${M}_Created } from './events/${n.folder}-created'
 import { ${M}, ${M}CreateSchema, type ${M}DTO } from './${n.folder}'
@@ -125,7 +125,7 @@ export class ${M}_Module extends Module {
 export interface ${M}_Deps {}
 `,
 
-    [`${n.folder}.routes.ts`]: `import type { HttpRouter } from 'newt-kit/http'
+    [`${n.folder}.routes.ts`]: `import type { HttpRouter } from '@newt-kit/newt/http'
 import type { ${M}_Module } from './${n.folder}.module'
 
 /** Read the request, call a use case, answer: a body goes to the use case as it came. */
@@ -136,7 +136,7 @@ export function register${M}Routes(http: HttpRouter, ${n.plural}: ${M}_Module): 
 }
 `,
 
-    [`events/${n.folder}-created.ts`]: `import { now, type DomainEvent } from 'newt-kit/core'
+    [`events/${n.folder}-created.ts`]: `import { now, type DomainEvent } from '@newt-kit/newt/core'
 import type { ${M}DTO } from '../${n.folder}.schema'
 
 export class ${M}_Created implements DomainEvent<${M}DTO> {
@@ -147,7 +147,7 @@ export class ${M}_Created implements DomainEvent<${M}DTO> {
 }
 `,
 
-    [`errors/${n.folder}-not-found.ts`]: `import { NotFoundError } from 'newt-kit/core'
+    [`errors/${n.folder}-not-found.ts`]: `import { NotFoundError } from '@newt-kit/newt/core'
 
 export class ${M}NotFound extends NotFoundError {
   readonly code = '${n.module}.not_found'
@@ -161,9 +161,9 @@ export class ${M}NotFound extends NotFoundError {
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { FileStore } from 'newt-kit/adapter-files'
-import { HttpRouter } from 'newt-kit/http'
-import { Base } from 'newt-kit/runtime'
+import { FileStore } from '@newt-kit/newt/adapter-files'
+import { HttpRouter } from '@newt-kit/newt/http'
+import { Base } from '@newt-kit/newt/runtime'
 import { ${M}_Module } from './${n.folder}.module'
 
 // Opened on its own here; once the context has a helper that opens it for tests, use that.

@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { Access_Granted } from './events/access-granted'
 import { Access_Revoked } from './events/access-revoked'
 import { AccessSchema, type AccessDTO, type AccessRole } from './access.schema'

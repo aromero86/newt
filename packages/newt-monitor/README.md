@@ -3,7 +3,7 @@
 Watches newt applications while they run: which contexts each one has, their modules,
 their use cases and their events, and how that changes from one deployment to the next.
 It never opens an application's database: each one tells it what it is made of,
-through `newt-kit/monitor`, on a port of its own, to requests signed with a key both share.
+through `@newt-kit/newt/monitor`, on a port of its own, to requests signed with a key both share.
 
 It is a newt application itself. How to use it, and how it is built, is part III of
 the newt manual, `web/manual/40-monitor.md`.
@@ -14,7 +14,7 @@ the newt manual, `web/manual/40-monitor.md`.
 NEWT_MONITOR_USER=ana \
 NEWT_MONITOR_PASSWORD='a long password' \
 NEWT_MONITOR_SECRET="$(openssl rand -base64 48)" \
-bunx newt-kit-monitor
+bunx @newt-kit/monitor
 ```
 
 | Variable | What it is |
@@ -40,7 +40,7 @@ reloads them as they change.
 
 ## Watching an application
 
-The application serves its monitor endpoint (`serveMonitor`, `newt-kit/monitor`) with a key
+The application serves its monitor endpoint (`serveMonitor`, `@newt-kit/newt/monitor`) with a key
 of 32 characters or more, on a port no public address points at. Register it with
 that address and key: the monitor asks it which application it is before it saves
 anything.

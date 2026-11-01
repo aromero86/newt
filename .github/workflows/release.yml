@@ -1,6 +1,6 @@
 # A tag v<x.y.z> publishes every package at that version to npm, once the repository
 # type checks, passes its tests and its lint. NPM_TOKEN is a repository secret: an npm
-# granular token that may publish the newt-kit packages.
+# granular token that may publish the @newt-kit packages.
 name: release
 
 on:

@@ -104,7 +104,7 @@ router.authenticateWith(bearerAuthenticator(async accessToken => {
 }))
 ```
 
-`bearerAuthenticator(verify)` from `newt-kit/http` reads `Authorization: Bearer <token>` (RFC 6750)
+`bearerAuthenticator(verify)` from `@newt-kit/newt/http` reads `Authorization: Bearer <token>` (RFC 6750)
 and hands the token to `verify`; a request without one is nobody's. What a token means is yours to
 say. cooper says two things:
 
@@ -123,7 +123,7 @@ The actor gets `via: 'mcp'`. cooper extends newt's `Actor` once, in
 // cooper/backend/shared/actor.ts
 export type ActorVia = 'web' | 'mcp'
 
-declare module 'newt-kit/core' {
+declare module '@newt-kit/newt/core' {
   interface Actor {
     via: ActorVia
   }

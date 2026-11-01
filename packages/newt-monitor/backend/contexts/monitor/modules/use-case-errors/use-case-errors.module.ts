@@ -1,5 +1,5 @@
-import type { UseCaseTiming } from 'newt-kit/contract'
-import { Module, now, UseCase } from 'newt-kit/core'
+import type { UseCaseTiming } from '@newt-kit/newt/contract'
+import { Module, now, UseCase } from '@newt-kit/newt/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
 import { AppGone, scopesText } from '../../../../shared/metrics-store/metrics-store'

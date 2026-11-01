@@ -77,7 +77,7 @@ a POST, PUT, PATCH or DELETE, though the same request works from the app.
 the route's `cors` names it. It reads `Sec-Fetch-Site` (anything but `same-origin` or `none` is
 refused), or, from an older browser, `Origin` against `Host`. Usual culprits:
 - a test or script that copies a browser's headers and sends an `Origin` (Bun's `fetch` and
-  `newt-kit/testing`'s `browser` send none, and pass);
+  `@newt-kit/newt/testing`'s `browser` send none, and pass);
 - a frontend served by a dev server on another port, calling the API on its own: another port is
   another origin, and the browser says `same-site`, not `same-origin`;
 - a page in a sandboxed frame, whose origin is `null`.
@@ -110,7 +110,7 @@ See [Security](./27-security).
 `body: JSON.stringify(…)` and no headers). newt refuses it on purpose: a form posted from another
 site cannot send that type without asking first.
 
-**Fix.** Send the header. `newt-kit/testing`'s `browser` does it for you with `json:`.
+**Fix.** Send the header. `@newt-kit/newt/testing`'s `browser` does it for you with `json:`.
 
 See [HTTP](./08-http).
 
@@ -482,9 +482,9 @@ See [Stores](./26-stores).
 **Symptom.** `Module "node:async_hooks" has been externalized for browser compatibility, imported
 by ".../packages/newt/core/scope/define-scope.ts"`.
 
-**Cause.** A frontend pulled `newt-kit/core` in, through a schema or a value object that imports it.
+**Cause.** A frontend pulled `@newt-kit/newt/core` in, through a schema or a value object that imports it.
 
-**Fix.** A `*.schema.ts` and its value objects import `newt-kit/contract`, never `newt-kit/core`. The
+**Fix.** A `*.schema.ts` and its value objects import `@newt-kit/newt/contract`, never `@newt-kit/newt/core`. The
 lint's `newt/schema-imports` catches it in the schema itself; in a value object the schema
 imports, only this warning does ([B](./b-lint#newt-schema-imports)).
 
@@ -510,7 +510,7 @@ See [Frontends](./30-frontends).
 **Fix.** In development, `bun run cooper` serves them from their sources. In production, run
 `bun run cooper:build` first. See [Frontends](./30-frontends).
 
-### The lint stops before linting: "newt-kit-eslint: contexts never use each other in a cycle, …"
+### The lint stops before linting: "@newt-kit/eslint: contexts never use each other in a cycle, …"
 
 **Cause.** `contexts.uses` in `eslint.config.js` names a context it does not list, or makes a
 cycle. See [B](./b-lint#newt-context-boundaries).

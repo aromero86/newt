@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 export class BoardNameTaken extends ConflictError {
   readonly code = 'board.name_taken'

@@ -28,7 +28,7 @@ const html = (element: ReactElement) => renderToStaticMarkup(element)
 /** An app router's link, as an app gives it: it marks what it renders. */
 const RouterLink: LinkComponent = ({ href, children, ...rest }) => <a data-router="" href={href} {...rest}>{children}</a>
 
-describe('newt-kit-react-ui', () => {
+describe('@newt-kit/react-ui', () => {
   test('a button is a button, or a link with `href`, through the app\'s link', () => {
     expect(html(<Button>Save</Button>)).toMatch(/^<button[^>]*type="button"/)
     expect(html(<Button type="submit">Save</Button>)).toContain('type="submit"')

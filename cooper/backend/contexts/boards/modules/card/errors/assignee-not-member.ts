@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt-kit/core'
+import { ValidationError } from '@newt-kit/newt/core'
 
 /** A card is assigned only to someone of its workspace: the request named anyone else. */
 export class AssigneeNotMember extends ValidationError {

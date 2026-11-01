@@ -24,7 +24,7 @@ No module, repository or use case changes. That is not luck: it is how the store
 
 ::: info Concept: Store
 A **store** is where one bounded context keeps its data. It is a port, `Store`, from
-`newt-kit/port-store`: transactions, tables of rows with versions, an outbox of jobs, and
+`@newt-kit/newt/port-store`: transactions, tables of rows with versions, an outbox of jobs, and
 migrations. Each database is an adapter of that port. A context owns exactly one store, and
 no other context reads it.
 :::
@@ -53,7 +53,7 @@ flowchart LR
   P --> PG["PostgresStore"]
   P --> M["MySqlStore"]
   P --> Y["your own store"]
-  PG --> SQL["newt-kit/sql"]
+  PG --> SQL["@newt-kit/newt/sql"]
   M --> SQL
   S --> SQL
 ```
@@ -141,7 +141,7 @@ export type SqlTableOptions<Row> = {
 ```
 
 So the migration says `workspace_id TEXT NOT NULL`, and the row type says `workspaceId: string`.
-Kysely, through `kyselyFor` from `newt-kit/kysely`, does the same translation, so a query in a
+Kysely, through `kyselyFor` from `@newt-kit/newt/kysely`, does the same translation, so a query in a
 repository names `workspaceId` too ([Queries, analytics and ports](./25-queries)).
 
 ::: warning Watch out
@@ -167,10 +167,10 @@ also brings it up to date.
 
 | Adapter | Export | Opened with | Transactions |
 |---|---|---|---|
-| `SqliteStore` | `newt-kit/adapter-sqlite` | `{ path, migrations?, waitTimeoutMs? }` | One at a time, in the process |
-| `FileStore` | `newt-kit/adapter-files` | `{ folder, migrations?, waitTimeoutMs? }` | One at a time, across processes on one host |
-| `PostgresStore` | `newt-kit/adapter-postgres` | `{ url, migrations?, connections?, waitTimeoutMs? }` | Side by side, in the database |
-| `MySqlStore` | `newt-kit/adapter-mysql` | `{ url, migrations?, connections?, waitTimeoutMs? }` | Side by side, in the database |
+| `SqliteStore` | `@newt-kit/newt/adapter-sqlite` | `{ path, migrations?, waitTimeoutMs? }` | One at a time, in the process |
+| `FileStore` | `@newt-kit/newt/adapter-files` | `{ folder, migrations?, waitTimeoutMs? }` | One at a time, across processes on one host |
+| `PostgresStore` | `@newt-kit/newt/adapter-postgres` | `{ url, migrations?, connections?, waitTimeoutMs? }` | Side by side, in the database |
+| `MySqlStore` | `@newt-kit/newt/adapter-mysql` | `{ url, migrations?, connections?, waitTimeoutMs? }` | Side by side, in the database |
 
 ### SQLite
 
@@ -220,7 +220,7 @@ const store = await MySqlStore.open({ url: 'mysql://user:password@host:3306/boar
 
 Both run on `Bun.SQL`, so there is no driver to install. Both keep a pool of connections
 (`connections`, 10 by default); each transaction reserves one until it ends. They share their
-code in `newt-kit/sql` (`SqlStore`, `SqlTable`, `SqlOutbox`, `SqlMigrationRunner`); what tells them
+code in `@newt-kit/newt/sql` (`SqlStore`, `SqlTable`, `SqlOutbox`, `SqlMigrationRunner`); what tells them
 apart is a dialect.
 
 Transactions run side by side, both at `READ COMMITTED` (MySQL's default is `REPEATABLE READ`;
@@ -613,7 +613,7 @@ modules say.
 
 ## Writing a store of your own
 
-You will rarely need one. For another SQL database, start from `newt-kit/sql`: a new SQL adapter is
+You will rarely need one. For another SQL database, start from `@newt-kit/newt/sql`: a new SQL adapter is
 mostly a `SqlServerDialect` (how a parameter and a name are written, how `ieq` and "differs
 from" are said, how a collision reads in its errors, how a key becomes a lock), as
 `packages/newt/adapter-postgres/postgres-dialect.ts` is for Postgres. For something else
@@ -621,7 +621,7 @@ entirely, a key-value service or a store in memory for examples, you implement t
 
 newt gives you the hardest parts as pieces:
 
-- **`TransactionScope`** (`newt-kit/port-store`) is the machinery of transactions: the current one
+- **`TransactionScope`** (`@newt-kit/newt/port-store`) is the machinery of transactions: the current one
   following the code in an `AsyncLocalStorage`, a call inside one joining it, a late call of one
   that ended failing instead of running outside it, `afterCommit` and `afterRollback`, the write
   rule's record of which modules each transaction saved, and the queue and the wait that gives
@@ -629,16 +629,16 @@ newt gives you the hardest parts as pieces:
   `end`. A store whose transactions take turns (the default, `serial`) guards a key by being in
   a transaction; one whose transactions run side by side passes `serial: false` and takes a lock
   per key itself.
-- **`noteRead(table)`** (`newt-kit/port-store`): your table calls it as it finds and counts, so the
+- **`noteRead(table)`** (`@newt-kit/newt/port-store`): your table calls it as it finds and counts, so the
   guard rule sees a save that reads rows without guarding them, on your store too.
-- **`criteriaTree`, `matches`, `compare`** (`newt-kit/core`): criteria as a tree to translate into a
+- **`criteriaTree`, `matches`, `compare`** (`@newt-kit/newt/core`): criteria as a tree to translate into a
   query, or checked and sorted in memory for a store without one.
-- **`isSameClaim`** (`newt-kit/port-outbox`): the rule that fences a claimed job.
-- **`migrationName`, `migrationChecksum`** (`newt-kit/port-store`): name and fingerprint migrations
+- **`isSameClaim`** (`@newt-kit/newt/port-outbox`): the rule that fences a claimed job.
+- **`migrationName`, `migrationChecksum`** (`@newt-kit/newt/port-store`): name and fingerprint migrations
   as the other stores do.
 
 ```ts
-import { TransactionScope, type Store } from 'newt-kit/port-store'
+import { TransactionScope, type Store } from '@newt-kit/newt/port-store'
 
 export class MemoryStore implements Store {
   private readonly scope = new TransactionScope<Staged>()
@@ -662,14 +662,14 @@ export class MemoryStore implements Store {
 
 ### Proving it: the contract suite
 
-A store that compiles is not a store that keeps its promises. `newt-kit/port-store/contract` has the
+A store that compiles is not a store that keeps its promises. `@newt-kit/newt/port-store/contract` has the
 suite every adapter of newt runs: transactions, isolation, guards, `afterCommit` and
 `afterRollback`, tables and criteria, versions and unique values, repositories (scoped too), the
 outbox, the job queue, and schedules on top.
 
 ```ts
 // packages/newt/adapter-sqlite/sqlite-store.test.ts
-import { describeStoreContract } from 'newt-kit/port-store/contract'
+import { describeStoreContract } from '@newt-kit/newt/port-store/contract'
 
 describeStoreContract('SqliteStore', { open })
 ```
@@ -718,7 +718,7 @@ test. Give them one of their own.
 - The **outbox** lives in the store, so a job is written in the transaction of its change.
 - Moving cooper to Postgres was an address, a second folder of migrations, and a test on a real
   database: no module changed.
-- A store of your own builds on `TransactionScope` (or `newt-kit/sql` and a dialect) and is proved
+- A store of your own builds on `TransactionScope` (or `@newt-kit/newt/sql` and a dialect) and is proved
   by `describeStoreContract`.
 
 ## Going further

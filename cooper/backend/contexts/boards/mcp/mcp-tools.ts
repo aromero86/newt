@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { mapPage, type Page, type PageRequest } from 'newt-kit/core'
+import { mapPage, type Page, type PageRequest } from '@newt-kit/newt/core'
 import { z } from 'zod'
 import type { Boards_Modules } from '../initialize-modules'
 import type { CardDTO, CardFilterDTO } from '../modules/card/card.schema'

@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 import { MAX_CARDS } from '../card.schema'
 
 export class TooManyCards extends ConflictError {

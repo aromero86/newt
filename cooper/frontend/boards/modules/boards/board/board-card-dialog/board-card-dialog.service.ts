@@ -1,6 +1,6 @@
 import type { CardDTO } from '@cooper/api/card'
-import { FormStore, inject, Store } from 'newt-kit-react'
-import { toast } from 'newt-kit-react-ui/toast'
+import { FormStore, inject, Store } from '@newt-kit/react'
+import { toast } from '@newt-kit/react-ui/toast'
 import { BoardService } from '../board.service'
 import { CARD_FORM_MESSAGES, CARD_NOBODY, CardDialogFormSchema } from '../board-card-form'
 

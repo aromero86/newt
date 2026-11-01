@@ -1,4 +1,4 @@
-import { ConcurrencyConflict, Module, now, UseCase } from 'newt-kit/core'
+import { ConcurrencyConflict, Module, now, UseCase } from '@newt-kit/newt/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidGrant } from '../oauth-grant/errors/invalid-grant'
 import type { OauthGrantRedeemDTO, OauthGrantRedeemedDTO } from '../oauth-grant/oauth-grant.schema'

@@ -209,7 +209,7 @@ export function readConfig(variables: Record<string, string | undefined>) {
      */
     otlpUrl: env.COOPER_OTLP_URL,
     /**
-     * What cooper tells whoever monitors it (newt-kit/monitor), on a port of its own with no
+     * What cooper tells whoever monitors it (@newt-kit/newt/monitor), on a port of its own with no
      * public address: only when `COOPER_MONITOR_KEY` gives the key the monitor signs its
      * requests with (32 characters or more), never sent.
      */

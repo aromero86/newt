@@ -1,4 +1,4 @@
-import { runAsActor } from 'newt-kit/core'
+import { runAsActor } from '@newt-kit/newt/core'
 import { config } from '../../../config'
 import type { ActorVia } from '../../../shared/actor'
 import { RecordingMailer } from '../../../shared/mail/recording-mailer'

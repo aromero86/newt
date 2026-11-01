@@ -7,11 +7,11 @@ import { absolute, contextOf, importsOf, resolved, ROOT, rootOf } from '../paths
 export function assertUsesTree(uses) {
   for (const [name, used] of Object.entries(uses)) {
     const unknown = used.find(each => !Object.hasOwn(uses, each))
-    if (unknown !== undefined) throw new Error(`newt-kit-eslint: the context '${name}' uses '${unknown}', which is not in \`uses\`: list every context, each with the ones it uses ([] for none).`)
+    if (unknown !== undefined) throw new Error(`@newt-kit/eslint: the context '${name}' uses '${unknown}', which is not in \`uses\`: list every context, each with the ones it uses ([] for none).`)
   }
   const done = new Set()
   const visit = (name, path) => {
-    if (path.includes(name)) throw new Error(`newt-kit-eslint: contexts never use each other in a cycle, and \`uses\` says ${[...path.slice(path.indexOf(name)), name].join(' → ')}.`)
+    if (path.includes(name)) throw new Error(`@newt-kit/eslint: contexts never use each other in a cycle, and \`uses\` says ${[...path.slice(path.indexOf(name)), name].join(' → ')}.`)
     if (done.has(name)) return
     for (const each of uses[name]) visit(each, [...path, name])
     done.add(name)

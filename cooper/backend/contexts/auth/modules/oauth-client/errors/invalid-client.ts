@@ -1,4 +1,4 @@
-import { UnauthorizedError } from 'newt-kit/core'
+import { UnauthorizedError } from '@newt-kit/newt/core'
 
 /** Unknown, or with the wrong secret: one answer for all (RFC 6749's `invalid_client`). */
 export class InvalidClient extends UnauthorizedError {

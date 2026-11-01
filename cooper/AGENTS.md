@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Before writing code, read ../node_modules/newt-kit/AGENTS.md: it is the rules of the
+Before writing code, read ../node_modules/@newt-kit/newt/AGENTS.md: it is the rules of the
 framework, versioned with it. What follows is this project's own.
 
 ## This project

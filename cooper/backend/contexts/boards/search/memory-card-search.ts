@@ -1,4 +1,4 @@
-import { matches, now, toPage, type Page, type PageRequest } from 'newt-kit/core'
+import { matches, now, toPage, type Page, type PageRequest } from '@newt-kit/newt/core'
 import type { CardDTO } from '../modules/card/card.schema'
 import type { CardQuery, CardSearch } from './card-search'
 

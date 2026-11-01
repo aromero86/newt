@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt-kit/repository'
+import { TableRepository } from '@newt-kit/newt/repository'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Column, MAX_COLUMNS, type ColumnDTO } from './column'

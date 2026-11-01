@@ -34,11 +34,11 @@ is the signature: even a request that reaches it is refused without the key.
 
 ## Serving the endpoint
 
-`serveMonitor` comes from `newt-kit/monitor`. You give it the contexts the application is made
+`serveMonitor` comes from `@newt-kit/newt/monitor`. You give it the contexts the application is made
 of, and its options:
 
 ```ts
-import { serveMonitor } from 'newt-kit/monitor'
+import { serveMonitor } from '@newt-kit/newt/monitor'
 
 const monitor = serveMonitor(contexts.all, {
   name: 'cooper',

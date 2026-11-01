@@ -1,6 +1,6 @@
 import { computed } from '@preact/signals-core'
-import { ApiError, inject, Store } from 'newt-kit-react'
-import { toast } from 'newt-kit-react-ui/toast'
+import { ApiError, inject, Store } from '@newt-kit/react'
+import { toast } from '@newt-kit/react-ui/toast'
 import { AppApi, type AppDTO } from '../../api/app'
 import { CatalogApi, type CatalogItemDTO } from '../../api/catalog'
 import { ConnectionApi, type ConnectionStatusDTO } from '../../api/connection'

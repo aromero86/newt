@@ -1,27 +1,27 @@
 # C. The command line
 
-<p class="chapter-lead">newt ships one command, <code>newt-kit</code> (also <code>newt</code> once installed), with two jobs: setting an
+<p class="chapter-lead">newt ships one command, <code>newt</code>, with two jobs: setting an
 application up for coding agents, and writing a module's skeleton. This appendix lists every
 command, what it writes and what it prints; then the scripts of this repository that run cooper
 and the monitor.</p>
 
-The command lives in `packages/newt/cli/` and is the package's `bin`, under two names:
+The command lives in `packages/newt/cli/` and is the package's `bin`:
 
 ```jsonc
 // packages/newt/package.json
-"bin": { "newt-kit": "./cli/newt.ts", "newt": "./cli/newt.ts" }
+"bin": { "newt": "./cli/newt.ts" }
 ```
 
-Run it as `bunx newt-kit`: that name is the package's own, so `bunx` finds it even before the
-package is installed. Inside an application that has it, `newt` is the same command.
+Run it as `bunx @newt-kit/newt`: `bunx` finds the package by its name, even before it is
+installed, and runs its one command. Inside an application that has it, `newt` is the same.
 
 It writes files and imports none of newt's pieces. It **never overwrites a file**: one that is
 there already is named as skipped and left as it was, so running a command twice is safe.
 
 ```sh
-bunx newt-kit init                                   # in an application's folder
-bunx newt-kit add module src/contexts/shop order     # a module's skeleton
-bunx newt-kit help                                   # the usage
+bunx @newt-kit/newt init                                   # in an application's folder
+bunx @newt-kit/newt add module src/contexts/shop order     # a module's skeleton
+bunx @newt-kit/newt help                                   # the usage
 ```
 
 ## Commands at a glance
@@ -50,13 +50,13 @@ Run it in an application's folder. It takes no options.
 
 | File | What it holds | When |
 |---|---|---|
-| `AGENTS.md` | The application's own instructions for coding agents: sections to fill in (this project, its contexts, its conventions) and its commands (`bun check`, `bun test`, `bunx eslint`). It opens by sending agents to newt's rules, `node_modules/newt-kit/AGENTS.md`. | Always, unless it exists. |
+| `AGENTS.md` | The application's own instructions for coding agents: sections to fill in (this project, its contexts, its conventions) and its commands (`bun check`, `bun test`, `bunx eslint`). It opens by sending agents to newt's rules, `node_modules/@newt-kit/newt/AGENTS.md`. | Always, unless it exists. |
 | `CLAUDE.md` | Claude Code's memory: `@AGENTS.md`, `@<path to newt's AGENTS.md>`, and one `@…/AGENTS.md` for each newt package the application depends on that has rules of its own. | Always, unless it exists. |
-| `.claude/skills/<skill>/…` | The Claude Code skills a newt package ships, copied whole (newt-kit-react-ui's `newt-kit-react-ui` skill). | For each package that declares skills. |
-| `eslint.config.js` | newt's lint, `export default newt()` from `newt-kit-eslint`, with a comment showing `contexts`. | Only if no ESLint configuration (`eslint.config.{js,mjs,cjs,ts,mts}`) is in this folder or any above. |
+| `.claude/skills/<skill>/…` | The Claude Code skills a newt package ships, copied whole (@newt-kit/react-ui's `@newt-kit/react-ui` skill). | For each package that declares skills. |
+| `eslint.config.js` | newt's lint, `export default newt()` from `@newt-kit/eslint`, with a comment showing `contexts`. | Only if no ESLint configuration (`eslint.config.{js,mjs,cjs,ts,mts}`) is in this folder or any above. |
 
 ::: info Concept: rules that ship with the package
-`node_modules/newt-kit/AGENTS.md` is newt's own: the golden rules, a module's anatomy, a snippet of
+`node_modules/@newt-kit/newt/AGENTS.md` is newt's own: the golden rules, a module's anatomy, a snippet of
 each piece, what to do about each error newt throws, the lint's rules and a definition of done.
 It ships with the package, so it always describes the version installed. The application's
 `AGENTS.md` says only what is the application's own.
@@ -78,7 +78,7 @@ whose own `package.json` has a `newt` key:
 ```
 
 `agents` is imported by `CLAUDE.md`; each folder in `skills` is copied into `.claude/skills/`.
-`newt-kit-react` declares `agents` only.
+`@newt-kit/react` declares `agents` only.
 
 **What it prints.** One line per file, then what is left to do. In a new folder:
 
@@ -88,8 +88,8 @@ wrote    CLAUDE.md
 wrote    eslint.config.js
 
 Next:
-  bun add newt-kit zod
-  bun add -d newt-kit-eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+  bun add @newt-kit/newt zod
+  bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
   fill in AGENTS.md: the project, its contexts, its conventions
   newt add module <context-folder> <module>   e.g. newt add module src/contexts/shop order
 ```
@@ -104,7 +104,7 @@ same for the others. Where an ESLint configuration is found above, it says so in
 one:
 
 ```text
-skipped  eslint.config.js (../eslint.config.js is there: add newt-kit-eslint's preset to it, `newt()`)
+skipped  eslint.config.js (../eslint.config.js is there: add @newt-kit/eslint's preset to it, `newt()`)
 ```
 
 ::: tip In cooper
@@ -112,7 +112,7 @@ cooper sits in a monorepo whose root has the lint, so `cooper/CLAUDE.md` is two 
 
 ```text
 @AGENTS.md
-@../node_modules/newt-kit/AGENTS.md
+@../node_modules/@newt-kit/newt/AGENTS.md
 ```
 
 and its `eslint.config.js` is the root's ([appendix B](./b-lint#configuration)).
@@ -202,7 +202,7 @@ cooper and the monitor.
 | `bun run cooper:replicas` | `cooper/scripts/replicas.ts` | Two instances of cooper's backend side by side, sharing the databases and one Redis (`COOPER_REDIS_URL`), for the monitor to show more than one instance. |
 | `bun run monitor` | `packages/newt-monitor/scripts/dev.ts` | newt-monitor in development. |
 | `bun run monitor:build` | `packages/newt-monitor/scripts/build.ts` | Builds newt-monitor's frontend. |
-| `bun run ui` | `packages/newt-react-ui/gallery/serve.ts` | newt-kit-react-ui's gallery of components. |
+| `bun run ui` | `packages/newt-react-ui/gallery/serve.ts` | @newt-kit/react-ui's gallery of components. |
 | `bun run docs:dev`, `docs:build` | VitePress | This manual. |
 
 ## Recap

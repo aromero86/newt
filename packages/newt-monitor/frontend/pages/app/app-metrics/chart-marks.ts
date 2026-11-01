@@ -1,5 +1,5 @@
-import { useValue, useService } from 'newt-kit-react'
-import type { ChartMark } from 'newt-kit-react-ui/line-chart'
+import { useValue, useService } from '@newt-kit/react'
+import type { ChartMark } from '@newt-kit/react-ui/line-chart'
 import { AppService, type AppMark } from '../app.service'
 
 /**

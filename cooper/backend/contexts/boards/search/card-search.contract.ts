@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import type { Criteria } from 'newt-kit/core'
+import type { Criteria } from '@newt-kit/newt/core'
 import type { CardDTO } from '../modules/card/card.schema'
 import type { CardSearch } from './card-search'
 

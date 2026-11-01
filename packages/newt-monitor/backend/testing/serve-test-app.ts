@@ -1,8 +1,8 @@
-import { eventsOf, Module, now, type DomainEvent, type DomainEventClass } from 'newt-kit/core'
-import { serveMonitor } from 'newt-kit/monitor'
-import type { Job, QueueDepth } from 'newt-kit/port-outbox'
-import type { Store } from 'newt-kit/port-store'
-import { Base, MemoryMetrics, MemoryTraces, type InstanceSample, type Trace, type TraceSpan } from 'newt-kit/runtime'
+import { eventsOf, Module, now, type DomainEvent, type DomainEventClass } from '@newt-kit/newt/core'
+import { serveMonitor } from '@newt-kit/newt/monitor'
+import type { Job, QueueDepth } from '@newt-kit/newt/port-outbox'
+import type { Store } from '@newt-kit/newt/port-store'
+import { Base, MemoryMetrics, MemoryTraces, type InstanceSample, type Trace, type TraceSpan } from '@newt-kit/newt/runtime'
 
 /** The key a test's application shares with the monitor. */
 export const TEST_APP_KEY = 'the test application\'s key, long enough'

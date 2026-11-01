@@ -1,6 +1,6 @@
 import type { MetricsWindow } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
 import type { ErrorCodeDTO, ErrorCodesQueryDTO, ErrorsSeriesDTO, ErrorsSeriesQueryDTO, ErrorsTopDTO, ErrorsTopQueryDTO, ErrorsTotalDTO } from '../../../backend/contexts/monitor/modules/use-case-errors/use-case-errors.schema'
-import { Requester } from 'newt-kit-react'
+import { Requester } from '@newt-kit/react'
 
 /** The monitor's `useCaseErrors` module: how each use case's calls ended badly. */
 export class UseCaseErrorsApi extends Requester {

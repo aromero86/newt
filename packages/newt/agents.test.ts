@@ -23,8 +23,8 @@ describe('AGENTS.md', () => {
     expect(agents.length).toBeGreaterThan(0)
   })
 
-  test('names every rule of newt-kit-eslint', async () => {
-    const { plugin } = await import('newt-kit-eslint' as string) as { plugin: { rules: Record<string, unknown> } }
+  test('names every rule of @newt-kit/eslint', async () => {
+    const { plugin } = await import('@newt-kit/eslint' as string) as { plugin: { rules: Record<string, unknown> } }
     const rules = Object.keys(plugin.rules)
     expect(rules.length).toBeGreaterThan(0)
     for (const rule of rules) expect(agents).toContain(`newt/${rule}`)

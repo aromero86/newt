@@ -41,7 +41,7 @@ const claude = (rules: string, more: string[] = []) => [`@AGENTS.md`, `@${rules}
  */
 type ForAgents = { agents?: string, skills?: string[] }
 
-const ESLINT = `import { newt } from 'newt-kit-eslint'
+const ESLINT = `import { newt } from '@newt-kit/eslint'
 
 // newt's lint. With contexts, say which ones each one uses:
 // newt({ contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
@@ -50,12 +50,12 @@ export default newt()
 
 const ESLINT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts']
 
-const NEWT_AGENTS = 'node_modules/newt-kit/AGENTS.md'
+const NEWT_AGENTS = 'node_modules/@newt-kit/newt/AGENTS.md'
 
 /**
  * Sets an application up for coding agents: an AGENTS.md of its own that sends them to
  * newt's, a CLAUDE.md that imports both (and the rules of every newt package it depends
- * on that has some, as `newt-kit-react-ui`), those packages' skills in `.claude/skills/`,
+ * on that has some, as `@newt-kit/react-ui`), those packages' skills in `.claude/skills/`,
  * and newt's lint if it has no ESLint configuration. Both are looked for here and in the folders above, as Bun installs
  * and ESLint looks for its configuration: an application inside a monorepo points at
  * the root's node_modules and keeps the root's lint. Never overwrites a file: what was
@@ -63,7 +63,8 @@ const NEWT_AGENTS = 'node_modules/newt-kit/AGENTS.md'
  */
 export async function init(cwd: string): Promise<string[]> {
   const rules = await above(cwd, [NEWT_AGENTS]) ?? NEWT_AGENTS
-  const modules = dirname(dirname(rules))
+  // node_modules/@newt-kit/newt/AGENTS.md: the folder the packages are in is three up.
+  const modules = dirname(dirname(dirname(rules)))
   const packages = await forAgents(cwd, modules)
   const files: Record<string, string> = {
     'AGENTS.md': agents(rules),
@@ -82,12 +83,12 @@ export async function init(cwd: string): Promise<string[]> {
     ...skipped.map(path => (path === 'CLAUDE.md' && claudeLacks
       ? `skipped  CLAUDE.md (it is there already: add \`@AGENTS.md\` and \`@${rules}\` to it, one per line, so agents read newt's rules)`
       : `skipped  ${path} (it is there already: left as it was)`)),
-    ...eslint ? [`skipped  eslint.config.js (${eslint} is there: add newt-kit-eslint's preset to it, \`newt()\`)`] : [],
+    ...eslint ? [`skipped  eslint.config.js (${eslint} is there: add @newt-kit/eslint's preset to it, \`newt()\`)`] : [],
     '',
     'Next:',
     ...await typescript7(cwd) ? ['  bun remove typescript                      TypeScript 7, as `bun init` adds it: typescript-eslint needs 6 for now'] : [],
-    '  bun add newt-kit zod',
-    '  bun add -d newt-kit-eslint eslint typescript@npm:@typescript/typescript6@6.0.2',
+    '  bun add @newt-kit/newt zod',
+    '  bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2',
     '  fill in AGENTS.md: the project, its contexts, its conventions',
     '  newt add module <context-folder> <module>   e.g. newt add module src/contexts/shop order',
   ]

@@ -65,18 +65,18 @@ describe('the preset of newt', () => {
     expect(await complaints('src/contexts/ws/modules/order/order.workers.ts', workers('untyped.fulfil(o.id)'))).toEqual([])
   })
 
-  test("keeps a module's schema to newt-kit/contract, which a frontend may load", async () => {
+  test("keeps a module's schema to @newt-kit/newt/contract, which a frontend may load", async () => {
     const schema = 'src/contexts/ws/modules/order/order.schema.ts'
-    expect(await complaints(schema, "import { defineFilter } from 'newt-kit/contract'\nimport { z } from 'zod'\nexport const x = [defineFilter, z]\n")).toEqual([])
-    expect(await complaints(schema, "import { ValidationError } from 'newt-kit/core'\nexport const x = ValidationError\n")).toEqual(['newt/schema-imports'])
-    expect(await complaints(schema, "import type { Page } from 'newt-kit/core'\nexport type X = Page<string>\n")).toEqual(['newt/schema-imports'])
-    expect(await complaints(schema, "export { HttpRouter } from 'newt-kit/http'\n")).toEqual(['newt/schema-imports'])
+    expect(await complaints(schema, "import { defineFilter } from '@newt-kit/newt/contract'\nimport { z } from 'zod'\nexport const x = [defineFilter, z]\n")).toEqual([])
+    expect(await complaints(schema, "import { ValidationError } from '@newt-kit/newt/core'\nexport const x = ValidationError\n")).toEqual(['newt/schema-imports'])
+    expect(await complaints(schema, "import type { Page } from '@newt-kit/newt/core'\nexport type X = Page<string>\n")).toEqual(['newt/schema-imports'])
+    expect(await complaints(schema, "export { HttpRouter } from '@newt-kit/newt/http'\n")).toEqual(['newt/schema-imports'])
     // The rest of a module is the server's: it may.
-    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', "import { Module } from 'newt-kit/core'\nexport const x = Module\n")).toEqual([])
+    expect(await complaints('src/contexts/ws/modules/order/order.module.ts', "import { Module } from '@newt-kit/newt/core'\nexport const x = Module\n")).toEqual([])
   })
 
   test('keeps every public method of a module a use case, wherever the module is', async () => {
-    const module = body => `import { Module, UseCase } from 'newt-kit/core'\nexport class Order_Module extends Module {\n${body}\n}\n`
+    const module = body => `import { Module, UseCase } from '@newt-kit/newt/core'\nexport class Order_Module extends Module {\n${body}\n}\n`
     expect(await complaints('src/contexts/ws/modules/order/order.module.ts', module('@UseCase() async place() {}\nprivate load() {}'))).toEqual([])
     expect(await complaints('src/contexts/ws/modules/order/order.module.ts', module('async place() {}'))).toEqual(['newt/use-case'])
     expect(await complaints('src/shared/outbox/outbox.module.ts', module('async dead() {}'))).toEqual(['newt/use-case'])

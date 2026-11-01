@@ -1,4 +1,4 @@
-import { eventsOf, Module, UseCase } from 'newt-kit/core'
+import { eventsOf, Module, UseCase } from '@newt-kit/newt/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import {

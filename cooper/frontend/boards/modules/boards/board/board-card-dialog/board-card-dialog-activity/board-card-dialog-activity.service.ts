@@ -1,6 +1,6 @@
 import { ActivityApi, type ActivityDTO } from '@cooper/api/activity'
 import type { CardDTO } from '@cooper/api/card'
-import { inject, ListStore } from 'newt-kit-react'
+import { inject, ListStore } from '@newt-kit/react'
 import { BoardService } from '../../board.service'
 
 /**

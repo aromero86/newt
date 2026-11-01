@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { ConcurrencyConflict, DuplicateValue, ReferenceNotFound } from 'newt-kit/core'
-import { ApiRouteNotFound, NotSignedIn, toErrorResponse } from 'newt-kit/http'
+import { ConcurrencyConflict, DuplicateValue, ReferenceNotFound } from '@newt-kit/newt/core'
+import { ApiRouteNotFound, NotSignedIn, toErrorResponse } from '@newt-kit/newt/http'
 import { setCooperMessages } from './messages'
 
 test('once set at startup, newt\'s errors and its API speak cooper\'s words', async () => {

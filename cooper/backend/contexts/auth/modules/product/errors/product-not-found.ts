@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt-kit/core'
+import { NotFoundError } from '@newt-kit/newt/core'
 
 export class ProductNotFound extends NotFoundError {
   readonly code = 'product.not_found'

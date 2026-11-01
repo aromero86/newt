@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt-kit/core'
+import { ConflictError } from '@newt-kit/newt/core'
 
 /** A column is removed only once no card is in it. */
 export class ColumnNotEmpty extends ConflictError {

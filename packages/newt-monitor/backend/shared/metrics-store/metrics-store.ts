@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { DuckDbAnalytics, type DuckDbDataset } from 'newt-kit/adapter-duckdb'
+import { DuckDbAnalytics, type DuckDbDataset } from '@newt-kit/newt/adapter-duckdb'
 
 /** Scopes as one text, the same whatever order they came in: part of a row's id. */
 export function scopesText(scopes: Record<string, string>): string {

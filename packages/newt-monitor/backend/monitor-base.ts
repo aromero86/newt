@@ -1,7 +1,7 @@
-import type { SqliteStore } from 'newt-kit/adapter-sqlite'
-import { HttpRouter } from 'newt-kit/http'
-import { MemoryRateLimitStore, type RateLimitStore } from 'newt-kit/port-rate-limit'
-import { Base, type BaseOptions } from 'newt-kit/runtime'
+import type { SqliteStore } from '@newt-kit/newt/adapter-sqlite'
+import { HttpRouter } from '@newt-kit/newt/http'
+import { MemoryRateLimitStore, type RateLimitStore } from '@newt-kit/newt/port-rate-limit'
+import { Base, type BaseOptions } from '@newt-kit/newt/runtime'
 
 /**
  * What every module of the monitor receives: newt's base, on SQLite, with the router

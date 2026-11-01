@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt-kit/core'
+import { Entity, type EntityInput } from '@newt-kit/newt/core'
 import { OauthClientSchema, type OauthClientDTO } from './oauth-client.schema'
 
 export * from './oauth-client.schema'

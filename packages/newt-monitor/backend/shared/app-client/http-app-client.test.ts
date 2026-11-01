@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { freePort } from 'newt-kit/testing'
+import { freePort } from '@newt-kit/newt/testing'
 import { serveTestApp, type TestApp } from '../../testing/serve-test-app'
 import { AppCallFailed } from './app-call-failed'
 import { HttpAppClient } from './http-app-client'

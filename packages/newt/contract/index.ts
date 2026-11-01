@@ -1,4 +1,4 @@
-// newt-kit/contract: what a backend and its clients share, and a browser may load: the
+// @newt-kit/newt/contract: what a backend and its clients share, and a browser may load: the
 // value objects and the errors they throw, the filters a client may send, pages of
 // lists, the body of an error, and what an application says it is made of
 // (`describeApplication`). Nothing here keeps a scope (`node:async_hooks`), so

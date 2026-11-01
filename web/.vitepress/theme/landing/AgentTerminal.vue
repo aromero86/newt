@@ -5,12 +5,12 @@ import { onInView, reducedMotion, useTimers } from './motion'
 
 /** An agent at work in a newt application: what the CLI writes, and what newt says when a rule breaks. */
 const english: { kind: 'cmd' | 'out' | 'ok' | 'bad' | 'gap', text: string }[] = [
-  { kind: 'cmd', text: 'bunx newt-kit init' },
+  { kind: 'cmd', text: 'bunx @newt-kit/newt init' },
   { kind: 'out', text: 'wrote    AGENTS.md' },
   { kind: 'out', text: 'wrote    CLAUDE.md' },
   { kind: 'out', text: 'wrote    eslint.config.js' },
   { kind: 'gap', text: '' },
-  { kind: 'cmd', text: 'bunx newt-kit add module contexts/boards label' },
+  { kind: 'cmd', text: 'bunx @newt-kit/newt add module contexts/boards label' },
   { kind: 'out', text: 'wrote    contexts/boards/modules/label/label.schema.ts' },
   { kind: 'out', text: 'wrote    contexts/boards/modules/label/label.module.ts' },
   { kind: 'out', text: 'wrote    contexts/boards/modules/label/…' },
@@ -53,7 +53,7 @@ onInView(root, () => {
 /** The three nets under every change, and what each catches. */
 const englishNets = [
   { name: 'Types', command: 'bun check', catches: 'A field the schema lacks, a dependency nobody handed over, a use case answering the wrong shape.' },
-  { name: 'The lint', command: 'newt-kit-eslint', catches: 'A file outside a module\'s anatomy, an import across a boundary, a queue named wrong.' },
+  { name: 'The lint', command: '@newt-kit/eslint', catches: 'A file outside a module\'s anatomy, an import across a boundary, a queue named wrong.' },
   { name: 'Runtime rules', command: 'bun test', catches: 'A write into another module from a request, a save that guards nothing, an event without a change.' },
 ]
 const nets = useCopy(englishNets, [
