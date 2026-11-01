@@ -19,6 +19,8 @@ export type Messages = {
   malformed_body: () => string
   /** A request whose body is read as JSON but whose `Content-Type` does not say it is. */
   unsupported_media_type: () => string
+  /** A request that writes, sent by a page of another origin its route takes no calls from. */
+  cross_origin_refused: () => string
   /** A request whose body is longer than its route takes. */
   payload_too_large: (params: { maxBytes: number }) => string
   /** A request whose `Idempotency-Key` another one, still in progress, sent first. */
