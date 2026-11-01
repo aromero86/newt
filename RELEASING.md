@@ -23,17 +23,24 @@ git push --follow-tags
 ```
 
 The tag runs `.github/workflows/release.yml`: it checks that the tag is the packages' version,
-type checks, tests, lints, builds the monitor's frontend and publishes each package, the ones
-others depend on first. `bun publish` turns `workspace:*` into the version it publishes.
+type checks, tests, lints, builds the monitor's frontend and stages each package, the ones
+others depend on first: `bun pm pack` turns `workspace:*` into the version it packs, and
+`npm stage publish` leaves the tarball waiting on npm.
 
 It needs one repository secret, `NPM_TOKEN`: an npm granular access token with read and
 write on the `@newt-kit` packages. The `npm-token` workflow, run by hand, says whether it still
 signs in and may write them, publishing nothing.
 
-The token is a staged one: what the workflow publishes waits on npm until a maintainer
-approves it. Once the run is green, approve each of the five packages on npmjs.com, with the
-account's passkey; until then they show as `0.0.0-stage` and cannot be installed. Even a
-stolen token publishes nothing that nobody approved.
+The token may only stage (read and write, stage only): nothing it sends is published until a
+maintainer approves it. Once the run is green, approve the five packages, dependencies first,
+on npmjs.com (Staged Packages, in the account's menu) or from a terminal signed in to npm:
+
+```sh
+npm stage list @newt-kit/newt        # its stage id
+npm stage approve <stage-id>         # asks for the account's second factor
+```
+
+Until then no one can install them. Even a stolen token publishes nothing that nobody approved.
 
 ## By hand
 

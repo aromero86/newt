@@ -1,6 +1,6 @@
 {
   "name": "@newt-kit/eslint",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The lint of an application built with newt: every module made of the same files, reaching others only through what they offer, and writing only through its repository.",
   "license": "MIT",
   "author": "Angel Romero",

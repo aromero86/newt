@@ -1,6 +1,6 @@
 {
   "name": "@newt-kit/newt",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
   "license": "MIT",
   "author": "Angel Romero",

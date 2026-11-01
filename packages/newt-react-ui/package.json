@@ -1,6 +1,6 @@
 {
   "name": "@newt-kit/react-ui",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The components of a React frontend of a newt application, and the lint that keeps an app from restyling them: pages compose them, an app's own components wrap them, and nothing else styles.",
   "license": "MIT",
   "author": "Angel Romero",
@@ -47,7 +47,7 @@
     ]
   },
   "peerDependencies": {
-    "@newt-kit/eslint": "^0.1.1",
+    "@newt-kit/eslint": "^0.1.2",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "eslint": "^10.12.0",

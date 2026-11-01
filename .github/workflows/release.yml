@@ -35,11 +35,20 @@ jobs:
       - run: bun run lint
       - run: bun run monitor:build
 
-      # Dependencies first: bun publish turns workspace:* into the version it publishes.
-      - name: Publish
+      # NPM_TOKEN may only stage: npm stage publish leaves each version waiting for a
+      # maintainer's approval, which bun publish cannot do. bun pm pack turns workspace:*
+      # into the version it packs; dependencies are staged first.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11.19.0
+      - name: Stage
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          mkdir -p "$RUNNER_TEMP/packs"
           for dir in newt newt-eslint newt-react-ui newt-react newt-monitor; do
-            (cd packages/$dir && bun publish --access public)
+            (cd packages/$dir && bun pm pack --destination "$RUNNER_TEMP/packs/$dir" --quiet)
+            npm stage publish "$RUNNER_TEMP/packs/$dir"/*.tgz --access public
           done
