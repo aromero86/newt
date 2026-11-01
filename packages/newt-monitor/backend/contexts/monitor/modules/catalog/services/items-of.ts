@@ -1,4 +1,4 @@
-import type { ApplicationDescription } from 'newt/contract'
+import type { ApplicationDescription } from 'newt-kit/contract'
 import type { DescribedItem } from '../catalog.schema'
 
 /** Every context, module, use case and event a description has, each as the catalog keeps it. */

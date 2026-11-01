@@ -1,5 +1,5 @@
 import type { OauthGrantRedirectDTO, OauthGrantReviewDTO } from '../../../backend/contexts/auth/modules/oauth-grant/oauth-grant.schema'
-import { Requester } from 'newt-react'
+import { Requester } from 'newt-kit-react'
 
 /** The authorization requests auth's UI shows and answers. */
 export class OauthGrantApi extends Requester {

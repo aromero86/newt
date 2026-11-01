@@ -1,4 +1,4 @@
-import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppCallFailed } from '../../../../shared/app-client/app-call-failed'
 import type { Endpoint } from '../../../../shared/app-client/app-client'

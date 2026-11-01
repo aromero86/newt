@@ -1,4 +1,4 @@
-import { Email } from 'newt/contract'
+import { Email } from 'newt-kit/contract'
 import { z } from 'zod'
 
 /** Someone who belongs to a workspace, as `boards` sees them: who they are, and where to write to them. auth keeps them. */

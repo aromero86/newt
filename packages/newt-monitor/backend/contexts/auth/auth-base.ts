@@ -1,4 +1,4 @@
-import { HttpRouter } from 'newt/http'
+import { HttpRouter } from 'newt-kit/http'
 import { MonitorBase } from '../../monitor-base'
 import { OAUTH_LIMIT } from '../../shared/rate-limits'
 

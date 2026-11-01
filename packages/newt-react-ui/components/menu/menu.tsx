@@ -19,7 +19,7 @@ export type MenuAction = {
 export type MenuItem = MenuAction | { separator: true }
 
 type MenuProps = {
-  /** What opens the menu: one newt-react-ui `Button`. */
+  /** What opens the menu: one newt-kit-react-ui `Button`. */
   trigger: ReactNode
   items: MenuItem[]
   /** The menu's accessible name. */

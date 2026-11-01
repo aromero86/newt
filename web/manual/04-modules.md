@@ -59,7 +59,7 @@ flowchart TD
 
 | File | What it holds |
 |---|---|
-| `card.schema.ts` | The **contract**: the entity's Zod schema (`CardSchema`), its DTO type (`CardDTO`), the input schemas (`CardCreateSchema`, `CardMoveSchema`…), the filters a client may send (`CardFilter`). It imports only zod, `newt/contract`, value objects and other schemas, so a frontend can import it. |
+| `card.schema.ts` | The **contract**: the entity's Zod schema (`CardSchema`), its DTO type (`CardDTO`), the input schemas (`CardCreateSchema`, `CardMoveSchema`…), the filters a client may send (`CardFilter`). It imports only zod, `newt-kit/contract`, value objects and other schemas, so a frontend can import it. |
 | `card.ts` | The **entity**, `Card extends Entity<typeof CardSchema>`. It re-exports the schema (`export * from './card.schema'`). |
 | `card.repository.ts` | `Card_Repository`, the only file that touches the store. |
 | `card.module.ts` | `Card_Module extends Module`: `static initialize`, its `events`, and its use cases. |
@@ -177,7 +177,7 @@ The first line of the constructor gives newt three things:
 The deps are not stored by `Module`: the module keeps its own copy in a private field. They
 are passed to `super` so that the context's registry can read them and tell which modules,
 events and ports this module depends on. That is where `describeApplication`
-(`newt/runtime`) gets the graph of an application, and newt-monitor draws it.
+(`newt-kit/runtime`) gets the graph of an application, and newt-monitor draws it.
 
 ::: warning Watch out
 Pass **every** dep to `super`, including those only the routes or workers use. A module
@@ -352,7 +352,7 @@ You can write a module by hand, but newt's command line writes the skeleton for 
 as the lint wants, and it compiles and passes the lint as written:
 
 ```sh
-bunx newt add module cooper/backend/contexts/boards label
+bunx newt-kit add module cooper/backend/contexts/boards label
 ```
 
 It writes `cooper/backend/contexts/boards/modules/label/` with `label.schema.ts`,
@@ -394,4 +394,4 @@ has the details.
   `card.schema.ts`.
 - [Use cases](./06-use-cases): what lives in `card.module.ts`.
 - [Aggregates](./21-aggregates): when one module saves several entities as one.
-- [The lint](./b-lint): every rule of newt-eslint, with what it says.
+- [The lint](./b-lint): every rule of newt-kit-eslint, with what it says.

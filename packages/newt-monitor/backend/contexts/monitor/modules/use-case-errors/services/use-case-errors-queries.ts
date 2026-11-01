@@ -1,4 +1,4 @@
-import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import type { DuckDbAnalytics, DuckDbParam } from 'newt-kit/adapter-duckdb'
 import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { whereOf, type MetricsFilter } from '../../../../../shared/metrics-store/metrics-filter'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'

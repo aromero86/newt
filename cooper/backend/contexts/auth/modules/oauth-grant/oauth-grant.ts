@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt-kit/core'
 import { OauthGrant_Replayed } from './events/oauth-grant-replayed'
 import { OauthGrantSchema, type OauthGrantStatus } from './oauth-grant.schema'
 

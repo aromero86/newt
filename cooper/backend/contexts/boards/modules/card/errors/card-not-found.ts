@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class CardNotFound extends NotFoundError {
   readonly code = 'card.not_found'

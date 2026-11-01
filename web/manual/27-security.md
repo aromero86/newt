@@ -24,7 +24,7 @@ Think about what can go wrong with just that:
 
 None of these needs a bug in your use cases. They are the plumbing's problems, and a framework
 that leaves them to each application leaves most of them open. newt closes them by default, in
-`newt/http`, and lets a route open what it must, by name.
+`newt-kit/http`, and lets a route open what it must, by name.
 
 ## The idea: closed until a route says otherwise
 
@@ -416,7 +416,7 @@ A session token, an invitation link, an OAuth code: each is a secret handed to o
 database keeps them as they are, whoever reads the database (a backup on a laptop, a replica, a
 log of queries) holds every one of them.
 
-newt's `SecretToken` value object, in `newt/core`, keeps the pattern in one place:
+newt's `SecretToken` value object, in `newt-kit/core`, keeps the pattern in one place:
 
 ```ts
 // packages/newt/core/value-objects/secret-token/secret-token.ts (trimmed)

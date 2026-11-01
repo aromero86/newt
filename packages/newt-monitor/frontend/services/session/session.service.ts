@@ -1,4 +1,4 @@
-import { Store, inject } from 'newt-react'
+import { Store, inject } from 'newt-kit-react'
 import { SessionApi, type MeDTO } from '../../api/session'
 
 type SessionState =

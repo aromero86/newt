@@ -1,4 +1,4 @@
-import type { HttpRateLimit } from 'newt/http'
+import type { HttpRateLimit } from 'newt-kit/http'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE

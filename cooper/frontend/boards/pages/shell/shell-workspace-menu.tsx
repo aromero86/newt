@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { ChevronsUpDownIcon, LayersIcon, PlusIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { Button } from 'newt-react-ui/button'
-import { Icon } from 'newt-react-ui/icon'
-import { Menu, type MenuItem } from 'newt-react-ui/menu'
-import { useService, useValue } from 'newt-react'
+import { Button } from 'newt-kit-react-ui/button'
+import { Icon } from 'newt-kit-react-ui/icon'
+import { Menu, type MenuItem } from 'newt-kit-react-ui/menu'
+import { useService, useValue } from 'newt-kit-react'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 
 /** Which workspace you are in, and the way to any other. */

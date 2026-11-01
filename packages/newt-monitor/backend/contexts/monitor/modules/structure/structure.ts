@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { Entity, now, type EntityInput } from 'newt/core'
-import type { ApplicationDescription } from 'newt/runtime'
+import { Entity, now, type EntityInput } from 'newt-kit/core'
+import type { ApplicationDescription } from 'newt-kit/runtime'
 import { Structure_Changed } from './events/structure-changed'
 import { StructureVersionSchema, type StructureVersionDTO, type StructureVersionSummaryDTO } from './structure.schema'
 

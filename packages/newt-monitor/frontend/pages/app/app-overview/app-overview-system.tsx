@@ -1,6 +1,6 @@
-import { Grid } from 'newt-react-ui/grid'
-import { Stat } from 'newt-react-ui/stat'
-import { useService, useValue } from 'newt-react'
+import { Grid } from 'newt-kit-react-ui/grid'
+import { Stat } from 'newt-kit-react-ui/stat'
+import { useService, useValue } from 'newt-kit-react'
 import { formatBytes, formatMs, formatPercent } from '../app-metrics/metrics-format'
 import { AppService } from '../app.service'
 

@@ -1,9 +1,9 @@
 import tseslint from 'typescript-eslint'
-import { newt } from 'newt-eslint'
-import { newtReactUi, RESTRICTED_IMPORTS } from 'newt-react-ui/lint'
+import { newt } from 'newt-kit-eslint'
+import { newtReactUi, RESTRICTED_IMPORTS } from 'newt-kit-react-ui/lint'
 
 // cooper is an application built with newt: its backend keeps newt's lint, and its
-// frontends newt-react-ui's. The framework's own code is not
+// frontends newt-kit-react-ui's. The framework's own code is not
 // an application, so it is left out; newt-monitor is one, so it is in.
 
 const BACKEND = newt({
@@ -19,7 +19,7 @@ const MONITOR = newt({
   contexts: { folder: 'packages/newt-monitor/backend/contexts', uses: { auth: [], monitor: ['auth'] } },
 })
 
-// Its frontend composes newt-react-ui's components, as cooper's do. Of the backend it
+// Its frontend composes newt-kit-react-ui's components, as cooper's do. Of the backend it
 // imports only its modules' contracts (their *.schema.ts), and only its API clients do.
 const MONITOR_FRONTEND = newtReactUi({
   files: ['packages/newt-monitor/frontend/**/*.{ts,tsx}'],
@@ -30,7 +30,7 @@ const MONITOR_FRONTEND = newtReactUi({
   }],
 })
 
-// newt-react-ui's gallery is an app like any other: it keeps the library's lint.
+// newt-kit-react-ui's gallery is an app like any other: it keeps the library's lint.
 const UI_GALLERY = newtReactUi({ files: ['packages/newt-react-ui/gallery/**/*.{ts,tsx}'] })
 
 // The frontend reaches the backend only through @cooper/api, the API clients.
@@ -56,7 +56,7 @@ const MONITOR_API_TEST_IMPORTS = {
   message: 'A test of the monitor\'s API clients may import a module\'s *.schema.ts and backend/testing, nothing else of the backend.',
 }
 
-// cooper's frontends compose newt-react-ui's components and style nothing: only cooper's
+// cooper's frontends compose newt-kit-react-ui's components and style nothing: only cooper's
 // own components (cooper/libs/ui, each app's components/) style, wrapping the library's.
 const FRONTEND = newtReactUi({
   files: ['cooper/frontend/**/*.{ts,tsx}'],
@@ -78,7 +78,7 @@ export default [
       'no-restricted-imports': ['error', { patterns: [API_BACKEND_IMPORTS] }],
     },
   },
-  // These two set the frontend's restricted imports again: they keep newt-react-ui's.
+  // These two set the frontend's restricted imports again: they keep newt-kit-react-ui's.
   {
     files: ['packages/newt-monitor/frontend/api/**/*.ts'],
     languageOptions: { parser: tseslint.parser },

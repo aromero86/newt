@@ -3,7 +3,7 @@
 Watches newt applications while they run: which contexts each one has, their modules,
 their use cases and their events, and how that changes from one deployment to the next.
 It never opens an application's database: each one tells it what it is made of,
-through `newt/monitor`, on a port of its own, to requests signed with a key both share.
+through `newt-kit/monitor`, on a port of its own, to requests signed with a key both share.
 
 It is a newt application itself. How to use it, and how it is built, is part III of
 the newt manual, `web/manual/40-monitor.md`.
@@ -14,7 +14,7 @@ the newt manual, `web/manual/40-monitor.md`.
 NEWT_MONITOR_USER=ana \
 NEWT_MONITOR_PASSWORD='a long password' \
 NEWT_MONITOR_SECRET="$(openssl rand -base64 48)" \
-bunx newt-monitor
+bunx newt-kit-monitor
 ```
 
 | Variable | What it is |
@@ -26,19 +26,21 @@ bunx newt-monitor
 | `NEWT_MONITOR_PUBLIC_URL` | Where it is opened: its cookie is `Secure` when this is `https`. |
 | `NEWT_MONITOR_SESSION_HOURS` | How long a session lasts: 12. |
 | `NEWT_MONITOR_FRONTEND` | Its built pages: the package's `dist/frontend`. |
+| `NEWT_MONITOR_TRUST_PROXY` | How many proxies in front of it add to `X-Forwarded-For`, so its rate limits by address count the person's: 0, or 1 behind one proxy (Coolify's, say). |
+| `NEWT_MONITOR_GITHUB_TOKEN` | A token that reads the watched applications' repositories (Contents: read), so each deployment shows its commit's message. Without it, only public repositories. |
 
 Without a user, a password or a secret, it does not start, and says which are missing.
 
 In a container: `monitor.Dockerfile`, at the repository's root, with `/app/data` a
 persistent volume.
 
-Its pages are built first, with `bun run monitor:build` at the repository's root (the
-image does it). In development, `bun run monitor` serves them from their sources and
+The published package comes with its pages built. From this repository they are built
+first, with `bun run monitor:build` at the root (the image does it). In development, `bun run monitor` serves them from their sources and
 reloads them as they change.
 
 ## Watching an application
 
-The application serves its monitor endpoint (`serveMonitor`, `newt/monitor`) with a key
+The application serves its monitor endpoint (`serveMonitor`, `newt-kit/monitor`) with a key
 of 32 characters or more, on a port no public address points at. Register it with
 that address and key: the monitor asks it which application it is before it saves
 anything.

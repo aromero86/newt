@@ -1,8 +1,8 @@
 import { Link, Outlet, useNavigation } from 'react-router'
-import { Inline } from 'newt-react-ui/inline'
+import { Inline } from 'newt-kit-react-ui/inline'
 import { Logo } from '@cooper/ui/components/logo'
-import { NarrowPage } from 'newt-react-ui/narrow-page'
-import { Spinner } from 'newt-react-ui/spinner'
+import { NarrowPage } from 'newt-kit-react-ui/narrow-page'
+import { Spinner } from 'newt-kit-react-ui/spinner'
 import { ShellThemeToggle } from './shell-theme-toggle'
 
 /** The frame of every auth page: one narrow column with the brand over a card. */

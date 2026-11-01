@@ -62,12 +62,12 @@ proves an adapter keeps what the port promises.
 
 ### Kysely on the store's connection
 
-newt does not run Kysely on a database of its own. `kyselyFor(store)`, from `newt/kysely`,
+newt does not run Kysely on a database of its own. `kyselyFor(store)`, from `newt-kit/kysely`,
 gives you Kysely on the **store's** connections:
 
 ```ts
 // cooper/backend/contexts/boards/boards-base.ts
-import { kyselyFor } from 'newt/kysely'
+import { kyselyFor } from 'newt-kit/kysely'
 import { CooperBase } from '../../shared/cooper-base'
 import type { BoardsDatabase } from './boards-database'
 
@@ -98,7 +98,7 @@ fields of its rows. You declared those already, one row type per repository:
 
 ```ts
 // cooper/backend/contexts/boards/boards-database.ts
-import type { SqliteRow } from 'newt/kysely'
+import type { SqliteRow } from 'newt-kit/kysely'
 import type { ActivityRow } from './modules/activity/activity.repository'
 import type { BoardRow } from './modules/board/board.repository'
 import type { CardCounterRow, CardRow } from './modules/card/card.repository'
@@ -192,7 +192,7 @@ staff's backoffice asks how many cards each of a page of workspaces has:
   }
 ```
 
-`whereOf(store, criteria)`, from `newt/kysely`, turns criteria into a Kysely condition,
+`whereOf(store, criteria)`, from `newt-kit/kysely`, turns criteria into a Kysely condition,
 **written exactly as that store's tables write it**: every operator and group, `null`,
 `ieq` folding A to Z only, booleans as the dialect keeps them. A condition that a table and
 your query both say therefore means the same thing in both. Use it for any filter a client
@@ -253,7 +253,7 @@ sequenceDiagram
 
 ### The port
 
-`newt/port-analytics` is small on purpose:
+`newt-kit/port-analytics` is small on purpose:
 
 ```ts
 // packages/newt/port-analytics/analytics.ts
@@ -351,13 +351,13 @@ swapped for DuckDB without touching the metric module.
 Note `SqlAnalytics.append` runs in a `store.transaction` of its own. It is a call out of the
 module, like a mailer's send: never inside an entity's save, always from a worker.
 
-### DuckDB: `newt/adapter-duckdb`
+### DuckDB: `newt-kit/adapter-duckdb`
 
 For numbers that outgrow a table, newt brings `DuckDbAnalytics`, the port on DuckDB, a
 database made for reading a lot at once. It needs `@duckdb/node-api`, an optional peer.
 
 ```ts
-import { DuckDbAnalytics } from 'newt/adapter-duckdb'
+import { DuckDbAnalytics } from 'newt-kit/adapter-duckdb'
 
 const analytics = await DuckDbAnalytics.open({
   path: 'data/analytics.duckdb',
@@ -391,7 +391,7 @@ That is the shape `DuckDbAnalytics` is made for. See [Metrics](./43-metrics).
 
 ### Proving an adapter: `describeAnalyticsContract`
 
-`newt/port-analytics/contract` holds the suite every adapter runs, and `MemoryAnalytics`, an
+`newt-kit/port-analytics/contract` holds the suite every adapter runs, and `MemoryAnalytics`, an
 adapter in memory for tests. An adapter's test hands the suite a fixture: how to open fresh,
 empty analytics, and how to read a dataset back.
 
@@ -537,7 +537,7 @@ nothing: wait for the workers first (`await base.jobs.idle()`), as cooper's card
 
 cooper's adapter keeps every card in a `Map` and looks at all of them on each search
 (`cooper/backend/contexts/boards/search/memory-card-search.ts`). It answers criteria with
-`matches(card, criteria)` from `newt/core`, the same function the files store and every
+`matches(card, criteria)` from `newt-kit/core`, the same function the files store and every
 test double use, so a filter means in memory what it means in a table. It is enough for one
 process, and what it keeps is lost when the process ends. So `Boards_Context.open` builds it
 again before anyone searches:
@@ -607,7 +607,7 @@ route stay as they are.
 
 ::: details Writing a contract suite of your own
 Follow the shape newt's own suites have (`describeStoreContract` in
-`newt/port-store/contract`, `describeAnalyticsContract` in `newt/port-analytics/contract`):
+`newt-kit/port-store/contract`, `describeAnalyticsContract` in `newt-kit/port-analytics/contract`):
 
 - **A function, not a test file**: `describeXContract(name, open)`, exported from a
   `*.contract.ts` beside the port, so every adapter's `*.test.ts` calls it.

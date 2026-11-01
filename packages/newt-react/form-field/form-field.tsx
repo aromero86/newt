@@ -1,7 +1,7 @@
-import { Field } from 'newt-react-ui/field'
-import { Input } from 'newt-react-ui/input'
-import { Select } from 'newt-react-ui/select'
-import { Textarea } from 'newt-react-ui/textarea'
+import { Field } from 'newt-kit-react-ui/field'
+import { Input } from 'newt-kit-react-ui/input'
+import { Select } from 'newt-kit-react-ui/select'
+import { Textarea } from 'newt-kit-react-ui/textarea'
 import { useValue } from '../store/use-value'
 import type { FormStore } from '../form/form-store'
 
@@ -21,7 +21,7 @@ type FormFieldProps<TValues extends Record<string, string>> = {
 
 /**
  * A labelled field bound to one value of a form: it shows the value and its error.
-^ * The glue between `FormStore` and newt-react-ui's components; it
+^ * The glue between `FormStore` and newt-kit-react-ui's components; it
  * styles nothing itself.
  */
 export function FormField<TValues extends Record<string, string>>({ form, name, label, description, type = 'text', autoComplete, placeholder, rows, options }: FormFieldProps<TValues>) {

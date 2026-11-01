@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/core'
+import { ValidationError } from 'newt-kit/core'
 import type { AppCallFailure } from '../../../../../shared/app-client/app-call-failed'
 
 /**

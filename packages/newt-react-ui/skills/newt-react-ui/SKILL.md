@@ -1,9 +1,9 @@
 ---
 name: newt-react-ui
-description: Use before writing or changing any React UI of a newt application (pages, screens, forms, lists, dialogs, layout). The app's pages compose newt-react-ui's components and never style; anything new is a component in the app's own components folder.
+description: Use before writing or changing any React UI of a newt application (pages, screens, forms, lists, dialogs, layout). The app's pages compose newt-kit-react-ui's components and never style; anything new is a component in the app's own components folder.
 ---
 
-# Writing UI with newt-react-ui
+# Writing UI with newt-kit-react-ui
 
 1. Read `node_modules/newt-react-ui/AGENTS.md`: the catalog, and the rule.
 2. Build the page from those components only: no `className`, `style`, `<style>`, no
@@ -13,5 +13,5 @@ description: Use before writing or changing any React UI of a newt application (
    library's components and the theme's tokens, with props in the app's words (never a
    `className` prop), and use it from the page.
 4. Never copy a library component to change it, nor restyle one from a page.
-5. Run the lint (`bunx eslint`): `newt-react-ui/lint` says where a page styles or writes
+5. Run the lint (`bunx eslint`): `newt-kit-react-ui/lint` says where a page styles or writes
    HTML. Fix it by composing, never by silencing the rule.

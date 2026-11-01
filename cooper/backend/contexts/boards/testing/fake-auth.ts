@@ -1,7 +1,7 @@
-import { SqliteStore } from 'newt/adapter-sqlite'
-import { Email } from 'newt/contract'
-import { eventsOf, now, type DomainEvent } from 'newt/core'
-import { Base } from 'newt/runtime'
+import { SqliteStore } from 'newt-kit/adapter-sqlite'
+import { Email } from 'newt-kit/contract'
+import { eventsOf, now, type DomainEvent } from 'newt-kit/core'
+import { Base } from 'newt-kit/runtime'
 import type { Boards_Auth } from '../initialize-modules'
 import type { MemberDTO } from '../modules/member/member.schema'
 

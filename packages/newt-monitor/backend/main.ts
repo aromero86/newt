@@ -1,4 +1,4 @@
-import { runContexts, type RunningContexts } from 'newt/application'
+import { runContexts, type RunningContexts } from 'newt-kit/application'
 import { readConfig } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { Monitor_Context } from './contexts/monitor/monitor.context'

@@ -8,7 +8,7 @@ Three checks keep an application honest, and this appendix is about the third:
 
 - **the types** (`bun check`) refuse what cannot compile: a repository with no `scope`, an actor
   without a field your application added;
-- **the lint** (`newt-eslint`, [appendix B](./b-lint)) refuses what the compiler cannot see: a
+- **the lint** (`newt-kit-eslint`, [appendix B](./b-lint)) refuses what the compiler cannot see: a
   file a module does not have, an import across a boundary, a queue named wrong;
 - **the runtime** throws when the code breaks a rule only a running program can tell: a write
   outside a worker, a save that reads rows and guards nothing, an event with no change.
@@ -56,7 +56,7 @@ The golden rules are the spine. These are the ones built on them, grouped by whe
 |---|---|---|
 | A context opens its store, builds its `Base` and initializes its modules; it receives its config and never reads the environment. | One place reads the environment (`config.ts`); a context opened in a test gets what the test hands it. | [Contexts](./03-contexts) |
 | Every module has the same files, named after it; `newt add module` writes them. | Anyone (or any agent) finds everything in any module without looking. | [Modules](./04-modules), [C](./c-cli) |
-| A module's `*.schema.ts` is its public contract; from newt it imports only `newt/contract`. | A frontend imports the schema: `newt/core` would pull the server (`node:async_hooks`) into the browser. | [Modules](./04-modules), [Frontends](./30-frontends) |
+| A module's `*.schema.ts` is its public contract; from newt it imports only `newt-kit/contract`. | A frontend imports the schema: `newt-kit/core` would pull the server (`node:async_hooks`) into the browser. | [Modules](./04-modules), [Frontends](./30-frontends) |
 | A module reaches another only through its module, schema, events, errors and value objects. | Its entity, repository and tables are its own business: they change without warning. | [Modules](./04-modules), [B](./b-lint) |
 | A module passes **all** its deps to `super`, those only its routes or workers use too. | That is how `describeApplication` and the monitor know what depends on what. | [Modules](./04-modules), [Structure](./42-structure) |
 | Another context's modules are deps grouped under its name (`auth: { access: Access_Module }`), never a port of functions over its use cases. | A port of functions hides the dependency from the lint and from `describeApplication`. | [Between contexts](./11-between-contexts) |
@@ -268,7 +268,7 @@ two writes would leave half the work done with nothing to finish it.
 ## HTTP error codes
 
 Every `code` newt itself sends, with its status. Your own errors add theirs, under the status of
-their base class. A body is always `{ error, code }` (`ErrorBody`, in `newt/contract`), plus
+their base class. A body is always `{ error, code }` (`ErrorBody`, in `newt-kit/contract`), plus
 `issues` for `validation`.
 
 | Code | Status | Error class | Sent when |

@@ -2,7 +2,7 @@
 
 <p class="chapter-lead">A backend is half an application. This chapter shows how a newt context
 serves its own frontend with Bun's HTML imports, how the frontend shares the backend's schemas
-without importing its code, and how `newt-react` and `newt-react-ui` give every page the same
+without importing its code, and how `newt-kit-react` and `newt-kit-react-ui` give every page the same
 shape: a page renders, a service thinks, an API client talks.</p>
 
 ## The problem
@@ -32,7 +32,7 @@ flowchart LR
   S --> C["@cooper/api: CardApi"]
   C --> SV["BoardService"]
   SV --> P["Board page"]
-  P --> UI["newt-react-ui components"]
+  P --> UI["newt-kit-react-ui components"]
   FE -. "serves" .-> P
 ```
 
@@ -110,15 +110,15 @@ A frontend served from its sources has no Content-Security-Policy: Bun's reloadi
 its own. Test security headers against a build.
 :::
 
-## newt/contract: what a browser may load
+## newt-kit/contract: what a browser may load
 
 A frontend wants to import a module's schema: its types for the API client, and sometimes its zod
 schemas as values, to validate a form with the backend's own rules. A schema imports value objects
-and error classes from newt. But `newt/core` keeps the scope a use case runs in (who acts, in which
+and error classes from newt. But `newt-kit/core` keeps the scope a use case runs in (who acts, in which
 workspace, in which transaction) in an `AsyncLocalStorage`, from `node:async_hooks`, which a
 browser does not have.
 
-So newt has a second door to the same classes: **`newt/contract`**, the files of core that keep no
+So newt has a second door to the same classes: **`newt-kit/contract`**, the files of core that keep no
 scope and run anywhere.
 
 | Export | What |
@@ -129,12 +129,12 @@ scope and run anywhere.
 | `Page`, `PageRequest`, `ErrorBody` | lists and errors on the wire |
 | `ApplicationDescription` and its parts, metrics and trace types | what newt-monitor's frontend reads |
 
-These are the same classes `newt/core` exports, not copies: an `Email` made in the browser throws
+These are the same classes `newt-kit/core` exports, not copies: an `Email` made in the browser throws
 the same `InvalidEmail` as on the server.
 
 ::: danger Never
-A `<m>.schema.ts` takes from newt only `newt/contract` (lint rule `newt/schema-imports`). Import
-`newt/core` there and the schema can no longer go to the browser: Bun replaces `node:async_hooks`
+A `<m>.schema.ts` takes from newt only `newt-kit/contract` (lint rule `newt/schema-imports`). Import
+`newt-kit/core` there and the schema can no longer go to the browser: Bun replaces `node:async_hooks`
 with an empty stand-in, and the page breaks as soon as it loads.
 :::
 
@@ -160,7 +160,7 @@ The lint holds the line from both sides (`eslint.config.js`): the frontend never
 `backend/` at all; `@cooper/api` may import a backend module's `*.schema.ts` and nothing else. A
 use case, an entity or a repository never reaches a browser.
 
-## newt-react: where state lives
+## newt-kit-react: where state lives
 
 `packages/newt-react` is what a React frontend thinks with, apart from how it looks. Its rules fit
 in three sentences, from its `AGENTS.md`:
@@ -302,7 +302,7 @@ export class SignUpService {
 password before anything is sent, and the backend says the same if a request skips the form. When
 the backend answers `user.email_taken`, the message lands under the email field; a failure that
 belongs to no field is `form.failure`. `<FormField form={form} name="email" label="Email" />`,
-from `newt-react/form-field`, binds a newt-react-ui field to it: value, change and error.
+from `newt-kit-react/form-field`, binds a newt-kit-react-ui field to it: value, change and error.
 
 Sometimes a form needs its own words for the same limits, for the person typing. cooper's card form
 does that, and says so in a comment: "the backend checks them again"
@@ -315,14 +315,14 @@ does that, and says so in a comment: "the backend checks them again"
 after a change without reloading. A list the backend bounds (a workspace's members) is plain state
 in a service, whole.
 
-## newt-react-ui: one look
+## newt-kit-react-ui: one look
 
 `packages/newt-react-ui` is the components: layout (`Stack`, `Inline`, `Grid`, `Box` and its rows,
 `Card`), pages (`AppShell`, `PageHeader`, `PageBody`, `NarrowPage`, `SidebarLayout`), text, forms
 (`Field`, `Input`, `Select`, `Textarea`, `Checkbox`), feedback (`Alert`, `toast`, `Dialog`,
 `ConfirmDialog`, `EmptyState`, `Skeleton`), and data (`Table`, `Stat`, `LineChart`, `BarChart`,
 `TimeSeries`, `Waterfall`, `Graph`). Each one is imported by its folder:
-`import { Button } from 'newt-react-ui/button'`.
+`import { Button } from 'newt-kit-react-ui/button'`.
 
 Its one rule is short:
 
@@ -331,7 +331,7 @@ Its one rule is short:
 Outside an app's own components folder there is no `className`, no `style`, no HTML element but
 `form` and `fieldset`. When nothing fits, the app makes a component in its components folder, which
 wraps or composes the library's and may style there, with the theme's Tailwind tokens. The lint,
-`newtReactUi` from `newt-react-ui/lint`, refuses anything else:
+`newtReactUi` from `newt-kit-react-ui/lint`, refuses anything else:
 
 ```js
 // eslint.config.js (trimmed)
@@ -342,11 +342,11 @@ const FRONTEND = newtReactUi({
 })
 ```
 
-The theme is one stylesheet, `@import "newt-react-ui/theme.css"`, light by default, dark with the
+The theme is one stylesheet, `@import "newt-kit-react-ui/theme.css"`, light by default, dark with the
 `dark` class on `<html>`, which `ThemeService` keeps and remembers (`THEME_STORAGE_KEY`).
 
 ::: info Concept: A frontend with nothing to decide
-newt-react and newt-react-ui take away the decisions that make two pages different without a
+newt-kit-react and newt-kit-react-ui take away the decisions that make two pages different without a
 reason: where state goes, how a request is made, how a 401 is handled, what a button looks like.
 What is left in a page is what is specific to it. That is also what makes a page easy for a coding
 agent to write correctly (chapter [Built for coding agents](./33-agents)).
@@ -389,17 +389,17 @@ to sign in.
   its own cookies.
 - `serve`'s `frontend` is an imported `index.html` in development (built as served, reloaded) or a
   built folder in production (`serveFrontend`, with a CSP that hashes inline scripts).
-- `newt/contract` is the part of core a browser may load; a `<m>.schema.ts` imports only it, so the
+- `newt-kit/contract` is the part of core a browser may load; a `<m>.schema.ts` imports only it, so the
   frontend shares the backend's types and schemas, never its code.
-- newt-react: a page renders, a service (`Store`, `inject`) thinks, an API client (`Requester`)
+- newt-kit-react: a page renders, a service (`Store`, `inject`) thinks, an API client (`Requester`)
   talks. `FormStore` validates with the backend's schema and maps error codes to fields; `ListStore`
   pages as newt pages.
-- newt-react-ui: a page composes components and never styles; its lint enforces it.
+- newt-kit-react-ui: a page composes components and never styles; its lint enforces it.
 
 ## Going further
 
 - [HTTP security](./27-security): the Content-Security-Policy, the origin check, session cookies.
 - [Auth, OAuth and web sessions](./29-auth): how the boards' sign-in works behind the button.
 - [Queries](./25-queries): `defineFilter`, the filters a client may send.
-- [Built for coding agents](./33-agents): why `newt-react` and `newt-react-ui` ship an `AGENTS.md`.
+- [Built for coding agents](./33-agents): why `newt-kit-react` and `newt-kit-react-ui` ship an `AGENTS.md`.
 - `packages/newt-react/AGENTS.md` and `packages/newt-react-ui/AGENTS.md`: the full rules.

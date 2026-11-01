@@ -6,7 +6,7 @@ import { moduleNames } from './module-names'
 import { run } from './newt'
 
 // The command line, run as an application would: in a scratch application of its own,
-// whose node_modules are the repository's (newt, newt-eslint, eslint, typescript), and
+// whose node_modules are the repository's (newt, newt-kit-eslint, eslint, typescript), and
 // zod where newt has it (a checkout of the tutorial before chapter 2 has no zod at its root).
 const NODE_MODULES = join(import.meta.dir, '../../../node_modules')
 const NEWT_ZOD = join(import.meta.dir, '../node_modules/zod')
@@ -49,10 +49,10 @@ describe('newt init', () => {
 
     expect(code).toBe(0)
     expect(output).toContain('wrote    AGENTS.md')
-    expect(await Bun.file(join(app, 'AGENTS.md')).text()).toContain('read node_modules/newt/AGENTS.md')
-    expect(await Bun.file(join(app, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt/AGENTS.md\n')
-    expect(await Bun.file(join(app, 'eslint.config.js')).text()).toContain("from 'newt-eslint'")
-    expect(await Bun.file(join(app, 'node_modules/newt/AGENTS.md')).exists()).toBe(true)
+    expect(await Bun.file(join(app, 'AGENTS.md')).text()).toContain('read node_modules/newt-kit/AGENTS.md')
+    expect(await Bun.file(join(app, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt-kit/AGENTS.md\n')
+    expect(await Bun.file(join(app, 'eslint.config.js')).text()).toContain("from 'newt-kit-eslint'")
+    expect(await Bun.file(join(app, 'node_modules/newt-kit/AGENTS.md')).exists()).toBe(true)
   })
 
   test('never overwrites a file, and says which it left', async () => {
@@ -66,6 +66,21 @@ describe('newt init', () => {
     expect(await Bun.file(join(app, 'AGENTS.md')).text()).toBe('# Ours\n')
   })
 
+  test('after `bun init`, says what its CLAUDE.md lacks, and that its TypeScript 7 must go', async () => {
+    const fresh = join(app, 'bun-init')
+    await mkdir(fresh, { recursive: true })
+    await linkModules(fresh)
+    await Bun.write(join(fresh, 'CLAUDE.md'), 'Default to using Bun instead of Node.js.\n')
+    await Bun.write(join(fresh, 'package.json'), JSON.stringify({ name: 'fresh', devDependencies: { typescript: 'npm:@typescript/typescript6@6.0.2' }, peerDependencies: { typescript: '^7' } }))
+
+    const { lines, code } = await run(['init'], fresh)
+
+    expect(code).toBe(0)
+    expect(lines).toContain('skipped  CLAUDE.md (it is there already: add `@AGENTS.md` and `@node_modules/newt-kit/AGENTS.md` to it, one per line, so agents read newt\'s rules)')
+    expect(lines.some(line => line.startsWith('  bun remove typescript'))).toBe(true)
+    expect(await Bun.file(join(fresh, 'CLAUDE.md')).text()).toBe('Default to using Bun instead of Node.js.\n')
+  })
+
   test('in an application inside a monorepo, points at the root\'s node_modules and keeps the root\'s lint', async () => {
     const root = join(app, 'monorepo')
     await Bun.write(join(root, 'eslint.config.js'), 'export default []\n')
@@ -76,10 +91,10 @@ describe('newt init', () => {
     const { lines, code } = await run(['init'], web)
 
     expect(code).toBe(0)
-    expect(lines).toContain('skipped  eslint.config.js (../../eslint.config.js is there: add newt-eslint\'s preset to it, `newt()`)')
+    expect(lines).toContain('skipped  eslint.config.js (../../eslint.config.js is there: add newt-kit-eslint\'s preset to it, `newt()`)')
     expect(await Bun.file(join(web, 'eslint.config.js')).exists()).toBe(false)
-    expect(await Bun.file(join(web, 'AGENTS.md')).text()).toContain('read ../../node_modules/newt/AGENTS.md')
-    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@../../node_modules/newt/AGENTS.md\n')
+    expect(await Bun.file(join(web, 'AGENTS.md')).text()).toContain('read ../../node_modules/newt-kit/AGENTS.md')
+    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@../../node_modules/newt-kit/AGENTS.md\n')
   })
 })
 
@@ -88,12 +103,12 @@ describe('newt init, for the newt packages an application uses', () => {
     const web = join(app, 'with-ui')
     await mkdir(web, { recursive: true })
     await linkModules(web)
-    await Bun.write(join(web, 'package.json'), JSON.stringify({ name: 'web', private: true, dependencies: { 'newt-react': 'workspace:*', 'newt-react-ui': 'workspace:*' } }))
+    await Bun.write(join(web, 'package.json'), JSON.stringify({ name: 'web', private: true, dependencies: { 'newt-kit-react': 'workspace:*', 'newt-kit-react-ui': 'workspace:*' } }))
 
     const { lines, code } = await run(['init'], web)
 
     expect(code).toBe(0)
-    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt/AGENTS.md\n@node_modules/newt-react/AGENTS.md\n@node_modules/newt-react-ui/AGENTS.md\n')
+    expect(await Bun.file(join(web, 'CLAUDE.md')).text()).toBe('@AGENTS.md\n@node_modules/newt-kit/AGENTS.md\n@node_modules/newt-kit-react/AGENTS.md\n@node_modules/newt-kit-react-ui/AGENTS.md\n')
     expect(lines).toContain('wrote    .claude/skills/newt-react-ui/SKILL.md')
     expect(await Bun.file(join(web, '.claude/skills/newt-react-ui/SKILL.md')).text()).toContain('name: newt-react-ui')
   })

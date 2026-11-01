@@ -9,7 +9,7 @@ repository (`web/manual`; the rules in `a-rules.md`, the lint in `b-lint.md`).
 - A backend framework for Bun only (`Bun.serve`, `bun:sqlite`, `Bun.SQL`). Zod for schemas.
 - An app is **bounded contexts**; each owns a **store** (SQLite, files, Postgres, MySQL) and **modules**.
 - A module owns **one entity**, changes it only through its **use cases**, and tells what happened through **domain events**, delivered by a transactional outbox.
-- Three checks keep it honest: the types (`bun check`), the lint (`newt-eslint`), and runtime rules that throw (below).
+- Three checks keep it honest: the types (`bun check`), the lint (`newt-kit-eslint`), and runtime rules that throw (below).
 - `newt init` sets an app up for agents (AGENTS.md, CLAUDE.md, the lint); `newt add module <context-folder> <name>` writes a module's skeleton that compiles and passes the lint.
 
 ## Golden rules
@@ -34,7 +34,7 @@ repository (`web/manual`; the rules in `a-rules.md`, the lint in `b-lint.md`).
 
 | File | Holds |
 |---|---|
-| `<m>.schema.ts` | Zod schemas, DTO types, input schemas, filters: the public contract. Imports only zod, `newt/contract`, value objects, other schemas. |
+| `<m>.schema.ts` | Zod schemas, DTO types, input schemas, filters: the public contract. Imports only zod, `newt-kit/contract`, value objects, other schemas. |
 | `<m>.ts` | The entity (`extends Entity<typeof <M>Schema>`); re-exports the schema. |
 | `<m>.repository.ts` | `<M>_Repository`: the only file that touches the store. |
 | `<m>.module.ts` | `<M>_Module extends Module`: `static initialize`, `events`, the use cases. |
@@ -46,7 +46,7 @@ Names, for folder `oauth-grant`: class `OauthGrant_Module`, `super('oauthGrant',
 
 A module reaches another only through its module, schema, events, errors and value objects (`newt/module-boundaries`).
 
-A module passes all of its deps to `super`, those only its routes or workers use too: that is how the application knows what each module depends on (`describeApplication`, newt/runtime).
+A module passes all of its deps to `super`, those only its routes or workers use too: that is how the application knows what each module depends on (`describeApplication`, newt-kit/runtime).
 
 Another context's modules are deps as its own context's are, grouped under that context's name, and the context that opens it hands them over:
 
@@ -58,7 +58,7 @@ export interface Card_Deps {
 }
 ```
 
-Never wrap another context's use cases in a port of functions (`{ isMember: (w, u) => auth.access.check(…) }`): the lint, newt-graph and `describeApplication` lose the dependency. Which contexts a context may know is newt-eslint's `contexts.uses`.
+Never wrap another context's use cases in a port of functions (`{ isMember: (w, u) => auth.access.check(…) }`): the lint, newt-graph and `describeApplication` lose the dependency. Which contexts a context may know is newt-kit-eslint's `contexts.uses`.
 
 ## Entity, schema, repository
 
@@ -93,7 +93,7 @@ export class Order_Repository extends TableRepository<Order, OrderRow, ShopBase>
 ```
 
 - `scope` is required: `{ field, current }` for rows of a tenant, or `scope: 'none'` with a comment saying why. Never drop a scope to make something work. A scoped repository's `find/first/count/page` see only the current scope; reading across on purpose is the protected `findInEveryScope`, behind a method named so. Kysely, `this.table`, `saveRows` and `after` add the `where` themselves.
-- Criteria: `{ field: value, field: { in, ne, gt, gte, lt, lte, ieq }, or: [...], and: [...] }`; `allOf(a, b)`. Clients filter only through `defineFilter` in the schema. Queries criteria cannot say: Kysely (`newt/kysely`) in the repository.
+- Criteria: `{ field: value, field: { in, ne, gt, gte, lt, lte, ieq }, or: [...], and: [...] }`; `allOf(a, b)`. Clients filter only through `defineFilter` in the schema. Queries criteria cannot say: Kysely (`newt-kit/kysely`) in the repository.
 
 ## Use cases
 
@@ -220,14 +220,14 @@ export class OrderNotFound extends NotFoundError {
 | `… belongs to <field> '…', not to the current one` | Saving an entity of another scope. | Enter the right scope; never move rows across scopes. |
 | `idempotency_key_in_use` 409 / `idempotency_key_reused` 422 | Same key while running / with another body. | The client sends a new key per submit. |
 
-## The lint (newt-eslint)
+## The lint (newt-kit-eslint)
 
 | Rule | Says |
 |---|---|
 | `newt/module-anatomy` | Only the files and folders above, named after the module. |
 | `newt/module-boundaries` | Another module only through its module, schema, events, errors, value objects. |
 | `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, its callback calls that use case. |
-| `newt/schema-imports` | A `<m>.schema.ts` takes from newt only `newt/contract`. |
+| `newt/schema-imports` | A `<m>.schema.ts` takes from newt only `newt-kit/contract`. |
 | `newt/context-boundaries` | A context imports only the contexts its `uses` lists. |
 | `newt/use-case` | Every public method of a `Module` is `@UseCase`; others are `private`. |
 | `newt/route-body` | No `await request.json() as X` in a `*.routes.ts`: the use case parses `unknown`. |
@@ -247,7 +247,7 @@ await base.jobs.runAsWorker(() => invoices.open(order, id))      // do by hand w
 time += DAY_MS; await base.schedules.tick()                      // a schedule's tick, now
 ```
 
-- `newt/testing`: `freePort()`, and `browser(baseUrl)`, a `fetch` that keeps cookies and never follows redirects, for HTTP tests.
+- `newt-kit/testing`: `freePort()`, and `browser(baseUrl)`, a `fetch` that keeps cookies and never follows redirects, for HTTP tests.
 - `bun test`; tests beside the code. Test the hard cases: at once (`Promise.allSettled`), twice, refused, limits crossed, another tenant.
 - A port is proved by a contract suite every adapter runs (`describeStoreContract`).
 
@@ -260,7 +260,7 @@ A change of shape is a new migration file per dialect (`migrations/sqlite/00002_
 ```sh
 bun check          # types (tsc's errors)
 bun test           # tests
-bun run lint       # eslint with newt-eslint's preset
+bun run lint       # eslint with newt-kit-eslint's preset
 ```
 
 ## Definition of done

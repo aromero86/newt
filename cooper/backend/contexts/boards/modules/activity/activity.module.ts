@@ -1,4 +1,4 @@
-import { mapPage, Module, UseCase, type EventMeta, type Page, type PageRequest } from 'newt/core'
+import { mapPage, Module, UseCase, type EventMeta, type Page, type PageRequest } from 'newt-kit/core'
 import type { BoardsBase } from '../../boards-base'
 import { runInWorkspace } from '../../workspace-scope'
 import type { CardAuthor, CardDTO } from '../card/card.schema'

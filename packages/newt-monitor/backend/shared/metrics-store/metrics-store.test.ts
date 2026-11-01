@@ -15,7 +15,7 @@ test('opens an application\'s DuckDB again once the process that held its lock l
   const path = join(folder, 'app.duckdb')
   // The monitor going away: another process, with the file open.
   const holder = Bun.spawn(['bun', '-e', `
-    const { DuckDbAnalytics } = await import('newt/adapter-duckdb')
+    const { DuckDbAnalytics } = await import('newt-kit/adapter-duckdb')
     await DuckDbAnalytics.open({ path: ${JSON.stringify(path)}, datasets: {} })
     console.log('open')
     await new Promise(() => {})

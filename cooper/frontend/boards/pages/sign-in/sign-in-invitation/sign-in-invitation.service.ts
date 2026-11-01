@@ -1,5 +1,5 @@
 import { InvitationApi, type InvitationPreviewDTO } from '@cooper/api/invitation'
-import { inject, Store } from 'newt-react'
+import { inject, Store } from 'newt-kit-react'
 
 type SignInInvitationState = {
   preview: InvitationPreviewDTO | null

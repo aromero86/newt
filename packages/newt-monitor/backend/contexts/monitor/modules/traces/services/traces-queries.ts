@@ -1,5 +1,5 @@
-import type { Trace } from 'newt/contract'
-import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
+import type { Trace } from 'newt-kit/contract'
+import type { DuckDbAnalytics, DuckDbParam } from 'newt-kit/adapter-duckdb'
 import { WINDOWS } from '../../event-metrics/event-metrics.schema'
 import type { TraceDTO, TraceListDTO, TraceListQuerySchema, TraceSummaryDTO } from '../traces.schema'
 import type { z } from 'zod'

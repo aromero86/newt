@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { runContexts } from 'newt/application'
-import { NoopTracer, runAsActor, setTracer } from 'newt/core'
+import { runContexts } from 'newt-kit/application'
+import { NoopTracer, runAsActor, setTracer } from 'newt-kit/core'
 import { config, type Config } from './config'
 import { PRODUCTS } from './contexts/auth/modules/product/product.schema'
 import { cooperTracer, openContexts, stopContexts } from './open-contexts'

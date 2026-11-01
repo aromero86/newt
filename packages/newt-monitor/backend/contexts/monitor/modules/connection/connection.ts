@@ -1,4 +1,4 @@
-import { Entity, now, type EntityInput } from 'newt/core'
+import { Entity, now, type EntityInput } from 'newt-kit/core'
 import { ConnectionSchema, type ConnectionDTO, type FailureDTO, type IdentityDTO } from './connection.schema'
 import { Connection_Lost } from './events/connection-lost'
 import { Connection_Restored } from './events/connection-restored'

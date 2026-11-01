@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class TraceNotFound extends NotFoundError {
   readonly code = 'trace.not_found'

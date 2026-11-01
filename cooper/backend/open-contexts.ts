@@ -1,5 +1,5 @@
-import { filterSpans, type Clock, type Tracer } from 'newt/core'
-import { OtlpTracer } from 'newt/otel'
+import { filterSpans, type Clock, type Tracer } from 'newt-kit/core'
+import { OtlpTracer } from 'newt-kit/otel'
 import type { Config } from './config'
 import { Auth_Context } from './contexts/auth/auth.context'
 import { Backoffice_Context } from './contexts/backoffice/backoffice.context'

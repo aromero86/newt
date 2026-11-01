@@ -1,7 +1,7 @@
 import { MoonIcon, SunIcon } from 'lucide-react'
-import { Button } from 'newt-react-ui/button'
-import { Icon } from 'newt-react-ui/icon'
-import { useService, useValue, ThemeService } from 'newt-react'
+import { Button } from 'newt-kit-react-ui/button'
+import { Icon } from 'newt-kit-react-ui/icon'
+import { useService, useValue, ThemeService } from 'newt-kit-react'
 
 export function ShellThemeToggle() {
   const themes = useService(ThemeService)

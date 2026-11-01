@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { ColumnDTO } from '../column.schema'
 
 /** The column as it is now, and the name it had (`previous`). */

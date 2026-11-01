@@ -1,5 +1,5 @@
-import type { QueueFlow } from 'newt/contract'
-import { Module, now, UseCase } from 'newt/core'
+import type { QueueFlow } from 'newt-kit/contract'
+import { Module, now, UseCase } from 'newt-kit/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
 import { AppGone } from '../../../../shared/metrics-store/metrics-store'

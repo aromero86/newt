@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt/core'
+import { ConflictError } from 'newt-kit/core'
 
 /** Another account has this email, whatever its case. */
 export class EmailTaken extends ConflictError {

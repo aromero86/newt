@@ -1,7 +1,7 @@
 import { ActivityIcon } from 'lucide-react'
-import { Icon } from 'newt-react-ui/icon'
-import { Inline } from 'newt-react-ui/inline'
-import { Text } from 'newt-react-ui/text'
+import { Icon } from 'newt-kit-react-ui/icon'
+import { Inline } from 'newt-kit-react-ui/inline'
+import { Text } from 'newt-kit-react-ui/text'
 
 /** The monitor's mark and name. */
 export function Brand({ size = 'md' }: { size?: 'md' | 'lg' }) {

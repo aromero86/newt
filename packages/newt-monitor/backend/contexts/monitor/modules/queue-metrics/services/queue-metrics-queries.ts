@@ -1,5 +1,5 @@
-import type { DuckDbAnalytics, DuckDbParam } from 'newt/adapter-duckdb'
-import { histogramPercentile } from 'newt/contract'
+import type { DuckDbAnalytics, DuckDbParam } from 'newt-kit/adapter-duckdb'
+import { histogramPercentile } from 'newt-kit/contract'
 import { spansOf } from '../../../../../shared/metrics-store/metrics-spans'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
 import type { FlowDTO, FlowPointDTO, QueueSeriesDTO, QueueTotalDTO } from '../queue-metrics.schema'

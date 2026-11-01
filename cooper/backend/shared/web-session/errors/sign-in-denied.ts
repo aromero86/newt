@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt/core'
+import { ForbiddenError } from 'newt-kit/core'
 
 /** auth sent the browser back with no code: the person said no, or may not enter. */
 export class SignInDenied extends ForbiddenError {

@@ -31,7 +31,7 @@ flowchart LR
   R["AGENTS.md: the rules, versioned with newt"] --> A["the agent writes code"]
   S["newt add module: a skeleton that passes"] --> A
   A --> T["bun check: types"]
-  A --> L["newt-eslint: structure"]
+  A --> L["newt-kit-eslint: structure"]
   A --> X["runtime rules: throw with what to do"]
   T --> F["it fixes what it was told"]
   L --> F
@@ -62,7 +62,7 @@ is a rule, and its message is the agent's next instruction.
 
 `AGENTS.md` is the convention coding agents look for: a file of instructions for whoever writes
 code in this repository. newt ships its own, at `packages/newt/AGENTS.md`, inside the package. When
-you install newt, it lands in `node_modules/newt/AGENTS.md`, at the version you installed.
+you install newt, it lands in `node_modules/newt-kit/AGENTS.md`, at the version you installed.
 
 That last point matters more than it looks. A framework's docs on a website describe its latest
 version; the agent's training data describes an older one. The `AGENTS.md` in `node_modules`
@@ -76,12 +76,12 @@ compressed for a reader who reads it every time.
 
 ::: tip In cooper
 newt keeps its `AGENTS.md` honest with a test, `packages/newt/agents.test.ts`. It fails when
-`AGENTS.md` does not name every rule of newt-eslint, or does not explain every `[... rule]` prefix
+`AGENTS.md` does not name every rule of newt-kit-eslint, or does not explain every `[... rule]` prefix
 the framework throws (`[write rule]`, `[guard rule]`), or when a phrase it quotes is no longer the
 framework's. A new rule, or a renamed message, cannot ship without its entry.
 :::
 
-newt's other packages do the same. `newt-react` and `newt-react-ui` each ship an `AGENTS.md` (the
+newt's other packages do the same. `newt-kit-react` and `newt-kit-react-ui` each ship an `AGENTS.md` (the
 shape of a frontend; the components and the rule that a page never styles), and say so in their
 `package.json`:
 
@@ -93,7 +93,7 @@ shape of a frontend; the components and the rule that a page never styles), and 
 }
 ```
 
-`newt-react-ui` also ships a Claude Code **skill**, a folder of instructions an agent loads when it
+`newt-kit-react-ui` also ships a Claude Code **skill**, a folder of instructions an agent loads when it
 is about to write UI.
 
 ## newt init: an application set up for agents
@@ -101,7 +101,7 @@ is about to write UI.
 `newt init`, in an application's folder, writes three files and never overwrites one:
 
 - **`AGENTS.md`**, the application's own: one line that sends agents to
-  `node_modules/newt/AGENTS.md` (found here or in a folder above, as in a monorepo), and sections
+  `node_modules/newt-kit/AGENTS.md` (found here or in a folder above, as in a monorepo), and sections
   for what is the project's: what it is, its contexts and which ones each uses, its conventions,
   its commands.
 - **`CLAUDE.md`**, Claude Code's memory, which imports them all with `@`: the project's
@@ -115,7 +115,7 @@ cooper's are what `newt init` writes, filled in:
 ```md
 <!-- cooper/CLAUDE.md -->
 @AGENTS.md
-@../node_modules/newt/AGENTS.md
+@../node_modules/newt-kit/AGENTS.md
 ```
 
 ```md
@@ -176,7 +176,7 @@ its path's type, a group's from its prefix's, an entity's `change` takes only it
 
 ### The lint
 
-`newt-eslint` (`packages/newt-eslint`) checks what types cannot: the architecture. Its rules:
+`newt-kit-eslint` (`packages/newt-eslint`) checks what types cannot: the architecture. Its rules:
 
 | Rule | Keeps |
 |---|---|
@@ -186,7 +186,7 @@ its path's type, a group's from its prefix's, an entity's `change` takes only it
 | `newt/queue-name` | a handler's queue is `<module>.<use case>.on.<module>.<event>`, and calls that use case |
 | `newt/use-case` | every public method of a `Module` is `@UseCase`; others are `private` |
 | `newt/route-body` | no `await request.json() as X` in a route: the use case parses `unknown` |
-| `newt/schema-imports` | a schema takes from newt only `newt/contract` |
+| `newt/schema-imports` | a schema takes from newt only `newt-kit/contract` |
 | `no-restricted-syntax` | no `transaction` in a module |
 | `@typescript-eslint/no-floating-promises` | every promise awaited |
 
@@ -200,7 +200,7 @@ module imports the board module's repository, `newt/module-boundaries` says:
 
 That is not just "forbidden import". It says what the rule is and what to do instead. An agent
 reads it and calls `deps.board` the right way. The lint for frontends, `newtReactUi` from
-`newt-react-ui/lint`, does the same for pages: no `className`, no `style`, no raw HTML elements.
+`newt-kit-react-ui/lint`, does the same for pages: no `className`, no `style`, no raw HTML elements.
 
 ::: danger Never
 Never silence a rule to pass. `AGENTS.md` says so, in those words, and names the one accepted
@@ -251,14 +251,14 @@ An agent asked to "add a worker when a card is archived" must first know: which 
 `card.archived`? Who already listens? Does `activity` depend on `card`? Reading forty files to find
 out is slow and error-prone. Asking the application is neither.
 
-`describeApplication(contexts)`, from `newt/runtime`, returns what the application registered
+`describeApplication(contexts)`, from `newt-kit/runtime`, returns what the application registered
 while it was opened: every module, every `@UseCase` of each, the events each tells (schedules
 among them), what each depends on, and every subscription. Nothing is read from the code; it is
 what was built.
 
 ```ts
 // describe-cooper.ts: a script beside cooper/
-import { describeApplication } from 'newt/runtime'
+import { describeApplication } from 'newt-kit/runtime'
 import { config } from './cooper/backend/config'
 import { openContexts, stopContexts } from './cooper/backend/open-contexts'
 
@@ -382,7 +382,7 @@ reads counts and shapes, never your data, because that is all `serveMonitor` ser
 What this means day to day:
 
 - **Start every task from the rules.** With `CLAUDE.md` in place, Claude Code reads newt's
-  `AGENTS.md` every session. With another agent, point it at `node_modules/newt/AGENTS.md`.
+  `AGENTS.md` every session. With another agent, point it at `node_modules/newt-kit/AGENTS.md`.
 - **Start every module from `newt add module`.** The skeleton is the anatomy.
 - **Make the loop include all three checks.** `bun check && bun test && bunx eslint` is the
   definition of done in `AGENTS.md`. An agent that runs only the tests misses the lint, and the lint
@@ -399,10 +399,10 @@ What this means day to day:
 - An agent breaks architecture not out of carelessness but for lack of context and feedback; newt
   gives it both.
 - `AGENTS.md` ships inside the package, versioned with the code it describes, and a test keeps it
-  complete; newt-react and newt-react-ui ship theirs, and newt-react-ui a skill.
+  complete; newt-kit-react and newt-kit-react-ui ship theirs, and newt-kit-react-ui a skill.
 - `newt init` writes the project's `AGENTS.md`, a `CLAUDE.md` that imports every package's rules,
   and the lint; `newt add module` writes a skeleton that compiles and passes.
-- Three layers of guard-rails: types, newt-eslint, and runtime rules that throw with the fix in
+- Three layers of guard-rails: types, newt-kit-eslint, and runtime rules that throw with the fix in
   the message.
 - `describeApplication` says what the application is made of, from what it registered; it is also
   the monitor's structure and graph.

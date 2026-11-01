@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt/core'
+import { ForbiddenError } from 'newt-kit/core'
 
 /** Someone of the staff taking their own access away: another one does it, so the backoffice is never left without staff. */
 export class OwnAccessNotRevocable extends ForbiddenError {

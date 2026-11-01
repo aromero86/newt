@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import type { Browser } from 'newt/testing'
+import type { Browser } from 'newt-kit/testing'
 import { openTestMonitor, type TestMonitor } from '../../../../testing/open-test-monitor'
 import { serveTestApp, type TestApp } from '../../../../testing/serve-test-app'
 import type { ErrorCodeDTO, ErrorsSeriesDTO, ErrorsTopDTO, ErrorsTotalDTO } from './use-case-errors'

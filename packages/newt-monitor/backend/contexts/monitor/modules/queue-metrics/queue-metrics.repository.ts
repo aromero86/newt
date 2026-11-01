@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { MonitorBase } from '../../../../monitor-base'
 import { QueueMetricsFeed, type QueueMetricsFeedDTO } from './queue-metrics'
 

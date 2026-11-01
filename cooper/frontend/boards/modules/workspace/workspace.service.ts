@@ -1,7 +1,7 @@
 import { computed } from '@preact/signals-core'
 import { WorkspaceMemberApi, type WorkspaceMemberDTO } from '@cooper/api/workspace-member'
-import { inject, Store } from 'newt-react'
-import { toast } from 'newt-react-ui/toast'
+import { inject, Store } from 'newt-kit-react'
+import { toast } from 'newt-kit-react-ui/toast'
 import { SessionService } from '../../services/session/session.service'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 

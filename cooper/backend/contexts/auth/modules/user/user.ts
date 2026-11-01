@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Email, Entity, type EntityInput } from 'newt/core'
+import { Email, Entity, type EntityInput } from 'newt-kit/core'
 import { User_SignedUp } from './events/user-signed-up'
 import { UserSchema } from './user.schema'
 

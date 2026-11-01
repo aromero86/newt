@@ -1,5 +1,5 @@
-import { inject, FormStore, Store } from 'newt-react'
-import { toast } from 'newt-react-ui/toast'
+import { inject, FormStore, Store } from 'newt-kit-react'
+import { toast } from 'newt-kit-react-ui/toast'
 import { z } from 'zod'
 import { AppApi, AppRegisterSchema, RepositorySchema, type AppDTO, type AppUpdateDTO } from '../../../api/app'
 import { AppService } from '../app.service'

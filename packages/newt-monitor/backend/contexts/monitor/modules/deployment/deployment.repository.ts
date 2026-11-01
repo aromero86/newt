@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { MonitorBase } from '../../../../monitor-base'
 import { Deployment, type DeploymentDTO } from './deployment'
 

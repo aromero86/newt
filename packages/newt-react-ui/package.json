@@ -1,7 +1,36 @@
 {
-  "name": "newt-react-ui",
-  "version": "0.0.0",
+  "name": "newt-kit-react-ui",
+  "version": "0.1.0",
   "description": "The components of a React frontend of a newt application, and the lint that keeps an app from restyling them: pages compose them, an app's own components wrap them, and nothing else styles.",
+  "license": "MIT",
+  "author": "Angel Romero",
+  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt-react-ui#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aromero86/newt.git",
+    "directory": "packages/newt-react-ui"
+  },
+  "bugs": "https://github.com/aromero86/newt/issues",
+  "keywords": [
+    "react",
+    "newt",
+    "components",
+    "tailwind",
+    "design-system"
+  ],
+  "files": [
+    "components",
+    "internal",
+    "lint",
+    "skills",
+    "styles",
+    "tokens.ts",
+    "AGENTS.md",
+    "!**/*.test.ts",
+    "!**/*.test.js",
+    "!**/*.test.tsx",
+    "!tsconfig.json"
+  ],
   "type": "module",
   "sideEffects": [
     "*.css"
@@ -42,5 +71,8 @@
     "typescript-eslint": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,5 +1,5 @@
 import { BackofficeUserApi, type UserSummaryDTO } from '@cooper/api/backoffice-user'
-import { inject, ListStore, Store } from 'newt-react'
+import { inject, ListStore, Store } from 'newt-kit-react'
 
 type UsersState = {
   /** The email or name looked for; empty for every account. */

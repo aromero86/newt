@@ -1,6 +1,6 @@
 import { WorkspaceApi, WorkspaceRenameSchema, type WorkspaceDTO } from '@cooper/api/workspace'
-import { FormStore, inject, Store } from 'newt-react'
-import { toast } from 'newt-react-ui/toast'
+import { FormStore, inject, Store } from 'newt-kit-react'
+import { toast } from 'newt-kit-react-ui/toast'
 import { WorkspacesService } from '../../../services/workspaces/workspaces.service'
 
 /** A workspace's name, and deleting it after asking. Its admin's only. */

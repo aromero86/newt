@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { OauthClientSchema } from './oauth-client.schema'
 import { ClientSecret } from './value-objects/client-secret'
 

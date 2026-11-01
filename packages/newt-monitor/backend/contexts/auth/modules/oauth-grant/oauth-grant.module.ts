@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, Module, now, UseCase } from 'newt/core'
+import { currentActor, eventsOf, Module, now, UseCase } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import { OauthClientNotFound } from '../oauth-client/errors/oauth-client-not-found'
 import type { OauthClientDTO } from '../oauth-client/oauth-client.schema'

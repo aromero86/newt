@@ -1,5 +1,5 @@
 import { BackofficeJobApi, JOB_CONTEXTS, type ContextJobDTO, type JobContext } from '@cooper/api/backoffice-job'
-import { inject, ListStore } from 'newt-react'
+import { inject, ListStore } from 'newt-kit-react'
 
 /** The jobs that died in each context: listed, one list per context, and retried. */
 export class JobsService {

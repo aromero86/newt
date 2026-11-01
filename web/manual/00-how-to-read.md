@@ -114,7 +114,7 @@ manual in `web/`. From the root, these are the commands you will use (they are t
 ```sh
 bun run typecheck      # bun check: the types of everything
 bun run test           # bun test: every test
-bun run lint           # eslint, with newt-eslint's rules for cooper
+bun run lint           # eslint, with newt-kit-eslint's rules for cooper
 bun run cooper:seed    # cooper's demo data: three accounts, a workspace, two boards
 bun run cooper         # cooper in development: every context on its port
 ```

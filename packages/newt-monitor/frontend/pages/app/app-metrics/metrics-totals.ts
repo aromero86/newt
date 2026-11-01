@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useService } from 'newt-react'
+import { useService } from 'newt-kit-react'
 import { EventMetricsApi, type EventTotalDTO } from '../../../api/event-metrics'
 import { UseCaseErrorsApi, type ErrorsTotalDTO } from '../../../api/use-case-errors'
 import { UseCaseMetricsApi, type UseCaseTotalDTO } from '../../../api/use-case-metrics'

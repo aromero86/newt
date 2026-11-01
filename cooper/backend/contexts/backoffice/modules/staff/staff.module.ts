@@ -1,4 +1,4 @@
-import { currentActor, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { UserDTO } from '../../../auth/modules/user/user.schema'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import { NotStaff } from './errors/not-staff'

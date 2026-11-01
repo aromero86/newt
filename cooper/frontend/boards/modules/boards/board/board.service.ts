@@ -1,9 +1,9 @@
 import { computed } from '@preact/signals-core'
-import { ApiError, inject, Store } from 'newt-react'
+import { ApiError, inject, Store } from 'newt-kit-react'
 import { BoardApi, type BoardViewDTO } from '@cooper/api/board'
 import { CardApi, type CardCreateDTO, type CardDTO, type CardEditDTO } from '@cooper/api/card'
 import { ColumnApi, type ColumnDTO } from '@cooper/api/column'
-import { toast } from 'newt-react-ui/toast'
+import { toast } from 'newt-kit-react-ui/toast'
 
 type BoardState = {
   workspaceId: string

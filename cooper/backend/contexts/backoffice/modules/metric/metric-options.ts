@@ -1,4 +1,4 @@
-import type { Analytics } from 'newt/port-analytics'
+import type { Analytics } from 'newt-kit/port-analytics'
 import type { AnalyticsCounts } from '../../../../shared/analytics/analytics-counts'
 
 /** What the context configures the metrics with. */

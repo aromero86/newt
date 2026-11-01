@@ -1,7 +1,7 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router'
-import { Button } from 'newt-react-ui/button'
-import { PageBody } from 'newt-react-ui/page-body'
-import { PageHeader } from 'newt-react-ui/page-header'
+import { Button } from 'newt-kit-react-ui/button'
+import { PageBody } from 'newt-kit-react-ui/page-body'
+import { PageHeader } from 'newt-kit-react-ui/page-header'
 import { NotFound } from '../not-found/not-found'
 
 /**

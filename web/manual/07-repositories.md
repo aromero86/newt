@@ -35,7 +35,7 @@ JSON file, two tables) behind methods named in the domain's words: `inColumn(col
 ::: info Concept: Store
 Where a context keeps its data: a SQLite file, a folder of JSON files, a Postgres or MySQL
 database. Each context owns exactly one store, and no other context opens it. In newt the store
-is a **port** (`Store`, in `newt/port-store`), and each kind of database is an **adapter** that
+is a **port** (`Store`, in `newt-kit/port-store`), and each kind of database is an **adapter** that
 implements it.
 :::
 
@@ -58,7 +58,7 @@ Here is the whole repository of cooper's boards, from
 `cooper/backend/contexts/boards/modules/board/board.repository.ts`, trimmed a little:
 
 ```ts
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId } from '../../workspace-scope'
 import { Board, type BoardDTO } from './board'
@@ -206,12 +206,12 @@ A field left `undefined` is no condition at all. That makes optional filters fre
 await this.repo.count({ name: { ieq: name }, id: exceptId === undefined ? undefined : { ne: exceptId } })
 ```
 
-To combine two criteria, use `allOf(a, b)` from `newt/core`. `TableRepository` itself uses it to
+To combine two criteria, use `allOf(a, b)` from `newt-kit/core`. `TableRepository` itself uses it to
 add the scope and the soft delete to whatever you ask.
 
 ::: details Under the hood: what criteria cannot say
 Criteria compare fields to values. They do not join tables, group, or look inside a JSON field.
-For those, a repository on a SQL store asks Kysely (`newt/kysely`), still inside the repository.
+For those, a repository on a SQL store asks Kysely (`newt-kit/kysely`), still inside the repository.
 cooper's `Card_Repository.countByBoard` groups cards by board with Kysely, and adds
 `.where('workspaceId', '=', currentWorkspaceId())` itself: Kysely does not know about scopes.
 `whereOf(store, criteria)` turns criteria into a Kysely `where`. See [Queries](./25-queries).
@@ -221,7 +221,7 @@ cooper's `Card_Repository.countByBoard` groups cards by board with Kysely, and a
 
 A client may want to filter a list too: the cards of one column, assigned to someone. Taking
 criteria straight from a request would let anyone query any field with any operator. Instead a
-module declares, in its schema, what a client may filter by: `defineFilter`, from `newt/contract`.
+module declares, in its schema, what a client may filter by: `defineFilter`, from `newt-kit/contract`.
 From `cooper/backend/contexts/boards/modules/card/card.schema.ts`:
 
 ```ts
@@ -350,10 +350,10 @@ moves from one store to another unchanged.
 
 | Store | Package | Good for |
 |---|---|---|
-| `SqliteStore` | `newt/adapter-sqlite` | Development, tests (`:memory:`), and a single server in production. |
-| `FileStore` | `newt/adapter-files` | Plain JSON files: tiny tools, no SQL. |
-| `PostgresStore` | `newt/adapter-postgres` | Several instances sharing one database. |
-| `MySqlStore` | `newt/adapter-mysql` | The same, on MySQL. |
+| `SqliteStore` | `newt-kit/adapter-sqlite` | Development, tests (`:memory:`), and a single server in production. |
+| `FileStore` | `newt-kit/adapter-files` | Plain JSON files: tiny tools, no SQL. |
+| `PostgresStore` | `newt-kit/adapter-postgres` | Several instances sharing one database. |
+| `MySqlStore` | `newt-kit/adapter-mysql` | The same, on MySQL. |
 
 A context picks its store when it opens. cooper picks by the address in its configuration, in
 `cooper/backend/shared/open-store.ts`:

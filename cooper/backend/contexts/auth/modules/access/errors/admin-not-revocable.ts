@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt/core'
+import { ConflictError } from 'newt-kit/core'
 
 /** A workspace keeps its admin for as long as it exists. */
 export class AdminNotRevocable extends ConflictError {

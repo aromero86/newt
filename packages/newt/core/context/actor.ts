@@ -3,7 +3,7 @@
  * adds what it needs by augmenting this interface, once:
  *
  * ```ts
- * declare module 'newt/core' {
+ * declare module 'newt-kit/core' {
  *   interface Actor {
  *     sessionId: string | null
  *   }

@@ -1,4 +1,4 @@
-// newt/adapter-files: a store of plain JSON files, with transactions of its own.
+// newt-kit/adapter-files: a store of plain JSON files, with transactions of its own.
 export { FileStore } from './file-store'
 export type { FileStoreOptions } from './file-store-options'
 export { FileTable } from './file-table'

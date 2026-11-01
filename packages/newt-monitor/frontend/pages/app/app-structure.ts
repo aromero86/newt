@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode } from 'newt-react-ui/graph'
+import type { GraphEdge, GraphNode } from 'newt-kit-react-ui/graph'
 import type { ApplicationDescription, ContextDescription, ModuleDescription, SubscriptionDescription } from '../../api/structure'
 
 /**
@@ -90,7 +90,7 @@ export function differenceOf(before: ApplicationDescription | null, after: Appli
   }
 }
 
-/** What a graph of the monitor draws: newt-react-ui's `Graph` nodes and edges. */
+/** What a graph of the monitor draws: newt-kit-react-ui's `Graph` nodes and edges. */
 export type StructureGraph = { nodes: GraphNode[], edges: GraphEdge[] }
 
 /** Its contexts, and which uses which. */
@@ -159,7 +159,7 @@ export function contextModulesGraph(appId: string, description: ApplicationDescr
     nodes: [
       ...left.map(name => contextNode(name, 0)),
       ...middle.map(id => ({ ...moduleNode(appId, id, context), group: context, column: 1 })),
-      // A context both used and using (a cycle, which newt-eslint refuses) stays on the left.
+      // A context both used and using (a cycle, which newt-kit-eslint refuses) stays on the left.
       ...right.filter(name => !left.includes(name)).map(name => contextNode(name, 2)),
     ],
     edges: all,

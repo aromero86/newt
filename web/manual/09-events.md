@@ -54,7 +54,7 @@ An event is a class, one per file, in the module's `events/` folder. From
 `cooper/backend/contexts/boards/modules/board/events/board-created.ts`:
 
 ```ts
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { BoardDTO } from '../board.schema'
 
 export class Board_Created implements DomainEvent<BoardDTO> {

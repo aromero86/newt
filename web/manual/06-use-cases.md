@@ -126,7 +126,7 @@ out, so a partial update that never mentioned a reference leaves it as it was.
 
 ::: info Concept: Actor
 Who is doing the work in progress: the person signed in, read with `currentActor()` from
-`newt/core`. It is set once where the work comes in (a route's session, an MCP tool's token,
+`newt-kit/core`. It is set once where the work comes in (a route's session, an MCP tool's token,
 a script's `runAsActor`) and travels down to every use case called, without being passed by
 hand.
 :::
@@ -143,7 +143,7 @@ carries by augmenting newt's `Actor` interface. cooper adds how the person came 
 
 ```ts
 // cooper/backend/shared/actor.ts
-declare module 'newt/core' {
+declare module 'newt-kit/core' {
   interface Actor {
     via: ActorVia   // 'web' | 'mcp'
   }
@@ -300,7 +300,7 @@ happen twice, says `@UseCase({ retryOnConflict: false })` with the reason beside
 ## Lists come by pages
 
 No list is returned whole unless the domain bounds it. Every other list is a `Page`, from
-`newt/core`:
+`newt-kit/core`:
 
 ```ts
 type PageRequest = { size: number, cursor?: string }
@@ -320,7 +320,7 @@ async list(page: PageRequest): Promise<Page<BoardDTO>> {
 The repository's `page(criteria, page, options)` reads one page after the cursor, the id of
 the last item of the previous page; ids are UUIDv7, so they sort by time and the cursor stays
 stable while items are added. The route builds the `PageRequest` from the query string with
-`pageRequestFrom(request)`, from `newt/http`.
+`pageRequestFrom(request)`, from `newt-kit/http`.
 
 `mapPage` keeps `hasMore` and `total` and works out the next cursor. An item the function
 turns into `undefined` is left out: a card found by the search but deleted since.
@@ -338,7 +338,7 @@ that decides the HTTP status.
 
 ```ts
 // cooper/backend/contexts/boards/modules/card/errors/card-not-found.ts
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class CardNotFound extends NotFoundError {
   readonly code = 'card.not_found'
@@ -352,7 +352,7 @@ Each error is one class in one file of the module's `errors/` folder. Its code i
 name and a snake-case reason (`card.not_found`, `invitation.already_invited`,
 `tenant.not_admin`); clients and tests check codes, never messages, so messages may change.
 
-The base classes, all from `newt/core`:
+The base classes, all from `newt-kit/core`:
 
 | Base | Status | For | In cooper |
 |---|---|---|---|

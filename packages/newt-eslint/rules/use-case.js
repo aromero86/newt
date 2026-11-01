@@ -1,9 +1,9 @@
 import { posix } from 'node:path'
 import { slashed } from '../paths.js'
 
-/** Whether an import comes from newt: `newt`, or one of its entry points (`newt/core`). */
+/** Whether an import comes from newt: `newt-kit`, or one of its entry points (`newt-kit/core`). */
 function fromNewt(source) {
-  return source === 'newt' || source.startsWith('newt/')
+  return source === 'newt-kit' || source.startsWith('newt-kit/')
 }
 
 /** The names newt's `exported` goes by in a file: itself, and `Base` for `import { Module as Base }`. */

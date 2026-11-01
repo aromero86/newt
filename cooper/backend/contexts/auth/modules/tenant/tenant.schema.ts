@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineFilter } from 'newt/contract'
+import { defineFilter } from 'newt-kit/contract'
 
 /**
  * A workspace of `cooper`: every other context keeps what it needs of it by its id

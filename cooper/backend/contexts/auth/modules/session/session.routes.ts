@@ -1,5 +1,5 @@
 import type { BunRequest } from 'bun'
-import { clearSessionCookie, setSessionCookie } from 'newt/http'
+import { clearSessionCookie, setSessionCookie } from 'newt-kit/http'
 import type { AuthBase } from '../../auth-base'
 import { SIGN_IN_LIMIT, SIGN_UP_LIMIT } from '../../../../shared/rate-limits'
 import type { Session_Module } from './session.module'

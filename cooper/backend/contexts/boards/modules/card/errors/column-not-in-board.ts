@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/core'
+import { ValidationError } from 'newt-kit/core'
 
 /** A card goes only to a column of its own board: the request named another. */
 export class ColumnNotInBoard extends ValidationError {

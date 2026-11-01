@@ -3,8 +3,8 @@ import type { Server } from 'bun'
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SqliteStore } from 'newt/adapter-sqlite'
-import { serve } from 'newt/http'
+import { SqliteStore } from 'newt-kit/adapter-sqlite'
+import { serve } from 'newt-kit/http'
 import { openTestBoards, type TestBoards } from './testing/open-test-boards'
 
 describe('boards, through its API', () => {

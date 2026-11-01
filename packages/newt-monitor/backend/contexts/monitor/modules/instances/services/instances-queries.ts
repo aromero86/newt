@@ -1,4 +1,4 @@
-import type { DuckDbAnalytics } from 'newt/adapter-duckdb'
+import type { DuckDbAnalytics } from 'newt-kit/adapter-duckdb'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../../event-metrics/event-metrics.schema'
 import type { InstanceCountSeriesDTO, SystemPointDTO, SystemSeriesDTO } from '../instances.schema'
 

@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { MonitorBase } from '../../../../monitor-base'
 import { assertAppThere, unlessAppGone } from '../../../../shared/app-gone'
 import { Connection, type ConnectionDTO } from './connection'

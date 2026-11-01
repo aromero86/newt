@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
-import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
+import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import { WrongCredentials } from './errors/wrong-credentials'
 import { Session, SignInSchema, type MeDTO } from './session'

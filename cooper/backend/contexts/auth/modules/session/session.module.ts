@@ -1,4 +1,4 @@
-import { type Actor, currentActor, log, Module, now, SecretToken, UseCase } from 'newt/core'
+import { type Actor, currentActor, log, Module, now, SecretToken, UseCase } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import type { UserDTO } from '../user/user.schema'
 import { InvalidCredentials } from './errors/invalid-credentials'

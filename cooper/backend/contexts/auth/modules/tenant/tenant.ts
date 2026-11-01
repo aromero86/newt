@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { Tenant_Created } from './events/tenant-created'
 import { Tenant_Deleted } from './events/tenant-deleted'
 import { Tenant_Renamed } from './events/tenant-renamed'

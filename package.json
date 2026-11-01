@@ -18,7 +18,8 @@
     "cooper:replicas": "bun run cooper/scripts/replicas.ts",
     "monitor": "bun --watch packages/newt-monitor/scripts/dev.ts",
     "monitor:build": "bun packages/newt-monitor/scripts/build.ts",
-    "ui": "bun packages/newt-react-ui/gallery/serve.ts"
+    "ui": "bun packages/newt-react-ui/gallery/serve.ts",
+    "release:version": "bun scripts/version.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.1",
@@ -27,7 +28,7 @@
     "cn": "0.4.0",
     "kysely": "0.29.6",
     "lucide-react": "1.48.0",
-    "newt": "workspace:*",
+    "newt-kit": "workspace:*",
     "radix-ui": "1.7.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -48,10 +49,10 @@
     "bun-plugin-tailwind": "0.1.2",
     "eslint": "10.12.0",
     "mermaid": "11.17.2",
-    "newt-eslint": "workspace:*",
-    "newt-monitor": "workspace:*",
-    "newt-react": "workspace:*",
-    "newt-react-ui": "workspace:*",
+    "newt-kit-eslint": "workspace:*",
+    "newt-kit-monitor": "workspace:*",
+    "newt-kit-react": "workspace:*",
+    "newt-kit-react-ui": "workspace:*",
     "tailwindcss": "4.3.3",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "8.71.1",

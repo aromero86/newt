@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import type { Server } from 'bun'
-import { serve } from 'newt/http'
-import { browser, freePort, type Browser } from 'newt/testing'
+import { serve } from 'newt-kit/http'
+import { browser, freePort, type Browser } from 'newt-kit/testing'
 import { config } from '../../config'
 import { Auth_Context } from './auth.context'
 

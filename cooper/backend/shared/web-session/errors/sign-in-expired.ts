@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/core'
+import { ValidationError } from 'newt-kit/core'
 
 /** The browser came back without the sign-in it started here, or with another one's state. */
 export class SignInExpired extends ValidationError {

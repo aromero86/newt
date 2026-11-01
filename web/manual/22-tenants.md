@@ -57,7 +57,7 @@ A scope is defined once, for the context, with `defineScope`:
 
 ```ts
 // cooper/backend/contexts/boards/workspace-scope.ts
-import { defineScope } from 'newt/core'
+import { defineScope } from 'newt-kit/core'
 
 /** The workspace the work in progress is about: an auth tenant, by its id. */
 export type WorkspaceScope = {

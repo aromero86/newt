@@ -1,10 +1,41 @@
 {
-  "name": "newt",
-  "version": "0.0.0",
+  "name": "newt-kit",
+  "version": "0.1.0",
   "description": "A backend framework for Bun: modules, entities, use cases, domain events with a transactional outbox, scopes, and stores to keep them in.",
+  "license": "MIT",
+  "author": "Angel Romero",
+  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aromero86/newt.git",
+    "directory": "packages/newt"
+  },
+  "bugs": "https://github.com/aromero86/newt/issues",
+  "keywords": [
+    "bun",
+    "framework",
+    "backend",
+    "ddd",
+    "bounded-contexts",
+    "use-cases",
+    "domain-events",
+    "outbox",
+    "typescript"
+  ],
+  "files": [
+    "**/*.ts",
+    "**/migrations/**/*.sql",
+    "AGENTS.md",
+    "!**/*.test.ts",
+    "!**/*.test.js",
+    "!**/*.test.tsx",
+    "!**/fixtures/**",
+    "!tsconfig.json"
+  ],
   "type": "module",
   "sideEffects": false,
   "bin": {
+    "newt-kit": "./cli/newt.ts",
     "newt": "./cli/newt.ts"
   },
   "exports": {
@@ -53,5 +84,8 @@
     "@duckdb/node-api": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

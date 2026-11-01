@@ -1,10 +1,10 @@
 import { useEffect, type FormEvent } from 'react'
-import { Alert } from 'newt-react-ui/alert'
-import { Button } from 'newt-react-ui/button'
-import { Stack } from 'newt-react-ui/stack'
-import { Subhead } from 'newt-react-ui/subhead'
-import { FormField } from 'newt-react/form-field'
-import { Provide, useService, useValue } from 'newt-react'
+import { Alert } from 'newt-kit-react-ui/alert'
+import { Button } from 'newt-kit-react-ui/button'
+import { Stack } from 'newt-kit-react-ui/stack'
+import { Subhead } from 'newt-kit-react-ui/subhead'
+import { FormField } from 'newt-kit-react/form-field'
+import { Provide, useService, useValue } from 'newt-kit-react'
 import { AppSettingsMetricsService } from './app-settings-metrics.service'
 
 /** How long its metrics are kept. With its own AppSettingsMetricsService. */

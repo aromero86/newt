@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { DaysShorterThanMinutes } from './errors/days-shorter-than-minutes'
 import { RetentionSchema, type RetentionDTO, type RetentionRowDTO } from './retention.schema'
 

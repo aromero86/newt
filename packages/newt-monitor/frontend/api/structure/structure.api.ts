@@ -1,6 +1,6 @@
-import type { Page } from 'newt/contract'
+import type { Page } from 'newt-kit/contract'
 import type { RefreshDTO, StructureVersionDTO, StructureVersionSummaryDTO } from '../../../backend/contexts/monitor/modules/structure/structure.schema'
-import { type PageRequest, Requester } from 'newt-react'
+import { type PageRequest, Requester } from 'newt-kit-react'
 
 /** The monitor's `structure` module: what an application is made of, version by version. */
 export class StructureApi extends Requester {

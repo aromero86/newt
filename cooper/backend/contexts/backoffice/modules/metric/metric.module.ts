@@ -1,4 +1,4 @@
-import { Module, now, UseCase } from 'newt/core'
+import { Module, now, UseCase } from 'newt-kit/core'
 import type { TenantDTO } from '../../../auth/modules/tenant/tenant.schema'
 import type { UserDTO } from '../../../auth/modules/user/user.schema'
 import type { CardDTO } from '../../../boards/modules/card/card.schema'

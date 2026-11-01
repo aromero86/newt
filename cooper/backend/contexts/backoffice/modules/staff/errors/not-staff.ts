@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt/core'
+import { ForbiddenError } from 'newt-kit/core'
 
 /**
  * Someone signed in who is not of the staff (any more). A 403, not a 404: the

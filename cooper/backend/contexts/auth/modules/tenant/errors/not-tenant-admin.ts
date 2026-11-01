@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt/core'
+import { ForbiddenError } from 'newt-kit/core'
 
 /** A member who is not the workspace's admin, trying what only the admin may do. */
 export class NotTenantAdmin extends ForbiddenError {

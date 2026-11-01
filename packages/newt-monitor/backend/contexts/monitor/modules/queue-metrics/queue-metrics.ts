@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { QueueMetricsFeedSchema, type QueueMetricsFeedDTO } from './queue-metrics.schema'
 
 export * from './queue-metrics.schema'

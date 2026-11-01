@@ -1,0 +1,45 @@
+# A tag v<x.y.z> publishes every package at that version to npm, once the repository
+# type checks, passes its tests and its lint. NPM_TOKEN is a repository secret: an npm
+# granular token that may publish the newt-kit packages.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+
+      - name: The tag is the packages' version
+        run: |
+          for dir in newt newt-eslint newt-react newt-react-ui newt-monitor; do
+            version=$(bun -e "console.log((await Bun.file('packages/$dir/package.json').json()).version)")
+            if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+              echo "packages/$dir is $version, the tag is $GITHUB_REF_NAME: run bun run release:version first"
+              exit 1
+            fi
+          done
+
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run lint
+      - run: bun run monitor:build
+
+      # Dependencies first: bun publish turns workspace:* into the version it publishes.
+      - name: Publish
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for dir in newt newt-eslint newt-react-ui newt-react newt-monitor; do
+            (cd packages/$dir && bun publish --access public)
+          done

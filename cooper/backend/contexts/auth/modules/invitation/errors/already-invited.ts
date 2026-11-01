@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt/core'
+import { ConflictError } from 'newt-kit/core'
 
 /** This email has an invitation waiting already, or is a member. */
 export class AlreadyInvited extends ConflictError {

@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { mapPage, type Page, type PageRequest } from 'newt/core'
+import { mapPage, type Page, type PageRequest } from 'newt-kit/core'
 import { z } from 'zod'
 import type { Monitor_Modules } from '../initialize-modules'
 import { BUCKETS, WINDOWS, type MetricsBucket, type MetricsWindow } from '../modules/event-metrics/event-metrics.schema'

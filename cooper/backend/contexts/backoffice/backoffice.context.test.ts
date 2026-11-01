@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
-import { serve } from 'newt/http'
+import { serve } from 'newt-kit/http'
 import { openTestBackoffice, type TestBackoffice } from './testing/open-test-backoffice'
 
 describe('the backoffice API', () => {

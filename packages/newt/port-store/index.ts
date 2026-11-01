@@ -1,6 +1,6 @@
-// newt/port-store: the port a store implements: its tables, its transactions, its
-// outbox and its migrations. Each store is an adapter of its own (newt/adapter-sqlite,
-// newt/adapter-files…); newt/port-store/contract checks one keeps every promise.
+// newt-kit/port-store: the port a store implements: its tables, its transactions, its
+// outbox and its migrations. Each store is an adapter of its own (newt-kit/adapter-sqlite,
+// newt-kit/adapter-files…); newt-kit/port-store/contract checks one keeps every promise.
 
 export type { Store } from './store'
 export type { Table } from './table'

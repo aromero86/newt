@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 /** A workspace the person does not belong to, or that does not exist: to them, the same thing. */
 export class WorkspaceNotFound extends NotFoundError {

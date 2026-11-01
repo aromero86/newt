@@ -1,28 +1,62 @@
 {
-  "name": "newt-monitor",
-  "version": "0.0.0",
+  "name": "newt-kit-monitor",
+  "version": "0.1.0",
   "description": "Watches newt applications: what each one is made of, read from it as it runs, never from its data. A newt application itself.",
+  "license": "MIT",
+  "author": "Angel Romero",
+  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt-monitor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aromero86/newt.git",
+    "directory": "packages/newt-monitor"
+  },
+  "bugs": "https://github.com/aromero86/newt/issues",
+  "keywords": [
+    "bun",
+    "monitoring",
+    "observability",
+    "traces",
+    "newt",
+    "mcp"
+  ],
+  "files": [
+    "backend",
+    "dist/frontend",
+    "!**/*.test.ts",
+    "!**/*.test.js",
+    "!**/*.test.tsx",
+    "!**/fixtures/**",
+    "!tsconfig.json"
+  ],
   "type": "module",
   "scripts": {
-    "build": "bun scripts/build.ts"
+    "build": "bun scripts/build.ts",
+    "prepack": "bun scripts/build.ts"
   },
   "engines": {
     "bun": ">=1.4.0"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.6-r.1",
-    "newt": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.1",
+    "newt-kit": "workspace:*",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@preact/signals-core": "1.14.4",
     "bun-plugin-tailwind": "0.1.2",
     "lucide-react": "1.48.0",
-    "newt-react": "workspace:*",
-    "newt-react-ui": "workspace:*",
+    "newt-kit-react": "workspace:*",
+    "newt-kit-react-ui": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router": "8.4.0",
     "recharts": "3.10.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "newt-kit-monitor": "./backend/index.ts"
   }
 }

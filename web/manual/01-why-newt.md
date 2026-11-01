@@ -186,7 +186,7 @@ its rules in three places, each catching what the others cannot:
 ```mermaid
 flowchart LR
   CODE["Your code"] --> TYPES["Types<br/>bun check"]
-  CODE --> LINT["Lint<br/>newt-eslint"]
+  CODE --> LINT["Lint<br/>newt-kit-eslint"]
   CODE --> RUN["Runtime<br/>throws with a reason"]
   TYPES --> OK["Merged"]
   LINT --> OK
@@ -196,7 +196,7 @@ flowchart LR
 - **The types** make wrong shapes impossible: a repository without a scope, a value
   object that never went through its checks, an entity built from a row without its
   version.
-- **The lint** (`newt-eslint`) keeps the structure: the files a module has and how they are
+- **The lint** (`newt-kit-eslint`) keeps the structure: the files a module has and how they are
   named, which files of another module you may import, which contexts a context may use,
   that every public method of a module is a `@UseCase`, how a worker's queue is named.
 - **The runtime** catches what only shows while running, and throws a message that says
@@ -249,7 +249,7 @@ It helps to be clear about the edges.
   A repository reads and writes rows of its own table through a small criteria language
   (`{ boardId, position: { gte: 2 } }`), and when that is not enough you write SQL with
   Kysely in the repository. Entities never know about the database.
-- **Not only a web framework.** There is an HTTP router (`newt/http`), but it is a thin
+- **Not only a web framework.** There is an HTTP router (`newt-kit/http`), but it is a thin
   door: the same use cases are called from workers, scripts, tests and an MCP server.
   You could serve a context with no HTTP at all.
 - **Not for every runtime.** newt runs only on Bun. It uses `bun:sqlite`, `Bun.SQL` for

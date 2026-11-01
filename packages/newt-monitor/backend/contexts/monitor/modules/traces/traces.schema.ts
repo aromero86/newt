@@ -1,4 +1,4 @@
-import type { Outcome, Trace } from 'newt/contract'
+import type { Outcome, Trace } from 'newt-kit/contract'
 import { z } from 'zod'
 import { WINDOWS, type MetricsWindow } from '../event-metrics/event-metrics.schema'
 

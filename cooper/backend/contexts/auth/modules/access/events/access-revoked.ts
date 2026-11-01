@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { AccessDTO } from '../access.schema'
 
 /** Someone may no longer enter a product (or one of its tenants): the access as it was. */

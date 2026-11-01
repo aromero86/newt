@@ -1,8 +1,8 @@
 import { SquareKanbanIcon } from 'lucide-react'
-import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-react-ui/box'
-import { Icon } from 'newt-react-ui/icon'
-import { RelativeTime } from 'newt-react-ui/relative-time'
-import { useService, useValue } from 'newt-react'
+import { Box, BoxEmpty, BoxHeader, BoxRow, BoxRowMeta, BoxRowTitle } from 'newt-kit-react-ui/box'
+import { Icon } from 'newt-kit-react-ui/icon'
+import { RelativeTime } from 'newt-kit-react-ui/relative-time'
+import { useService, useValue } from 'newt-kit-react'
 import { OverviewService } from './overview.service'
 
 /** The boards created last, whatever their workspace, each linked to its workspace's page. */

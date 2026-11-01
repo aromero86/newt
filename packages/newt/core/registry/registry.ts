@@ -26,7 +26,7 @@ export type RegisteredSubscription = {
  * What a context knows of itself while it runs: each module registers as it is
  * built, each `@UseCase` as its module's instance is, each schedule as it is defined
  * and each subscription as it is made. Nothing is read from the code: what is here is
- * what runs. `describeApplication` (newt/runtime) turns it into a description.
+ * what runs. `describeApplication` (newt-kit/runtime) turns it into a description.
  */
 export class Registry {
 

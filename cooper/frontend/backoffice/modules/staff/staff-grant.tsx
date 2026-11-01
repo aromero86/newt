@@ -1,11 +1,11 @@
 import type { FormEvent } from 'react'
-import { Alert } from 'newt-react-ui/alert'
-import { Button } from 'newt-react-ui/button'
-import { Card } from 'newt-react-ui/card'
-import { Stack } from 'newt-react-ui/stack'
-import { toast } from 'newt-react-ui/toast'
-import { FormField } from 'newt-react/form-field'
-import { useService, useValue } from 'newt-react'
+import { Alert } from 'newt-kit-react-ui/alert'
+import { Button } from 'newt-kit-react-ui/button'
+import { Card } from 'newt-kit-react-ui/card'
+import { Stack } from 'newt-kit-react-ui/stack'
+import { toast } from 'newt-kit-react-ui/toast'
+import { FormField } from 'newt-kit-react/form-field'
+import { useService, useValue } from 'newt-kit-react'
 import { StaffService } from './staff.service'
 
 /** Gives someone with an account access to the backoffice, by their email. */

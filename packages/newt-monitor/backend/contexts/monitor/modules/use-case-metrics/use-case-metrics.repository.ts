@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { MonitorBase } from '../../../../monitor-base'
 import { UseCaseMetricsFeed, type UseCaseMetricsFeedDTO } from './use-case-metrics'
 

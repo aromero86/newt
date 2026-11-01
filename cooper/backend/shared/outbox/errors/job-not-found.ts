@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class JobNotFound extends NotFoundError {
   readonly code = 'outbox.job_not_found'

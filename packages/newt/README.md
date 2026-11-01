@@ -10,19 +10,23 @@ other is an adapter you write against one port.
 It runs on Bun only: it uses `Bun.serve`, `bun:sqlite` and Bun's APIs as they are.
 
 ```sh
-bun add newt zod
+bun add newt-kit zod
+bun add -d newt-kit-eslint eslint typescript@npm:@typescript/typescript6@6.0.2
 ```
+
+newt's lint runs on TypeScript 6 for now (typescript-eslint does not support 7 yet): in a
+project made with `bun init`, `bun remove typescript` first.
 
 A coding agent reads [`AGENTS.md`](./AGENTS.md) first: the framework's rules on one
 page, what each error it throws means and what to do about it, the lint's rules and a
 definition of done. It ships with the package, so an application's agent finds it in
-`node_modules/newt/AGENTS.md`, as current as the newt it runs on.
+`node_modules/newt-kit/AGENTS.md`, as current as the newt it runs on.
 
 ## Command line
 
 ```sh
-bunx newt init                                  # AGENTS.md, CLAUDE.md and newt's lint, for an application
-bunx newt add module src/contexts/shop order    # a module's skeleton: compiles, passes the lint, has a test
+bunx newt-kit init                                  # AGENTS.md, CLAUDE.md and newt's lint, for an application
+bunx newt-kit add module src/contexts/shop order    # a module's skeleton: compiles, passes the lint, has a test
 ```
 
 Neither overwrites a file: what is there already is said and left as it was. The
@@ -33,34 +37,34 @@ or none and why.
 
 | Import | What it has |
 |---|---|
-| `newt/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, what to find (`Criteria`) and the filters a client may send (`defineFilter`), pagination, value objects, observability. |
-| `newt/contract` | What a backend and its clients share, safe in a browser: value objects and their errors, `defineFilter`, `Page`, `PageRequest` and `ErrorBody`, the body of a failed request. |
-| `newt/repository` | Where a module reads and writes its entities: `TableRepository`, `Repository`. |
-| `newt/port-store` | The port a store implements: `Store`, `Table`, `Migrations`, `TransactionScope`. |
-| `newt/port-store/contract` | `describeStoreContract`: the suite that checks a store keeps every promise. |
-| `newt/port-outbox` | The port of the jobs of `handler` subscriptions: `Outbox`, `Job`. |
-| `newt/port-analytics` | The port of an analytical database: `Analytics`. |
-| `newt/port-analytics/contract` | `describeAnalyticsContract`, and `MemoryAnalytics`: one in memory, for tests. |
-| `newt/runtime` | A context at runtime: `Base`, `BoundedContext`, the worker of its jobs, and its schedules. |
-| `newt/sql` | What every SQL store shares: its table, and the whole store on a database server. |
-| `newt/adapter-sqlite` | `SqliteStore`: SQLite on `bun:sqlite`, with SQL migrations. |
-| `newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
-| `newt/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
-| `newt/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
-| `newt/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
-| `newt/otel` | `OtlpTracer`: the tracer that sends spans to an OpenTelemetry collector (OTLP/HTTP, JSON), with no SDK. Optional. |
-| `newt/testing` | For a test of an HTTP entry: `freePort`, and `browser`, a `fetch` that keeps its cookies and never follows a redirect. |
-| `newt/http` | `HttpRouter`, groups with middleware and `serve`: routes per module, sessions, errors as responses. Optional. |
-| `newt/kysely` | `kyselyFor`: Kysely on any SQL store, for queries of one's own. Optional (needs `kysely`). |
+| `newt-kit/core` | Modules, entities, use cases, events, errors and their messages, the actor and other scopes, what to find (`Criteria`) and the filters a client may send (`defineFilter`), pagination, value objects, observability. |
+| `newt-kit/contract` | What a backend and its clients share, safe in a browser: value objects and their errors, `defineFilter`, `Page`, `PageRequest` and `ErrorBody`, the body of a failed request. |
+| `newt-kit/repository` | Where a module reads and writes its entities: `TableRepository`, `Repository`. |
+| `newt-kit/port-store` | The port a store implements: `Store`, `Table`, `Migrations`, `TransactionScope`. |
+| `newt-kit/port-store/contract` | `describeStoreContract`: the suite that checks a store keeps every promise. |
+| `newt-kit/port-outbox` | The port of the jobs of `handler` subscriptions: `Outbox`, `Job`. |
+| `newt-kit/port-analytics` | The port of an analytical database: `Analytics`. |
+| `newt-kit/port-analytics/contract` | `describeAnalyticsContract`, and `MemoryAnalytics`: one in memory, for tests. |
+| `newt-kit/runtime` | A context at runtime: `Base`, `BoundedContext`, the worker of its jobs, and its schedules. |
+| `newt-kit/sql` | What every SQL store shares: its table, and the whole store on a database server. |
+| `newt-kit/adapter-sqlite` | `SqliteStore`: SQLite on `bun:sqlite`, with SQL migrations. |
+| `newt-kit/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
+| `newt-kit/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
+| `newt-kit/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
+| `newt-kit/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
+| `newt-kit/otel` | `OtlpTracer`: the tracer that sends spans to an OpenTelemetry collector (OTLP/HTTP, JSON), with no SDK. Optional. |
+| `newt-kit/testing` | For a test of an HTTP entry: `freePort`, and `browser`, a `fetch` that keeps its cookies and never follows a redirect. |
+| `newt-kit/http` | `HttpRouter`, groups with middleware and `serve`: routes per module, sessions, errors as responses. Optional. |
+| `newt-kit/kysely` | `kyselyFor`: Kysely on any SQL store, for queries of one's own. Optional (needs `kysely`). |
 
 Nothing else in the package is public.
 
 ## A context in a few lines
 
 ```ts
-import { Base, BoundedContext } from 'newt/runtime'
-import { FileStore } from 'newt/adapter-files'
-import { HttpRouter, serve } from 'newt/http'
+import { Base, BoundedContext } from 'newt-kit/runtime'
+import { FileStore } from 'newt-kit/adapter-files'
+import { HttpRouter, serve } from 'newt-kit/http'
 
 class AppBase extends Base<FileStore> {
   readonly http = new HttpRouter()
