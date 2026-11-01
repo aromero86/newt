@@ -27,7 +27,13 @@ type checks, tests, lints, builds the monitor's frontend and publishes each pack
 others depend on first. `bun publish` turns `workspace:*` into the version it publishes.
 
 It needs one repository secret, `NPM_TOKEN`: an npm granular access token with read and
-write on the `@newt-kit/newt` packages.
+write on the `@newt-kit` packages. The `npm-token` workflow, run by hand, says whether it still
+signs in and may write them, publishing nothing.
+
+The token is a staged one: what the workflow publishes waits on npm until a maintainer
+approves it. Once the run is green, approve each of the five packages on npmjs.com, with the
+account's passkey; until then they show as `0.0.0-stage` and cannot be installed. Even a
+stolen token publishes nothing that nobody approved.
 
 ## By hand
 
