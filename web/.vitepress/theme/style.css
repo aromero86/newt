@@ -236,11 +236,39 @@
   --tok-t: #fabd2f;
   --tok-n: #d3869b;
 }
-/* On the landing, the page and its bar take the landing's ground. */
-html:has(.landing) { --vp-nav-bg-color: color-mix(in srgb, var(--l-bg) 86%, transparent); }
-html:has(.landing) .VPNav { backdrop-filter: saturate(140%) blur(10px); }
 html:has(.landing) .VPLocalNav { display: none; }
 .shot img { display: block; }
 .shot .shot-dark { display: none; }
 .dark .shot .shot-light { display: none; }
 .dark .shot .shot-dark { display: block; }
+
+/* Scrollbars: thin, in the theme's own colours, never the system's grey slab. */
+html { scrollbar-color: var(--vp-c-border) var(--vp-c-bg); }
+* { scrollbar-width: thin; scrollbar-color: var(--vp-c-border) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--vp-c-border); border-radius: 0; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--vp-c-text-3); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* The top bar: one solid colour, the page's own, over the sidebar too, with a hairline under it. */
+:root { --vp-nav-bg-color: var(--vp-c-bg); --vp-sidebar-bg-color: var(--vp-c-bg); }
+.VPNavBar, .VPNavBar.has-sidebar .content, .VPNavBar .content-body, .VPNavBar.has-sidebar .title, .VPNavBar:not(.home), .VPNavBar.home.top { background: var(--vp-c-bg) !important; }
+.VPNavBar { border-bottom: 0 !important; }
+.VPNav { border-bottom: 1px solid var(--vp-c-divider); }
+.VPNavBar .divider { display: none; }
+.VPSidebar { border-right: 1px solid var(--vp-c-divider); }
+.VPNavBarSearch .DocSearch-Button, .VPNavBarSearchButton { background: transparent !important; border: 1px solid var(--vp-c-divider) !important; }
+.VPNavBarSearch .DocSearch-Button:hover, .VPNavBarSearchButton:hover { border-color: var(--vp-c-border) !important; }
+.VPNavBarSearchButton .keys, .DocSearch-Button-Keys { opacity: .7; }
+
+/* newt's logotype: the word itself, in Bricolage Grotesque, in gruvbox's aqua green. */
+:root { --newt-logo: #427b58; }
+.dark { --newt-logo: #8ec07c; }
+.newt-logo, .VPNavBarTitle .title span {
+  font-family: 'Bricolage Grotesque', var(--vp-font-family-base);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--newt-logo);
+}
+.VPNavBarTitle .title span { font-size: 26px; line-height: 1; padding-bottom: 3px; }

@@ -35,7 +35,7 @@ const counts = [3, 25, 150, 28, 36]
   <section class="hero">
     <div class="l-container copy">
       <p class="kicker">
-        <span>newt</span> {{ copy.kicker }}
+        <span class="newt-logo">newt</span> {{ copy.kicker }}
         <a :href="withBase('/book/46-asking-claude')">{{ copy.news }} →</a>
       </p>
       <h1>{{ copy.title }}<br><span>{{ copy.subtitle }}</span></h1>
@@ -69,7 +69,7 @@ const counts = [3, 25, 150, 28, 36]
 .copy > * { max-width: 980px; }
 
 .kicker { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; font-family: var(--vp-font-family-mono); font-size: 13px; color: var(--l-ink-3); }
-.kicker span { font-weight: 700; color: var(--l-green-ink); }
+.kicker .newt-logo { margin-right: 4px; font-size: 34px; line-height: 1; }
 .kicker a { color: var(--l-orange); border-bottom: 1px solid transparent; }
 .kicker a:hover { border-bottom-color: currentColor; }
 

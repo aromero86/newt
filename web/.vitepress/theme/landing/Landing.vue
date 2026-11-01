@@ -52,7 +52,7 @@ const insights = [
   { code: 'card.notifyAssignee.on.card.created', ctx: 'boards' },
   { code: 'access.check', ctx: 'auth' },
 ]
-const numbers = [{ to: 158986 }, { to: 0 }, { to: 0.39, decimals: 2, suffix: ' ms' }, { to: 0.94, decimals: 2, suffix: ' ms' }]
+const numbers = [{ to: 187723 }, { to: 0 }, { to: 0.43, decimals: 2, suffix: ' ms' }, { to: 1, suffix: ' ms' }]
 
 const copy = useCopy({
   story: { eyebrow: 'The problem', title: 'Every backend starts clean.', rest: 'Then it grows.', lead: 'Six ways a backend rots as it grows, and what newt does about each: the code without it, and with it.' },
@@ -64,7 +64,7 @@ const copy = useCopy({
     lead: 'Your application already knows its contexts, modules, use cases, events and queues. newt-monitor asks it, and shows you every one of them running: not routes and status codes, but what your code calls things.',
     logs: 'Your logs say', says: 'newt-monitor says',
     insights: [
-      '591 errors in the hour, all of them ones it says may happen. 0 failures. p90 1 ms.',
+      '675 errors in the hour, all of them ones it says may happen. 0 failures. p90 1 ms.',
       'Died after 5 attempts: MailNotSent, the mail server at smtp.cooper.dev:587 refused the connection.',
       '0.1 ms of a 4 ms request to boards: the other context, asked through its use case.',
     ],
@@ -78,7 +78,7 @@ const copy = useCopy({
     cta: 'Meet newt-monitor',
   },
   rest: { eyebrow: 'And the rest', title: 'What a real backend needs,', rest: 'from the first module.' },
-  cooper: { eyebrow: 'Learn it on a real application', title: 'Meet cooper.', lead: 'Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces, invitations, search, a backoffice and an MCP server. The book explains every part of newt through it, with the code in front of you.', go: 'Meet cooper', board: 'A board in cooper, with its columns and cards', backoffice: 'cooper\'s backoffice' },
+  cooper: { eyebrow: 'Learn it on a real application', title: 'Meet cooper.', lead: 'Boards of cards for teams: three contexts, sign-in through an OAuth server of its own, workspaces, invitations, search, a backoffice and an MCP server. The book explains every part of newt through it, with the code in front of you.', go: 'Meet cooper', board: 'A board in cooper, with its columns and cards', shots: ['A board, its columns and its cards', 'A workspace\'s boards', 'The backoffice, for cooper\'s staff', 'Sign-in, through its own OAuth server'] },
   end: { title: 'Build something that lasts.', lead: 'Start with the essentials: fourteen chapters, from why newt exists to running it in production. Then go as deep as you like.', read: 'Read the book', monitor: 'The monitor', note: '' },
 }, {
   story: { eyebrow: 'El problema', title: 'Todo backend empieza limpio.', rest: 'Luego crece.', lead: 'Seis maneras en que un backend se pudre al crecer, y qué hace newt con cada una: el código sin newt, y con él.' },
@@ -90,7 +90,7 @@ const copy = useCopy({
     lead: 'Tu aplicación ya conoce sus contextos, módulos, casos de uso, eventos y colas. newt-monitor se lo pregunta, y te enseña cada uno funcionando: no rutas y códigos de estado, sino las cosas por el nombre que les da tu código.',
     logs: 'Tus logs dicen', says: 'newt-monitor dice',
     insights: [
-      '591 errores en la hora, todos de los que dice que pueden pasar. 0 fallos. p90 de 1 ms.',
+      '675 errores en la hora, todos de los que dice que pueden pasar. 0 fallos. p90 de 1 ms.',
       'Muerto tras 5 intentos: MailNotSent, el servidor de correo en smtp.cooper.dev:587 rechazó la conexión.',
       '0,1 ms de una petición de 4 ms a boards: el otro contexto, preguntado por su caso de uso.',
     ],
@@ -104,7 +104,7 @@ const copy = useCopy({
     cta: 'Conoce newt-monitor',
   },
   rest: { eyebrow: 'Y el resto', title: 'Lo que un backend de verdad necesita,', rest: 'desde el primer módulo.' },
-  cooper: { eyebrow: 'Apréndelo en una aplicación real', title: 'Te presento a cooper.', lead: 'Tableros de tarjetas para equipos: tres contextos, inicio de sesión con un servidor OAuth propio, espacios de trabajo, invitaciones, búsqueda, un backoffice y un servidor MCP. El libro explica cada parte de newt a través de él, con el código delante.', go: 'Conoce cooper', board: 'Un tablero en cooper, con sus columnas y tarjetas', backoffice: 'El backoffice de cooper' },
+  cooper: { eyebrow: 'Apréndelo en una aplicación real', title: 'Te presento a cooper.', lead: 'Tableros de tarjetas para equipos: tres contextos, inicio de sesión con un servidor OAuth propio, espacios de trabajo, invitaciones, búsqueda, un backoffice y un servidor MCP. El libro explica cada parte de newt a través de él, con el código delante.', go: 'Conoce cooper', board: 'Un tablero en cooper, con sus columnas y tarjetas', shots: ['Un tablero, sus columnas y sus tarjetas', 'Los tableros de un espacio de trabajo', 'El backoffice, para el equipo de cooper', 'El inicio de sesión, con su propio servidor OAuth'] },
   end: { title: 'Construye algo que dure.', lead: 'Empieza por lo esencial: catorce capítulos, desde por qué existe newt hasta llevarlo a producción. Luego, tan a fondo como quieras.', read: 'Leer el libro', monitor: 'El monitor', note: 'El libro está en inglés.' },
 })
 </script>
@@ -229,10 +229,16 @@ const copy = useCopy({
           <p class="l-lead">{{ copy.cooper.lead }}</p>
           <a class="l-btn ghost go" :href="withBase('/book/02-meet-cooper')">{{ copy.cooper.go }} <span class="arrow">→</span></a>
         </div>
-        <div class="pair l-reveal" style="--i: 1">
-          <Shot class="shot-frame" name="cooper-board" :alt="copy.cooper.board" />
-          <Shot class="shot-frame" name="cooper-backoffice" :alt="copy.cooper.backoffice" />
-        </div>
+        <figure class="lead-shot l-reveal" style="--i: 1">
+          <Shot class="shot-frame" name="cooper-board-focus" :alt="copy.cooper.board" />
+          <figcaption>{{ copy.cooper.shots[0] }}</figcaption>
+        </figure>
+      </div>
+      <div class="l-container gallery">
+        <figure v-for="(name, index) in ['cooper-boards-focus', 'cooper-backoffice-focus', 'cooper-sign-in-focus']" :key="name" class="l-reveal" :style="{ '--i': index }">
+          <Shot class="shot-frame" :name="name" :alt="copy.cooper.shots[index + 1]!" />
+          <figcaption>{{ copy.cooper.shots[index + 1] }}</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -282,9 +288,11 @@ const copy = useCopy({
 .ask { margin-bottom: clamp(48px, 7vw, 80px); }
 
 .go { margin-top: 32px; }
-.pair { display: grid; }
-.pair :deep(.shot-frame) { border-radius: 4px; overflow: hidden; border: 1px solid var(--l-border-strong); background: var(--l-panel); }
-.pair :deep(.shot-frame:last-child) { width: 72%; margin: -16% 0 0 auto; box-shadow: var(--l-shadow-big); }
+.landing figure { margin: 0; }
+#cooper :deep(.shot-frame) { border-radius: 4px; overflow: hidden; border: 1px solid var(--l-border-strong); background: var(--l-panel); }
+.lead-shot :deep(.shot-frame) { box-shadow: var(--l-shadow-big); }
+figcaption { margin-top: 10px; font-size: 13px; color: var(--l-ink-3); }
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 40px; }
 
 .end .l-container { max-width: 760px; text-align: center; }
 .end .l-lead { margin-left: auto; margin-right: auto; }
@@ -293,6 +301,7 @@ const copy = useCopy({
 
 @media (max-width: 1000px) {
   .two, .versus { grid-template-columns: minmax(0, 1fr); }
+  .gallery { grid-template-columns: minmax(0, 1fr); }
   .numbers { grid-template-columns: 1fr 1fr; }
   .number:nth-child(3) { border-left: 0; }
   .number:nth-child(n + 3) { border-top: 1px solid var(--l-border); }
