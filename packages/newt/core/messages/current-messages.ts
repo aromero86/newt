@@ -18,6 +18,7 @@ export const currentMessages: { value: Messages } = {
     idempotency_key_reused: () => 'This Idempotency-Key was sent before with another body: send a new key for another request',
     filter_too_deep: ({ max }) => `A filter nests at most ${max} groups deep`,
     filter_too_many_conditions: ({ max }) => `A filter has at most ${max} conditions`,
+    too_many_requests: ({ retryAfterSeconds }) => `Too many requests: try again in ${retryAfterSeconds} s`,
     internal: () => 'Something went wrong',
   },
 }

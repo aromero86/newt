@@ -1,4 +1,5 @@
 import type { Clock, GuardRule, Tracer, WriteRule } from '../core'
+import type { RateLimitStore } from '../port-rate-limit'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
 import type { Metrics } from './metrics/metrics'
@@ -34,4 +35,10 @@ export type BaseOptions<S extends Store> = {
    * several instances share the work. Counting starts once `serveMonitor` serves it.
    */
   metrics?: Metrics
+  /**
+   * Where its rate limits count what each key did: in its memory unless told, enough
+   * for one instance; a `TableRateLimitStore` on its store, or Redis's, when several
+   * instances share the work.
+   */
+  rateLimits?: RateLimitStore
 }

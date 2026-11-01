@@ -1,5 +1,6 @@
 import { findCurrentActor, systemClock, type EventBus, type EventPublisher } from '../core'
 import { activeScopes, Invocations, traceTold } from '../core/internal'
+import { MemoryRateLimitStore } from '../port-rate-limit'
 import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
@@ -8,6 +9,7 @@ import { JobQueue } from './jobs/job-queue'
 import type { Metrics } from './metrics/metrics'
 import { MemoryMetrics } from './metrics/memory-metrics'
 import { applicationMetrics } from './metrics/set-metrics'
+import { RateLimits } from './rate-limits/rate-limits'
 import { Schedules } from './schedules/schedules'
 import { tracedStore } from './traces/traced-store'
 
@@ -34,6 +36,8 @@ export class Base<S extends Store = Store> {
   readonly jobs: JobQueue
   /** Its schedules, each an event told as a cron expression says: they start and stop with its jobs. */
   readonly schedules: Schedules
+  /** Its rate limits, each how often one key may do something: counted in `BaseOptions.rateLimits`. */
+  readonly rateLimits: RateLimits
   /** Where it counts its events for whoever monitors it (`serveMonitor` starts it). */
   readonly metrics: Metrics
   /** Whether its metrics are its own, not the application's, which the application closes once every context closed. */
@@ -87,6 +91,7 @@ export class Base<S extends Store = Store> {
         })
       },
     }
+    this.rateLimits = new RateLimits(options.rateLimits ?? new MemoryRateLimitStore(), options.name, clock)
     this.schedules = new Schedules(this.store, this.bus, this.publisher, this.invocations, clock)
     this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, clock, this.schedules)
     // Each job as it is taken and closed, in its queue's flow: a broker's numbers.
