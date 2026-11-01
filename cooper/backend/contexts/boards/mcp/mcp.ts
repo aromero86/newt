@@ -1,7 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { bearerAuthenticator, HttpRouter, NotSignedIn, toErrorResponse } from 'newt/http'
+import type { RateLimitStore } from 'newt/port-rate-limit'
 import { OPEN_TO_BROWSERS } from '../../../shared/cors'
+import { MCP_LIMIT } from '../../../shared/rate-limits'
 import type { Boards_Auth, Boards_Modules } from '../initialize-modules'
 import { registerMcpTools } from './mcp-tools'
 import { registerProtectedResource, resourceMetadataUrl } from './protected-resource'
@@ -11,6 +13,8 @@ export type McpOptions = {
   publicUrl: string
   /** auth, the authorization server the MCP clients sign in with. */
   authPublicUrl: string
+  /** Where its rate limit counts: the context's. */
+  rateLimits: RateLimitStore
 }
 
 const INSTRUCTIONS = [
@@ -31,11 +35,11 @@ const INSTRUCTIONS = [
  * GET, which would open one, and DELETE, which would end a session, are a 405.
  *
  * Open to pages of any origin, such as the MCP inspector's: who calls is in the token,
- * never in a cookie.
+ * never in a cookie. Each person may ask it `MCP_LIMIT`.
  */
 export function mcpRoutes(modules: Boards_Modules, auth: Pick<Boards_Auth, 'token'>, options: McpOptions): Bun.Serve.Routes<undefined, string> {
   const resource = `${options.publicUrl}/mcp`
-  const router = new HttpRouter({ prefix: '', cors: OPEN_TO_BROWSERS })
+  const router = new HttpRouter({ prefix: '', cors: OPEN_TO_BROWSERS, rateLimits: options.rateLimits, rateLimit: MCP_LIMIT })
   // A token of auth's for this server only: not one for another server, nor a web app's.
   router.authenticateWith(bearerAuthenticator(async accessToken => {
     const identity = await auth.token.verify(accessToken)

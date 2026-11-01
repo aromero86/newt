@@ -53,6 +53,7 @@ const EnvSchema = z.object({
   COOPER_FRONTEND_SOURCES: z.string().optional(),
   COOPER_TRACE: z.string().optional(),
   COOPER_DRAIN_MS: positive(2000),
+  COOPER_TRUST_PROXY: variable(z.coerce.number().int().min(0).default(0)),
   COOPER_OTLP_URL: variable(z.string().optional()),
   COOPER_MONITOR_KEY: variable(z.string().optional()),
   COOPER_REDIS_URL: variable(z.string().optional()),
@@ -196,6 +197,12 @@ export function readConfig(variables: Record<string, string | undefined>) {
      * seconds. Only the backend's process drains: a test stops its servers at once.
      */
     drainMs: env.COOPER_DRAIN_MS,
+    /**
+     * `COOPER_TRUST_PROXY`: how many proxies in front of it add to `X-Forwarded-For`, so
+     * the rate limits by address count the person's, not the proxy's: 1 behind
+     * Coolify's. None unless told.
+     */
+    trustProxy: env.COOPER_TRUST_PROXY,
     /**
      * `COOPER_OTLP_URL`: an OpenTelemetry collector (OTLP over HTTP,
      * `http://localhost:4318`) the traces go to instead, as service `cooper`.

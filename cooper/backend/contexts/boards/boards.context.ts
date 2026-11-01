@@ -31,6 +31,6 @@ export class Boards_Context extends ServedContext {
 
   /** Its MCP server beside the API: `/mcp`, and the metadata that says how to sign in to it. */
   protected override routes(): Bun.Serve.Routes<undefined, string> {
-    return { ...super.routes(), ...mcpRoutes(this.modules, this.auth, { publicUrl: this.config.publicUrl, authPublicUrl: this.config.authPublicUrl }) }
+    return { ...super.routes(), ...mcpRoutes(this.modules, this.auth, { publicUrl: this.config.publicUrl, authPublicUrl: this.config.authPublicUrl, rateLimits: this.base.rateLimitStore }) }
   }
 }

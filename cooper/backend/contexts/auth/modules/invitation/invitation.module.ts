@@ -15,6 +15,8 @@ import type { Invitation_Options } from './invitation-options'
 import { Invitation_Repository } from './invitation.repository'
 import { registerInvitationWorkers } from './invitation.workers'
 
+const HOUR = 60 * 60_000
+
 /**
  * Invitations to join a workspace: its admin invites by email, the email leaves from
  * a worker, and whoever signs in with that email accepts it and becomes a member.
@@ -28,6 +30,8 @@ export class Invitation_Module extends Module {
   }
 
   readonly events
+  /** How many a workspace may send: each one is an email. */
+  private readonly sent
 
   private constructor(
     base: AuthBase,
@@ -37,6 +41,7 @@ export class Invitation_Module extends Module {
   ) {
     super('invitation', base.invocations, deps)
     this.events = eventsOf(base.bus, { created: Invitation_Created, accepted: Invitation_Accepted, revoked: Invitation_Revoked })
+    this.sent = base.rateLimits.define('invitation.create', { limit: 50, windowMs: HOUR })
   }
 
   /** The workspace's admin invites an email, which is not a member nor invited already. Its email leaves from a worker. */
@@ -45,6 +50,7 @@ export class Invitation_Module extends Module {
     const { email } = InvitationCreateSchema.parse(input)
     const invitation = Invitation.create({ tenantId, email, invitedBy: currentActor().userId, days: this.options.days })
     await this.assertAdmin(tenantId)
+    await this.sent.take(tenantId)
     const invited = await this.deps.user.findByEmail(invitation.email)
     const member = invited ? await this.deps.access.check(invited.id, this.options.productId, tenantId) : null
     if (member || await this.repo.count(this.repo.open(tenantId, invitation.email)) > 0) throw new AlreadyInvited(invitation.email)

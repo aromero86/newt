@@ -24,7 +24,7 @@ const sources = config.frontendSources ? await frontendSources() : null
 // Stopping, each server's health answers 503 for a moment before it closes.
 const app = runContexts(contexts.all.map(context => ({
   context,
-  serve: { ...context.serving(), drainMs: config.drainMs, ...(sources?.[context.name] ? { ...sources[context.name], development: true } : {}) },
+  serve: { ...context.serving(), drainMs: config.drainMs, trustProxy: config.trustProxy, ...(sources?.[context.name] ? { ...sources[context.name], development: true } : {}) },
 })), { tracer: cooperTracer(config) })
 for (const [name, server] of Object.entries(app.servers)) console.log(`${name} listening on ${server.url}`)
 
