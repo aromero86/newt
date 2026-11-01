@@ -30,7 +30,7 @@ export function serve(options: ServeOptions): Server<undefined> {
     noteClientIp(request, server, trustProxy)
     return withHeaders(await handler(request, server), headers)
   }
-  const frontend = typeof options.frontend === 'string' ? serveFrontend(options.frontend) : () => new Response('Not found', { status: 404 })
+  const frontend = typeof options.frontend === 'string' ? serveFrontend(options.frontend, options.csp) : () => new Response('Not found', { status: 404 })
   const server = Bun.serve({
     port: options.port,
     development,

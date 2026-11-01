@@ -1,18 +1,27 @@
+import { stat } from 'node:fs/promises'
 import { join, normalize } from 'node:path'
-
-/**
- * A page is never shown inside someone else's: a frame could hide it and steal
- * a click, such as the yes of a consent page.
- */
-const PAGE_HEADERS = { 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" }
+import { inlineScriptHashes, policyOf, type ContentSecurityPolicy } from './content-security-policy'
 
 /**
  * Serves the built frontend: a file when the path names one, otherwise `index.html`,
  * so the frontend's router handles the address (and shows its own "not found").
- * Every page, `index.html` or another one asked for by its name, refuses to be framed.
+ * Every page, `index.html` or another one asked for by its name, has its
+ * Content-Security-Policy (`csp`, newt's unless told), its own inline scripts let
+ * through by their hashes, and refuses to be framed: a frame could hide it and steal a
+ * click, such as the yes of a consent page.
  */
-export function serveFrontend(folder: string) {
+export function serveFrontend(folder: string, csp?: ContentSecurityPolicy | false) {
   const index = Bun.file(join(folder, 'index.html'))
+  // A page's policy, by its path, while the page is as it was when it was read.
+  const policies = new Map<string, { modified: number, policy: string }>()
+  const headersOf = async (page: Bun.BunFile) => {
+    // Asked again each time: a file's own `lastModified` stays as it was first read.
+    const modified = (await stat(page.name!)).mtimeMs
+    const known = policies.get(page.name!)
+    const policy = known?.modified === modified ? known.policy : policyOf(csp, inlineScriptHashes(await page.text()))
+    policies.set(page.name!, { modified, policy })
+    return { 'x-frame-options': 'DENY', 'content-security-policy': policy }
+  }
 
   return async (request: Request): Promise<Response> => {
     if (!(await index.exists())) {
@@ -20,8 +29,8 @@ export function serveFrontend(folder: string) {
     }
 
     const file = await fileAt(folder, new URL(request.url).pathname)
-    if (!file) return new Response(index, { headers: PAGE_HEADERS })
-    return new Response(file, { headers: file.type.startsWith('text/html') ? PAGE_HEADERS : {} })
+    if (!file) return new Response(index, { headers: await headersOf(index) })
+    return new Response(file, { headers: file.type.startsWith('text/html') ? await headersOf(file) : {} })
   }
 }
 

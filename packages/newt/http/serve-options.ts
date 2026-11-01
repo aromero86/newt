@@ -1,5 +1,6 @@
 import type { HTMLBundle } from 'bun'
 import type { HttpRouter } from './http-router'
+import type { ContentSecurityPolicy } from './content-security-policy'
 import type { Hsts, SecurityHeaders } from './security-headers'
 
 export type ServeOptions = {
@@ -51,4 +52,12 @@ export type ServeOptions = {
    * public address is HTTPS, even when the proxy before it speaks HTTP to it. Off unless told.
    */
   hsts?: Hsts | boolean
+  /**
+   * The Content-Security-Policy of the built frontend's pages: newt's
+   * (`CONTENT_SECURITY_POLICY`), each directive given replacing newt's and `null`
+   * leaving it out; `false` for none but that no page is framed. A page's inline
+   * scripts run by their hashes. A frontend served from its sources, in development,
+   * has none: Bun's reloading runs scripts of its own.
+   */
+  csp?: ContentSecurityPolicy | false
 }
