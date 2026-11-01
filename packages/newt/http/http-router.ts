@@ -21,6 +21,9 @@ import type { Middleware } from './middleware'
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
+/** How long a request's body may be unless its route says otherwise: a megabyte. */
+export const MAX_BODY_BYTES = 1024 * 1024
+
 /** A path's shape: its params unnamed, so `/things/:id` and `/things/:thingId` are one path. */
 const shapeOf = (path: string) => path.replace(/:[^/]+/g, ':')
 
@@ -129,7 +132,7 @@ export class HttpRouter {
         new Response(null, { status: 204, headers: corsHeaders(cors!, request, [...methods, 'OPTIONS']) })
 
       routes[path] = Object.fromEntries([
-        ...[...byMethod].map(([method, { route, options }]) => [method, noStore(traced(method, path, withCors(handle(route, options.onError), options.cors)))]),
+        ...[...byMethod].map(([method, { route, options }]) => [method, noStore(traced(method, path, withCors(handle(route, options.onError, options.maxBodyBytes ?? MAX_BODY_BYTES), options.cors)))]),
         ...METHODS.filter(method => !byMethod.has(method)).map(method => [method, noStore(answerNotAllowed)]),
         ['OPTIONS', cors ? preflight : noStore(answerNotAllowed)],
       ])
@@ -144,6 +147,12 @@ export class HttpRouter {
     routes[this.prefix] ??= notFound
     routes[`${this.prefix}/*`] ??= notFound
     return routes as Bun.Serve.Routes<undefined, string>
+  }
+
+  /** The longest body any of its routes takes, 0 with none: the server must take it too (`serve`). */
+  largestBody(): number {
+    const all = [...this.table.values()].flatMap(({ byMethod }) => [...byMethod.values()].map(({ options }) => options.maxBodyBytes ?? MAX_BODY_BYTES))
+    return Math.max(0, ...all)
   }
 
   /**
