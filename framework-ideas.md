@@ -168,3 +168,30 @@ its contract suite.
 | Injectable clock | Done: `clock` in `BaseOptions`. |
 | OpenTelemetry exporter | Done: `newt/otel`. |
 | Blob storage port | Later. |
+
+## Epics (2026-11-01)
+
+From the review of what a public SaaS needs from newt. Each deliverable is its own
+branch, merged into `main`.
+
+### Rate limiting (`rate-limit/*`): done
+
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | `newt/port-rate-limit` (sliding window, contract suite): in memory, on a `Table`, on Redis (`newt/adapter-redis`) | Done |
+| 2 | `base.rateLimits.define` for use cases; `TooManyRequests` (429, `Retry-After`) | Done |
+| 3 | `rateLimit` on routers, groups and routes, adding up; by actor, address or key; `serve({ trustProxy })`, `clientIp` | Done |
+| 4 | Each take a `rate-limit` step of its trace; newt-monitor draws them | Done |
+| 5 | cooper: API, sign-in, sign-up, invitations, OAuth and MCP limits; `COOPER_TRUST_PROXY` | Done |
+
+### HTTP hardening (`http-hardening/*`): done
+
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | Security headers on every answer (`securityHeaders`, `hsts`); `no-store` on the API | Done |
+| 2 | The built frontend's Content-Security-Policy (`csp`), inline scripts by their hashes | Done |
+| 3 | `maxBodyBytes` per route, group and router (413); `serve({ maxBodyBytes, idleTimeoutSeconds })` | Done |
+| 4 | Writes from pages of other origins refused (403 `cross_origin_refused`) unless `cors` or `crossOrigin` | Done |
+| 5 | `setSessionCookie` / `clearSessionCookie`; cooper uses them | Done |
+
+Not done, on purpose: the guide and the reference say nothing of them yet.
