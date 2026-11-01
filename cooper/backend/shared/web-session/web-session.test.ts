@@ -4,6 +4,7 @@ import type { Server } from 'bun'
 import { SqliteStore } from 'newt/adapter-sqlite'
 import { currentActor } from 'newt/core'
 import { serve } from 'newt/http'
+import { MemoryRateLimitStore } from 'newt/port-rate-limit'
 import { browser, freePort } from 'newt/testing'
 import { config } from '../../config'
 import { Auth_Context } from '../../contexts/auth/auth.context'
@@ -25,7 +26,8 @@ class Client_Context extends ServedContext {
 
   static async open(port: number, auth: Auth_Context): Promise<Client_Context> {
     const store = await SqliteStore.open({ path: ':memory:', migrations: join(import.meta.dir, 'migrations/sqlite') })
-    const base = new CooperBase({ name: 'client', store })
+    // A client of its own, with no table for its rate limits: they count in its memory.
+    const base = new CooperBase({ name: 'client', store, rateLimits: new MemoryRateLimitStore() })
     const session = WebSession_Module.initialize(base, {
       context: 'client',
       clientId: 'cooper',

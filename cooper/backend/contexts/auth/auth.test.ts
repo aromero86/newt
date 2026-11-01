@@ -153,6 +153,61 @@ describe('accounts', () => {
   })
 })
 
+describe('rate limits', () => {
+  const signIn = (password: string) => modules().session.signIn({ email: 'Ana@cooper.test', password })
+
+  test('an email tried with ten wrong passwords is refused for a while, even with the right one', async () => {
+    await signUp('Ana')
+    for (let i = 0; i < 10; i++) await expect(signIn('wrong')).rejects.toMatchObject({ code: 'session.invalid_credentials' })
+
+    const refused = await signIn('a long password').catch((error: unknown) => error) as { code: string, retryAfterMs: number }
+    expect(refused).toMatchObject({ code: 'too_many_requests', limit: 'session.signIn' })
+    // Another email is not held back by it.
+    await signUp('Bob')
+    expect(await modules().session.signIn({ email: 'bob@cooper.test', password: 'a long password' })).toMatchObject({ user: { name: 'Bob' } })
+
+    time += refused.retryAfterMs
+    expect(await signIn('a long password')).toMatchObject({ user: { name: 'Ana' } })
+  })
+
+  test('a sign-in that works forgets the wrong passwords before it', async () => {
+    await signUp('Ana')
+    for (let i = 0; i < 9; i++) await signIn('wrong').catch(() => {})
+    await signIn('a long password')
+
+    for (let i = 0; i < 9; i++) await signIn('wrong').catch(() => {})
+    expect(await signIn('a long password')).toMatchObject({ user: { name: 'Ana' } })
+  })
+
+  test('one address opens ten accounts an hour at most, and the eleventh is a 429 that says when to try again', async () => {
+    const server = serve(auth.serving())
+    try {
+      const signUpAs = (name: string) => fetch(new URL('/api/session/sign-up', server.url), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: `${name}@cooper.test`, name, password: 'a long password' }),
+      })
+      for (let i = 0; i < 10; i++) expect((await signUpAs(`person${i}`)).status).toBe(201)
+
+      const refused = await signUpAs('one-too-many')
+      expect(refused.status).toBe(429)
+      expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+      expect(await refused.json()).toMatchObject({ code: 'too_many_requests' })
+    } finally {
+      await server.stop()
+    }
+  })
+
+  test('a workspace sends fifty invitations an hour at most', async () => {
+    const ana = await signUp('Ana')
+    const [acme, initech] = [await as(ana, () => modules().tenant.create({ name: 'Acme' })), await as(ana, () => modules().tenant.create({ name: 'Initech' }))]
+    for (let i = 0; i < 50; i++) await as(ana, () => modules().invitation.create(acme.id, { email: `guest${i}@cooper.test` }))
+
+    await expect(as(ana, () => modules().invitation.create(acme.id, { email: 'guest50@cooper.test' }))).rejects.toMatchObject({ code: 'too_many_requests', limit: 'invitation.create' })
+    expect(await as(ana, () => modules().invitation.create(initech.id, { email: 'guest50@cooper.test' }))).toMatchObject({ email: 'guest50@cooper.test' })
+  })
+})
+
 describe('workspaces', () => {
   test('makes its creator its admin at once, and lists each one\'s workspaces', async () => {
     const ana = await signUp('Ana')

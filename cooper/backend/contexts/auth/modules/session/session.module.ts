@@ -11,6 +11,8 @@ import { registerSessionRoutes } from './session.routes'
 import { registerSessionWorkers } from './session.workers'
 import { SessionCookie, SessionSignInSchema, SessionSignUpSchema } from './session.schema'
 
+const MINUTE = 60_000
+
 /**
  * Who is signed in to auth itself: signing up, in and out, and who sends each request
  * to auth's API. One session here signs the person in to every product: each product
@@ -28,6 +30,8 @@ export class Session_Module extends Module {
 
   /** At three every night (UTC): a schedule, told as an event its workers subscribe to. */
   readonly nightly
+  /** The wrong passwords one email may be tried with, from any address: a sign-in that works forgets them. */
+  private readonly signIns
 
   private constructor(
     base: AuthBase,
@@ -37,6 +41,7 @@ export class Session_Module extends Module {
   ) {
     super('session', base.invocations, deps)
     this.nightly = base.schedules.define('session.nightly', '0 3 * * *')
+    this.signIns = base.rateLimits.define('session.signIn', { limit: 10, windowMs: 15 * MINUTE })
   }
 
   /**
@@ -60,11 +65,14 @@ export class Session_Module extends Module {
   @UseCase()
   async signIn(input: unknown): Promise<{ user: UserDTO, token: SecretToken }> {
     const { email, password } = SessionSignInSchema.parse(input)
+    const attempts = email.trim().toLowerCase()
+    await this.signIns.take(attempts)
     const user = await this.deps.user.verifyPassword(email, password)
     if (!user) {
       log.warn('sign in refused', { email })
       throw new InvalidCredentials()
     }
+    await this.signIns.forget(attempts)
     return { user, token: await this.open(user.id) }
   }
 

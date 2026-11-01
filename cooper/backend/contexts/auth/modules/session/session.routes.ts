@@ -1,5 +1,6 @@
 import type { BunRequest } from 'bun'
 import type { AuthBase } from '../../auth-base'
+import { SIGN_IN_LIMIT, SIGN_UP_LIMIT } from '../../../../shared/rate-limits'
 import type { Session_Module } from './session.module'
 import { SessionCookie } from './session.schema'
 
@@ -20,13 +21,13 @@ export function registerSessionRoutes(base: AuthBase, sessions: Session_Module):
     const { user, token } = await sessions.signUp(await request.json())
     keep(request, token)
     return Response.json(user, { status: 201 })
-  }, { public: true })
+  }, { public: true, rateLimit: SIGN_UP_LIMIT })
 
   base.http.post('/session/sign-in', async request => {
     const { user, token } = await sessions.signIn(await request.json())
     keep(request, token)
     return Response.json(user)
-  }, { public: true })
+  }, { public: true, rateLimit: SIGN_IN_LIMIT })
 
   // Public: signing out with a session already gone still clears the cookie.
   base.http.post('/session/sign-out', async request => {
