@@ -191,6 +191,7 @@ const KIND_LABELS: Record<Span['kind'], string> = {
   'query': 'A query',
   'transaction': 'A transaction',
   'event': 'An event told',
+  'rate-limit': 'A take from a rate limit',
 }
 
 const ATTRIBUTE_LABELS: Record<string, string> = {
@@ -199,4 +200,8 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   runs: 'Runs',
   commitMs: 'Commit',
   'validation.fields': 'Fields found wrong',
+  limit: 'Limit',
+  windowMs: 'Window (ms)',
+  by: 'Counted by',
+  remaining: 'Remaining',
 }

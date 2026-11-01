@@ -2,7 +2,7 @@ import type { LogFields, LogLevel } from '../logs/log-line'
 import type { Outcome } from '../metrics/outcome'
 
 /** What a span is: a request or a job (a trace's root), a use case's call, one of its runs, a read or write of a table, a transaction, an event told (an instant). */
-export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction' | 'event'
+export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction' | 'event' | 'rate-limit'
 
 /** What a span says of itself: a query's shape, the rows it read, the runs of a call. Never a value it was given. */
 export type SpanAttributeValue = string | number | boolean
@@ -16,7 +16,7 @@ export type TraceSpan = {
   id: string
   parentId: string | null
   kind: SpanKind
-  /** `POST /api/cards`, `card.create`, `attempt 2`, `card.find`, `transaction` */
+  /** `POST /api/cards`, `card.create`, `attempt 2`, `card.find`, `transaction`, `session.signIn` */
   name: string
   /** The context it ran in: null for a request, which may cross several. */
   context: string | null

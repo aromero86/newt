@@ -1,4 +1,5 @@
 import { findCurrentActor, TooManyRequests, type Clock } from '../core'
+import { traceSpan } from '../core/internal'
 import type { RateLimitStore, RateLimitTake } from '../port-rate-limit'
 import { clientIp } from './client-ip'
 import type { HttpRateLimit } from './http-rate-limit'
@@ -16,8 +17,15 @@ export function rateLimited(route: HttpRoute, limits: HttpRateLimit[], store: Ra
     for (const limit of limits.toReversed()) {
       const who = whoIs(limit, request)
       if (who === null) continue
-      const take = await store.take(`http:${limit.name}:${who}`, limit, clock.now())
-      if (!take.allowed) throw new TooManyRequests(limit.name, take.retryAfterMs)
+      const take = await traceSpan(
+        { kind: 'rate-limit', name: limit.name, attributes: { limit: limit.limit, windowMs: limit.windowMs, by: who.slice(0, who.indexOf(':')) } },
+        async () => {
+          const take = await store.take(`http:${limit.name}:${who}`, limit, clock.now())
+          if (!take.allowed) throw new TooManyRequests(limit.name, take.retryAfterMs)
+          return take
+        },
+        take => ({ remaining: take.remaining }),
+      )
       if (!closest || take.remaining < closest.remaining) closest = take
     }
     const response = await route(request)

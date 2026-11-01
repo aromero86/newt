@@ -78,6 +78,7 @@ function detailOf(span: Span): string | undefined {
   if (span.kind === 'transaction' && span.attributes.commitMs !== undefined) return `commit ${formatMs(Number(span.attributes.commitMs))}`
   if (span.kind === 'use-case') return [span.context, span.attributes.runs ? `ran ${span.attributes.runs} times` : null].filter(Boolean).join(' · ')
   if (span.kind === 'event') return 'told'
+  if (span.kind === 'rate-limit') return span.outcome ? 'refused' : `${span.attributes.remaining} of ${span.attributes.limit} left`
   if (span.outcome) return span.outcome.code
   return undefined
 }
@@ -85,7 +86,7 @@ function detailOf(span: Span): string | undefined {
 function toneOf(span: Span): WaterfallTone {
   if (span.outcome?.kind === 'failure') return 'bad'
   if (span.outcome?.kind === 'error') return 'warn'
-  if (span.kind === 'query' || span.kind === 'transaction') return 'muted'
+  if (span.kind === 'query' || span.kind === 'transaction' || span.kind === 'rate-limit') return 'muted'
   if (span.kind === 'use-case' || span.kind === 'attempt' || span.kind === 'event') return 'brand'
   return 'ok'
 }
