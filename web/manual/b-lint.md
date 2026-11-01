@@ -1,15 +1,15 @@
 # B. The lint
 
-<p class="chapter-lead">Every rule of <code>newt-eslint</code>, what it says, and a wrong and a right
+<p class="chapter-lead">Every rule of <code>newt-kit-eslint</code>, what it says, and a wrong and a right
 example of each; how to configure it, cooper's configuration, and the one disable newt accepts.</p>
 
 The compiler checks types; it cannot see that a module has a file no module has, that a schema
-imports the server, or that a queue names a use case its callback never calls. `newt-eslint` (in
+imports the server, or that a queue names a use case its callback never calls. `newt-kit-eslint` (in
 `packages/newt-eslint`) checks what the compiler cannot. It runs in the editor, as you type, and
 in `bun run lint`.
 
 ```sh
-bun add -d newt-eslint eslint
+bun add -d newt-kit-eslint eslint
 bun run lint        # "lint": "eslint" in package.json
 ```
 
@@ -44,7 +44,7 @@ flowchart LR
 | `newt/module-anatomy` | files under `**/modules/*/` | A module has only the files and folders every module has, named after it. |
 | `newt/module-boundaries` | files under `**/modules/*/`, and, with `contexts`, a context's files outside its modules | A module reaches another only through its module, schema, events, errors and value objects. |
 | `newt/queue-name` | files under `**/modules/*/` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, and its callback calls that use case. |
-| `newt/schema-imports` | `<m>.schema.ts` | A schema takes from newt only `newt/contract`. |
+| `newt/schema-imports` | `<m>.schema.ts` | A schema takes from newt only `newt-kit/contract`. |
 | `newt/use-case` | every `*.module.ts` | Every public method of a `Module` is a `@UseCase`. |
 | `newt/route-body` | every `*.routes.ts` | A route passes the body as it came, never asserting its type. |
 | `newt/context-boundaries` | files of a context, with `contexts` | A context imports only the contexts its `uses` lists. |
@@ -170,32 +170,32 @@ first time.
 ## `newt/schema-imports`
 
 **Says:** a module's schema (`<m>.schema.ts`), which a frontend may import, takes from newt only
-`newt/contract`: never `newt/core` nor any other entry, not even for a type. Only the schema's own
+`newt-kit/contract`: never `newt-kit/core` nor any other entry, not even for a type. Only the schema's own
 imports are checked, not those of the files it imports.
 
 Its message: `'<path>' is the server's: <file> is imported by the frontend, so it takes from newt
-only 'newt/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody).`
+only 'newt-kit/contract' (value objects and their errors, defineFilter, Page, PageRequest, ErrorBody).`
 
 ::: code-group
 
 ```ts [Wrong]
 // modules/card/card.schema.ts
-import { defineFilter } from 'newt/core'
+import { defineFilter } from 'newt-kit/core'
 ```
 
 ```ts [Right]
 // cooper/backend/contexts/boards/modules/card/card.schema.ts
-import { defineFilter } from 'newt/contract'
+import { defineFilter } from 'newt-kit/contract'
 import { z } from 'zod'
 ```
 
 :::
 
-**Why:** `newt/core` keeps scopes on `AsyncLocalStorage` (`node:async_hooks`); a browser has none.
-`newt/contract` is the part of core that runs anywhere ([Frontends](./30-frontends)).
+**Why:** `newt-kit/core` keeps scopes on `AsyncLocalStorage` (`node:async_hooks`); a browser has none.
+`newt-kit/contract` is the part of core that runs anywhere ([Frontends](./30-frontends)).
 
 ::: warning Watch out
-A value object the schema imports is not checked. If it imports `newt/core`, the browser's
+A value object the schema imports is not checked. If it imports `newt-kit/core`, the browser's
 bundler warns `Module "node:async_hooks" has been externalized …` instead
 ([E](./e-problems#the-browser-warns-about-node-async-hooks)).
 :::
@@ -272,8 +272,8 @@ Its messages: `'<path>' is the context <other>'s, and <context> uses <uses>: con
 ones they say, never in a cycle.`, and two for a file at the contexts' folder itself.
 
 Building the preset throws, before linting anything, when `uses` names a context it does not list
-(``newt-eslint: the context 'x' uses 'y', which is not in `uses`: …``) or makes a cycle
-(``newt-eslint: contexts never use each other in a cycle, and `uses` says a → b → a.``).
+(``newt-kit-eslint: the context 'x' uses 'y', which is not in `uses`: …``) or makes a cycle
+(``newt-kit-eslint: contexts never use each other in a cycle, and `uses` says a → b → a.``).
 
 ::: code-group
 
@@ -345,7 +345,7 @@ await this.repo.persist(order)
 
 ## Configuration
 
-The preset is `newt(options)`, from `newt-eslint`. It returns a flat config: the rules, the
+The preset is `newt(options)`, from `newt-kit-eslint`. It returns a flat config: the rules, the
 TypeScript parser (`projectService: true`), and the files each rule looks at.
 
 | Option | Default | Means |
@@ -358,7 +358,7 @@ The smallest configuration, for an application that is only a backend:
 
 ```js
 // eslint.config.js
-import { newt } from 'newt-eslint'
+import { newt } from 'newt-kit-eslint'
 
 export default newt({
   root: import.meta.dirname,
@@ -371,7 +371,7 @@ The rules alone are exported as `plugin`, for a configuration of your own.
 ::: tip In cooper
 The repository keeps one `eslint.config.js` at its root. cooper's backend and newt-monitor's
 each take newt's preset, kept to their files with `files`, and their frontends take
-`newt-react-ui`'s lint:
+`newt-kit-react-ui`'s lint:
 
 ```js
 // eslint.config.js

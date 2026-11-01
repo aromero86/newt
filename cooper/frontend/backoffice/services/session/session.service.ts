@@ -1,4 +1,4 @@
-import { ApiError, inject, Store } from 'newt-react'
+import { ApiError, inject, Store } from 'newt-kit-react'
 import { WebSessionApi, signInUrl, type SessionUserDTO } from '@cooper/api/web-session'
 
 type SessionState =

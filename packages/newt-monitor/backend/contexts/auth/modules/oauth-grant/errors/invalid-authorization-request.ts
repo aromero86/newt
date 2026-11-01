@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/core'
+import { ValidationError } from 'newt-kit/core'
 import { AUTHORIZATION_REQUEST_PROBLEMS, type AuthorizationRequestProblem } from '../oauth-grant.schema'
 
 /**

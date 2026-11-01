@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { ActivitySchema, type ActivityDTO } from './activity.schema'
 
 export * from './activity.schema'

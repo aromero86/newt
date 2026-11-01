@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BoardApi, type BoardDTO } from '@cooper/api/board'
-import { FormStore, inject, ListStore, Store } from 'newt-react'
-import { toast } from 'newt-react-ui/toast'
+import { FormStore, inject, ListStore, Store } from 'newt-kit-react'
+import { toast } from 'newt-kit-react-ui/toast'
 
 // The backend's board schema brings its value objects and newt along with it, so the
 // form repeats its limits; the backend checks them again.

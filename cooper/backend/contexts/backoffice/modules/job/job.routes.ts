@@ -1,4 +1,4 @@
-import { pageRequestFrom } from 'newt/http'
+import { pageRequestFrom } from 'newt-kit/http'
 import type { CooperBase } from '../../../../shared/cooper-base'
 import { staffRoutes } from '../../staff-routes'
 import type { Job_Deps } from './job.deps'

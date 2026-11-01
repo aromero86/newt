@@ -1,4 +1,4 @@
-import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
+import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt-kit/core'
 import type { CooperBase } from '../cooper-base'
 import { SignInDenied } from './errors/sign-in-denied'
 import { SignInExpired } from './errors/sign-in-expired'

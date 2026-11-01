@@ -1,5 +1,5 @@
-import { now, type Criteria, type Email } from 'newt/core'
-import { TableRepository } from 'newt/repository'
+import { now, type Criteria, type Email } from 'newt-kit/core'
+import { TableRepository } from 'newt-kit/repository'
 import type { AuthBase } from '../../auth-base'
 import { AlreadyInvited } from './errors/already-invited'
 import { Invitation, type InvitationEntityDTO } from './invitation'

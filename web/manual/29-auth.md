@@ -262,7 +262,7 @@ export class AuthBase extends CooperBase {
 
 `prefix: ''` mounts it at the root, beside the frontend. The context serves both routers'
 routes (`routes()` in `cooper/backend/contexts/auth/auth.context.ts`). Each OAuth route's
-`onError` is `toOauthErrorResponse(error, fallback, codes)` from `newt/http`, which maps domain
+`onError` is `toOauthErrorResponse(error, fallback, codes)` from `newt-kit/http`, which maps domain
 error codes to OAuth's (`'oauthGrant.invalid_grant': 'invalid_grant'`).
 
 ### Two kinds of client
@@ -628,7 +628,7 @@ workspace, but their session itself lives on until it expires or they sign out.
 
 ## Tests that sign in for real
 
-A sign-in is a dance between two servers and a browser, so cooper tests it as one. `newt/testing`
+A sign-in is a dance between two servers and a browser, so cooper tests it as one. `newt-kit/testing`
 has `browser(baseUrl)`, a `fetch` that keeps cookies and never follows redirects, so a test can
 walk each 302 by hand and see every cookie. `cooper/backend/contexts/auth/oauth.test.ts` runs the
 flow and its attacks: a code traded twice, a refresh token replayed, a redirect URI that does not

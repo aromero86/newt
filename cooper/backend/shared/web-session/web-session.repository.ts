@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { CooperBase } from '../cooper-base'
 import { WebSession, type WebSessionDTO } from './web-session'
 

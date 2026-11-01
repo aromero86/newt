@@ -1,4 +1,4 @@
-import { inject, Store } from 'newt-react'
+import { inject, Store } from 'newt-kit-react'
 import { DEFAULT_BUCKET, EventMetricsApi, type MetricsBucket, type MetricsWindow, type SeriesDTO, type TopDTO } from '../../../api/event-metrics'
 import { AppService } from '../app.service'
 

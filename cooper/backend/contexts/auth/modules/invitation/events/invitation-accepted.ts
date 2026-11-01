@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { InvitationDTO } from '../invitation.schema'
 
 /** Someone accepted an invitation: they are a member of its workspace (`access.granted` says so too). */

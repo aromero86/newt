@@ -1,4 +1,4 @@
-import { Badge } from 'newt-react-ui/badge'
+import { Badge } from 'newt-kit-react-ui/badge'
 import type { ConnectionStatusDTO } from '../../api/connection'
 
 const LOOKS = {

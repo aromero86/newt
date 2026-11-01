@@ -1,4 +1,4 @@
-import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { eachApp } from '../../../../shared/each-app'
 import { StructureNotRead } from './errors/structure-not-read'

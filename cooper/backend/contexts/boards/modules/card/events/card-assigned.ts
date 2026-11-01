@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card, now assigned to `dto.assigneeId`, who had it before, if anyone, and who assigned it. */

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
-import type { ValueObject } from 'newt/core'
+import type { ValueObject } from 'newt-kit/core'
 import { InvalidClientSecret } from '../errors/invalid-client-secret'
 
 /**

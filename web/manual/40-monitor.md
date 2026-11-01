@@ -43,7 +43,7 @@ of its own, and only to requests signed with a key both share.
 
 ::: info Concept: The monitor endpoint
 A tiny HTTP server the application starts beside its contexts with `serveMonitor`
-(`newt/monitor`). It answers only `GET` requests signed with a shared key, on a port no
+(`newt-kit/monitor`). It answers only `GET` requests signed with a shared key, on a port no
 public address points at, and it serves only what newt already counts: never a row of the
 application's data. Anything else gets a bare `401`.
 :::
@@ -250,9 +250,9 @@ It helps to be precise about the edges.
   cases, routes, jobs and stores.
 - **It is one person's tool.** One user and password, from its environment. It has no
   teams, no roles, no alerts that page you at night.
-- **It speaks newt only.** The endpoint is `newt/monitor`'s. For a non-newt service, or
+- **It speaks newt only.** The endpoint is `newt-kit/monitor`'s. For a non-newt service, or
   to send traces to a tracing backend you already run, newt has OpenTelemetry
-  (`newt/otel`), which [Observability](./32-observability) covers.
+  (`newt-kit/otel`), which [Observability](./32-observability) covers.
 
 ::: warning Watch out
 The application keeps what the monitor has not collected yet for a while only: a day of

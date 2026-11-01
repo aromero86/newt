@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { UserDTO } from '../user.schema'
 
 /** Someone made an account: who they are, never their password. */

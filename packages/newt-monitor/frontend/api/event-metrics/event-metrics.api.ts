@@ -1,5 +1,5 @@
 import type { EventTotalDTO, MetricsWindow, SeriesDTO, SeriesQueryDTO, TopDTO, TopQueryDTO } from '../../../backend/contexts/monitor/modules/event-metrics/event-metrics.schema'
-import { Requester } from 'newt-react'
+import { Requester } from 'newt-kit-react'
 
 /** The monitor's `eventMetrics` module: how many times each event of an application was told. */
 export class EventMetricsApi extends Requester {

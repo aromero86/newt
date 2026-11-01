@@ -1,4 +1,4 @@
-import { setMessages, type Messages } from 'newt/core'
+import { setMessages, type Messages } from 'newt-kit/core'
 
 /**
  * What cooper says when something newt owns goes wrong, in cooper's words: newt's

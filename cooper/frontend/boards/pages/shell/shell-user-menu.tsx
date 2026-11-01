@@ -1,9 +1,9 @@
 import { LayersIcon, LogOutIcon } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { Avatar } from 'newt-react-ui/avatar'
-import { Button } from 'newt-react-ui/button'
-import { Menu } from 'newt-react-ui/menu'
-import { useService, useValue } from 'newt-react'
+import { Avatar } from 'newt-kit-react-ui/avatar'
+import { Button } from 'newt-kit-react-ui/button'
+import { Menu } from 'newt-kit-react-ui/menu'
+import { useService, useValue } from 'newt-kit-react'
 import { SessionService } from '../../services/session/session.service'
 
 /** Who is signed in, with the way to their workspaces and out. */

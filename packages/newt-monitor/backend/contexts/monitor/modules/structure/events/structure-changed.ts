@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { StructureChangedDTO } from '../structure.schema'
 
 export class Structure_Changed implements DomainEvent<StructureChangedDTO> {

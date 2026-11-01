@@ -40,7 +40,7 @@ What every route needs besides that (who is signed in, which workspace it is abo
 looks like, how often someone may call it) belongs to the **router**, said once.
 
 ::: info Concept: Router
-A context's HTTP entry: an `HttpRouter`, from `newt/http`. Each module registers its routes on
+A context's HTTP entry: an `HttpRouter`, from `newt-kit/http`. Each module registers its routes on
 it, in `<m>.routes.ts`, and the server takes the whole table. The router wraps every route in the
 same layers: the session, rate limits, idempotency, the error format, CORS, tracing.
 :::
@@ -67,7 +67,7 @@ Everything left of the route is the router's. The route is one line.
 From `cooper/backend/contexts/boards/modules/board/board.routes.ts`:
 
 ```ts
-import { pageRequestFrom } from 'newt/http'
+import { pageRequestFrom } from 'newt-kit/http'
 import type { BoardsBase } from '../../boards-base'
 import { workspaceRoutes } from '../../workspace-routes'
 import type { Board_Deps } from './board.deps'
@@ -180,7 +180,7 @@ base.http.post('/session/sign-in', async request => {
 base.http.get('/session', async () => Response.json(await sessions.me()))
 ```
 
-`keep` calls `setSessionCookie` from `newt/http`, which sets the cookie as it must be set
+`keep` calls `setSessionCookie` from `newt-kit/http`, which sets the cookie as it must be set
 (`HttpOnly`, `SameSite`, `Secure` when asked). The MCP server, which has no cookies, authenticates
 with `bearerAuthenticator` instead. Both are in [Authentication](./29-auth).
 
@@ -323,10 +323,10 @@ hash. Bodies are capped. Writes from other origins are refused. You opt out, nev
 
 ## Serving a context
 
-`serve` from `newt/http` turns a router into a running server, on `Bun.serve`:
+`serve` from `newt-kit/http` turns a router into a running server, on `Bun.serve`:
 
 ```ts
-import { serve } from 'newt/http'
+import { serve } from 'newt-kit/http'
 
 const server = serve({
   port: 3002,

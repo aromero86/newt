@@ -1,4 +1,4 @@
-import type { Criteria, Page, PageRequest } from 'newt/core'
+import type { Criteria, Page, PageRequest } from 'newt-kit/core'
 import type { CardDTO } from '../modules/card/card.schema'
 
 /** What a search asks: text its title or description has (whatever its case), and criteria on its fields. */

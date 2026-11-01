@@ -1,6 +1,6 @@
-import type { Page } from 'newt/contract'
+import type { Page } from 'newt-kit/contract'
 import type { CatalogFilterDTO, CatalogItemDTO } from '../../../backend/contexts/monitor/modules/catalog/catalog.schema'
-import { type PageRequest, Requester } from 'newt-react'
+import { type PageRequest, Requester } from 'newt-kit-react'
 
 /** The monitor's `catalog` module: every part an application ever had, and when. */
 export class CatalogApi extends Requester {

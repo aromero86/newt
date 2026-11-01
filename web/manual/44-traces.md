@@ -176,7 +176,7 @@ kept: it reads nothing, and changes nothing but what is recorded.
 The page calls `POST /api/apps/:id/traces/header` with `{ "hours": 1 }` (1 to 24, 1 by
 default), and gets `{ name, value, expiresAt }` back: a POST, because each answer is a new
 header. In the application, `serveMonitor` sets the check (`verifyTraceHeader`, with its key),
-and every route of an `HttpRouter` asks it when a request starts. `newt/monitor` also exports
+and every route of an `HttpRouter` asks it when a request starts. `newt-kit/monitor` also exports
 `signTraceHeader(key, expiresAt)`, `TRACE_HEADER` and `TRACE_HEADER_MAX_MS` (24 hours), should
 you want to make one in a script of your own.
 :::

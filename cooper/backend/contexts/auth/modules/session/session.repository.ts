@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { AuthBase } from '../../auth-base'
 import { Session, type SessionEntityDTO } from './session'
 

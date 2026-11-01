@@ -1,5 +1,5 @@
 import { PlayIcon } from 'lucide-react'
-import type { WaterfallMark, WaterfallRow, WaterfallTone } from 'newt-react-ui/waterfall'
+import type { WaterfallMark, WaterfallRow, WaterfallTone } from 'newt-kit-react-ui/waterfall'
 import type { TraceDTO, TraceSummaryDTO } from '../../../api/traces'
 import { formatMs } from '../app-metrics/metrics-format'
 

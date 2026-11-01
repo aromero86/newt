@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt/core'
+import { ConflictError } from 'newt-kit/core'
 import { MAX_COLUMNS } from '../column.schema'
 
 export class TooManyColumns extends ConflictError {

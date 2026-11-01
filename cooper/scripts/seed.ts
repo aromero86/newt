@@ -1,7 +1,7 @@
 // bun run cooper:seed: cooper's demo data, written through the contexts' use cases as
 // anyone would: a staff user with access to the backoffice, and Ana's workspace Acme,
 // where Bob joined by accepting her invitation. Safe to run again: what is there stays.
-import { runAsActor, type Email } from 'newt/core'
+import { runAsActor, type Email } from 'newt-kit/core'
 import { config } from '../backend/config'
 import { PRODUCTS } from '../backend/contexts/auth/modules/product/product.schema'
 import { inWorkspace } from '../backend/contexts/boards/workspace-scope'

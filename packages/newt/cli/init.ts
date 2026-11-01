@@ -41,7 +41,7 @@ const claude = (rules: string, more: string[] = []) => [`@AGENTS.md`, `@${rules}
  */
 type ForAgents = { agents?: string, skills?: string[] }
 
-const ESLINT = `import { newt } from 'newt-eslint'
+const ESLINT = `import { newt } from 'newt-kit-eslint'
 
 // newt's lint. With contexts, say which ones each one uses:
 // newt({ contexts: { folder: 'src/contexts', uses: { auth: [], shop: ['auth'] } } })
@@ -50,12 +50,12 @@ export default newt()
 
 const ESLINT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts', 'eslint.config.mts']
 
-const NEWT_AGENTS = 'node_modules/newt/AGENTS.md'
+const NEWT_AGENTS = 'node_modules/newt-kit/AGENTS.md'
 
 /**
  * Sets an application up for coding agents: an AGENTS.md of its own that sends them to
  * newt's, a CLAUDE.md that imports both (and the rules of every newt package it depends
- * on that has some, as `newt-react-ui`), those packages' skills in `.claude/skills/`,
+ * on that has some, as `newt-kit-react-ui`), those packages' skills in `.claude/skills/`,
  * and newt's lint if it has no ESLint configuration. Both are looked for here and in the folders above, as Bun installs
  * and ESLint looks for its configuration: an application inside a monorepo points at
  * the root's node_modules and keeps the root's lint. Never overwrites a file: what was
@@ -75,17 +75,31 @@ export async function init(cwd: string): Promise<string[]> {
   const eslint = await above(cwd, ESLINT_CONFIGS)
   if (!eslint) files['eslint.config.js'] = ESLINT
   const { written, skipped } = await writeNew(cwd, files)
+  // A CLAUDE.md of its own (\`bun init\` writes one) is left, but it is told what to import.
+  const claudeLacks = skipped.includes('CLAUDE.md') && !(await Bun.file(join(cwd, 'CLAUDE.md')).text()).includes(`@${rules}`)
   return [
     ...written.map(path => `wrote    ${path}`),
-    ...skipped.map(path => `skipped  ${path} (it is there already: left as it was)`),
-    ...eslint ? [`skipped  eslint.config.js (${eslint} is there: add newt-eslint's preset to it, \`newt()\`)`] : [],
+    ...skipped.map(path => (path === 'CLAUDE.md' && claudeLacks
+      ? `skipped  CLAUDE.md (it is there already: add \`@AGENTS.md\` and \`@${rules}\` to it, one per line, so agents read newt's rules)`
+      : `skipped  ${path} (it is there already: left as it was)`)),
+    ...eslint ? [`skipped  eslint.config.js (${eslint} is there: add newt-kit-eslint's preset to it, \`newt()\`)`] : [],
     '',
     'Next:',
-    '  bun add newt zod',
-    '  bun add -d newt-eslint eslint typescript@npm:@typescript/typescript6@6.0.2',
+    ...await typescript7(cwd) ? ['  bun remove typescript                      TypeScript 7, as `bun init` adds it: typescript-eslint needs 6 for now'] : [],
+    '  bun add newt-kit zod',
+    '  bun add -d newt-kit-eslint eslint typescript@npm:@typescript/typescript6@6.0.2',
     '  fill in AGENTS.md: the project, its contexts, its conventions',
     '  newt add module <context-folder> <module>   e.g. newt add module src/contexts/shop order',
   ]
+}
+
+/** Whether the application asks for TypeScript 7, which newt's lint cannot run on yet: any \`typescript\` but the 6 it names. */
+async function typescript7(cwd: string): Promise<boolean> {
+  // \`bun init\` asks for it twice: as a peer, and Bun installs it for typescript-eslint's own peers.
+  const manifest = Bun.file(join(cwd, 'package.json'))
+  if (!await manifest.exists()) return false
+  const { dependencies = {}, devDependencies = {}, peerDependencies = {} } = await manifest.json() as Record<string, Record<string, string> | undefined>
+  return [dependencies, devDependencies, peerDependencies].some(each => each?.typescript !== undefined && !each.typescript.includes('typescript6'))
 }
 
 /** The newt packages the application depends on that say something to agents, by name. */

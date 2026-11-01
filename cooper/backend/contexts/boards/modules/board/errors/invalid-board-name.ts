@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/contract'
+import { ValidationError } from 'newt-kit/contract'
 
 export class InvalidBoardName extends ValidationError {
   readonly code = 'board.invalid_name'

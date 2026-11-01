@@ -1,4 +1,4 @@
-import { FormStore, inject } from 'newt-react'
+import { FormStore, inject } from 'newt-kit-react'
 import { SessionApi, SignInSchema } from '../../api/session'
 import { SessionService } from '../../services/session/session.service'
 

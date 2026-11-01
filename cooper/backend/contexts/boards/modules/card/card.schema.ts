@@ -1,4 +1,4 @@
-import { defineFilter } from 'newt/contract'
+import { defineFilter } from 'newt-kit/contract'
 import { z } from 'zod'
 import type { ActorVia } from '../../../../shared/actor'
 

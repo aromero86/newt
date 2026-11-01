@@ -1,4 +1,4 @@
-import { Module, UseCase } from 'newt/core'
+import { Module, UseCase } from 'newt-kit/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { Retention, RetentionChangeSchema, type RetentionDTO } from './retention'
 import type { Retention_Deps } from './retention.deps'

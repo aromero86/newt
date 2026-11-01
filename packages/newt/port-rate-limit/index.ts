@@ -1,6 +1,6 @@
-// newt/port-rate-limit: the port of where rate limits count what each key did lately,
-// and two stores of it: in memory, and on a table of any store. newt/adapter-redis has
-// one on Redis; newt/port-rate-limit/contract checks one keeps every promise.
+// newt-kit/port-rate-limit: the port of where rate limits count what each key did lately,
+// and two stores of it: in memory, and on a table of any store. newt-kit/adapter-redis has
+// one on Redis; newt-kit/port-rate-limit/contract checks one keeps every promise.
 
 export type { RateLimitStore } from './rate-limit-store'
 export type { RateLimitRule } from './rate-limit-rule'

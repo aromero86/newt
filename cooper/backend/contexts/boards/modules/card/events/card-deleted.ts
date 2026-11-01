@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card as it was when it was deleted, and who deleted it. */

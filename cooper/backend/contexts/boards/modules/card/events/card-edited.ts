@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The card as it is now, its title or description as they are (`changes`) and as they were (`previous`), and who edited it. */

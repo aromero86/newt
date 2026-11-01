@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { CatalogItemSchema, type CatalogItemDTO, type DescribedItem } from './catalog.schema'
 
 export * from './catalog.schema'

@@ -1,5 +1,5 @@
-import { FormStore, Store, inject } from 'newt-react'
-import { toast } from 'newt-react-ui/toast'
+import { FormStore, Store, inject } from 'newt-kit-react'
+import { toast } from 'newt-kit-react-ui/toast'
 import { z } from 'zod'
 import { MIN_MINUTE_DAYS, RetentionApi } from '../../../api/retention'
 import { AppService } from '../app.service'

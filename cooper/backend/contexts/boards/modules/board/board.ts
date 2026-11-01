@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { BoardSchema, type BoardDTO } from './board.schema'
 import { Board_Archived } from './events/board-archived'
 import { Board_Created } from './events/board-created'

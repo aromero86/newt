@@ -1,5 +1,5 @@
 import type { MetricsOverviewDTO } from '../../../backend/contexts/backoffice/modules/metric/metric.schema'
-import { Requester } from 'newt-react'
+import { Requester } from 'newt-kit-react'
 
 /** The backoffice's `metric` module: cooper's numbers. */
 export class BackofficeMetricApi extends Requester {

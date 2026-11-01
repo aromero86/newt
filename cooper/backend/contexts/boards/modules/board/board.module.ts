@@ -1,4 +1,4 @@
-import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { BoardsBase } from '../../boards-base'
 import { currentWorkspaceId, runInWorkspace } from '../../workspace-scope'
 import {

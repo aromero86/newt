@@ -1,4 +1,4 @@
-import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import { NotTenantAdmin } from './errors/not-tenant-admin'
 import { TenantNotFound } from './errors/tenant-not-found'

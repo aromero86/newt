@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Badge } from 'newt-react-ui/badge'
+import { Badge } from 'newt-kit-react-ui/badge'
 import { liveMetricsUrl, type EventCount } from '../../../api/event-metrics'
 
 const minuteNow = () => new Date(Date.now() - (Date.now() % 60_000)).toISOString()

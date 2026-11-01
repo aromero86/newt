@@ -165,7 +165,7 @@ const BACKEND = newt({
 ```
 
 `newt/context-boundaries` refuses an import from a context `uses` does not list: auth importing
-anything of boards fails the lint. And newt-eslint refuses a `uses` that is not a tree: a cycle
+anything of boards fails the lint. And newt-kit-eslint refuses a `uses` that is not a tree: a cycle
 fails before any file is linted, naming it (`auth → boards → auth`).
 
 Inside the other context, the usual module boundary holds too (`newt/module-boundaries`): boards may

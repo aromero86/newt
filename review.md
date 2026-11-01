@@ -97,7 +97,7 @@ En el commit `5897bdf`:
   - cuándo se ejecuta `job.claim`;
   - de dónde sale `analytics`;
   - `idle()` y fire-and-forget;
-  - todo lo que comprueba newt-eslint.
+  - todo lo que comprueba newt-kit-eslint.
 - **`stores.md`:**
   - la espera acotada se cumple donde las transacciones se turnan;
   - `ne` incluye los valores ausentes;
@@ -107,7 +107,7 @@ En el commit `5897bdf`:
   - las sumas vuelven como texto en los servidores;
   - los guardados de otros productos esperan en los stores serie;
   - la regla de escritura comprueba casos de uso, y el lint cubre los repositorios.
-- **README de newt-eslint:** qué comprueba `queue-name`.
+- **README de newt-kit-eslint:** qué comprueba `queue-name`.
 
 ---
 

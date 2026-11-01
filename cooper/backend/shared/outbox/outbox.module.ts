@@ -1,5 +1,5 @@
-import { Module, toPage, UseCase, type Page, type PageRequest } from 'newt/core'
-import type { Job } from 'newt/port-outbox'
+import { Module, toPage, UseCase, type Page, type PageRequest } from 'newt-kit/core'
+import type { Job } from 'newt-kit/port-outbox'
 import type { CooperBase } from '../cooper-base'
 import { JobNotDead } from './errors/job-not-dead'
 import { JobNotFound } from './errors/job-not-found'

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
-import { freePort, type Browser } from 'newt/testing'
+import { freePort, type Browser } from 'newt-kit/testing'
 import type { CatalogItemDTO } from './contexts/monitor/modules/catalog/catalog'
 import type { ConnectionStatusDTO } from './contexts/monitor/modules/connection/connection'
 import type { StructureVersionDTO } from './contexts/monitor/modules/structure/structure'

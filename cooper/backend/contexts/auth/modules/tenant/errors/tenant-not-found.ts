@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class TenantNotFound extends NotFoundError {
   readonly code = 'tenant.not_found'

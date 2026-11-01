@@ -1,4 +1,4 @@
-import { toOauthErrorResponse } from 'newt/http'
+import { toOauthErrorResponse } from 'newt-kit/http'
 import { z } from 'zod'
 import { OPEN_TO_BROWSERS } from '../../../../shared/cors/cors'
 import { REGISTER_LIMIT, REGISTRATION_MAX_BYTES } from '../../../../shared/rate-limits'

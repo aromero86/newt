@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Entity, now, SecretToken, type EntityInput } from 'newt/core'
+import { Entity, now, SecretToken, type EntityInput } from 'newt-kit/core'
 import { TokenSchema, type TokenPairDTO, type TokenVerifiedDTO } from './token.schema'
 
 export * from './token.schema'

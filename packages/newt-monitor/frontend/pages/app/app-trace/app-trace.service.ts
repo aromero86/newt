@@ -1,4 +1,4 @@
-import { ApiError, inject, Store } from 'newt-react'
+import { ApiError, inject, Store } from 'newt-kit-react'
 import { TracesApi, type TraceDTO } from '../../../api/traces'
 import { AppService } from '../app.service'
 

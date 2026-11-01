@@ -28,13 +28,13 @@ it asks that clock what time it is. In production the clock is the real one. In 
 it is a number you move.
 
 ::: info Concept: Clock
-A `Clock` is an object with one method, `now(): Date` (`newt/core`). A context's `Base`
+A `Clock` is an object with one method, `now(): Date` (`newt-kit/core`). A context's `Base`
 takes one in its options; without it, it uses the real time. Everything that tells time
 in the context goes by it: when entities are created and changed, when jobs are due,
 when schedules fire, when rate limits forget.
 :::
 
-Code never holds the clock directly. It calls `now()`, from `newt/core`, which answers
+Code never holds the clock directly. It calls `now()`, from `newt-kit/core`, which answers
 with the clock of the context whose work is running.
 
 ```mermaid
@@ -389,7 +389,7 @@ until it passes the stored tick again.
 
 - Time is a dependency: a `Clock` (`{ now(): Date }`) given to the `Base`, the real time
   by default.
-- Code calls `now()` from `newt/core`, which answers with the clock of the context at
+- Code calls `now()` from `newt-kit/core`, which answers with the clock of the context at
   work; never `new Date()` with no argument.
 - Expiry is best a date compared when someone asks (`isOpen`, criteria with
   `{ gt: now().toISOString() }`), not a status flipped by a job.

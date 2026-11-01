@@ -1,4 +1,4 @@
-// newt/repository: the only place a module reads and writes its entities, on any store:
+// newt-kit/repository: the only place a module reads and writes its entities, on any store:
 // `TableRepository` when they are the rows of one table, `Repository` for anything else.
 
 export { Repository } from './repository'

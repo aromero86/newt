@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { runAsActor } from 'newt/core'
-import { serve } from 'newt/http'
+import { runAsActor } from 'newt-kit/core'
+import { serve } from 'newt-kit/http'
 import { config } from '../../config'
 import type { Mail } from '../../shared/mail/mailer'
 import { RecordingMailer } from '../../shared/mail/recording-mailer'

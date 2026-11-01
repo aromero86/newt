@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { UseCaseErrorsFeedSchema, type UseCaseErrorsFeedDTO } from './use-case-errors.schema'
 
 export * from './use-case-errors.schema'

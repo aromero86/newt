@@ -1,4 +1,4 @@
-import type { PageRequest as ContractPageRequest } from 'newt/contract'
+import type { PageRequest as ContractPageRequest } from 'newt-kit/contract'
 
 /**
  * Which page of a list: newt's `PageRequest`, up to `size` items after `cursor`, with

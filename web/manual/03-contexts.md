@@ -50,10 +50,10 @@ see `AuthBase` or `cooper-auth.db`. That is the whole contract between contexts.
 ## The base
 
 Everything a module needs from the outside world comes in one object: the context's
-**base**. It is an instance of `Base`, from `newt/runtime`, or of a class that extends it.
+**base**. It is an instance of `Base`, from `newt-kit/runtime`, or of a class that extends it.
 
 ```ts
-import { Base, type BaseOptions } from 'newt/runtime'
+import { Base, type BaseOptions } from 'newt-kit/runtime'
 ```
 
 `Base` is built from `BaseOptions`. Only two are required:
@@ -153,7 +153,7 @@ difference.
 
 ## The context class
 
-`BoundedContext`, also from `newt/runtime`, is the context at runtime: a name and a base,
+`BoundedContext`, also from `newt-kit/runtime`, is the context at runtime: a name and a base,
 and what it takes to start and stop it.
 
 ```ts
@@ -390,7 +390,7 @@ covers how they talk: calls, events, and who may write where.
 
 ## Serving and running
 
-A context's server is `serve(options)`, from `newt/http`: a `Bun.serve` with the
+A context's server is `serve(options)`, from `newt-kit/http`: a `Bun.serve` with the
 router's routes, the routes beside them, the health check, the frontend for every other
 address, and newt's security headers on every answer. `ServeOptions` is what
 `ServedContext.serving()` returns:
@@ -408,7 +408,7 @@ address, and newt's security headers on every answer. `ServeOptions` is what
 | `maxBodyBytes`, `idleTimeoutSeconds`, `development`, `publicFolder` | Limits and development mode. |
 
 An application with several contexts runs them with `runContexts`, from
-`newt/application`. It serves each context that has a `serve`, starts every context's
+`newt-kit/application`. It serves each context that has a `serve`, starts every context's
 worker, and on `SIGINT` or `SIGTERM` stops them all in the right order.
 
 ```ts
@@ -468,8 +468,8 @@ Because a context is only a base and modules, a test can build one with no serve
 on a store in memory and a clock it moves by hand:
 
 ```ts
-import { SqliteStore } from 'newt/adapter-sqlite'
-import { Base } from 'newt/runtime'
+import { SqliteStore } from 'newt-kit/adapter-sqlite'
+import { Base } from 'newt-kit/runtime'
 
 let time = Date.parse('2026-01-01T00:00:00Z')
 const clock = { now: () => new Date(time) }
@@ -484,7 +484,7 @@ in memory with a fake of the auth modules it uses. [Testing](./12-testing) shows
 
 - A **bounded context** owns its store, its base and its modules; other contexts reach it
   only through its modules' use cases and events.
-- `Base` (`newt/runtime`) is what every module receives: store, invocations, bus,
+- `Base` (`newt-kit/runtime`) is what every module receives: store, invocations, bus,
   publisher, jobs, schedules, rate limits, metrics. Applications extend it, as
   `CooperBase` adds an HTTP router.
 - `BoundedContext` is a name, a base, `start`, `stopWorker`, `close` and `stop`. cooper's

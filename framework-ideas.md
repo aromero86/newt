@@ -14,7 +14,7 @@ on 2026-10-26; the status of each is in the table at the end.
   on every store and allowed in `defineFilter`.
 - **Criteria into Kysely.** Mixing a client filter with a Kysely query meant writing a
   small `whereOf(eb, criteriaTree(criteria))` in cooper. *Proposal:* export the
-  stores' own translation from `newt/kysely`.
+  stores' own translation from `newt-kit/kysely`.
 - **Delete by criteria.** `Table` has no `deleteMany(criteria)`, and a soft-delete
   repository cannot hard-delete; purging a workspace needed Kysely, so only SQL stores.
 - **Case-insensitive unique.** `TableOptions.unique` cannot say "whatever the case":
@@ -45,7 +45,7 @@ on 2026-10-26; the status of each is in the table at the end.
   subscriber filters in its handler, so jobs are queued for events they ignore.
   *Proposal:* a `when` predicate in `subscribe`, checked before the job is written.
 - **An event source as a port.** cooper writes `Pick<DomainEventEmitter<P>, 'subscribe'>`.
-  *Proposal:* export `EventSource<P>` from `newt/core`.
+  *Proposal:* export `EventSource<P>` from `newt-kit/core`.
 - **Queue name rules disagree** (a small bug): the emitter accepts an upper-case first
   letter that the job queue then refuses at startup. One shared pattern.
 - **Running a use case as a worker in tests and scripts** needed a fake base that
@@ -104,14 +104,14 @@ on 2026-10-26; the status of each is in the table at the end.
 ## The frontend's side
 
 - **A browser-safe entry.** The frontend shares the backend's `*.schema.ts`, which
-  import `newt/core`; its index creates an `AsyncLocalStorage` at load and breaks
-  Vite's dev server (cooper aliases a stand-in). *Proposal:* `newt/contract` with
+  import `newt-kit/core`; its index creates an `AsyncLocalStorage` at load and breaks
+  Vite's dev server (cooper aliases a stand-in). *Proposal:* `newt-kit/contract` with
   value objects, `defineFilter`, `Page`, `PageRequest` and the error body
   `{ error, code }` as a type.
 
 ## Tooling
 
-- **newt-eslint's preset cannot be scoped to a folder:** in a repository with a
+- **newt-kit-eslint's preset cannot be scoped to a folder:** in a repository with a
   frontend, cooper rewrites the preset's `files`. *Proposal:* `newt({ files })`.
 - **The `newt/*` alias** is repeated in each tsconfig and in Vite; the workspace
   package's `exports` would resolve it once.
@@ -129,7 +129,7 @@ its contract suite.
 | Proposal | Status |
 |---|---|
 | Text search | Not in criteria: search belongs in a specialized adapter. The guide shows a search port of the application's own, with an adapter in memory and its contract. |
-| Criteria into Kysely | Done: `whereOf(store, criteria)` in `newt/kysely`. |
+| Criteria into Kysely | Done: `whereOf(store, criteria)` in `newt-kit/kysely`. |
 | Delete by criteria | Done: `Table.deleteMany`, and `purge` in `TableRepository`. |
 | Case-insensitive unique | Discarded. |
 | Paging | Done: `mapPage`, `allPages`, `Page.nextCursor`. |
@@ -149,8 +149,8 @@ its contract suite.
 | Routes outside `/api` | Done: root routers, `onError`, `bearerAuthenticator`. |
 | Health | Done: `serve({ health })`, 503 while stopping. |
 | A group's own path | Discarded: `''` already does it. |
-| HTTP test helpers | Done: `newt/testing`. |
-| A served context | Done: `runContexts` in `newt/application`. |
+| HTTP test helpers | Done: `newt-kit/testing`. |
+| A served context | Done: `runContexts` in `newt-kit/application`. |
 | One tracer | Done: `setTracer`, `filterSpans`. |
 | Optional actor | Done: `findCurrentActor()`. |
 | Extending `Actor` | Documented in the guide. |
@@ -158,7 +158,7 @@ its contract suite.
 | Analytics | Later. |
 | Migration checksums | Done. |
 | A context with no tables yet | Discarded: a missing folder stays an error. |
-| A browser-safe entry | Done: `newt/contract`. |
+| A browser-safe entry | Done: `newt-kit/contract`. |
 | eslint `files` | Done: `newt({ files })`. |
 | The `newt/*` alias | Done: resolved through the package's `exports`. |
 | OpenAPI | Later. |
@@ -166,7 +166,7 @@ its contract suite.
 | Idempotency keys | Done: an `idempotency` option on POST routes. |
 | Configuration with zod | Discarded. |
 | Injectable clock | Done: `clock` in `BaseOptions`. |
-| OpenTelemetry exporter | Done: `newt/otel`. |
+| OpenTelemetry exporter | Done: `newt-kit/otel`. |
 | Blob storage port | Later. |
 
 ## Epics (2026-11-01)
@@ -178,7 +178,7 @@ branch, merged into `main`.
 
 | # | Deliverable | Status |
 |---|---|---|
-| 1 | `newt/port-rate-limit` (sliding window, contract suite): in memory, on a `Table`, on Redis (`newt/adapter-redis`) | Done |
+| 1 | `newt-kit/port-rate-limit` (sliding window, contract suite): in memory, on a `Table`, on Redis (`newt-kit/adapter-redis`) | Done |
 | 2 | `base.rateLimits.define` for use cases; `TooManyRequests` (429, `Retry-After`) | Done |
 | 3 | `rateLimit` on routers, groups and routes, adding up; by actor, address or key; `serve({ trustProxy })`, `clientIp` | Done |
 | 4 | Each take a `rate-limit` step of its trace; newt-monitor draws them | Done |

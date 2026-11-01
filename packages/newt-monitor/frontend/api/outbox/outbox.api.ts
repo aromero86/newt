@@ -1,6 +1,6 @@
-import type { DeadJobs } from 'newt/contract'
+import type { DeadJobs } from 'newt-kit/contract'
 import type { DepthQueryDTO, DepthSeriesDTO, OutboxNowDTO } from '../../../backend/contexts/monitor/modules/outbox/outbox.schema'
-import { Requester } from 'newt-react'
+import { Requester } from 'newt-kit-react'
 
 /** The monitor's `outbox` module: how full each queue of an application is, and its dead jobs. */
 export class OutboxApi extends Requester {

@@ -1,4 +1,4 @@
-import { Entity, type EntityInput } from 'newt/core'
+import { Entity, type EntityInput } from 'newt-kit/core'
 import { CardSchema, type CardAuthor, type CardDTO } from './card.schema'
 import { Card_Assigned } from './events/card-assigned'
 import { Card_Created } from './events/card-created'

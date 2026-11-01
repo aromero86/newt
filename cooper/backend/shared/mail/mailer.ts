@@ -1,4 +1,4 @@
-import type { Email } from 'newt/core'
+import type { Email } from 'newt-kit/core'
 
 /** One email: plain text, which every reader shows. */
 export type Mail = {

@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { OauthGrantDTO } from '../oauth-grant.schema'
 
 /** A code was brought twice: someone copied it, and what it was traded for has to stop working. */

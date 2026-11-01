@@ -1,4 +1,4 @@
-import { now, type DomainEvent } from 'newt/core'
+import { now, type DomainEvent } from 'newt-kit/core'
 import type { CardAuthor, CardDTO } from '../card.schema'
 
 /** The new card, with its number and its place, and who created it: nobody for boards' own work (a welcome card). */

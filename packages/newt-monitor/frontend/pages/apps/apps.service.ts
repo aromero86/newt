@@ -1,4 +1,4 @@
-import { FormStore, inject, ListStore, Store } from 'newt-react'
+import { FormStore, inject, ListStore, Store } from 'newt-kit-react'
 import { AppApi, AppRegisterSchema, type AppDTO } from '../../api/app'
 import { ConnectionApi, type ConnectionStatusDTO } from '../../api/connection'
 

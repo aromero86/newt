@@ -1,4 +1,4 @@
-// bun run ui: the gallery of newt-react-ui, served by Bun from its sources, reloaded as they change.
+// bun run ui: the gallery of newt-kit-react-ui, served by Bun from its sources, reloaded as they change.
 import gallery from './index.html'
 
 const server = Bun.serve({
@@ -6,4 +6,4 @@ const server = Bun.serve({
   routes: { '/': gallery },
   development: { hmr: true, console: true },
 })
-console.log(`newt-react-ui's gallery on ${server.url}`)
+console.log(`newt-kit-react-ui's gallery on ${server.url}`)

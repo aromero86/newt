@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class AppNotFound extends NotFoundError {
   readonly code = 'app.not_found'

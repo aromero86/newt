@@ -1,7 +1,31 @@
 {
-  "name": "newt-eslint",
-  "version": "0.0.0",
+  "name": "newt-kit-eslint",
+  "version": "0.1.0",
   "description": "The lint of an application built with newt: every module made of the same files, reaching others only through what they offer, and writing only through its repository.",
+  "license": "MIT",
+  "author": "Angel Romero",
+  "homepage": "https://github.com/aromero86/newt/tree/main/packages/newt-eslint#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aromero86/newt.git",
+    "directory": "packages/newt-eslint"
+  },
+  "bugs": "https://github.com/aromero86/newt/issues",
+  "keywords": [
+    "eslint",
+    "eslint-plugin",
+    "newt",
+    "architecture"
+  ],
+  "files": [
+    "index.js",
+    "paths.js",
+    "rules",
+    "!**/*.test.ts",
+    "!**/*.test.js",
+    "!**/*.test.tsx",
+    "!tsconfig.json"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -15,5 +39,8 @@
   },
   "devDependencies": {
     "eslint": "10.12.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

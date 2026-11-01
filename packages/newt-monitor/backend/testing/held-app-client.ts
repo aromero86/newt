@@ -1,4 +1,4 @@
-import type { ApplicationDescription } from 'newt/runtime'
+import type { ApplicationDescription } from 'newt-kit/runtime'
 import type { Endpoint } from '../shared/app-client/app-client'
 import { HttpAppClient } from '../shared/app-client/http-app-client'
 

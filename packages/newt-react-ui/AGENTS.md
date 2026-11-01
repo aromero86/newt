@@ -1,4 +1,4 @@
-# newt-react-ui, for coding agents
+# newt-kit-react-ui, for coding agents
 
 The components of a React frontend of a newt application. Read this before writing
 any UI: what there is, and the one rule that keeps every app the same.
@@ -8,7 +8,7 @@ any UI: what there is, and the one rule that keeps every app the same.
 **A page composes components. It never styles.** Outside the app's own components
 folder there is no `className`, `class`, `style` nor `<style>`, no HTML element but
 `form` and `fieldset`, no Radix, no `cn` nor `class-variance-authority`. The lint
-(`newt-react-ui/lint`) refuses them.
+(`newt-kit-react-ui/lint`) refuses them.
 
 When nothing here fits:
 
@@ -24,7 +24,7 @@ When nothing here fits:
 
 ```css
 /* the app's stylesheet */
-@import "newt-react-ui/theme.css";
+@import "newt-kit-react-ui/theme.css";
 @source "./";
 ```
 
@@ -37,12 +37,12 @@ When nothing here fits:
 
 ```js
 // eslint.config.js
-import { newtReactUi } from 'newt-react-ui/lint'
+import { newtReactUi } from 'newt-kit-react-ui/lint'
 export default [...newtReactUi({ files: ['web/**/*.{ts,tsx}'], components: ['web/components/**'] })]
 ```
 
 Light is the default theme; `dark` on `<html>` switches it. Import each component by
-its folder: `import { Button } from 'newt-react-ui/button'`.
+its folder: `import { Button } from 'newt-kit-react-ui/button'`.
 
 ## The components
 
@@ -129,4 +129,4 @@ its folder: `import { Button } from 'newt-react-ui/button'`.
 | Component | For |
 |---|---|
 | `LinkProvider` | Every link of the library through the app's router; once, around the app. |
-| `RouterLinkProvider` (`newt-react-ui/router-link`) | The same, for React Router. |
+| `RouterLinkProvider` (`newt-kit-react-ui/router-link`) | The same, for React Router. |

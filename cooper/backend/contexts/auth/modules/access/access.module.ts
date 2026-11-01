@@ -1,4 +1,4 @@
-import { currentActor, DuplicateValue, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt/core'
+import { currentActor, DuplicateValue, eventsOf, mapPage, Module, UseCase, type Page, type PageRequest } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import { Access, AccessAdmitSchema, AccessGrantSchema, type AccessAdmitDTO, type AccessDTO, type AccessGrantDTO } from './access'
 import type { Access_Deps } from './access.deps'

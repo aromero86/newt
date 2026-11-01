@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Email } from 'newt/contract'
+import { Email } from 'newt-kit/contract'
 
 export const InvitationStatusSchema = z.enum(['pending', 'accepted', 'revoked'])
 

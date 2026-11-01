@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class AccessNotFound extends NotFoundError {
   readonly code = 'access.not_found'

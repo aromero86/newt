@@ -1,4 +1,4 @@
-// newt/application: an application's contexts, run in one process: served, their
+// newt-kit/application: an application's contexts, run in one process: served, their
 // workers started, and stopped in order on a signal.
 
 export { runContexts } from './run-contexts'

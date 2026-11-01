@@ -1,4 +1,4 @@
-import { runAsActor } from 'newt/core'
+import { runAsActor } from 'newt-kit/core'
 import { config, type Config } from '../../../config'
 import { openContexts, stopContexts, type OpenContextsOptions } from '../../../open-contexts'
 import { PRODUCTS } from '../../auth/modules/product/product.schema'

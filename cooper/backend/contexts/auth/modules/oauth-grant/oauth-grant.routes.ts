@@ -1,5 +1,5 @@
-import { DomainError, runAsActor } from 'newt/core'
-import { toErrorResponse } from 'newt/http'
+import { DomainError, runAsActor } from 'newt-kit/core'
+import { toErrorResponse } from 'newt-kit/http'
 import { AUTHORIZE_LIMIT } from '../../../../shared/rate-limits'
 import type { AuthBase } from '../../auth-base'
 import { SessionCookie } from '../session/session.schema'

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { browser, freePort, type Browser } from 'newt/testing'
+import { browser, freePort, type Browser } from 'newt-kit/testing'
 import { openTestMonitor, TEST_ADMIN, type TestMonitor } from '../../../../testing/open-test-monitor'
 
 let monitor: TestMonitor

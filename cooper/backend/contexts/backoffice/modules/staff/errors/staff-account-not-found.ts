@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 /** Nobody has an account with the email given: they sign up in auth first. */
 export class StaffAccountNotFound extends NotFoundError {

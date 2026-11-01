@@ -19,7 +19,7 @@ function savedTheme(): Theme | undefined {
 }
 
 /**
- * Light or dark, for the whole app, as newt-react-ui's theme reads it: the `dark`
+ * Light or dark, for the whole app, as newt-kit-react-ui's theme reads it: the `dark`
  * class on <html>. An app's index.html applies it before the first paint (reading
  * `THEME_STORAGE_KEY`); this service keeps it in step afterwards, following the
  * system while the visitor has made no choice.

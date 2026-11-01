@@ -1,4 +1,4 @@
-import { ConflictError } from 'newt/core'
+import { ConflictError } from 'newt-kit/core'
 
 /** Answered already, or waited too long: the application has to ask again. */
 export class AuthorizationNotOpen extends ConflictError {

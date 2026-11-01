@@ -1,5 +1,5 @@
 import { InvitationApi, type InvitationPreviewDTO } from '@cooper/api/invitation'
-import { inject, Store } from 'newt-react'
+import { inject, Store } from 'newt-kit-react'
 import { WorkspacesService } from '../../services/workspaces/workspaces.service'
 
 type InvitationState = {

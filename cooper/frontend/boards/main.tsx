@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router/dom'
-import { RouterLinkProvider } from 'newt-react-ui/router-link'
-import { Toaster } from 'newt-react-ui/toast'
-import { Requester, rootInjector, ThemeService } from 'newt-react'
+import { RouterLinkProvider } from 'newt-kit-react-ui/router-link'
+import { Toaster } from 'newt-kit-react-ui/toast'
+import { Requester, rootInjector, ThemeService } from 'newt-kit-react'
 import { router } from './app.routes'
 import { SessionService } from './services/session/session.service'
 

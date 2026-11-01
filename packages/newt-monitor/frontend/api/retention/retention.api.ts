@@ -1,5 +1,5 @@
 import type { RetentionChangeDTO, RetentionDTO } from '../../../backend/contexts/monitor/modules/retention/retention.schema'
-import { Requester } from 'newt-react'
+import { Requester } from 'newt-kit-react'
 
 /** The monitor's `retention` module: how long an application's metrics are kept. */
 export class RetentionApi extends Requester {

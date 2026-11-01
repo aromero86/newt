@@ -1,6 +1,6 @@
-import type { Page } from 'newt/contract'
+import type { Page } from 'newt-kit/contract'
 import type { DeploymentDTO } from '../../../backend/contexts/monitor/modules/deployment/deployment.schema'
-import { type PageRequest, Requester } from 'newt-react'
+import { type PageRequest, Requester } from 'newt-kit-react'
 
 /** The monitor's `deployment` module: each commit an application deployed. */
 export class DeploymentApi extends Requester {

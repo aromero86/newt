@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { AuthBase } from '../../auth-base'
 import { LastStaffNotRevocable } from './errors/last-staff-not-revocable'
 import { TenantHasAdmin } from './errors/tenant-has-admin'

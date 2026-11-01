@@ -1,4 +1,4 @@
-/* The app's styles: newt-react-ui's theme, and cooper's own components, which Tailwind
+/* The app's styles: newt-kit-react-ui's theme, and cooper's own components, which Tailwind
    reads for the classes they use. Pages use none. */
-@import "newt-react-ui/theme.css";
+@import "newt-kit-react-ui/theme.css";
 @source "../../libs/ui";

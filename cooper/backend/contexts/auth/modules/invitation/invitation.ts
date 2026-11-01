@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Email, Entity, now, SecretToken, type EntityInput } from 'newt/core'
+import { Email, Entity, now, SecretToken, type EntityInput } from 'newt-kit/core'
 import { Invitation_Accepted } from './events/invitation-accepted'
 import { Invitation_Created } from './events/invitation-created'
 import { Invitation_Revoked } from './events/invitation-revoked'

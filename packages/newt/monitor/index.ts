@@ -1,4 +1,4 @@
-// newt/monitor: what an application tells whoever monitors it, on a port of its own,
+// newt-kit/monitor: what an application tells whoever monitors it, on a port of its own,
 // only to requests signed with a key both share; and how such a request is signed.
 
 export { serveMonitor } from './serve-monitor'

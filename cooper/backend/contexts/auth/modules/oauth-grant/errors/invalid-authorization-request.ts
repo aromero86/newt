@@ -1,4 +1,4 @@
-import { ValidationError } from 'newt/core'
+import { ValidationError } from 'newt-kit/core'
 
 /**
  * A client asked for access the wrong way. The person is shown why, and the browser

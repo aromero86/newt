@@ -1,4 +1,4 @@
-import { TableRepository } from 'newt/repository'
+import { TableRepository } from 'newt-kit/repository'
 import type { z } from 'zod'
 import type { MonitorBase } from '../../../../monitor-base'
 import { App, type AppSchema } from './app'

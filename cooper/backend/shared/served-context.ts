@@ -1,5 +1,5 @@
-import { BoundedContext } from 'newt/runtime'
-import type { ServeOptions } from 'newt/http'
+import { BoundedContext } from 'newt-kit/runtime'
+import type { ServeOptions } from 'newt-kit/http'
 import type { CooperBase } from './cooper-base'
 
 export type ServedContextConfig = {

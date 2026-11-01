@@ -71,17 +71,17 @@ tester.run('module-boundaries', moduleBoundaries, {
 
 tester.run('schema-imports', schemaImports, {
   valid: [
-    { code: "import { defineFilter, Email } from 'newt/contract'", filename: `${MODULE}/price-change.schema.ts` },
+    { code: "import { defineFilter, Email } from 'newt-kit/contract'", filename: `${MODULE}/price-change.schema.ts` },
     { code: "import { z } from 'zod'", filename: `${MODULE}/price-change.schema.ts` },
     { code: "import type { ProductDTO } from '../product/product.schema'", filename: `${MODULE}/price-change.schema.ts` },
-    { code: "import { Module } from 'newt/core'", filename: `${MODULE}/price-change.module.ts` },
+    { code: "import { Module } from 'newt-kit/core'", filename: `${MODULE}/price-change.module.ts` },
     { code: "import { newtish } from 'newt-extras'", filename: `${MODULE}/price-change.schema.ts` },
   ],
   invalid: [
-    { code: "import { ValidationError } from 'newt/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
-    { code: "import type { Page } from 'newt/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
-    { code: "export * from 'newt/runtime'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
-    { code: "const core = await import('newt/core')", filename: '/repo/examples/shop/modules/order/order.schema.ts', errors: [{ messageId: 'server' }] },
+    { code: "import { ValidationError } from 'newt-kit/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "import type { Page } from 'newt-kit/core'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "export * from 'newt-kit/runtime'", filename: `${MODULE}/price-change.schema.ts`, errors: [{ messageId: 'server' }] },
+    { code: "const core = await import('newt-kit/core')", filename: '/repo/examples/shop/modules/order/order.schema.ts', errors: [{ messageId: 'server' }] },
   ],
 })
 
@@ -238,7 +238,7 @@ tester.run('use-case', useCase, {
     { code: moduleClass('place(input: string): void\nplace(input: number): void\n@UseCase() place(input: unknown) {}'), filename: ORDER_MODULE },
     { code: moduleClass('static { }\n[key: string]: unknown\n@UseCase() place() {}'), filename: ORDER_MODULE },
     { code: 'class Order_Module extends core.Module { @core.UseCase() async place(input: unknown) {} }', filename: ORDER_MODULE },
-    { code: "import { Module, UseCase as UC } from 'newt/core'\n" + moduleClass('@UC() async place(input: unknown) {}'), filename: ORDER_MODULE },
+    { code: "import { Module, UseCase as UC } from 'newt-kit/core'\n" + moduleClass('@UC() async place(input: unknown) {}'), filename: ORDER_MODULE },
     { code: moduleClass('constructor(private readonly run: () => void, readonly name: string) { super() }'), filename: ORDER_MODULE },
     // Not a module: another class, or another file.
     { code: 'class Order_Helper { place() {} }', filename: ORDER_MODULE },
@@ -250,7 +250,7 @@ tester.run('use-case', useCase, {
     { code: moduleClass('@Traced() place() {}'), filename: ORDER_MODULE, errors: [{ messageId: 'method' }] },
     { code: moduleClass('place = async (input: unknown) => {}'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
     { code: 'export default class extends core.Module { place() {} }', filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'this module' } }] },
-    { code: "import { Module as Base } from 'newt/core'\nclass O extends Base { async place(input: unknown) {} }", filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'O' } }] },
+    { code: "import { Module as Base } from 'newt-kit/core'\nclass O extends Base { async place(input: unknown) {} }", filename: ORDER_MODULE, errors: [{ messageId: 'method', data: { name: 'place', module: 'O' } }] },
     { code: moduleClass('place = this.run.bind(this)'), filename: ORDER_MODULE, errors: [{ messageId: 'field', data: { name: 'place', module: 'Order_Module' } }] },
     { code: moduleClass('place = wrap(async () => {})'), filename: ORDER_MODULE, errors: [{ messageId: 'field' }] },
     { code: moduleClass('constructor(public readonly place: () => Promise<void>) { super() }'), filename: ORDER_MODULE, errors: [{ messageId: 'field', data: { name: 'place', module: 'Order_Module' } }] },

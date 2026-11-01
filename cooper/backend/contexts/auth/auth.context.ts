@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { Clock } from 'newt/core'
+import type { Clock } from 'newt-kit/core'
 import { openStore } from '../../shared/open-store'
 import { ServedContext } from '../../shared/served-context'
 import { AuthBase } from './auth-base'

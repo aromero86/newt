@@ -1,4 +1,4 @@
-import { NotFoundError } from 'newt/core'
+import { NotFoundError } from 'newt-kit/core'
 
 export class ColumnNotFound extends NotFoundError {
   readonly code = 'column.not_found'

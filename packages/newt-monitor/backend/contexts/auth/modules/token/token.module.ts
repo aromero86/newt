@@ -1,4 +1,4 @@
-import { Module, now, UseCase } from 'newt/core'
+import { Module, now, UseCase } from 'newt-kit/core'
 import type { AuthBase } from '../../auth-base'
 import { InvalidRefreshToken } from './errors/invalid-refresh-token'
 import {

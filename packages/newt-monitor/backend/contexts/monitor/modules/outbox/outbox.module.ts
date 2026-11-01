@@ -1,5 +1,5 @@
-import type { DeadJobs, OutboxState } from 'newt/contract'
-import { Module, now, UseCase } from 'newt/core'
+import type { DeadJobs, OutboxState } from 'newt-kit/contract'
+import { Module, now, UseCase } from 'newt-kit/core'
 import type { MonitorBase } from '../../../../monitor-base'
 import { AppGone } from '../../../../shared/metrics-store/metrics-store'
 import { BUCKETS, DEFAULT_BUCKET, WINDOWS } from '../event-metrics/event-metrics.schema'

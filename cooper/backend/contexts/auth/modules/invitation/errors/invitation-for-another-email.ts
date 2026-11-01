@@ -1,4 +1,4 @@
-import { ForbiddenError } from 'newt/core'
+import { ForbiddenError } from 'newt-kit/core'
 
 /** The link reached someone signed in with another email than the one invited. */
 export class InvitationForAnotherEmail extends ForbiddenError {

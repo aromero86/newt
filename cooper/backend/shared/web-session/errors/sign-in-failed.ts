@@ -1,4 +1,4 @@
-import { UnauthorizedError } from 'newt/core'
+import { UnauthorizedError } from 'newt-kit/core'
 
 /** auth would not trade the code, or its token said nothing of this app. */
 export class SignInFailed extends UnauthorizedError {
