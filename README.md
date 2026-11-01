@@ -57,7 +57,7 @@ with Bun from @newt-kit/react-ui and @newt-kit/react, or, in development (`bun r
 from its sources, rebuilt as they change. What it keeps goes to `data/`. It imports
 newt by its name (`@newt-kit/newt/runtime`), which the root `tsconfig.json` points at `packages/newt`.
 
-Releases: [`RELEASING.md`](RELEASING.md).
+Releases: [`RELEASING.md`](RELEASING.md). Security issues: [`SECURITY.md`](SECURITY.md).
 
 ## License
 

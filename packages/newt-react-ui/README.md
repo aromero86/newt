@@ -14,3 +14,4 @@ app sees them: `bun run ui` in newt's repository.
 
 Tailwind 4 builds its styles: with Bun, `bun-plugin-tailwind` (`bunfig.toml`); with
 Vite, `@tailwindcss/vite`. The app's stylesheet imports `@newt-kit/react-ui/theme.css`.
+Its `tsconfig.json` has the DOM in `lib` (`["ESNext", "DOM", "DOM.Iterable"]`).

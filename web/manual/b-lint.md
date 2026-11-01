@@ -9,7 +9,7 @@ imports the server, or that a queue names a use case its callback never calls. `
 in `bun run lint`.
 
 ```sh
-bun add -d @newt-kit/eslint eslint
+bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
 bun run lint        # "lint": "eslint" in package.json
 ```
 
