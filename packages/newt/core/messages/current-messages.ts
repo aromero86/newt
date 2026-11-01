@@ -14,6 +14,7 @@ export const currentMessages: { value: Messages } = {
     validation: () => 'The request is not valid',
     malformed_body: () => 'The body of the request cannot be read',
     unsupported_media_type: () => 'The body of the request must be sent as application/json',
+    cross_origin_refused: () => 'This cannot be done from a page of another site',
     payload_too_large: ({ maxBytes }) => `The body of the request is longer than the ${maxBytes} bytes it may be`,
     idempotency_key_in_use: () => 'A request with this Idempotency-Key is still in progress: try again once it ends',
     idempotency_key_reused: () => 'This Idempotency-Key was sent before with another body: send a new key for another request',

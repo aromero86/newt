@@ -13,6 +13,7 @@ import { HttpGroup } from './http-group'
 import { idempotent } from './idempotent'
 import { withHeaders } from './security-headers'
 import { addLimits, rateLimited } from './rate-limited'
+import { sameOrigin } from './same-origin'
 import type { HttpMethod } from './http-method'
 import type { HttpRoute } from './http-route'
 import type { RouteOptions } from './route-options'
@@ -168,7 +169,9 @@ export class HttpRouter {
     const once = options.idempotency && method === 'POST' ? idempotent(any, options.idempotency) : any
     // Counted as whoever is signed in: past the session, before anything else.
     const limited = rateLimited(once, options.rateLimit || [], this.rateLimits, this.clock)
-    const guarded = options.public ? limited : this.signedIn(limited)
+    const signed = options.public ? limited : this.signedIn(limited)
+    // Before anything else: a write another site's page sends is refused, signed in or not.
+    const guarded = method === 'GET' || options.crossOrigin ? signed : sameOrigin(signed, options.cors)
     entry.byMethod.set(method, { route: entry.path === fullPath ? guarded : renamingParams(entry.path, fullPath, guarded), options })
     this.table.set(shapeOf(fullPath), entry)
   }

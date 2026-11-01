@@ -20,4 +20,10 @@ export type RouteOptions = {
   rateLimit?: HttpRateLimit | HttpRateLimit[] | false
   /** How long its request's body may be, in bytes: a 413 past it. A megabyte unless told. */
   maxBodyBytes?: number
+  /**
+   * A route that writes (POST, PUT, PATCH, DELETE) refuses what pages of other origins
+   * send it, but those its `cors` names: a 403 (`cross_origin_refused`). `true` takes
+   * them, for a form another site posts back on purpose (a payment's, a sign-in's).
+   */
+  crossOrigin?: boolean
 }
