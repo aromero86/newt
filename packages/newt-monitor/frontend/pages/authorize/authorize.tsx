@@ -45,7 +45,7 @@ function AuthorizeWrapped() {
       {failure && <Alert tone="bad" title="Could not go on">{failure}</Alert>}
       {review && (
         <Card
-          title={<>{review.clientName} asks to read newt-monitor</>}
+          title={<>An application calling itself “{review.clientName}” asks to read newt-monitor</>}
           footer={review.open && (
             <Inline gap={2}>
               <Button loading={answering === 'approve'} disabled={answering !== null} onClick={() => void service.answer('approve')}>Allow</Button>
@@ -57,7 +57,9 @@ function AuthorizeWrapped() {
             ? (
                 <Stack gap={2}>
                   <Text>It will see everything the monitor knows of every application: their structure, metrics, traces, queues, servers and instances. It cannot change anything.</Text>
-                  <Text size="sm" tone="muted">You go back to <Mono>{review.redirectHost}</Mono> after answering.</Text>
+                  <Text>It will be answered at <Mono>{review.redirectHost}</Mono>.</Text>
+                  {/* Anyone registers a client, under any name: the name proves nothing, where it is answered does. */}
+                  <Alert tone="warn" title="Its name is not checked">Allow it only if you are connecting it yourself right now, and <Mono>{review.redirectHost}</Mono> is the application you expect.</Alert>
                 </Stack>
               )
             : <Text>This request was answered already or has expired: go back to the application and connect it again.</Text>}

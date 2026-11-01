@@ -227,7 +227,7 @@ export class HttpAppClient implements AppClient {
     const url = `${endpoint.url}/v1/metrics/live`
     let response: Response
     try {
-      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal })
+      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal, redirect: 'manual' })
     } catch (error) {
       throw new AppCallFailed('unreachable', `Nobody answered at ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -250,11 +250,13 @@ export class HttpAppClient implements AppClient {
     const signal = AbortSignal.timeout(this.timeoutMs)
     let response: Response
     try {
-      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal })
+      response = await fetch(url, { headers: signMonitorRequest(endpoint.key, { url }), signal, redirect: 'manual' })
     } catch (error) {
       throw new AppCallFailed('unreachable', `Nobody answered at ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`)
     }
     if (response.status === 401) throw new AppCallFailed('key_rejected', `${endpoint.url} refused the signature: the key is not the application's`)
+    // Never followed: the monitor asks the address it was given, and no other one an answer names.
+    if (response.status >= 300 && response.status < 400) throw new AppCallFailed('bad_answer', `${endpoint.url} sent it elsewhere (${response.status}): give the address that answers itself`)
     if (!response.ok) throw new AppCallFailed('bad_answer', `${endpoint.url} answered ${response.status}: is it a monitor endpoint?`)
     try {
       return await response.json()

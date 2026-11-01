@@ -126,6 +126,15 @@ export class Token_Module extends Module {
   }
 
   /**
+   * Revokes every token: the person who let their clients in is no longer the one the
+   * monitor's settings name, or their password changed. Each client asks again.
+   */
+  @UseCase()
+  async revokeAll(): Promise<number> {
+    return this.repo.removeAll()
+  }
+
+  /**
    * Removes the tokens whose refresh token expired: they open nothing, and nobody gives
    * back a token they lost. What the nightly worker calls; the second time, there are none.
    */

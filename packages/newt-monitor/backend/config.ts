@@ -25,6 +25,8 @@ const EnvSchema = z.object({
   NEWT_MONITOR_FRONTEND: z.string().trim().min(1).default(join(import.meta.dir, '../dist/frontend')),
   /** `1` (`bun run monitor` sets it): the frontend from its sources, which Bun builds as it serves them. */
   NEWT_MONITOR_FRONTEND_SOURCES: z.enum(['0', '1']).default('0'),
+  /** How many proxies in front of it add to `X-Forwarded-For`, so its rate limits by address count the person's: 1 behind Coolify's. */
+  NEWT_MONITOR_TRUST_PROXY: z.preprocess(unset, z.coerce.number().int().min(0).default(0)),
   /** A GitHub token that reads the applications' repositories (Contents: read): each commit deployed gets its message. None reads only public ones. */
   NEWT_MONITOR_GITHUB_TOKEN: z.string().trim().optional(),
 })
@@ -48,6 +50,8 @@ export type MonitorConfig = {
   metricsFolder: string
   /** What reads the commits' messages from GitHub: null reads only public repositories. */
   githubToken: string | null
+  /** How many proxies in front of it to trust for the caller's address (`ServeOptions.trustProxy`). */
+  trustProxy: number
 }
 
 /**
@@ -74,6 +78,7 @@ export function readConfig(env: Record<string, string | undefined>): MonitorConf
     frontendSources: data.NEWT_MONITOR_FRONTEND_SOURCES === '1',
     metricsFolder: data.NEWT_MONITOR_DATA === ':memory:' ? ':memory:' : join(dirname(data.NEWT_MONITOR_DATA), 'metrics'),
     githubToken: data.NEWT_MONITOR_GITHUB_TOKEN || null,
+    trustProxy: data.NEWT_MONITOR_TRUST_PROXY,
   }
 }
 

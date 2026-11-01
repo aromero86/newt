@@ -5,9 +5,10 @@ const LOOPBACK = ['localhost', '127.0.0.1', '[::1]']
 
 /**
  * Where a client receives its codes: https, or http only on the person's own
- * computer. Never with a fragment, which the code could not travel in.
+ * computer. Never with a fragment, which the code could not travel in, nor longer
+ * than an address a browser takes.
  */
-export const OauthClientRedirectUriSchema = z.url('Write a valid address').refine(uri => {
+export const OauthClientRedirectUriSchema = z.url('Write a valid address').max(2000, 'Use at most 2000 characters').refine(uri => {
   const url = new URL(uri)
   if (url.hash) return false
   return url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK.includes(url.hostname))

@@ -48,6 +48,7 @@ describe('its settings', () => {
       frontendSources: false,
       metricsFolder: 'data/metrics',
       githubToken: null,
+      trustProxy: 0,
     })
   })
 

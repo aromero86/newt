@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { currentActor, Module, now, SecretToken, UseCase, type Actor } from 'newt/core'
 import type { AuthBase } from '../../auth-base'
 import { WrongCredentials } from './errors/wrong-credentials'
@@ -15,6 +15,14 @@ import { registerSessionWorkers } from './session.workers'
 function same(given: string, expected: string): boolean {
   const digest = (text: string) => createHash('sha256').update(text).digest()
   return timingSafeEqual(digest(given), digest(expected))
+}
+
+/**
+ * Who signs in and their password, told apart without either: an HMAC under the
+ * monitor's secret, so a copy of the database says nothing of the password.
+ */
+export function credentialsOf(user: string, password: string, secret: string): string {
+  return createHmac('sha256', secret).update(`${user}\n${password}`).digest('base64url')
 }
 
 /**
@@ -90,6 +98,24 @@ export class Session_Module extends Module {
   @UseCase()
   async purgeExpired(): Promise<number> {
     return this.repo.purgeExpired(now())
+  }
+
+  /**
+   * Whether the monitor started with another user or password than its sessions were
+   * opened with: whatever they opened must end. The first time it is asked, nothing
+   * was, and it keeps these.
+   */
+  @UseCase()
+  async credentialsChanged(): Promise<boolean> {
+    const opened = await this.repo.openedWith()
+    if (opened === undefined) await this.repo.openWith(this.options.credentials)
+    return opened !== undefined && opened !== this.options.credentials
+  }
+
+  /** Ends every session, and the next ones are opened with the credentials the monitor has now: how many it ended. */
+  @UseCase()
+  async endAll(): Promise<number> {
+    return this.repo.endAll(this.options.credentials)
   }
 
   private async find(token: string | undefined): Promise<Session | undefined> {

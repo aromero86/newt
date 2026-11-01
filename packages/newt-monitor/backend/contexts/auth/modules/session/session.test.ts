@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { browser, type Browser } from 'newt/testing'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { browser, freePort, type Browser } from 'newt/testing'
 import { openTestMonitor, TEST_ADMIN, type TestMonitor } from '../../../../testing/open-test-monitor'
 
 let monitor: TestMonitor
@@ -49,6 +52,19 @@ describe('session', () => {
     expect((await as('/api/session')).status).toBe(401)
     // Signing out twice is signing out once.
     expect((await as('/api/session', { method: 'DELETE' })).status).toBe(204)
+  })
+
+  test('lets one address guess ten times in a quarter of an hour, the right password included, until they are behind it', async () => {
+    const as = browser(monitor.url)
+    for (let guess = 0; guess < 10; guess++) expect((await as('/api/session', { method: 'POST', json: { ...TEST_ADMIN, password: `guess number ${guess}` } })).status).toBe(401)
+
+    const refused = await as('/api/session', { method: 'POST', json: TEST_ADMIN })
+    expect(refused.status).toBe(429)
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+
+    // The window slides: the guesses of the quarter before still weigh, those of two before no longer.
+    time += 30 * 60_000
+    expect((await as('/api/session', { method: 'POST', json: TEST_ADMIN })).status).toBe(200)
   })
 
   test('ends once its hours are up', async () => {
@@ -109,5 +125,45 @@ describe('every night', () => {
     expect((await rows('oauth_grant')).map(grant => grant.status).toSorted()).toEqual(['pending', 'redeemed', 'redeemed'])
     expect(await rows('token')).toHaveLength(1)
     expect((await now('/api/session')).status).toBe(200)
+  })
+})
+
+describe('started with another password', () => {
+  let folder: string
+
+  beforeEach(async () => {
+    folder = await mkdtemp(join(tmpdir(), 'monitor-credentials-'))
+  })
+
+  afterEach(() => rm(folder, { recursive: true, force: true }))
+
+  test('ends every session and revokes every token the old one opened; with the same one, none', async () => {
+    await monitor.close()
+    // On files, and the same port each time: the browser keeps its cookie for it.
+    const files = { port: freePort(), database: join(folder, 'monitor.db'), authDatabase: join(folder, 'monitor-auth.db'), metricsFolder: join(folder, 'metrics') }
+    const CALLBACK = 'http://localhost:6274/oauth/callback'
+    const VERIFIER = 'v'.repeat(43)
+    const challenge = new Bun.CryptoHasher('sha256').update(VERIFIER).digest('base64url')
+
+    monitor = await openTestMonitor({ clock, ...files })
+    const as = await monitor.signedIn()
+    const { client_id: clientId } = (await (await monitor.fetch('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CALLBACK] }) })).json()) as { client_id: string }
+    const query = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, code_challenge: challenge, code_challenge_method: 'S256' })
+    const request = (await as(`/oauth/authorize?${query}`)).headers.get('location')!.split('/authorize/')[1]!
+    const { redirectTo } = (await (await as(`/api/authorizations/${request}/approve`, { method: 'POST' })).json()) as { redirectTo: string }
+    const code = new URL(redirectTo).searchParams.get('code')!
+    const tokens = (await (await monitor.fetch('/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: VERIFIER, client_id: clientId, redirect_uri: CALLBACK }) })).json()) as { access_token: string }
+    await monitor.close()
+
+    // The same user and password: everything goes on.
+    monitor = await openTestMonitor({ clock, ...files })
+    expect((await as('/api/session')).status).toBe(200)
+    expect(await monitor.auth.modules.token.verify(tokens.access_token)).not.toBeNull()
+    await monitor.close()
+
+    // Another password: nothing the old one opened does.
+    monitor = await openTestMonitor({ clock, ...files, admin: { ...TEST_ADMIN, password: 'another password, as long' } })
+    expect((await as('/api/session')).status).toBe(401)
+    expect(await monitor.auth.modules.token.verify(tokens.access_token)).toBeNull()
   })
 })

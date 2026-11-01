@@ -2,7 +2,7 @@ import type { MonitorConfig } from '../../config'
 import type { AuthBase } from './auth-base'
 import { OauthClient_Module } from './modules/oauth-client/oauth-client.module'
 import { OauthGrant_Module } from './modules/oauth-grant/oauth-grant.module'
-import { Session_Module } from './modules/session/session.module'
+import { credentialsOf, Session_Module } from './modules/session/session.module'
 import { Token_Module } from './modules/token/token.module'
 import { registerOauthServerMetadata } from './oauth-server-metadata'
 
@@ -16,6 +16,7 @@ const TOKEN_LIFETIME = { accessMinutes: 60, refreshDays: 30 }
 export function initializeModules(base: AuthBase, config: MonitorConfig) {
   const session = Session_Module.initialize(base, {
     ...config.admin,
+    credentials: credentialsOf(config.admin.user, config.admin.password, config.secret),
     hours: config.sessionHours,
     secureCookie: new URL(config.publicUrl).protocol === 'https:',
   })

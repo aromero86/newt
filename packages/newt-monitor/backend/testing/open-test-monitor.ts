@@ -28,6 +28,7 @@ const TEST_CONFIG: MonitorConfig = {
   frontendSources: false,
   metricsFolder: ':memory:',
   githubToken: null,
+  trustProxy: 0,
 }
 
 /** A test never asks GitHub: no commit has a message, unless it gives messages of its own. */

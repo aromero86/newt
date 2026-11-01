@@ -128,6 +128,18 @@ describe('the MCP server', () => {
     expect((await fetch(`${url}/oauth/token`, form({ grant_type: 'refresh_token', refresh_token: third.refresh_token, client_id: clientId }))).status).toBe(400)
   })
 
+  test('registers a few small clients from each address, never one too large', async () => {
+    const register = (body: string) => fetch(`${url}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+
+    expect((await register(JSON.stringify({ redirect_uris: [`https://claude.example/${'a'.repeat(2000)}`] }))).status).toBe(400)
+    expect((await register(JSON.stringify({ client_name: 'Claude', redirect_uris: [CALLBACK], padding: 'x'.repeat(20_000) }))).status).toBe(413)
+    // Ten in an hour, the one refused for what it said too; one too large is refused before it counts.
+    for (let more = 1; more < 10; more++) expect((await register(JSON.stringify({ redirect_uris: [CALLBACK] }))).status).toBe(201)
+    const refused = await register(JSON.stringify({ redirect_uris: [CALLBACK] }))
+    expect(refused.status).toBe(429)
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+  })
+
   test('sends the person back with nothing when they say no, and never to an address the client did not register', async () => {
     const registered = await fetch(`${url}/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CALLBACK] }) })
     const { client_id: clientId } = (await registered.json()) as { client_id: string }
