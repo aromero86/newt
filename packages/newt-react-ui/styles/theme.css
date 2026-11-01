@@ -7,46 +7,48 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* newt's palette is gruvbox: its paper in light, its wood in dark, aqua for what is
-   selected, and gruvbox's own green, yellow and red for each state (ok, warn, bad);
-   blue for links and info. Corners stay small. Light is the default theme; dark follows
-   the visitor's choice or their system. */
+/* Light is nearly white paper with gruvbox's dark tones for its ink: the hard text of
+   its wood, its faded aqua for the brand and what is selected, and its own green, yellow
+   and red for each state (ok, warn, bad); blue for info. Borders are faint, corners
+   round. Dark is gruvbox as it is. Light is the default theme; dark follows the
+   visitor's choice or their system. */
 :root {
-  --radius: 0.25rem;
-  --background: #fbf1c7;
-  --foreground: #3c3836;
-  --card: #f9f5d7;
-  --card-foreground: #3c3836;
-  --popover: #f9f5d7;
-  --popover-foreground: #3c3836;
-  --primary: #3c3836;
-  --primary-foreground: #fbf1c7;
-  --secondary: #f2e5bc;
-  --secondary-foreground: #3c3836;
-  --muted: #ebdbb2;
+  --radius: 0.75rem;
+  --background: #fcfbf8;
+  --foreground: #282828;
+  --card: #ffffff;
+  --card-foreground: #282828;
+  --popover: #ffffff;
+  --popover-foreground: #282828;
+  --primary: #427b58;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f1ec;
+  --secondary-foreground: #282828;
+  --muted: #f3f1ec;
   --muted-foreground: #7c6f64;
-  --accent: #f2e5bc;
+  --accent: #eef3ef;
   --accent-foreground: #282828;
-  --destructive: #9d0006;
-  --border: #d5c4a1;
-  --input: #d5c4a1;
+  --destructive: #cc241d;
+  --border: #eae6dc;
+  --input: #e2ddd1;
   --ring: #427b58;
-  --brand: #076678;
+  --brand: #427b58;
   --ok: #79740e;
   --warn: #b57614;
-  --bad: #9d0006;
+  --bad: #cc241d;
   --info: #076678;
-  --subtle: #f2e5bc;
+  --subtle: #f8f7f3;
   --avatar-1: #689d6a;
   --avatar-2: #458588;
   --avatar-3: #b16286;
   --avatar-4: #d79921;
   --avatar-5: #cc241d;
   --avatar-6: #98971a;
-  --on-avatar: #fbf1c7;
+  --on-avatar: #ffffff;
 }
 
 .dark {
+  --on-avatar: #fbf1c7;
   --background: #1d2021;
   --foreground: #ebdbb2;
   --card: #282828;
