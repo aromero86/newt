@@ -1,6 +1,6 @@
 {
   "name": "@newt-kit/monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Watches newt applications: what each one is made of, read from it as it runs, never from its data. A newt application itself.",
   "license": "MIT",
   "author": "Angel Romero",
