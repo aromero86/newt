@@ -9,14 +9,15 @@ imports the server, or that a queue names a use case its callback never calls. `
 in `bun run lint`.
 
 ```sh
-bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+bun add -d @newt-kit/eslint eslint
 bun run lint        # "lint": "eslint" in package.json
 ```
 
-::: warning Watch out
-typescript-eslint does not run on TypeScript 7 yet. Install TypeScript 6 under the name
-`typescript`, as the repository's root `package.json` does:
-`"typescript": "npm:@typescript/typescript6@6.0.2"`.
+::: tip TypeScript 7
+typescript-eslint does not run on TypeScript 7 yet, so `@newt-kit/eslint` brings its own
+TypeScript 6 for it. The application keeps the TypeScript 7 that `bun init` adds, and
+`bun check` runs on it; a config of its own parses with the same TypeScript 6 through the
+package's `parser`.
 :::
 
 ## How it finds modules and contexts

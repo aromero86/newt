@@ -23,6 +23,12 @@ export const plugin = {
   },
 }
 
+/**
+ * The parser of TypeScript that newt's lint reads with, for an app's own configs: typescript-eslint
+ * on the TypeScript 6 this package carries, whichever TypeScript the app has.
+ */
+export const parser = tseslint.parser
+
 /** Where a module's files are: anything under a `modules/<module>/` folder. */
 const MODULES = '**/modules/*/**/*.ts'
 

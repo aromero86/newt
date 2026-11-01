@@ -11,11 +11,11 @@ It runs on Bun only: it uses `Bun.serve`, `bun:sqlite` and Bun's APIs as they ar
 
 ```sh
 bun add @newt-kit/newt zod
-bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+bun add -d @newt-kit/eslint eslint
 ```
 
-newt's lint runs on TypeScript 6 for now (typescript-eslint does not support 7 yet): in a
-project made with `bun init`, `bun remove typescript` first.
+It works with the TypeScript 7 that `bun init` adds: `bun check` runs on it, and newt's lint
+brings the TypeScript 6 that typescript-eslint runs on.
 
 A coding agent reads [`AGENTS.md`](./AGENTS.md) first: the framework's rules on one
 page, what each error it throws means and what to do about it, the lint's rules and a

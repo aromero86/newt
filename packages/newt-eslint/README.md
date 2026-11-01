@@ -4,7 +4,7 @@ The lint of an application built with newt: what keeps every module the same,
 whoever writes it.
 
 ```bash
-bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+bun add -d @newt-kit/eslint eslint
 ```
 
 ```js
@@ -47,5 +47,6 @@ includes every file it lints).
 
 The rules alone are `plugin`, for a configuration of your own.
 
-typescript-eslint does not run on TypeScript 7 yet: install TypeScript 6 as
-`typescript`, for instance as `"typescript": "npm:@typescript/typescript6@6.0.2"`.
+typescript-eslint does not run on TypeScript 7 yet, so this package brings its own
+TypeScript 6 for it: the application keeps whichever TypeScript it has, 7 as `bun init`
+adds it too. A config of your own parses with the same one through `parser`.
