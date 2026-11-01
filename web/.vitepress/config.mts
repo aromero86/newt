@@ -71,6 +71,9 @@ const sidebar: DefaultTheme.Sidebar = {
   ],
 }
 
+/** Where the site is served from: the root on its own domain, /newt/ on GitHub Pages (DOCS_BASE). */
+const base = process.env.DOCS_BASE ?? '/'
+
 export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun, with a monitor that sees everything it runs',
@@ -94,12 +97,13 @@ export default defineConfig({
       },
     },
   },
+  base,
   cleanUrls: true,
   head: [
     ['meta', { name: 'theme-color', content: '#427b58' }],
-    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
-    ['link', { rel: 'icon', href: '/favicon.ico', sizes: '48x48' }],
-    ['link', { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }],
+    ['link', { rel: 'icon', href: `${base}favicon.svg`, type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: `${base}favicon.ico`, sizes: '48x48' }],
+    ['link', { rel: 'apple-touch-icon', href: `${base}apple-touch-icon.png` }],
   ],
   markdown: {
     theme: { light: gruvboxLight, dark: gruvboxDark },
