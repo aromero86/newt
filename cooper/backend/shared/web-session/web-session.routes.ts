@@ -1,5 +1,6 @@
 import type { BunRequest } from 'bun'
 import { DomainError } from 'newt/core'
+import { clearSessionCookie, setSessionCookie } from 'newt/http'
 import type { CooperBase } from '../cooper-base'
 import { ownPath, type WebSession_Module } from './web-session.module'
 import type { WebSession_Options } from './web-session-options'
@@ -21,7 +22,7 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
   base.http.get('/session/sign-in', async request => {
     const { location, pending } = await sessions.begin(new URL(request.url).searchParams.get('returnTo') ?? undefined)
     // Sent back only to the callback, and only for a while.
-    request.cookies.set(cookies.signIn, pending, { httpOnly: true, sameSite: 'lax', secure, path: '/api/session', maxAge: SIGN_IN_SECONDS })
+    setSessionCookie(request, cookies.signIn, pending, { secure, path: '/api/session', maxAgeSeconds: SIGN_IN_SECONDS })
     return redirect(location)
   }, { public: true })
 
@@ -30,7 +31,7 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
   base.http.get('/session/callback', async request => {
     const query = new URL(request.url).searchParams
     const pending = request.cookies.get(cookies.signIn) ?? undefined
-    request.cookies.delete({ name: cookies.signIn, path: '/api/session' })
+    clearSessionCookie(request, cookies.signIn, { secure, path: '/api/session' })
     try {
       const { token, returnTo } = await sessions.complete({
         code: query.get('code') ?? undefined,
@@ -55,7 +56,7 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
   // back to `?returnTo=` (a path of this context: an invitation, say) or to the start.
   base.http.post('/session/sign-out', async request => {
     await sessions.signOut(request.cookies.get(cookies.session) ?? undefined)
-    request.cookies.delete({ name: cookies.session, path: '/' })
+    clearSessionCookie(request, cookies.session, { secure })
     const returnTo = new URL(request.url).searchParams.get('returnTo')
     const back = returnTo ? new URL(ownPath(returnTo), options.publicUrl).toString() : options.publicUrl
     const next = `${options.authUrl}/oauth/logout?${new URLSearchParams({ redirect: back })}`
@@ -64,6 +65,6 @@ export function registerWebSessionRoutes(base: CooperBase, sessions: WebSession_
 
   /** The session lives in a cookie the page's scripts cannot read, sent only to this context. */
   function keep(request: BunRequest, token: string) {
-    request.cookies.set(cookies.session, token, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: options.days * 24 * 60 * 60 })
+    setSessionCookie(request, cookies.session, token, { secure, maxAgeSeconds: options.days * 24 * 60 * 60 })
   }
 }
