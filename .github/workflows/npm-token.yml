@@ -1,0 +1,26 @@
+# Run by hand: whether NPM_TOKEN still signs in to npm and may write the @newt-kit
+# packages. It publishes nothing.
+name: npm-token
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Who the token is
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: What it may do with @newt-kit
+        run: npm access list packages @newt-kit
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
