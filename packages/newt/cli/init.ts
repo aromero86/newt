@@ -86,21 +86,11 @@ export async function init(cwd: string): Promise<string[]> {
     ...eslint ? [`skipped  eslint.config.js (${eslint} is there: add @newt-kit/eslint's preset to it, \`newt()\`)`] : [],
     '',
     'Next:',
-    ...await typescript7(cwd) ? ['  bun remove typescript                      TypeScript 7, as `bun init` adds it: typescript-eslint needs 6 for now'] : [],
     '  bun add @newt-kit/newt zod',
-    '  bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2',
+    '  bun add -d @newt-kit/eslint eslint',
     '  fill in AGENTS.md: the project, its contexts, its conventions',
     '  newt add module <context-folder> <module>   e.g. newt add module src/contexts/shop order',
   ]
-}
-
-/** Whether the application asks for TypeScript 7, which newt's lint cannot run on yet: any \`typescript\` but the 6 it names. */
-async function typescript7(cwd: string): Promise<boolean> {
-  // \`bun init\` asks for it twice: as a peer, and Bun installs it for typescript-eslint's own peers.
-  const manifest = Bun.file(join(cwd, 'package.json'))
-  if (!await manifest.exists()) return false
-  const { dependencies = {}, devDependencies = {}, peerDependencies = {} } = await manifest.json() as Record<string, Record<string, string> | undefined>
-  return [dependencies, devDependencies, peerDependencies].some(each => each?.typescript !== undefined && !each.typescript.includes('typescript6'))
 }
 
 /** The newt packages the application depends on that say something to agents, by name. */

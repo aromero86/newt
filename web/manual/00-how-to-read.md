@@ -154,9 +154,8 @@ A new application starts like this:
 
 ```sh
 bun init -y
-bun remove typescript         # bun init's TypeScript 7: newt's lint runs on 6 for now
 bun add @newt-kit/newt zod
-bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+bun add -d @newt-kit/eslint eslint
 bunx @newt-kit/newt init      # AGENTS.md, CLAUDE.md and newt's lint
 bunx @newt-kit/newt add module src/contexts/shop order
 ```

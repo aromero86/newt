@@ -1,4 +1,4 @@
-import tseslint from 'typescript-eslint'
+import { parser } from '@newt-kit/eslint'
 
 const STYLING = 'An app does not style: compose components of @newt-kit/react-ui, or make one in the app\'s own components folder.'
 const ELEMENT = 'A page is made of components: use one of @newt-kit/react-ui, or make one in the app\'s own components folder.'
@@ -56,7 +56,7 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
     {
       files,
       ignores: components,
-      languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
+      languageOptions: { parser, parserOptions: { ecmaFeatures: { jsx: true } } },
       rules: {
         'no-restricted-syntax': ['error',
           { selector: 'JSXAttribute[name.name=/^(className|class|style)$/]', message: STYLING },
@@ -79,7 +79,7 @@ export function newtReactUi({ files, components = [], elements = ELEMENTS, synta
     // An app with no components of its own has nothing more to say.
     ...(componentFiles.length === 0 ? [] : [{
       files: componentFiles,
-      languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
+      languageOptions: { parser, parserOptions: { ecmaFeatures: { jsx: true } } },
       rules: {
         // The app's components build on the library's, and on its primitives if they must: never on its internals.
         'no-restricted-imports': ['error', {

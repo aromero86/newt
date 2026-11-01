@@ -89,15 +89,14 @@ wrote    eslint.config.js
 
 Next:
   bun add @newt-kit/newt zod
-  bun add -d @newt-kit/eslint eslint typescript@npm:@typescript/typescript6@6.0.2
+  bun add -d @newt-kit/eslint eslint
   fill in AGENTS.md: the project, its contexts, its conventions
   newt add module <context-folder> <module>   e.g. newt add module src/contexts/shop order
 ```
 
-In a project made with `bun init`, two things change. Its `CLAUDE.md` is there already, so it
-is left, and the line says the two imports to add to it: `@AGENTS.md` and newt's. And its
-`package.json` asks for TypeScript 7, which typescript-eslint cannot run on yet, so `Next:`
-starts with `bun remove typescript` before the line that adds TypeScript 6.
+In a project made with `bun init`, its `CLAUDE.md` is there already, so it is left, and the
+line says the two imports to add to it: `@AGENTS.md` and newt's. Its TypeScript 7 stays:
+`@newt-kit/eslint` brings the TypeScript 6 its lint runs on.
 
 Run again, it writes nothing: `skipped  AGENTS.md (it is there already: left as it was)`, and the
 same for the others. Where an ESLint configuration is found above, it says so instead of writing

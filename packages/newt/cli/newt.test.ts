@@ -66,18 +66,19 @@ describe('newt init', () => {
     expect(await Bun.file(join(app, 'AGENTS.md')).text()).toBe('# Ours\n')
   })
 
-  test('after `bun init`, says what its CLAUDE.md lacks, and that its TypeScript 7 must go', async () => {
+  test('after `bun init`, says what its CLAUDE.md lacks, and keeps its TypeScript 7', async () => {
     const fresh = join(app, 'bun-init')
     await mkdir(fresh, { recursive: true })
     await linkModules(fresh)
     await Bun.write(join(fresh, 'CLAUDE.md'), 'Default to using Bun instead of Node.js.\n')
-    await Bun.write(join(fresh, 'package.json'), JSON.stringify({ name: 'fresh', devDependencies: { typescript: 'npm:@typescript/typescript6@6.0.2' }, peerDependencies: { typescript: '^7' } }))
+    await Bun.write(join(fresh, 'package.json'), JSON.stringify({ name: 'fresh', peerDependencies: { typescript: '^7' } }))
 
     const { lines, code } = await run(['init'], fresh)
 
     expect(code).toBe(0)
     expect(lines).toContain('skipped  CLAUDE.md (it is there already: add `@AGENTS.md` and `@node_modules/@newt-kit/newt/AGENTS.md` to it, one per line, so agents read newt\'s rules)')
-    expect(lines.some(line => line.startsWith('  bun remove typescript'))).toBe(true)
+    expect(lines).toContain('  bun add -d @newt-kit/eslint eslint')
+    expect(lines.some(line => line.includes('typescript'))).toBe(false)
     expect(await Bun.file(join(fresh, 'CLAUDE.md')).text()).toBe('Default to using Bun instead of Node.js.\n')
   })
 
