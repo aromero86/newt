@@ -1,4 +1,5 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
+import { gruvboxDark, gruvboxLight } from './gruvbox'
 
 type Page = [slug: string, title: string]
 
@@ -73,8 +74,9 @@ export default defineConfig({
   title: 'newt',
   description: 'A backend framework for Bun, with a monitor that sees everything it runs',
   cleanUrls: true,
-  head: [['meta', { name: 'theme-color', content: '#0f9d76' }]],
+  head: [['meta', { name: 'theme-color', content: '#427b58' }]],
   markdown: {
+    theme: { light: gruvboxLight, dark: gruvboxDark },
     // A ```mermaid fence is a diagram, drawn in the browser in the page's theme.
     config(md) {
       const fence = md.renderer.rules.fence!

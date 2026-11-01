@@ -117,37 +117,37 @@ const points = [
 <style scoped>
 .birth { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
 .points { list-style: none; display: grid; gap: 12px; margin-top: 36px; }
-.points li { display: flex; gap: 16px; padding: 16px 18px; border-radius: 16px; border: 1px solid transparent; transition: all .5s ease; opacity: .55; }
+.points li { display: flex; gap: 16px; padding: 16px 18px; border-radius: 6px; border: 1px solid transparent; transition: all .5s ease; opacity: .55; }
 .points li.on { opacity: 1; background: var(--l-panel); border-color: color-mix(in srgb, var(--l-orange) 40%, transparent); box-shadow: var(--l-shadow); }
 .points li.done { opacity: .9; }
 .n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: var(--l-ink-3); border: 1.5px solid var(--l-border-strong); transition: all .4s ease; }
-.points li.on .n { color: #fff; background: var(--l-orange); border-color: var(--l-orange); }
-.points li.done .n { color: #fff; background: var(--l-green); border-color: var(--l-green); }
+.points li.on .n { color: var(--l-on-accent); background: var(--l-orange); border-color: var(--l-orange); }
+.points li.done .n { color: var(--l-on-accent); background: var(--l-green); border-color: var(--l-green); }
 .points h3 { font-size: 16.5px; font-weight: 750; color: var(--l-ink); }
 .points p { margin-top: 4px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 
-.lab { position: relative; padding: 28px; border-radius: 24px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); }
+.lab { position: relative; padding: 28px; border-radius: 6px; background: var(--l-panel); border: 1px solid var(--l-border); box-shadow: var(--l-shadow); }
 .lab::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(500px circle at 50% 0%, var(--l-glow-orange), transparent 60%); opacity: .7; pointer-events: none; }
 .entity pre { padding: 16px 18px; font-size: 12.5px; }
 .line { display: inline; position: relative; transition: background .4s ease; }
-.line.hot { background: rgba(251, 138, 60, .16); box-shadow: -18px 0 0 rgba(251,138,60,.16), 18px 0 0 rgba(251,138,60,.16); border-radius: 2px; }
-.spark { display: inline-block; width: 10px; height: 10px; margin-left: 8px; border-radius: 50%; background: #fb8a3c; vertical-align: middle; opacity: 0; transform: scale(0); transition: all .5s cubic-bezier(.3,1.6,.5,1); box-shadow: 0 0 0 0 rgba(251,138,60,.6); }
+.line.hot { background: color-mix(in srgb, var(--l-orange) 16%, transparent); box-shadow: -18px 0 0 color-mix(in srgb, var(--l-orange) 16%, transparent), 18px 0 0 color-mix(in srgb, var(--l-orange) 16%, transparent); border-radius: 2px; }
+.spark { display: inline-block; width: 10px; height: 10px; margin-left: 8px; border-radius: 50%; background: var(--l-orange); vertical-align: middle; opacity: 0; transform: scale(0); transition: all .5s cubic-bezier(.3,1.6,.5,1); box-shadow: 0 0 0 0 color-mix(in srgb, var(--l-orange) 60%, transparent); }
 .lab[data-stage="1"] .spark { opacity: 1; transform: scale(1); animation: ping 1s infinite; }
-@keyframes ping { to { box-shadow: 0 0 0 12px rgba(251,138,60,0); } }
+@keyframes ping { to { box-shadow: 0 0 0 12px color-mix(in srgb, var(--l-orange) 0%, transparent); } }
 
 .wire { position: relative; width: 2px; height: 36px; margin: 0 auto; background: var(--l-border-strong); overflow: hidden; }
-.wire i { position: absolute; left: -3px; top: -12px; width: 8px; height: 12px; border-radius: 4px; background: #fb8a3c; box-shadow: 0 0 12px #fb8a3c; opacity: 0; }
+.wire i { position: absolute; left: -3px; top: -12px; width: 8px; height: 12px; border-radius: 4px; background: var(--l-orange); box-shadow: 0 0 12px var(--l-orange); opacity: 0; }
 .wire.flow i { animation: down .8s ease-in forwards; }
 @keyframes down { 0% { opacity: 1; top: -12px; } 100% { opacity: 1; top: 36px; } }
 
-.tx { position: relative; padding: 14px; border-radius: 16px; border: 1.5px dashed var(--l-border-strong); background: var(--l-bg); transition: all .5s ease; }
+.tx { position: relative; padding: 14px; border-radius: 6px; border: 1.5px dashed var(--l-border-strong); background: var(--l-bg); transition: all .5s ease; }
 .tx.open { border-color: color-mix(in srgb, var(--l-orange) 60%, transparent); }
 .tx.committed { border-style: solid; border-color: color-mix(in srgb, var(--l-green) 60%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--l-green) 12%, transparent); }
 .tx-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--vp-font-family-mono); font-size: 12px; color: var(--l-ink-3); }
 .stamp { font-weight: 800; letter-spacing: .06em; color: var(--l-orange); }
 .tx.committed .stamp { color: var(--l-green-ink); animation: stamp .45s cubic-bezier(.3,1.6,.5,1); }
 @keyframes stamp { from { transform: scale(1.8); opacity: 0; } }
-.tx-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--l-ink-2); background: var(--l-panel-solid); border: 1px solid var(--l-border); opacity: 0; transform: translateY(6px); transition: all .45s ease; }
+.tx-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 4px; font-size: 13px; color: var(--l-ink-2); background: var(--l-panel-solid); border: 1px solid var(--l-border); opacity: 0; transform: translateY(6px); transition: all .45s ease; }
 .tx-row b { font-family: var(--vp-font-family-mono); font-size: 12px; color: var(--l-ink); }
 .tx-row em { margin-left: auto; font-style: normal; font-size: 11.5px; font-family: var(--vp-font-family-mono); color: var(--l-ink-3); }
 .tx.open .tx-row { opacity: 1; transform: none; }
@@ -159,10 +159,10 @@ const points = [
 .fan.drawn path { stroke-dashoffset: 0; stroke: color-mix(in srgb, var(--l-green) 65%, transparent); }
 
 .workers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.worker { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--l-panel-solid); border: 1px solid var(--l-border); transition: border-color .4s ease, box-shadow .4s ease; min-width: 0; }
+.worker { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 6px; background: var(--l-panel-solid); border: 1px solid var(--l-border); transition: border-color .4s ease, box-shadow .4s ease; min-width: 0; }
 .worker .ctx { align-self: flex-start; }
 .worker code { font-size: 11px; color: var(--l-ink); line-height: 1.4; }
-.track { height: 5px; border-radius: 5px; background: var(--l-border); overflow: hidden; }
+.track { height: 5px; border-radius: 3px; background: var(--l-border); overflow: hidden; }
 .track i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--l-green); }
 .worker.running .track i { animation: fill 1.25s ease-in-out forwards; }
 .worker.done .track i { width: 100%; }

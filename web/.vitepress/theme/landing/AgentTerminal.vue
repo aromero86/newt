@@ -84,22 +84,22 @@ const nets = [
 <style scoped>
 .agents { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: clamp(32px, 6vw, 80px); align-items: center; }
 .term pre { min-height: 470px; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
-.prompt { color: #fb8a3c; }
-.cmd { color: #eef6f2; }
-.out { color: #6f8379; }
-.ok { color: #4ee0aa; font-weight: 600; }
-.bad { display: inline-block; padding: 6px 10px; margin: 2px 0; border-radius: 8px; color: #ff8a8e; background: rgba(255, 93, 98, .1); border-left: 3px solid #ff5d62; }
-.caret { display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -2px; background: #4ee0aa; animation: blink 1s steps(1) infinite; }
+.prompt { color: var(--l-orange); }
+.cmd { color: var(--l-code-ink); }
+.out { color: var(--l-code-dim); }
+.ok { color: var(--l-green); font-weight: 600; }
+.bad { display: inline-block; padding: 6px 10px; margin: 2px 0; border-radius: 4px; color: var(--l-red); background: color-mix(in srgb, var(--l-red) 10%, transparent); border-left: 3px solid var(--l-red); }
+.caret { display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -2px; background: var(--l-green); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .nets { list-style: none; display: grid; gap: 0; margin-top: 32px; position: relative; }
 .nets li { position: relative; display: flex; gap: 16px; padding: 16px 0; }
 .nets li + li { border-top: 1px dashed var(--l-border-strong); }
-.layer { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #fff; background: linear-gradient(135deg, var(--l-green), #19b3a0); box-shadow: 0 8px 20px -8px var(--l-glow-green); }
-.nets li:nth-child(2) .layer { background: linear-gradient(135deg, #19b3a0, var(--l-blue)); }
+.layer { flex: none; width: 34px; height: 34px; border-radius: 4px; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: var(--l-on-accent); background: linear-gradient(135deg, var(--l-green), var(--l-yellow)); box-shadow: 0 8px 20px -8px var(--l-glow-green); }
+.nets li:nth-child(2) .layer { background: linear-gradient(135deg, var(--l-yellow), var(--l-blue)); }
 .nets li:nth-child(3) .layer { background: linear-gradient(135deg, var(--l-orange), var(--l-red)); }
 .nets h3 { font-size: 16.5px; font-weight: 750; color: var(--l-ink); }
-.nets h3 code { margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--l-ink-2); background: var(--l-bg-2); border: 1px solid var(--l-border); }
+.nets h3 code { margin-left: 6px; padding: 2px 7px; border-radius: 3px; font-size: 12px; font-weight: 600; color: var(--l-ink-2); background: var(--l-bg-2); border: 1px solid var(--l-border); }
 .nets p { margin-top: 4px; font-size: 14.5px; line-height: 1.55; color: var(--l-ink-2); }
 
 @media (max-width: 1000px) { .agents { grid-template-columns: minmax(0, 1fr); } .copy { order: -1; } .term pre { min-height: 0; } }

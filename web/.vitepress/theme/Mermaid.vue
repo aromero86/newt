@@ -16,8 +16,8 @@ async function draw() {
     theme: 'base',
     fontFamily: 'var(--vp-font-family-base)',
     themeVariables: isDark.value
-      ? { primaryColor: '#123d33', primaryTextColor: '#e6f4ef', primaryBorderColor: '#34d399', lineColor: '#8aa39b', secondaryColor: '#3d2a12', tertiaryColor: '#1b1f24', background: '#1b1b1f', mainBkg: '#123d33', clusterBkg: '#161b1f', clusterBorder: '#2f4a42', noteBkgColor: '#3d2a12', noteTextColor: '#fde7c8', edgeLabelBackground: '#1b1b1f' }
-      : { primaryColor: '#e3f6ef', primaryTextColor: '#0b3b2e', primaryBorderColor: '#0f9d76', lineColor: '#5b7a71', secondaryColor: '#fff1e0', tertiaryColor: '#f6f8f7', background: '#ffffff', mainBkg: '#e3f6ef', clusterBkg: '#f6faf8', clusterBorder: '#b9dccf', noteBkgColor: '#fff1e0', noteTextColor: '#5a3410', edgeLabelBackground: '#ffffff' },
+      ? { primaryColor: '#32302f', primaryTextColor: '#ebdbb2', primaryBorderColor: '#8ec07c', lineColor: '#a89984', secondaryColor: '#3c3836', tertiaryColor: '#282828', background: '#1d2021', mainBkg: '#32302f', clusterBkg: '#282828', clusterBorder: '#504945', noteBkgColor: '#3c3836', noteTextColor: '#fabd2f', noteBorderColor: '#d79921', edgeLabelBackground: '#1d2021', actorBkg: '#32302f', actorBorder: '#8ec07c', signalColor: '#d5c4a1', signalTextColor: '#ebdbb2', labelBoxBkgColor: '#32302f', labelTextColor: '#ebdbb2' }
+      : { primaryColor: '#f2e5bc', primaryTextColor: '#3c3836', primaryBorderColor: '#427b58', lineColor: '#7c6f64', secondaryColor: '#ebdbb2', tertiaryColor: '#f9f5d7', background: '#fbf1c7', mainBkg: '#f2e5bc', clusterBkg: '#f9f5d7', clusterBorder: '#d5c4a1', noteBkgColor: '#ebdbb2', noteTextColor: '#b57614', noteBorderColor: '#d79921', edgeLabelBackground: '#fbf1c7', actorBkg: '#f2e5bc', actorBorder: '#427b58', signalColor: '#504945', signalTextColor: '#3c3836', labelBoxBkgColor: '#f2e5bc', labelTextColor: '#3c3836' },
   })
   const id = `mermaid-${Math.random().toString(36).slice(2)}-${drawn++}`
   svg.value = (await mermaid.render(id, decodeURIComponent(props.code))).svg
