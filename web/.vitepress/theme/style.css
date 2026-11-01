@@ -3,6 +3,7 @@
  * Aqua is newt's own colour, orange what stands out.
  */
 :root {
+  --vp-font-family-base: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --newt-green-1: #427b58;
   --newt-green-2: #689d6a;
   --newt-green-3: #8ec07c;

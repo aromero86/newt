@@ -1,6 +1,12 @@
 @import "tailwindcss";
 /* The enter and leave animations shadcn components use (dialog, menu, select). */
 @import "tw-animate-css";
+/* Poppins, a geometric sans: newt's type, carried by the library so every app has it. */
+@import "@fontsource/poppins/latin-400.css";
+@import "@fontsource/poppins/latin-500.css";
+@import "@fontsource/poppins/latin-600.css";
+@import "@fontsource/poppins/latin-700.css";
+@import "@fontsource/poppins/latin-800.css";
 
 /* The library's own components, wherever the app that imports this theme lives. */
 @source "../";
@@ -78,7 +84,7 @@
 @theme inline {
   /* The system's own fonts, as GitHub uses them: nothing to download, and each
      platform's native text. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-sans: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

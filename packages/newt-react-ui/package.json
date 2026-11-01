@@ -74,5 +74,8 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@fontsource/poppins": "5.3.0"
   }
 }

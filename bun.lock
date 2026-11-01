@@ -25,6 +25,7 @@
         "@fontsource/abril-fatface": "^5.3.0",
         "@fontsource/bowlby-one": "^5.3.0",
         "@fontsource/playfair-display": "^5.3.0",
+        "@fontsource/poppins": "5.3.0",
         "@fontsource/rubik-mono-one": "^5.3.0",
         "@newt-kit/eslint": "workspace:*",
         "@newt-kit/monitor": "workspace:*",
@@ -120,6 +121,9 @@
     "packages/newt-react-ui": {
       "name": "@newt-kit/react-ui",
       "version": "0.1.2",
+      "dependencies": {
+        "@fontsource/poppins": "5.3.0",
+      },
       "peerDependencies": {
         "@newt-kit/eslint": "^0.1.2",
         "class-variance-authority": "^0.7.1",
@@ -296,6 +300,8 @@
     "@fontsource/bowlby-one": ["@fontsource/bowlby-one@5.3.0", "", {}, "sha512-mjHkM64RbN4I2xFpk+6sQt+aF/k46IHEWP6ul4/RwAYJF5ETDjUmDp1zgU2Tj/w2yYIjMGVyGVifCNNR5ZbyZQ=="],
 
     "@fontsource/playfair-display": ["@fontsource/playfair-display@5.3.0", "", {}, "sha512-uJSABalvdWc10fEPppQjQocamT21LEyRfzzWfRfqbkPz+sRv+kKpYDKyluBUskvJREkJTos9epj1WjQROGu99Q=="],
+
+    "@fontsource/poppins": ["@fontsource/poppins@5.3.0", "", {}, "sha512-cms1nM7U6SN8epIV1WMVOV8VsA645aSm3wHfzIQnkk188U341ThbJGSl2Sv54V29gnDbT2arMPfLzvVIIVCceQ=="],
 
     "@fontsource/rubik-mono-one": ["@fontsource/rubik-mono-one@5.3.0", "", {}, "sha512-ReaCXaIKJAFdJAUaw8Gq3qXC9od7JotgqZFsVnwp06KqnBFtrX9qdeUvBdL+7avyUTic20gmzSH0NtEC6xAbDQ=="],
 
