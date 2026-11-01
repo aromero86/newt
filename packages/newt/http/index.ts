@@ -1,5 +1,5 @@
 // newt/http: a context's HTTP entry, on Bun.serve.
-export { HttpRouter } from './http-router'
+export { HttpRouter, MAX_BODY_BYTES } from './http-router'
 export type { HttpRouterOptions } from './http-router-options'
 export type { HttpRoute } from './http-route'
 export type { HttpMethod } from './http-method'
@@ -28,5 +28,6 @@ export { MethodNotAllowed } from './errors/method-not-allowed'
 export { NotSignedIn } from './errors/not-signed-in'
 export { MalformedBody } from './errors/malformed-body'
 export { UnsupportedMediaType } from './errors/unsupported-media-type'
+export { PayloadTooLarge } from './errors/payload-too-large'
 export { HttpGroup } from './http-group'
 export type { Middleware } from './middleware'

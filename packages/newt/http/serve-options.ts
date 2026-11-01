@@ -60,4 +60,15 @@ export type ServeOptions = {
    * has none: Bun's reloading runs scripts of its own.
    */
   csp?: ContentSecurityPolicy | false
+  /**
+   * The longest body the server reads at all, in bytes, for the routes beside the
+   * router's: a megabyte unless told. The router's own each take theirs (`maxBodyBytes`),
+   * so the server reads up to the longest of them too, whichever is longer.
+   */
+  maxBodyBytes?: number
+  /**
+   * How long a connection may say nothing before it is closed, in seconds: Bun's 10
+   * unless told. Longer for a route that streams (server-sent events).
+   */
+  idleTimeoutSeconds?: number
 }

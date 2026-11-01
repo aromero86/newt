@@ -2,6 +2,7 @@ import type { HTMLBundle, Server } from 'bun'
 import { readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { noteClientIp } from './client-ip'
+import { MAX_BODY_BYTES } from './http-router'
 import { securityHeadersOf, withHeaders } from './security-headers'
 import { serveFrontend } from './serve-frontend'
 import type { ServeOptions } from './serve-options'
@@ -34,6 +35,9 @@ export function serve(options: ServeOptions): Server<undefined> {
   const server = Bun.serve({
     port: options.port,
     development,
+    // No body longer than the longest any route takes is read at all: Bun answers it a 413.
+    maxRequestBodySize: Math.max(options.maxBodyBytes ?? MAX_BODY_BYTES, options.router.largestBody()),
+    ...(options.idleTimeoutSeconds === undefined ? {} : { idleTimeout: options.idleTimeoutSeconds }),
     routes: wrapped({ ...health, ...options.router.routes(), ...options.routes, ...sourceFrontend(options.frontend, options.publicFolder) }, around),
     fetch: around(frontend),
     // In development Bun's own page answers instead, with the source.

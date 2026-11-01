@@ -18,4 +18,6 @@ export type RouteOptions = {
   idempotency?: Idempotency
   /** How often each caller may call it: see `HttpRateLimit`. They add up to those above it; `false` leaves them out. */
   rateLimit?: HttpRateLimit | HttpRateLimit[] | false
+  /** How long its request's body may be, in bytes: a 413 past it. A megabyte unless told. */
+  maxBodyBytes?: number
 }
