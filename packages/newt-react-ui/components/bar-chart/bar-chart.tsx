@@ -36,7 +36,7 @@ export function BarChart({ label, data, formatValue = value => value.toLocaleStr
           {data.map(datum => (
             <div key={datum.label} className="group relative flex h-full min-w-0 flex-1 items-end">
               <div
-                className={cn('w-full rounded-t-[4px] bg-brand transition-opacity group-hover:opacity-80', datum.value === 0 && 'opacity-0')}
+                className={cn('w-full rounded-t-[6px] bg-brand transition-opacity group-hover:opacity-80', datum.value === 0 && 'opacity-0')}
                 style={{ height: max === 0 ? 0 : `${(datum.value / max) * 100}%` }}
               />
               <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 rounded-md border bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-md group-hover:block">

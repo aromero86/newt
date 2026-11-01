@@ -29,6 +29,14 @@ type TimeSeriesProps = {
  * brand's colour for now, a muted dash for before. Hovering shows a bucket's values. It
  * takes the width it is given. shadcn's chart, on Recharts.
  */
+/** The series' last point, marked: where it stands now. */
+function lastDot(count: number) {
+  return ({ cx, cy, index }: { cx?: number, cy?: number, index?: number }) =>
+    index === count - 1 && cx !== undefined && cy !== undefined
+      ? <circle key="last" cx={cx} cy={cy} r={4.5} fill="var(--color-now)" stroke="var(--card)" strokeWidth={2} />
+      : <g key={index} />
+}
+
 export function TimeSeries({ label, points, compared, names = { points: 'Now', compared: 'Before' }, formatTime = at => new Date(at).toLocaleString(), marks = [], height = 220 }: TimeSeriesProps) {
   const fill = useContext(ChartFillContext)
   const config = {
@@ -43,8 +51,8 @@ export function TimeSeries({ label, points, compared, names = { points: 'Now', c
         <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer>
           <defs>
             <linearGradient id="time-series-now" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-now)" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="var(--color-now)" stopOpacity={0} />
+              <stop offset="0%" stopColor="var(--color-now)" stopOpacity={0.16} />
+              <stop offset="100%" stopColor="var(--color-now)" stopOpacity={0.04} />
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} stroke="var(--border)" />
@@ -55,7 +63,7 @@ export function TimeSeries({ label, points, compared, names = { points: 'Now', c
             <Line dataKey="before" type="monotone" stroke="var(--color-before)" strokeOpacity={0.6} strokeWidth={1.5} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
           )}
           {chartMarks(marks)}
-          <Area dataKey="now" type="monotone" stroke="var(--color-now)" strokeWidth={2} fill="url(#time-series-now)" dot={false} isAnimationActive={false} />
+          <Area dataKey="now" type="monotone" stroke="var(--color-now)" strokeWidth={2.5} strokeLinecap="round" fill="url(#time-series-now)" dot={lastDot(data.length)} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive={false} />
         </AreaChart>
       </ChartContainer>
     </figure>

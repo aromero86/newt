@@ -12,9 +12,9 @@ type StatProps = {
 /** One number that matters, large, with what it counts: a tile of an overview. */
 export function Stat({ label, value, hint }: StatProps) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-md border bg-card px-4 py-3">
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border bg-card px-5 py-4">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-2xl font-semibold tracking-tight tabular-nums">{typeof value === 'number' ? value.toLocaleString('en') : value}</p>
+      <p className="text-3xl font-bold tracking-tight tabular-nums">{typeof value === 'number' ? value.toLocaleString('en') : value}</p>
       {hint !== undefined && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )
