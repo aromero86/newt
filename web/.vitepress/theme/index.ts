@@ -2,6 +2,7 @@ import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import Mermaid from './Mermaid.vue'
 import Landing from './landing/Landing.vue'
+import '@fontsource/bricolage-grotesque/latin-800.css'
 import './style.css'
 
 export default {

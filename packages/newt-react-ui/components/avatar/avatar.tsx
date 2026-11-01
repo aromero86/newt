@@ -13,7 +13,7 @@ const sizeClass: Record<Size, { box: string; letter: string }> = {
   9: { box: 'size-9', letter: 'text-sm' },
 }
 
-const tones = ['bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-teal-500']
+const tones = ['bg-avatar-1', 'bg-avatar-2', 'bg-avatar-3', 'bg-avatar-4', 'bg-avatar-5', 'bg-avatar-6']
 
 const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : undefined
 
@@ -36,7 +36,7 @@ export function Avatar({ name, size = 6 }: AvatarProps) {
   return (
     <ShadcnAvatar aria-hidden className={sizeClass[size].box}>
       {/* The letter's size goes on the fallback: shadcn sets its own text size there. */}
-      <AvatarFallback className={cn('font-semibold text-white', sizeClass[size].letter, tone)}>{initial(name)}</AvatarFallback>
+      <AvatarFallback className={cn('font-semibold text-on-avatar', sizeClass[size].letter, tone)}>{initial(name)}</AvatarFallback>
     </ShadcnAvatar>
   )
 }

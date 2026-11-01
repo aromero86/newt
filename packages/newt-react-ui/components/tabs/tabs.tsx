@@ -46,7 +46,7 @@ export function TabsTrigger({ value, count, children }: { value: string; count?:
       )}
     >
       {children}
-      {count !== undefined && <span className="rounded-full bg-muted px-1.5 text-[11px] leading-5 font-medium text-muted-foreground tabular-nums">{count}</span>}
+      {count !== undefined && <span className="rounded-sm bg-muted px-1.5 text-[11px] leading-5 font-medium text-muted-foreground tabular-nums">{count}</span>}
     </ShadcnTabsTrigger>
   )
 }

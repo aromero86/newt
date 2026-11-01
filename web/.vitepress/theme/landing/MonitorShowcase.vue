@@ -18,7 +18,7 @@ const english = [
     spots: [
       { x: 53, y: 29, label: '150 use cases, read from the code' },
       { x: 61, y: 60, label: '0 failures nobody expected' },
-      { x: 56.5, y: 76, label: 'A deploy, marked on every chart' },
+      { x: 65.5, y: 76, label: 'A deploy, marked on every chart' },
     ],
   },
   {
@@ -39,10 +39,10 @@ const english = [
     text: 'Calls, errors by code, failures nobody expected, conflicts that ran it again, p50 to p99, beside the window before. Errors it says may happen are told apart from the ones that should not.',
     link: '/book/43-metrics',
     spots: [
-      { x: 53, y: 31.5, label: '591 errors it says may happen' },
+      { x: 53, y: 31.5, label: '675 errors it says may happen' },
       { x: 74, y: 31.5, label: '0 failures' },
       { x: 68.5, y: 40.5, label: 'p99, beside the hour before' },
-      { x: 33.3, y: 51.2, label: 'Since the deploy' },
+      { x: 36.8, y: 51.2, label: 'Since the deploy' },
     ],
   },
   {
@@ -102,7 +102,7 @@ const screens = useCopy(english, [
   {
     label: 'Casos de uso', title: 'Cada caso de uso, medido',
     text: 'Llamadas, errores por código, fallos que nadie esperaba, conflictos que lo repitieron, de p50 a p99, junto a la ventana anterior. Los errores que dice que pueden pasar se separan de los que no deberían.',
-    spots: [{ label: '591 errores que dice que pueden pasar' }, { label: '0 fallos' }, { label: 'p99, junto a la hora anterior' }, { label: 'Desde el despliegue' }],
+    spots: [{ label: '675 errores que dice que pueden pasar' }, { label: '0 fallos' }, { label: 'p99, junto a la hora anterior' }, { label: 'Desde el despliegue' }],
   },
   {
     label: 'Trazas', title: 'Una petición, hasta la última consulta',

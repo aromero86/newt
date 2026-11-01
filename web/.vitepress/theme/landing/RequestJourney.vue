@@ -231,7 +231,7 @@ onInView(root, () => { if (!running.value && time.value === 0) play() }, { thres
 .row.event.shown .diamond { animation: told 1s ease-out; }
 @keyframes told { from { opacity: 0; } }
 .ms { position: absolute; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--l-code-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.real { max-height: 620px; overflow: auto; }
+.real { line-height: 0; }
 
 .narrator { position: sticky; top: calc(var(--vp-nav-height, 64px) + 24px); padding: 24px; border-radius: 4px; background: var(--l-panel); border: 1px solid var(--l-border); }
 .stages { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
