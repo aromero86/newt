@@ -5,8 +5,8 @@ their use cases and their events, and how that changes from one deployment to th
 It never opens an application's database: each one tells it what it is made of,
 through `newt/monitor`, on a port of its own, to requests signed with a key both share.
 
-It is a newt application itself, built chapter by chapter in newt's docs: *The
-monitor*, `web/monitor/`.
+It is a newt application itself. How to use it, and how it is built, is part III of
+the newt book, `web/book/40-monitor.md`.
 
 ## Running it
 

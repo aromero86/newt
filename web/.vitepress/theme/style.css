@@ -1,0 +1,89 @@
+/* newt's colours: a newt's green back, and its orange belly for what stands out. */
+:root {
+  --newt-green-1: #0b7a5c;
+  --newt-green-2: #0f9d76;
+  --newt-green-3: #34c39a;
+  --newt-green-soft: rgba(15, 157, 118, 0.12);
+  --newt-orange-1: #c2560c;
+  --newt-orange-2: #ea7317;
+  --newt-orange-soft: rgba(234, 115, 23, 0.12);
+
+  --vp-c-brand-1: var(--newt-green-1);
+  --vp-c-brand-2: var(--newt-green-2);
+  --vp-c-brand-3: var(--newt-green-2);
+  --vp-c-brand-soft: var(--newt-green-soft);
+
+  --vp-c-tip-1: var(--newt-green-1);
+  --vp-c-tip-2: var(--newt-green-2);
+  --vp-c-tip-3: var(--newt-green-2);
+  --vp-c-tip-soft: var(--newt-green-soft);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, var(--newt-green-2) 20%, var(--newt-orange-2));
+}
+
+.dark {
+  --newt-green-1: #34d399;
+  --newt-green-2: #10b981;
+  --newt-green-soft: rgba(16, 185, 129, 0.16);
+  --newt-orange-1: #fb923c;
+  --newt-orange-2: #f97316;
+  --newt-orange-soft: rgba(249, 115, 22, 0.16);
+}
+
+/* Callouts: a concept (info), how cooper does it (tip), a trap (warning), a broken rule (danger). */
+.vp-doc .custom-block {
+  border-radius: 10px;
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+.vp-doc .custom-block.info { border-left-color: #3b82f6; }
+.vp-doc .custom-block.tip { border-left-color: var(--newt-green-2); }
+.vp-doc .custom-block.warning { border-left-color: #eab308; }
+.vp-doc .custom-block.danger { border-left-color: #ef4444; }
+.vp-doc .custom-block.details { border-left-color: var(--vp-c-divider); }
+.vp-doc .custom-block .custom-block-title { font-size: 15px; }
+
+/* A diagram: centred, never wider than its column. */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+  padding: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+  overflow-x: auto;
+}
+.mermaid-diagram svg { max-width: 100%; height: auto; }
+
+/* A screenshot: framed like a window, with its caption under it. */
+.vp-doc figure.screenshot { margin: 24px 0; }
+.vp-doc figure.screenshot img {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+.vp-doc figure.screenshot figcaption {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  text-align: center;
+}
+.vp-doc figure.screenshot img.dark-only { display: none; }
+.dark .vp-doc figure.screenshot img.light-only { display: none; }
+.dark .vp-doc figure.screenshot img.dark-only { display: block; }
+
+/* A chapter's opening: what it is about, and how long. */
+.vp-doc .chapter-lead {
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--vp-c-text-2);
+}
+
+/* The landing's pieces in dark mode (kept global: scoped styles cannot reach `.dark`). */
+.shot .shot-dark { display: none; }
+.dark .shot .shot-light { display: none; }
+.dark .shot .shot-dark { display: block; }
+.dark .flow .play,
+.dark .tour .tabs button.on { color: #052e22; }

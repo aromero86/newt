@@ -78,14 +78,15 @@ three contexts on SQLite. The guide builds it step by step.
 
 ## Documentation
 
-The documentation is a site in [`web/`](../../web) (`bun run docs:dev`), in English
-and Spanish:
+The documentation is a site in [`web/`](../../web) (`bun run docs:dev`): **the newt
+book**, which explains newt through cooper, its example application.
 
-- [**The guide**](../../web/guide/00-introduction.md): building a backend step by step,
-  cooper's: contexts, modules, entities, use cases, transactions, events, workers,
-  eventual consistency, several contexts, an OAuth server and an MCP server.
-- [**The reference**](../../web/reference/rules.md): the framework's rules, its
-  [stores](../../web/reference/stores.md) and its [lint](../../web/reference/lint.md).
+- [**The essentials**](../../web/book/00-how-to-read.md): contexts, modules, entities,
+  use cases, repositories, routes, events, workers, testing and production.
+- [**Going deeper**](../../web/book/20-concurrency.md): concurrency, tenants, time,
+  stores, security, rate limits, auth and OAuth, MCP, observability, coding agents.
+- [**The appendices**](../../web/book/a-rules.md): the rules, the lint, the command
+  line and every export.
 
 ## Pieces
 
