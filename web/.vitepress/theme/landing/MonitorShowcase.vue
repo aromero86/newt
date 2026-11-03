@@ -205,7 +205,7 @@ onInView(root, () => { playing.value = true }, { threshold: 0.3, leave: () => { 
 .on .progress { background: var(--l-border); }
 .progress i { display: block; height: 100%; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--l-orange); animation: progress var(--dwell) linear forwards; animation-play-state: paused; }
 .showcase[data-playing="true"] .progress i { animation-play-state: running; }
-.showcase:hover .progress i { animation-play-state: paused; }
+.showcase:has(.stage:hover) .progress i { animation-play-state: paused; }
 @keyframes progress { to { transform: scaleX(1); } }
 
 .stage { position: relative; }
@@ -213,9 +213,11 @@ onInView(root, () => { playing.value = true }, { threshold: 0.3, leave: () => { 
 .bar { display: flex; align-items: center; gap: 16px; height: 36px; padding: 0 14px; background: var(--l-code-bar); border-bottom: 1px solid color-mix(in srgb, var(--l-code-ink) 6%, transparent); }
 .url { flex: 1; min-width: 0; display: flex; align-items: center; color: var(--l-code-dim); font-size: 12px; font-family: var(--vp-font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .frame { position: relative; aspect-ratio: 16 / 10; overflow: hidden; }
-.pan { position: relative; animation: pan var(--dwell) ease-in-out both, enter .6s ease both; animation-play-state: paused; }
+/* The fade in always runs: paused, a screen just picked would stay hidden. */
+.pan { position: relative; animation: pan var(--dwell) ease-in-out both, enter .6s ease both; animation-play-state: paused, running; }
 .showcase[data-playing="true"] .pan { animation-play-state: running; }
-.showcase:hover .pan, .showcase:hover .spot { animation-play-state: paused; }
+.stage:hover .pan { animation-play-state: paused, running; }
+.stage:hover .spot { animation-play-state: paused; }
 @keyframes pan { 0%, 30% { transform: translateY(0); } 85%, 100% { transform: translateY(var(--pan)); } }
 @keyframes enter { from { opacity: 0; } }
 
