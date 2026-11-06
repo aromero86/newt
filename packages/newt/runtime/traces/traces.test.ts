@@ -100,7 +100,7 @@ describe('traces', () => {
     const router = new HttpRouter()
     router.post('/files', async () => {
       await files.put('key-of-ana', 'hello', { contentType: 'text/plain' })
-      await files.uploadUrl('key-of-ana', { expiresIn: 60, contentType: 'text/plain', maxBytes: 10 })
+      await files.uploadUrl('key-of-ana', { expiresIn: 60, contentType: 'text/plain', size: 10 })
       return new Response(null, { status: 201 })
     }, { public: true })
 

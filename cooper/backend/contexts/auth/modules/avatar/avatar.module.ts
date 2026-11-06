@@ -43,10 +43,10 @@ export class Avatar_Module extends Module {
   /** A picture of whoever is signed in, about to be uploaded: where the client sends it. */
   @UseCase()
   async uploadStart(input: unknown): Promise<AvatarUploadDTO> {
-    const { contentType } = AvatarStartSchema.parse(input)
+    const { contentType, sizeBytes } = AvatarStartSchema.parse(input)
     const avatar = Avatar.start({ userId: currentActor().userId, contentType })
     await this.repo.persist(avatar)
-    const uploadUrl = await this.files.uploadUrl(avatar.id, { expiresIn: UPLOAD_SECONDS, contentType, maxBytes: AVATAR_RULE.maxBytes })
+    const uploadUrl = await this.files.uploadUrl(avatar.id, { expiresIn: UPLOAD_SECONDS, contentType, size: sizeBytes, maxBytes: AVATAR_RULE.maxBytes })
     return { avatar: avatar.toDTO(), uploadUrl }
   }
 

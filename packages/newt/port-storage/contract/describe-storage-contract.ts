@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { PrivateFiles } from '../files'
 import type { StorageAdapter } from '../storage-adapter'
+import { UploadTooLarge } from '../upload-too-large'
 import type { StorageFixture } from './storage-fixture'
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
@@ -14,8 +15,9 @@ export function describeStorageContract<S extends StorageAdapter>(name: string, 
     let storage: S
     let files: PrivateFiles
     const send = (address: string, init?: RequestInit) => (fixture.send ? fixture.send(storage, address, init) : fetch(address, init))
-    const upload = async (key: string, body: Uint8Array<ArrayBuffer> | string, contentType: string, maxBytes = MB) => {
-      const address = await files.uploadUrl(key, { expiresIn: 60, contentType, maxBytes })
+    const upload = async (key: string, body: Uint8Array<ArrayBuffer> | string, contentType: string) => {
+      const size = typeof body === 'string' ? new TextEncoder().encode(body).byteLength : body.byteLength
+      const address = await files.uploadUrl(key, { expiresIn: 60, contentType, size })
       return send(address, { method: 'PUT', body, headers: { 'content-type': contentType } })
     }
 
@@ -92,6 +94,34 @@ export function describeStorageContract<S extends StorageAdapter>(name: string, 
 
       expect((await files.stat('a'))?.size).toBe(PNG.byteLength)
       expect(await files.verifyUpload('a', { contentType: 'image/png', maxBytes: MB })).toBeNull()
+    })
+
+    test('an address takes the length it was signed for and no other', async () => {
+      const address = await files.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', size: 5 })
+      const put = (body: string) => send(address, { method: 'PUT', body, headers: { 'content-type': 'text/plain' } })
+
+      expect((await put('far too long')).ok).toBe(false)
+      expect((await put('shor')).ok).toBe(false)
+      expect(await files.stat('a')).toBeNull()
+
+      expect((await put('right')).ok).toBe(true)
+      expect((await files.stat('a'))?.size).toBe(5)
+    })
+
+    test('no address is signed for a file past what it may be: 1 MB unless told', async () => {
+      const asked = (size: number, maxBytes?: number) => files.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', size, maxBytes })
+
+      await asked(MB)
+      await asked(MB + 1, MB + 1)
+      await expect(asked(MB + 1)).rejects.toBeInstanceOf(UploadTooLarge)
+      await expect(asked(11, 10)).rejects.toMatchObject({ status: 413, code: 'upload_too_large', maxBytes: 10 })
+    })
+
+    test('what came is measured against 1 MB too, unless told', async () => {
+      await files.put('a', new Uint8Array(MB + 1), { contentType: 'application/octet-stream' })
+
+      expect(await files.verifyUpload('a', { contentType: 'application/octet-stream' })).toBe('too_large')
+      expect(await files.verifyUpload('a', { contentType: 'application/octet-stream', maxBytes: MB + 1 })).toBeNull()
     })
 
     test('an upload that never came is refused as missing', async () => {

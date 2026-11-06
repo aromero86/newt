@@ -7,9 +7,10 @@ import {
   type PutOptions,
   type StorageAdapter,
   type StoredFile,
-  type UploadUrlOptions,
+  type UploadAddressOptions,
 } from '../port-storage'
 import type { S3PublicStorageOptions, S3StorageOptions } from './s3-storage-options'
+import { withSignedLength } from './signed-length'
 
 const isMissing = (error: unknown) => (error as { code?: string }).code === 'NoSuchKey'
 
@@ -21,16 +22,18 @@ const orNull = <T>(read: Promise<T>): Promise<T | null> =>
 
 /**
  * Files in a bucket, which exists already: creating it, its CORS and who may read it are
- * the infrastructure's, so `open` only checks it is reached. An address to upload to does
- * not hold a client to a type or a length (Bun signs only the host): `Files.verifyUpload`
- * does, once it came. A bucket's own type for a file is the client's word, so what it is
+ * the infrastructure's, so `open` only checks it is reached. An address to upload to holds
+ * a client to its length, as it is signed, but not to a type: `Files.verifyUpload` does,
+ * once it came. A bucket's own type for a file is the client's word, so what it is
  * served as is signed in each address to read it.
  */
 export class S3Storage implements StorageAdapter {
   protected readonly client: S3Client
+  private readonly secretAccessKey: string
 
   protected constructor(options: S3StorageOptions) {
     this.client = new S3Client(options)
+    this.secretAccessKey = options.secretAccessKey
   }
 
   static async open(options: S3StorageOptions): Promise<S3Storage> {
@@ -64,8 +67,8 @@ export class S3Storage implements StorageAdapter {
     await this.client.delete(key)
   }
 
-  async uploadUrl(key: string, { expiresIn, contentType }: UploadUrlOptions): Promise<string> {
-    return this.client.presign(key, { method: 'PUT', expiresIn, type: contentType })
+  async uploadUrl(key: string, { expiresIn, size }: UploadAddressOptions): Promise<string> {
+    return withSignedLength(this.client.presign(key, { method: 'PUT', expiresIn }), size, this.secretAccessKey)
   }
 
   async signedUrl(key: string, { expiresIn, contentType, disposition, filename }: DownloadUrlOptions): Promise<string> {

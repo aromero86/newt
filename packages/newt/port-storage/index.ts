@@ -3,10 +3,11 @@
 // adapter-storage-disk keep them for real; port-storage/contract checks one keeps every promise.
 
 export type { StorageAdapter, PublicStorageAdapter } from './storage-adapter'
-export type { DownloadUrlOptions, PutOptions, StoredFile, UploadRefusal, UploadRule, UploadUrlOptions } from './file-types'
+export type { DownloadUrlOptions, PutOptions, StoredFile, UploadAddressOptions, UploadRefusal, UploadRule, UploadUrlOptions } from './file-types'
 export type { OpenFile } from './open-file'
 export type { ContextStorage, StorageOptions } from './context-storage'
-export { Files, PrivateFiles, PublicFiles } from './files'
+export { DEFAULT_MAX_UPLOAD_BYTES, Files, PrivateFiles, PublicFiles } from './files'
+export { UploadTooLarge } from './upload-too-large'
 export { MemoryStorage, MemoryPublicStorage } from './memory-storage'
 export { assertStorageKey } from './storage-key'
 export { contentDisposition, mayShowInline } from './content-disposition'

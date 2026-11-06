@@ -62,7 +62,7 @@ describe('DiskStorage, on its own', () => {
     await storage.put('a', 'hello', { contentType: 'text/plain' })
 
     const read = await storage.signedUrl('a', { expiresIn: 60, contentType: 'text/plain' })
-    const put = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', maxBytes: MAX })
+    const put = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', size: 1 })
 
     expect((await send(read, { method: 'PUT', body: 'x', headers: { 'content-type': 'text/plain' } })).status).toBe(403)
     expect((await send(put)).status).toBe(403)
@@ -85,7 +85,7 @@ describe('DiskStorage, on its own', () => {
 
   test('an upload is held to the type signed', async () => {
     const storage = await open()
-    const address = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'image/png', maxBytes: MAX })
+    const address = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'image/png', size: 1 })
 
     const response = await storage.handler(new Request(address, { method: 'PUT', body: 'x', headers: { 'content-type': 'text/html' } }))
 
@@ -93,17 +93,19 @@ describe('DiskStorage, on its own', () => {
     expect(await storage.stat('a')).toBeNull()
   })
 
-  test('an upload past its length is refused, and leaves nothing, said or not', async () => {
+  test('an upload of another length is refused, and leaves nothing, said or not', async () => {
     const folder = newFolder()
     const storage = await open(undefined, folder)
-    const address = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', maxBytes: 4 })
+    const address = await storage.uploadUrl('a', { expiresIn: 60, contentType: 'text/plain', size: 4 })
     const headers = { 'content-type': 'text/plain' }
 
     const told = await storage.handler(new Request(address, { method: 'PUT', body: 'too long', headers }))
     const stream = new Blob(['too long']).stream()
     const untold = await storage.handler(new Request(address, { method: 'PUT', body: stream, headers }))
 
-    expect([told.status, untold.status]).toEqual([413, 413])
+    const short = await storage.handler(new Request(address, { method: 'PUT', body: new Blob(['abc']).stream(), headers }))
+
+    expect([told.status, untold.status, short.status]).toEqual([413, 413, 400])
     expect(await storage.stat('a')).toBeNull()
     expect(readdirSync(join(folder, '.parts'))).toEqual([])
   })
@@ -176,7 +178,7 @@ describe('DiskStorage mounted on a router', () => {
 
   test('a browser uploads and reads back through its routes', async () => {
     const png = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2])
-    const address = await files.uploadUrl('a', { expiresIn: 60, contentType: 'image/png', maxBytes: MAX })
+    const address = await files.uploadUrl('a', { expiresIn: 60, contentType: 'image/png', size: png.byteLength, maxBytes: MAX })
 
     const put = await fetch(address, { method: 'PUT', body: png, headers: { 'content-type': 'image/png', 'sec-fetch-site': 'cross-site' } })
     const verdict = await files.verifyUpload('a', { contentType: 'image/png', maxBytes: MAX })
@@ -190,7 +192,7 @@ describe('DiskStorage mounted on a router', () => {
   })
 
   test('a body past what the route takes is refused by the router too', async () => {
-    const address = await files.uploadUrl('big', { expiresIn: 60, contentType: 'text/plain', maxBytes: MAX * 4 })
+    const address = await files.uploadUrl('big', { expiresIn: 60, contentType: 'text/plain', size: MAX + 1, maxBytes: MAX * 4 })
 
     const put = await fetch(address, { method: 'PUT', body: 'x'.repeat(MAX + 1), headers: { 'content-type': 'text/plain' } })
 

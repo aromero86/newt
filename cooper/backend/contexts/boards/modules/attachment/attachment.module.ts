@@ -66,6 +66,7 @@ export class Attachment_Module extends Module {
     const uploadUrl = await this.files.uploadUrl(attachment.id, {
       expiresIn: UPLOAD_SECONDS,
       contentType: parsed.contentType,
+      size: parsed.sizeBytes,
       maxBytes: ATTACHMENT_RULE.maxBytes,
     })
     return { attachment: attachment.toDTO(), uploadUrl }

@@ -11,7 +11,7 @@ import {
   type PutOptions,
   type StorageAdapter,
   type StoredFile,
-  type UploadUrlOptions,
+  type UploadAddressOptions,
 } from '../port-storage'
 import type { DiskStorageOptions } from './disk-storage-options'
 
@@ -88,8 +88,8 @@ export class DiskStorage implements StorageAdapter {
     await rm(this.typePath(key), { force: true })
   }
 
-  async uploadUrl(key: string, { expiresIn, contentType, maxBytes }: UploadUrlOptions): Promise<string> {
-    return this.signed('PUT', key, expiresIn, { type: contentType, max: String(maxBytes) })
+  async uploadUrl(key: string, { expiresIn, contentType, size }: UploadAddressOptions): Promise<string> {
+    return this.signed('PUT', key, expiresIn, { type: contentType, size: String(size) })
   }
 
   async signedUrl(key: string, { expiresIn, contentType, disposition, filename }: DownloadUrlOptions): Promise<string> {
@@ -139,8 +139,8 @@ export class DiskStorage implements StorageAdapter {
   private async receive(request: Request, key: string, url: URL): Promise<Response> {
     const contentType = url.searchParams.get('type')!
     if (request.headers.get('content-type')?.split(';')[0]?.trim() !== contentType) return answer(415)
-    const max = Number(url.searchParams.get('max'))
-    if (Number(request.headers.get('content-length') ?? 0) > max) return answer(413)
+    const expected = Number(url.searchParams.get('size'))
+    if (Number(request.headers.get('content-length') ?? 0) > expected) return answer(413)
 
     const part = this.partPath()
     const writer = Bun.file(part).writer()
@@ -149,7 +149,7 @@ export class DiskStorage implements StorageAdapter {
       if (request.body) {
         for await (const chunk of request.body) {
           size += chunk.byteLength
-          if (size > max) {
+          if (size > expected) {
             await writer.end()
             await rm(part, { force: true })
             return answer(413)
@@ -158,6 +158,10 @@ export class DiskStorage implements StorageAdapter {
         }
       }
       await writer.end()
+      if (size !== expected) {
+        await rm(part, { force: true })
+        return answer(400)
+      }
       await this.keep(part, key, contentType)
       return answer(200)
     } catch (error) {

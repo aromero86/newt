@@ -190,7 +190,7 @@ async uploadStart(cardId: string, input: unknown) {
   const parsed = AttachmentStartSchema.parse(input)                                  // the types allowed: z.enum, in the schema
   const attachment = Attachment.start({ cardId, ...parsed })                         // pending
   await this.repo.persist(attachment)
-  const uploadUrl = await this.files.uploadUrl(attachment.id, { expiresIn: 300, contentType: parsed.contentType, maxBytes: MAX })
+  const uploadUrl = await this.files.uploadUrl(attachment.id, { expiresIn: 300, contentType: parsed.contentType, size: parsed.sizeBytes, maxBytes: MAX })
   return { attachment: attachment.toDTO(), uploadUrl }                               // the client PUTs the file there
 }
 @UseCase()
@@ -211,7 +211,7 @@ async downloadUrl(id: string) {
 
 - `base.storage.private` / `.public` (`PublicFiles.url(key)`); take your part with `.in('<module>')`, in the module, never in the repository: a trip to a bucket has no place in a transaction.
 - Those three use cases carry those names, `<kind>UploadStart` with several kinds of file, and call those methods themselves (`newt/storage-use-case`).
-- Nothing the client says of a file counts until `verifyUpload`: S3 holds an upload to neither its type nor its length.
+- Nothing the client says of a file counts until `verifyUpload`: S3 does not hold an upload to its type. An address takes exactly the `size` given to `uploadUrl`, on any adapter, and none is signed past `maxBytes` (1 MB unless told, on `uploadUrl` and on `verifyUpload` alike): `UploadTooLarge`, a 413.
 - Keys are the entity's id, never a name the client gave. Bytes are written first and deleted last: deleting them is a worker on the event. A schedule sweeps what stayed pending.
 - The bucket is infrastructure: newt never creates one. Pages reach it only if `serve`'s `csp` lets them (`connect-src`, `img-src`). Tests use `MemoryStorage` (`send` answers its addresses). Details: the manual's `34-files.md`.
 

@@ -3,6 +3,10 @@ import type { OpenFile } from './open-file'
 import { matchesType, SNIFF_BYTES } from './sniff-type'
 import type { PublicStorageAdapter, StorageAdapter } from './storage-adapter'
 import { assertStorageKey } from './storage-key'
+import { UploadTooLarge } from './upload-too-large'
+
+/** How long an uploaded file may be, unless a module says otherwise. */
+export const DEFAULT_MAX_UPLOAD_BYTES = 1024 * 1024
 
 /**
  * The files of one part of a context, as a module holds them: what it asks for under a
@@ -33,23 +37,28 @@ export abstract class Files<A extends StorageAdapter = StorageAdapter> {
     return this.adapter.delete(this.full(key))
   }
 
-  /** Where a client sends the file with a `PUT`: what it sends is not trusted until `verifyUpload`. */
-  uploadUrl(key: string, options: UploadUrlOptions): Promise<string> {
-    return this.adapter.uploadUrl(this.full(key), options)
+  /**
+   * Where a client sends the file with a `PUT`: a file of exactly the `size` it said, which
+   * is refused here if longer than `maxBytes`. What it sends is not trusted until `verifyUpload`.
+   */
+  async uploadUrl(key: string, { maxBytes = DEFAULT_MAX_UPLOAD_BYTES, ...address }: UploadUrlOptions): Promise<string> {
+    if (!Number.isSafeInteger(address.size) || address.size < 0) throw new Error(`${address.size} is no length of a file`)
+    if (address.size > maxBytes) throw new UploadTooLarge(maxBytes)
+    return this.adapter.uploadUrl(this.full(key), address)
   }
 
   /**
-   * Whether what a client uploaded is what `rule` says, by how long it really is and by
+   * Whether what a client uploaded is what the rule says, by how long it really is and by
    * its first bytes: why it is not, or null when it is. What the client said of it counts
    * for nothing, nor does what it told S3.
    */
-  async verifyUpload(key: string, rule: UploadRule): Promise<UploadRefusal | null> {
+  async verifyUpload(key: string, { contentType, maxBytes = DEFAULT_MAX_UPLOAD_BYTES }: UploadRule): Promise<UploadRefusal | null> {
     const full = this.full(key)
     const stored = await this.adapter.stat(full)
     if (!stored) return 'missing'
-    if (stored.size > rule.maxBytes) return 'too_large'
+    if (stored.size > maxBytes) return 'too_large'
     const head = await this.adapter.head(full, SNIFF_BYTES)
-    return head && matchesType(head, rule.contentType) ? null : 'wrong_type'
+    return head && matchesType(head, contentType) ? null : 'wrong_type'
   }
 
   protected full(key: string): string {

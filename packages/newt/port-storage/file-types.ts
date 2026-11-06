@@ -3,12 +3,18 @@ export type StoredFile = { size: number, contentType: string | null }
 
 export type PutOptions = { contentType: string }
 
-export type UploadUrlOptions = {
+/** What an adapter is told of an upload: the address takes a file of exactly `size` bytes. */
+export type UploadAddressOptions = {
   /** For how many seconds the address works. */
   expiresIn: number
   contentType: string
-  /** How long the file may be, where the adapter can refuse it as it comes (on disk; not on S3). */
-  maxBytes: number
+  /** How long the client says the file is: the address takes that length and no other. */
+  size: number
+}
+
+export type UploadUrlOptions = UploadAddressOptions & {
+  /** How long the file may be: `DEFAULT_MAX_UPLOAD_BYTES` unless told. */
+  maxBytes?: number
 }
 
 export type DownloadUrlOptions = {
@@ -23,7 +29,11 @@ export type DownloadUrlOptions = {
 }
 
 /** What an upload must be to be accepted, by what its bytes are and not by what the client said. */
-export type UploadRule = { contentType: string, maxBytes: number }
+export type UploadRule = {
+  contentType: string
+  /** How long the file may be: `DEFAULT_MAX_UPLOAD_BYTES` unless told. */
+  maxBytes?: number
+}
 
 /** Why an upload was not accepted: it never came, it is too long, or its bytes are of another type. */
 export type UploadRefusal = 'missing' | 'too_large' | 'wrong_type'

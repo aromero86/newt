@@ -91,6 +91,7 @@ async uploadStart(cardId: string, input: unknown) {
   const uploadUrl = await this.files.uploadUrl(attachment.id, {
     expiresIn: 300,
     contentType: parsed.contentType,
+    size: parsed.sizeBytes,
     maxBytes: ATTACHMENT_RULE.maxBytes,
   })
   return { attachment: attachment.toDTO(), uploadUrl }
@@ -118,15 +119,24 @@ A schedule deletes what stayed pending: uploads someone started and never finish
 
 ### Why `verifyUpload` has the last word
 
-What the client says of a file is its word, and S3 does not hold it to it: an address to upload
-to signs only the host, so a client can send another type, or any length. `verifyUpload` looks at
-what came: how long it really is, and its first bytes. A file that is not what it says is refused:
-`missing`, `too_large` or `wrong_type`.
+What the client says of a file's type is its word, and S3 does not hold it to it: a client can send
+another. `verifyUpload` looks at what came: how long it really is, and its first bytes. A file that
+is not what it says is refused: `missing`, `too_large` or `wrong_type`.
 
-So a bucket takes whatever length comes, until `uploadConfirm` or the sweep deletes it, and you pay
-for it meanwhile. Whoever may start an upload could send something huge. Give `uploadStart` a rate
-limit of its own, and the bucket a lifecycle rule that expires what is left. On disk, `handler` stops
-an upload at its `maxBytes` as it comes.
+### How long a file may be
+
+A file may be 1 MB (`DEFAULT_MAX_UPLOAD_BYTES`) unless the module says otherwise, with `maxBytes` on
+`uploadUrl` and on `verifyUpload`. Give both the same one: a file past what `verifyUpload` is told is
+refused, whatever the address took.
+
+The client says how long the file is, and `uploadUrl` takes it as `size`. Longer than `maxBytes`, and
+no address is signed: `UploadTooLarge`, a 413. Otherwise the address takes exactly that length, on any
+adapter. On S3 the length is signed, so the bucket itself refuses any other with a 403, and never
+keeps a byte of it. A browser sends the length of a `File` by itself; a stream, whose length is not
+said, is refused.
+
+So someone can't fill a bucket with one upload, but they can with many. Give `uploadStart` a rate
+limit of its own, and the bucket a lifecycle rule that expires what is left.
 
 A first-bytes check says what a file starts as, not that all of it is sound: a file starting with
 `%PDF-` and followed by rubbish passes. To know more, a worker opens it with a library of its own.
@@ -196,7 +206,7 @@ base.http.put('/files/*', files.handler, { public: true, crossOrigin: true, maxB
 Modules do not change: `uploadUrl` and `signedUrl` give addresses of your own application, signed
 and for a while, and `handler` serves them. The routes are public because the signature is what lets
 a request in. `maxBodyBytes` must take the longest file any module accepts, as it is what the server
-will read. Unlike S3, it holds an upload to its type and length as it comes.
+will read. Unlike S3, it holds an upload to its type as well as its length.
 
 In cooper, it is the default: `COOPER_S3_ENDPOINT` moves files to S3, and in production files on disk
 need a `COOPER_FILES_SECRET` of their own.

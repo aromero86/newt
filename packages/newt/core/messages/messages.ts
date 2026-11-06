@@ -23,6 +23,8 @@ export type Messages = {
   cross_origin_refused: () => string
   /** A request whose body is longer than its route takes. */
   payload_too_large: (params: { maxBytes: number }) => string
+  /** A client that asked to upload a file longer than it may be. */
+  upload_too_large: (params: { maxBytes: number }) => string
   /** A request whose `Idempotency-Key` another one, still in progress, sent first. */
   idempotency_key_in_use: () => string
   /** A request whose `Idempotency-Key` was sent before with another body. */

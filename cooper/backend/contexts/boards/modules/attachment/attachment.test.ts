@@ -45,8 +45,9 @@ describe('attachment', () => {
   })
 
   test('something else called a PDF is refused, and its bytes go', async () => {
-    const { attachment, uploadUrl } = await start()
-    await send(uploadUrl, 'just some text, named plan.pdf')
+    const body = 'just some text, named plan.pdf'
+    const { attachment, uploadUrl } = await start('application/pdf', body.length)
+    await send(uploadUrl, body)
 
     await expect(inAcme(() => t.modules.attachment.uploadConfirm(attachment.id))).rejects.toThrow('not what it says')
     await t.settled()
@@ -56,17 +57,24 @@ describe('attachment', () => {
   })
 
   test('a program called a text file is refused too', async () => {
-    const { attachment, uploadUrl } = await start('text/plain')
+    const { attachment, uploadUrl } = await start('text/plain', 5)
     await send(uploadUrl, new Uint8Array([0x4D, 0x5A, 0x90, 0, 3]), 'text/plain')
 
     await expect(inAcme(() => t.modules.attachment.uploadConfirm(attachment.id))).rejects.toThrow('not what it says')
   })
 
-  test('a file longer than it may be is refused by what came, whatever the client said', async () => {
+  test('a file longer than the address says never arrives', async () => {
     const { attachment, uploadUrl } = await start()
+
+    expect((await send(uploadUrl, new Uint8Array(PDF.byteLength + 1))).status).toBe(403)
+    expect(await kept(attachment.id)).toBeNull()
+  })
+
+  test('a file longer than it may be is refused by what came, should a storage let it through', async () => {
+    const { attachment } = await start()
     const long = new Uint8Array(10 * 1024 * 1024 + 1)
     long.set(PDF)
-    await send(uploadUrl, long)
+    await t.storage.put(`boards/attachment/${attachment.id}`, long, { contentType: 'application/pdf' })
 
     await expect(inAcme(() => t.modules.attachment.uploadConfirm(attachment.id))).rejects.toThrow('too long')
   })

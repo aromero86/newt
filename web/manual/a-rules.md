@@ -226,6 +226,7 @@ two writes would leave half the work done with nothing to finish it.
 | zod's `ZodError`: "The request is not valid" | 400 `validation`, with `issues` | The body failed the use case's input schema. | Read `issues`, field by field. |
 | `UnsupportedMediaType`: "The body of the request must be sent as application/json" | 415 `unsupported_media_type` | A JSON body sent without `Content-Type: application/json` (or `…+json`). | Send the header. A form posted by another site cannot. |
 | `PayloadTooLarge`: "The body of the request is longer than the `<n>` bytes it may be" | 413 `payload_too_large` | The body passed the route's `maxBodyBytes` (a megabyte unless told). | Send less, or raise `maxBodyBytes` on that route. |
+| `UploadTooLarge`: "The file is longer than the `<n>` bytes it may be" | 413 `upload_too_large` | A client asked to upload a file past `maxBytes`, 1 MB unless told. Give the module's `maxBytes`, or a smaller file. |
 | `CrossOriginRefused`: "This cannot be done from a page of another site" | 403 `cross_origin_refused` | A write (POST, PUT, PATCH, DELETE) from a page of another origin that the route's `cors` does not name. | Serve the page from the same origin, name its origin in `cors`, or (a form another site posts back) `crossOrigin: true`. |
 | `IdempotencyKeyInUse`: "A request with this Idempotency-Key is still in progress: …" | 409 `idempotency_key_in_use` | The same key again while the first is still running (for a minute at most). | Retry once the first ends. |
 | `IdempotencyKeyReused`: "This Idempotency-Key was sent before with another body: …" | 422 `idempotency_key_reused` | A key reused for another request. | A new key per submit; the same key only to resend the same one. |
@@ -286,6 +287,7 @@ their base class. A body is always `{ error, code }` (`ErrorBody`, in `@newt-kit
 | `duplicate_value` | 409 | `DuplicateValue` | A unique index refused the row. |
 | `idempotency_key_in_use` | 409 | `IdempotencyKeyInUse` | The same key while the first is in progress. |
 | `payload_too_large` | 413 | `PayloadTooLarge` | The body is longer than `maxBodyBytes`. |
+| `upload_too_large` | 413 | `UploadTooLarge` | A client asked to upload a file longer than `maxBytes` (1 MB unless told). |
 | `unsupported_media_type` | 415 | `UnsupportedMediaType` | JSON without `Content-Type: application/json`. |
 | `idempotency_key_reused` | 422 | `IdempotencyKeyReused` | The same key with another body. |
 | `too_many_requests` | 429 | `TooManyRequests` | A rate limit passed; `Retry-After` says when to try again. |

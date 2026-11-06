@@ -25,11 +25,20 @@ describe.skipIf(!options)('S3Storage', () => {
   test('an upload address that expired is refused', async () => {
     const storage = await S3Storage.open(options!)
     const key = `expired-${crypto.randomUUID()}`
-    const address = await storage.uploadUrl(key, { expiresIn: 1, contentType: 'text/plain', maxBytes: 10 })
+    const address = await storage.uploadUrl(key, { expiresIn: 1, contentType: 'text/plain', size: 4 })
 
     await Bun.sleep(2100)
 
     expect((await fetch(address, { method: 'PUT', body: 'late' })).status).toBe(403)
+    expect(await storage.stat(key)).toBeNull()
+  })
+
+  test('a stream of no length said is refused, as its length cannot be held to', async () => {
+    const storage = await S3Storage.open(options!)
+    const key = `stream-${crypto.randomUUID()}`
+    const address = await storage.uploadUrl(key, { expiresIn: 60, contentType: 'text/plain', size: 4 })
+
+    expect((await fetch(address, { method: 'PUT', body: new Blob(['long enough']).stream() })).ok).toBe(false)
     expect(await storage.stat(key)).toBeNull()
   })
 

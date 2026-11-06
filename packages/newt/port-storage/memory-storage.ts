@@ -1,5 +1,5 @@
 import { contentDisposition } from './content-disposition'
-import type { DownloadUrlOptions, PutOptions, StoredFile, UploadUrlOptions } from './file-types'
+import type { DownloadUrlOptions, PutOptions, StoredFile, UploadAddressOptions } from './file-types'
 import type { OpenFile } from './open-file'
 import type { PublicStorageAdapter, StorageAdapter } from './storage-adapter'
 
@@ -41,8 +41,8 @@ export class MemoryStorage implements StorageAdapter {
     this.kept.delete(key)
   }
 
-  async uploadUrl(key: string, { contentType }: UploadUrlOptions): Promise<string> {
-    return `memory://upload/${key}?type=${encodeURIComponent(contentType)}`
+  async uploadUrl(key: string, { contentType, size }: UploadAddressOptions): Promise<string> {
+    return `memory://upload/${key}?type=${encodeURIComponent(contentType)}&size=${size}`
   }
 
   async signedUrl(key: string, { contentType, disposition, filename }: DownloadUrlOptions): Promise<string> {
@@ -54,7 +54,9 @@ export class MemoryStorage implements StorageAdapter {
     const url = new URL(address)
     const key = url.pathname.slice(1)
     if (url.host === 'upload' && init?.method === 'PUT') {
-      await this.put(key, await new Response(init.body).bytes() as Uint8Array<ArrayBuffer>, { contentType: new Headers(init.headers).get('content-type') ?? 'application/octet-stream' })
+      const bytes = await new Response(init.body).bytes() as Uint8Array<ArrayBuffer>
+      if (bytes.byteLength !== Number(url.searchParams.get('size'))) return new Response(null, { status: 403 })
+      await this.put(key, bytes, { contentType: new Headers(init.headers).get('content-type') ?? 'application/octet-stream' })
       return new Response(null, { status: 200 })
     }
     const kept = this.kept.get(key)

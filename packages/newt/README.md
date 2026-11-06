@@ -106,7 +106,7 @@ core/              what a module is made of, and the criteria it is found by; kn
 contract/          core's files a browser may load, re-exported: nothing in it keeps a scope
 port-outbox/       the port of the jobs; knows nothing else
 port-analytics/    the port of analytics; knows nothing else (its contract/ knows it)
-port-storage/      the port of where files are kept; knows nothing else (its contract/ knows it)
+port-storage/      the port of where files are kept; knows core (its contract/ knows it)
 port-store/        the port of a store; knows core, port-outbox (its contract/ knows repository and runtime)
 repository/        where a module reads and writes its entities; knows core, port-store
 runtime/           a context running: Base, the event bus, the job worker, the schedules; knows core, port-store, port-outbox, port-storage

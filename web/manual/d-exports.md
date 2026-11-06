@@ -439,7 +439,9 @@ Where a context's files are kept, and what its modules hold of them.
 | `StorageAdapter`, `PublicStorageAdapter` | type | The port: `put`, `open`, `head`, `stat`, `delete`, `uploadUrl`, `signedUrl`; a public one adds `url`. | [Files](./34-files) |
 | `Files`, `PrivateFiles`, `PublicFiles` | class | What a module holds: `in`, `verifyUpload`, and the port's, under its prefix. | [Files](./34-files) |
 | `StorageOptions`, `ContextStorage` | type | `BaseOptions.storage`, and `base.storage`. | [Files](./34-files) |
-| `StoredFile`, `OpenFile`, `PutOptions`, `UploadUrlOptions`, `DownloadUrlOptions` | type | What goes in and comes out of the port. | [Files](./34-files) |
+| `StoredFile`, `OpenFile`, `PutOptions`, `UploadUrlOptions`, `UploadAddressOptions`, `DownloadUrlOptions` | type | What goes in and comes out of the port. | [Files](./34-files) |
+| `DEFAULT_MAX_UPLOAD_BYTES` | const | How long an uploaded file may be unless told: 1 MB. | [Files](./34-files) |
+| `UploadTooLarge` | class | 413 `upload_too_large`: no address for a file past `maxBytes`. | [Files](./34-files) |
 | `UploadRule`, `UploadRefusal` | type | What `verifyUpload` takes, and why it refuses: `missing`, `too_large`, `wrong_type`. | [Files](./34-files) |
 | `MemoryStorage`, `MemoryPublicStorage` | class | Files in memory, for tests; `send` answers their addresses. | [Files](./34-files) |
 | `assertStorageKey` | function | Throws for a key that could leave its place. | [Files](./34-files) |

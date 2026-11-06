@@ -332,7 +332,7 @@ describe('files', () => {
 
   test('a file that says it is a PDF and is not is refused, and its bytes go', async () => {
     const ana = await aCard('ana@cooper.test', 'Ana')
-    const { body: { attachment, uploadUrl } } = await call<Upload>(ana.as, 'POST', `${ana.base}/cards/${ana.cardId}/attachments`, { filename: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 10 })
+    const { body: { attachment, uploadUrl } } = await call<Upload>(ana.as, 'POST', `${ana.base}/cards/${ana.cardId}/attachments`, { filename: 'plan.pdf', contentType: 'application/pdf', sizeBytes: 'no pdf here'.length })
 
     await send(uploadUrl, 'no pdf here', 'application/pdf')
     const confirmed = await call<{ code: string }>(ana.as, 'POST', `${ana.base}/attachments/${attachment.id}/confirm`)

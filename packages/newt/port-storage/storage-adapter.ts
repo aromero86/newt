@@ -1,4 +1,4 @@
-import type { DownloadUrlOptions, PutOptions, StoredFile, UploadUrlOptions } from './file-types'
+import type { DownloadUrlOptions, PutOptions, StoredFile, UploadAddressOptions } from './file-types'
 import type { OpenFile } from './open-file'
 
 /**
@@ -20,11 +20,11 @@ export interface StorageAdapter {
   /** Forgets `key`: nothing kept under it is no error, as a job may run twice. */
   delete(key: string): Promise<void>
   /**
-   * An address a client sends the file to with a `PUT`, for `expiresIn` seconds. Only a
-   * hint to the adapter what its type and length will be: S3 does not hold a client to
-   * them, so it is `Files.verifyUpload` that has the last word.
+   * An address a client sends the file to with a `PUT`, for `expiresIn` seconds. It takes
+   * a file of exactly `size` bytes and refuses any other. A type is only a hint: S3 does
+   * not hold a client to it, so it is `Files.verifyUpload` that has the last word.
    */
-  uploadUrl(key: string, options: UploadUrlOptions): Promise<string>
+  uploadUrl(key: string, options: UploadAddressOptions): Promise<string>
   /** An address anyone holding it can read the file from, for `expiresIn` seconds. */
   signedUrl(key: string, options: DownloadUrlOptions): Promise<string>
 }
