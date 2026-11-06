@@ -7,6 +7,8 @@ export const UserSchema = z.object({
   /** One account per email, whatever its case: kept in lower case. */
   email: Email.schema,
   name: z.string().trim().min(1, 'Write your name').max(80, 'Use at most 80 characters'),
+  /** Where their picture is read from, by anyone; none until they upload one. */
+  avatarUrl: z.string().nullable().default(null),
   createdAt: z.string().default(''),
   updatedAt: z.string().default(''),
 })

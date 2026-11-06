@@ -64,7 +64,7 @@ export function WorkspaceSettingsMembers({ admin }: { admin: boolean }) {
         {members.map(member => (
           <BoxRow
             key={member.id}
-            leading={<Avatar name={member.name} size={8} />}
+            leading={<Avatar name={member.name} src={member.avatarUrl} size={8} />}
             trailing={(
               <>
                 <Badge tone={member.isAdmin ? 'brand' : 'muted'}>{member.isAdmin ? 'admin' : 'member'}</Badge>

@@ -9,6 +9,10 @@ picks its store. **What a file is** is a module of yours, with an entity like an
 database has the last word: bytes are written first and deleted last, so the worst that can
 happen is a file nothing points at, which can be swept, and never a row pointing at nothing.
 
+cooper has both kinds. A card's attachments are private to its workspace
+(`boards/modules/attachment`), and people's pictures are public (`auth/modules/avatar`): what
+follows is theirs, cut short.
+
 ## Giving a context its storage
 
 ```ts
@@ -47,6 +51,11 @@ file. What it needs:
 - **Credentials** that may `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` and `s3:ListBucket`.
   Without the last, S3 answers 403 for a file that is not there, instead of 404.
 - **CORS** that lets your frontend's origin `PUT`, as the browser sends the file itself.
+
+Your pages must be allowed to reach it too. newt's Content-Security-Policy only lets a page talk to
+its own origin, so `serve`'s `csp` adds the bucket to `connect-src`, and where public files are read
+from to `img-src`. cooper's `filesPolicy` (`shared/storage/open-storage.ts`) does it. Forget it, and
+the browser refuses the upload with nothing in your server's log.
 
 ## Uploading
 
@@ -95,9 +104,9 @@ async uploadConfirm(id: string) {
     maxBytes: ATTACHMENT_RULE.maxBytes,
   })
   if (refused) {
-    attachment.refuse(refused)                                 // its event: a worker deletes the bytes
+    attachment.refuse()                                        // its event: a worker deletes the bytes
     await this.repo.persist(attachment)
-    throw new AttachmentRefused(id, refused)
+    throw new AttachmentRefused(refused)
   }
   attachment.markReady()
   await this.repo.persist(attachment)
@@ -153,7 +162,7 @@ downloaded. On a bucket's own domain that is one more wall; on disk it is the on
 Deleting an attachment deletes its row; a worker deletes its bytes, from the event:
 
 ```ts
-deps.attachment.events.removed.subscribe(({ id }) => attachments.removeBytes(id), {
+attachments.events.removed.subscribe(({ id }) => attachments.removeBytes(id), {
   strategy: 'handler',
   queue: 'attachment.removeBytes.on.attachment.removed',
 })
@@ -180,6 +189,9 @@ Modules do not change: `uploadUrl` and `signedUrl` give addresses of your own ap
 and for a while, and `handler` serves them. The routes are public because the signature is what lets
 a request in. `maxBodyBytes` must take the longest file any module accepts, as it is what the server
 will read. Unlike S3, it holds an upload to its type and length as it comes.
+
+In cooper, it is the default: `COOPER_S3_ENDPOINT` moves files to S3, and in production files on disk
+need a `COOPER_FILES_SECRET` of their own.
 
 The folder must outlive the application (a persistent volume), and several instances need one they
 share. For a small application with one server, it is all it needs.

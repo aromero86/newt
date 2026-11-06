@@ -26,6 +26,9 @@ is said in the root's eslint.config.js, and the lint keeps it.
 - auth's repositories say `scope: 'none'`: people, sessions and tenants span
   workspaces, so its use cases ask who may see what.
 
+- Files: boards keeps the cards' attachments, private; auth keeps people's pictures, public
+  (shared/storage/open-storage.ts). On disk unless `COOPER_S3_ENDPOINT` says otherwise.
+
 ## Commands
 
 From the repository's root:

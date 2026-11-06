@@ -45,6 +45,8 @@ export const WorkspaceMemberSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: Email.schema,
+  /** Where their picture is read from, if they have one. */
+  avatarUrl: z.string().nullable(),
   isAdmin: z.boolean(),
 })
 

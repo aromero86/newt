@@ -1,3 +1,4 @@
+import type { StorageOptions } from '@newt-kit/newt/port-storage'
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
 import { WebSession_Module } from '../../shared/web-session/web-session.module'
@@ -6,6 +7,7 @@ import { WORKSPACES_PRODUCT } from '../auth/modules/product/product.schema'
 import type { Boards_Config } from './boards-config'
 import type { BoardsBase } from './boards-base'
 import { Activity_Module } from './modules/activity/activity.module'
+import { Attachment_Module } from './modules/attachment/attachment.module'
 import { Board_Module } from './modules/board/board.module'
 import { Card_Module } from './modules/card/card.module'
 import { Column_Module } from './modules/column/column.module'
@@ -29,6 +31,8 @@ export type Boards_ModuleDeps = {
   auth: Boards_Auth
   mailer: Mailer
   search: CardSearch
+  /** Where its files are kept, instead of where its settings say: a test's, in memory. */
+  storage?: StorageOptions
   /** Where a line goes as each card moves, for whoever watches: the console while tracing, nowhere if none. */
   log?: (line: string) => void
 }
@@ -46,8 +50,8 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
     identify: accessToken => deps.auth.token.verify(accessToken),
     // `GET /api/session`: who is signed in, and only what boards' UI shows of them.
     profile: async userId => {
-      const { id, name, email } = await deps.auth.user.get(userId)
-      return { user: { id, name, email } }
+      const { id, name, email, avatarUrl } = await deps.auth.user.get(userId)
+      return { user: { id, name, email, avatarUrl } }
     },
   })
   const { user, tenant, access, invitation } = deps.auth
@@ -55,11 +59,12 @@ export function initializeModules(base: BoardsBase, config: Boards_Config, deps:
   const board = Board_Module.initialize(base, { member })
   const column = Column_Module.initialize(base, { board, member })
   const card = Card_Module.initialize(base, { board, column, member, auth: { access } }, { mailer: deps.mailer, publicUrl: config.publicUrl, search: deps.search })
+  const attachment = Attachment_Module.initialize(base, { card, member, auth: { tenant } })
   const workspace = Workspace_Module.initialize(base, { board, column, card, member, auth: { tenant, access, invitation, user } })
   const activity = Activity_Module.initialize(base, { card, member, auth: { tenant } }, { log: deps.log ?? (() => {}) })
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
-  return { session, member, board, column, card, workspace, activity, outbox }
+  return { session, member, board, column, card, attachment, workspace, activity, outbox }
 }
 
 export type Boards_Modules = ReturnType<typeof initializeModules>

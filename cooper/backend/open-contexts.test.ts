@@ -1,4 +1,7 @@
-import { expect, test } from 'bun:test'
+import { afterAll, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { runContexts } from '@newt-kit/newt/application'
 import { NoopTracer, runAsActor, setTracer } from '@newt-kit/newt/core'
 import { config, type Config } from './config'
@@ -7,12 +10,16 @@ import { cooperTracer, openContexts, stopContexts } from './open-contexts'
 import { RecordingMailer } from './shared/mail/recording-mailer'
 import { ConsoleTracer } from './shared/observability/console-tracer'
 
+/** Where its files go in these tests: a folder of their own, gone when they end. */
+const testFiles = { ...config.boards.files, folder: mkdtempSync(join(tmpdir(), 'cooper-files-')), s3: null }
+afterAll(() => rmSync(testFiles.folder, { recursive: true, force: true }))
+
 /** cooper's settings for a test: every database in memory, every server on a free port. */
 function testConfig(): Config {
   return {
     ...config,
-    auth: { ...config.auth, database: ':memory:', port: 0 },
-    boards: { ...config.boards, database: ':memory:', port: 0 },
+    auth: { ...config.auth, files: testFiles, database: ':memory:', port: 0 },
+    boards: { ...config.boards, files: testFiles, database: ':memory:', port: 0 },
     backoffice: { ...config.backoffice, database: ':memory:', port: 0 },
   }
 }

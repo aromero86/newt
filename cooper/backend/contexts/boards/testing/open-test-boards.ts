@@ -1,4 +1,5 @@
-import { runAsActor } from '@newt-kit/newt/core'
+import { runAsActor, type Clock } from '@newt-kit/newt/core'
+import { MemoryStorage } from '@newt-kit/newt/port-storage'
 import { config } from '../../../config'
 import type { ActorVia } from '../../../shared/actor'
 import { RecordingMailer } from '../../../shared/mail/recording-mailer'
@@ -10,21 +11,23 @@ import { inWorkspace } from '../workspace-scope'
 import { FakeAuth } from './fake-auth'
 
 /**
- * `boards` for a test: its database and its cards' search in memory, a fake auth's
+ * `boards` for a test: its database, its files and its cards' search in memory, a fake auth's
  * modules, its emails and its log's lines in lists, and who sends a request
  * told by an `x-user` header (the real authenticator, the web session's, is replaced).
  */
-export async function openTestBoards() {
+export async function openTestBoards(clock?: Clock) {
   const auth = await FakeAuth.open()
   const mailer = new RecordingMailer()
   const lines: string[] = []
   const search = new MemoryCardSearch()
+  const storage = new MemoryStorage()
   const boards = await Boards_Context.open({ ...config.boards, database: ':memory:', port: 0 }, {
     auth: auth.modules,
     mailer,
     search,
+    storage: { private: storage },
     log: line => { lines.push(line) },
-  })
+  }, clock)
   boards.base.http.authenticateWith(async request => {
     const userId = request.headers.get('x-user')
     return userId ? { userId, via: 'web' as const } : null
@@ -36,6 +39,7 @@ export async function openTestBoards() {
     mails: mailer.mails,
     lines,
     search,
+    storage,
     /** Runs as someone, in a workspace they belong to: what a route under `/workspaces/:workspaceId` (or an MCP tool) does. */
     as<T>(userId: string, workspaceId: string, fn: () => Promise<T>, via: ActorVia = 'web'): Promise<T> {
       return runAsActor({ userId, via }, () => inWorkspace(boards.modules.member, workspaceId, fn))

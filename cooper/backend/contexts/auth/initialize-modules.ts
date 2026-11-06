@@ -1,9 +1,11 @@
+import type { StorageOptions } from '@newt-kit/newt/port-storage'
 import type { Mailer } from '../../shared/mail/mailer'
 import { Outbox_Module } from '../../shared/outbox/outbox.module'
 import { WEB_SESSION_CALLBACK } from '../../shared/web-session/web-session.schema'
 import type { Auth_Config } from './auth-config'
 import type { AuthBase } from './auth-base'
 import { Access_Module } from './modules/access/access.module'
+import { Avatar_Module } from './modules/avatar/avatar.module'
 import { Invitation_Module } from './modules/invitation/invitation.module'
 import { OauthClient_Module } from './modules/oauth-client/oauth-client.module'
 import { OauthGrant_Module } from './modules/oauth-grant/oauth-grant.module'
@@ -17,6 +19,8 @@ import { User_Module } from './modules/user/user.module'
 /** What `auth`'s modules are given besides its base. */
 export type Auth_ModuleDeps = {
   mailer: Mailer
+  /** Where its files are kept, instead of where its settings say: a test's, in memory. */
+  storage?: StorageOptions
 }
 
 /**
@@ -49,7 +53,8 @@ export function declaredProducts(config: Auth_Config): ProductDTO[] {
 /** Every module of `auth`, each one after the modules it uses. */
 export function initializeModules(base: AuthBase, config: Auth_Config, deps: Auth_ModuleDeps) {
   const product = Product_Module.initialize(base, { products: declaredProducts(config) })
-  const user = User_Module.initialize(base)
+  const avatar = Avatar_Module.initialize(base)
+  const user = User_Module.initialize(base, { avatar })
   const session = Session_Module.initialize(base, { user, product }, {
     days: config.sessionDays,
     // HTTPS ends at the proxy before auth: the request's own URL is http.
@@ -69,7 +74,7 @@ export function initializeModules(base: AuthBase, config: Auth_Config, deps: Aut
   const token = Token_Module.initialize(base, { oauthClient, oauthGrant }, config.oauth)
   // Its dead jobs, for the staff's backoffice to look at and retry.
   const outbox = Outbox_Module.initialize(base)
-  return { product, user, session, access, tenant, invitation, oauthClient, oauthGrant, token, outbox }
+  return { product, avatar, user, session, access, tenant, invitation, oauthClient, oauthGrant, token, outbox }
 }
 
 export type Auth_Modules = ReturnType<typeof initializeModules>

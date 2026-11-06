@@ -77,6 +77,7 @@ export function BoardLane({ column, cards, columns, members, onRename, onAddCard
           title={card.title}
           reference={`#${card.number}`}
           assignee={card.assigneeId ? (members.get(card.assigneeId)?.name ?? 'Someone who left') : undefined}
+          assigneePicture={card.assigneeId ? members.get(card.assigneeId)?.avatarUrl : undefined}
           onOpen={() => onOpenCard(card)}
           dragId={card.id}
           actions={(

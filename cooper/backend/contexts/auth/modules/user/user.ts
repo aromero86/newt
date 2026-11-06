@@ -26,7 +26,7 @@ export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
 
   /** A new account, with its password already hashed: the email as someone typed it becomes an `Email`. */
   static signUp(input: { email: string, name: string, passwordHash: string }): User {
-    const user = new User({ ...input, email: Email.from(input.email) }, true)
+    const user = new User({ ...input, email: Email.from(input.email), avatarUrl: null }, true)
     user.trackEvent(new User_SignedUp(user.toDTO()))
     return user
   }
@@ -37,5 +37,10 @@ export class User extends Entity<typeof UserEntitySchema, typeof UserSchema> {
 
   get passwordHash(): string {
     return this.data.passwordHash
+  }
+
+  /** Their picture is read from here now. */
+  changeAvatar(avatarUrl: string | null): void {
+    this.change({ avatarUrl })
   }
 }

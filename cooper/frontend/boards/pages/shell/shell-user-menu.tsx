@@ -19,7 +19,7 @@ export function ShellUserMenu() {
       align="end"
       trigger={
         <Button variant="ghost" size="icon" label={`${user.name}, open your menu`}>
-          <Avatar name={user.name} size={7} />
+          <Avatar name={user.name} src={user.avatarUrl} size={7} />
         </Button>
       }
       items={[

@@ -3,6 +3,8 @@ import type { AuthBase } from '../../auth-base'
 import { EmailTaken } from './errors/email-taken'
 import { UserNotFound } from './errors/user-not-found'
 import { User_SignedUp } from './events/user-signed-up'
+import type { User_Deps } from './user.deps'
+import { registerUserWorkers } from './user.workers'
 import { User, UserFilter, UserSignUpSchema, type UserDTO, type UserSignUpDTO } from './user'
 import { User_Repository, type UserRow } from './user.repository'
 
@@ -15,14 +17,16 @@ const NOBODY = await Bun.password.hash('nobody has this password')
 /** The accounts: who someone is, for every product of cooper. */
 export class User_Module extends Module {
 
-  static initialize(base: AuthBase): User_Module {
-    return new User_Module(base, new User_Repository(base))
+  static initialize(base: AuthBase, deps: User_Deps): User_Module {
+    const module = new User_Module(base, new User_Repository(base), deps)
+    registerUserWorkers(module, deps)
+    return module
   }
 
   readonly events
 
-  private constructor(base: AuthBase, private readonly repo: User_Repository) {
-    super('user', base.invocations)
+  private constructor(base: AuthBase, private readonly repo: User_Repository, private readonly deps: User_Deps) {
+    super('user', base.invocations, deps)
     this.events = eventsOf(base.bus, { signedUp: User_SignedUp })
   }
 
@@ -64,6 +68,17 @@ export class User_Module extends Module {
     const parsed = Email.schema.safeParse(email.trim().toLowerCase())
     if (!parsed.success) return null
     return (await this.repo.first({ email: parsed.data }))?.toDTO() ?? null
+  }
+
+  /**
+   * From a worker: where someone's picture is read from. It asks which is theirs now, as a
+   * job running late may be about one that was replaced meanwhile.
+   */
+  @UseCase()
+  async refreshAvatar(id: string): Promise<void> {
+    const user = await this.resolve(() => this.repo.find({ id }), () => new UserNotFound(id))
+    user.changeAvatar(await this.deps.avatar.currentUrl(id))
+    await this.repo.persist(user)
   }
 
   /** Every account, newest first, as the staff look them up: only what `UserFilter` allows. */

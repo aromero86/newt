@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { Avatar as ShadcnAvatar, AvatarFallback } from '../../internal/avatar'
+import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from '../../internal/avatar'
 
 type Size = 3.5 | 4 | 5 | 6 | 7 | 8 | 9
 
@@ -26,15 +26,18 @@ function initial(name: string) {
 
 type AvatarProps = {
   name: string
+  /** A picture of them. Their initial shows while it loads, and if it never does. */
+  src?: string | null
   /** Width and height, in Tailwind's spacing scale. */
   size?: Size
 }
 
-/** A person's initial on a colour that always comes out the same for the same name. */
-export function Avatar({ name, size = 6 }: AvatarProps) {
+/** A person's picture, or their initial on a colour that always comes out the same for the same name. */
+export function Avatar({ name, src, size = 6 }: AvatarProps) {
   const tone = tones[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % tones.length]
   return (
     <ShadcnAvatar aria-hidden className={sizeClass[size].box}>
+      {src && <AvatarImage src={src} alt="" className="object-cover" />}
       {/* The letter's size goes on the fallback: shadcn sets its own text size there. */}
       <AvatarFallback className={cn('font-semibold text-on-avatar', sizeClass[size].letter, tone)}>{initial(name)}</AvatarFallback>
     </ShadcnAvatar>

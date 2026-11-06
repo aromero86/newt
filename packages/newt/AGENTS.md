@@ -197,7 +197,7 @@ async uploadStart(cardId: string, input: unknown) {
 async uploadConfirm(id: string) {
   const attachment = await this.pending(id)
   const refused = await this.files.verifyUpload(attachment.id, { contentType: attachment.contentType, maxBytes: MAX })
-  if (refused) { /* attachment.refuse(refused), persist, throw: a worker deletes the bytes */ }
+  if (refused) { /* attachment.refuse(), persist, throw: a worker deletes the bytes */ }
   attachment.markReady()
   await this.repo.persist(attachment)
   return attachment.toDTO()
@@ -213,7 +213,7 @@ async downloadUrl(id: string) {
 - Those three use cases carry those names, `<kind>UploadStart` with several kinds of file, and call those methods themselves (`newt/storage-use-case`).
 - Nothing the client says of a file counts until `verifyUpload`: S3 holds an upload to neither its type nor its length.
 - Keys are the entity's id, never a name the client gave. Bytes are written first and deleted last: deleting them is a worker on the event. A schedule sweeps what stayed pending.
-- The bucket is infrastructure: newt never creates one. Tests use `MemoryStorage` (`send` answers its addresses). Details: the manual's `34-files.md`.
+- The bucket is infrastructure: newt never creates one. Pages reach it only if `serve`'s `csp` lets them (`connect-src`, `img-src`). Tests use `MemoryStorage` (`send` answers its addresses). Details: the manual's `34-files.md`.
 
 ## Scopes and tenants
 

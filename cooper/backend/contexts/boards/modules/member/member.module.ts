@@ -50,7 +50,7 @@ export class Member_Module extends Module {
   async find(workspaceId: string, userId: string): Promise<MemberDTO | null> {
     if (!await this.belongs(workspaceId, userId)) return null
     const [found] = await this.deps.auth.user.getMany([userId])
-    return found ? { id: found.id, name: found.name, email: found.email } : null
+    return found ? { id: found.id, name: found.name, email: found.email, avatarUrl: found.avatarUrl } : null
   }
 
   /**
