@@ -10,6 +10,8 @@ export const SessionUserSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
+  /** Where their picture is read from, for the apps that show it. */
+  avatarUrl: z.string().nullable().optional(),
 })
 
 /** `GET /api/session`: the signed-in person, or a 401 without a session. */

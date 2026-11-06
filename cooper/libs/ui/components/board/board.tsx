@@ -88,6 +88,8 @@ type BoardCardProps = {
   meta?: ReactNode
   /** Who it is assigned to, shown as an avatar with the name as its tooltip. */
   assignee?: string
+  /** A picture of them, if they have one. */
+  assigneePicture?: string | null
   /** Opens the card at this address. */
   href?: string
   /** Opens the card in place (a dialog). Ignored when `href` is given. */
@@ -99,7 +101,7 @@ type BoardCardProps = {
 }
 
 /** One card on a board. */
-export function BoardCard({ title, reference, meta, assignee, href, onOpen, actions, dragId }: BoardCardProps) {
+export function BoardCard({ title, reference, meta, assignee, assigneePicture, href, onOpen, actions, dragId }: BoardCardProps) {
   const Link = useContext(LinkComponentContext)
   const [dragging, setDragging] = useState(false)
 
@@ -142,7 +144,7 @@ export function BoardCard({ title, reference, meta, assignee, href, onOpen, acti
           {assignee !== undefined && (
             <span className="ml-auto" title={assignee}>
               <span className="sr-only">Assigned to {assignee}</span>
-              <Avatar name={assignee} size={5} />
+              <Avatar name={assignee} src={assigneePicture} size={5} />
             </span>
           )}
         </div>

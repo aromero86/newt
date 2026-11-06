@@ -1,5 +1,6 @@
 import type { Clock, GuardRule, Tracer, WriteRule } from '../core'
 import type { RateLimitStore } from '../port-rate-limit'
+import type { StorageOptions } from '../port-storage'
 import type { Store } from '../port-store'
 import type { JobQueueOptions } from './jobs/job-queue-options'
 import type { Metrics } from './metrics/metrics'
@@ -41,4 +42,10 @@ export type BaseOptions<S extends Store> = {
    * instances share the work.
    */
   rateLimits?: RateLimitStore
+  /**
+   * Where it keeps files, private ones and public ones, in the same place or apart: S3's
+   * or a folder's (`adapter-storage-s3`, `adapter-storage-disk`). None unless told: a
+   * module that asks for a kind it was not given gets an error, never a place in memory.
+   */
+  storage?: StorageOptions
 }

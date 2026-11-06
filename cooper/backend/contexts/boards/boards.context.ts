@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import type { Clock } from '@newt-kit/newt/core'
 import { openStore } from '../../shared/open-store'
 import { ServedContext } from '../../shared/served-context'
+import { filesPolicy, mountFilesOnDisk, openPrivateStorage } from '../../shared/storage/open-storage'
 import { BoardsBase } from './boards-base'
 import type { Boards_Config } from './boards-config'
 import { initializeModules, type Boards_Auth, type Boards_ModuleDeps, type Boards_Modules } from './initialize-modules'
@@ -22,11 +23,18 @@ export class Boards_Context extends ServedContext {
   /** Opened after `auth`, which it uses; on the real time, unless a test gives it a `clock`. */
   static async open(config: Boards_Config, deps: Boards_ModuleDeps, clock?: Clock): Promise<Boards_Context> {
     const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
-    const base = new BoardsBase({ name: 'boards', store, clock })
+    const storage = deps.storage ?? { private: await openPrivateStorage(config.files, 'boards', config.publicUrl) }
+    const base = new BoardsBase({ name: 'boards', store, clock, storage })
+    mountFilesOnDisk(base, storage.private)
     const modules = initializeModules(base, config, deps)
     // The cards' search starts empty in memory: every card is indexed before anyone searches.
     await modules.card.reindex()
     return new Boards_Context(base, modules, config, deps.auth)
+  }
+
+  /** Its pages upload attachments to where they are, and show people's pictures, which auth keeps. */
+  protected override csp() {
+    return filesPolicy(this.config.files, this.config.authPublicUrl)
   }
 
   /** Its MCP server beside the API: `/mcp`, and the metadata that says how to sign in to it. */

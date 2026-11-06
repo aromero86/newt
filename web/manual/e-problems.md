@@ -89,6 +89,13 @@ proves who calls with a bearer token, never a cookie. A form another site posts 
 
 See [Security](./27-security).
 
+### 413 `upload_too_large`
+
+**Symptom.** "The file is longer than the 1048576 bytes it may be" (413), from an `uploadStart`.
+
+**Cause.** A file may be 1 MB unless told. Give `maxBytes` to `uploadUrl` and to `verifyUpload`
+([Files](./34-files)).
+
 ### 413 `payload_too_large`
 
 **Symptom.** "The body of the request is longer than the 1048576 bytes it may be" (413).

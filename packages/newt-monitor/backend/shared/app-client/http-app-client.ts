@@ -124,7 +124,7 @@ const TracesSchema = z.object({
     spans: z.array(z.object({
       id: z.string(),
       parentId: z.string().nullable(),
-      kind: z.enum(['http', 'job', 'use-case', 'attempt', 'query', 'transaction', 'event', 'rate-limit']),
+      kind: z.enum(['http', 'job', 'use-case', 'attempt', 'query', 'transaction', 'event', 'rate-limit', 'storage']),
       name: z.string(),
       context: z.string().nullable(),
       startMs: z.number(),

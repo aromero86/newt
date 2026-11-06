@@ -192,6 +192,7 @@ const KIND_LABELS: Record<Span['kind'], string> = {
   'transaction': 'A transaction',
   'event': 'An event told',
   'rate-limit': 'A take from a rate limit',
+  'storage': 'A trip to where the files are',
 }
 
 const ATTRIBUTE_LABELS: Record<string, string> = {

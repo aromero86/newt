@@ -1,6 +1,7 @@
 import { findCurrentActor, systemClock, type EventBus, type EventPublisher } from '../core'
 import { activeScopes, Invocations, traceTold } from '../core/internal'
 import { MemoryRateLimitStore } from '../port-rate-limit'
+import type { ContextStorage } from '../port-storage'
 import type { Store } from '../port-store'
 import type { BaseOptions } from './base-options'
 import { InMemoryEventBus } from './events/in-memory-event-bus'
@@ -11,6 +12,7 @@ import { MemoryMetrics } from './metrics/memory-metrics'
 import { applicationMetrics } from './metrics/set-metrics'
 import { RateLimits } from './rate-limits/rate-limits'
 import { Schedules } from './schedules/schedules'
+import { contextStorage } from './storage/context-storage'
 import { tracedStore } from './traces/traced-store'
 
 /**
@@ -40,6 +42,8 @@ export class Base<S extends Store = Store> {
   readonly rateLimits: RateLimits
   /** Where it counts its events for whoever monitors it (`serveMonitor` starts it). */
   readonly metrics: Metrics
+  /** Its files, each kind under its name: a module takes its own, `base.storage.private.in('attachment')`. */
+  readonly storage: ContextStorage
   /** Whether its metrics are its own, not the application's, which the application closes once every context closed. */
   private readonly ownsMetrics: boolean
 
@@ -91,6 +95,7 @@ export class Base<S extends Store = Store> {
         })
       },
     }
+    this.storage = contextStorage(options.storage, options.name)
     this.rateLimits = new RateLimits(options.rateLimits ?? new MemoryRateLimitStore(), options.name, clock)
     this.schedules = new Schedules(this.store, this.bus, this.publisher, this.invocations, clock)
     this.jobs = new JobQueue(this.store.outbox, this.invocations, options.jobs, clock, this.schedules)

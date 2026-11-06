@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import type { Clock } from '@newt-kit/newt/core'
 import { openStore } from '../../shared/open-store'
 import { ServedContext } from '../../shared/served-context'
+import { filesPolicy, mountFilesOnDisk, openPublicStorage } from '../../shared/storage/open-storage'
 import { AuthBase } from './auth-base'
 import type { Auth_Config } from './auth-config'
 import { initializeModules, type Auth_ModuleDeps, type Auth_Modules } from './initialize-modules'
@@ -26,11 +27,18 @@ export class Auth_Context extends ServedContext {
    */
   static async open(config: Auth_Config, deps: Auth_ModuleDeps, clock?: Clock): Promise<Auth_Context> {
     const store = await openStore(config.database, join(import.meta.dir, 'migrations'))
-    const base = new AuthBase({ name: 'auth', store, clock })
+    const storage = deps.storage ?? { public: await openPublicStorage(config.files, 'auth', config.publicUrl) }
+    const base = new AuthBase({ name: 'auth', store, clock, storage })
+    mountFilesOnDisk(base, storage.public)
     const modules = initializeModules(base, config, deps)
     registerOauthServerMetadata(base.oauth, config.publicUrl)
     await modules.oauthClient.declareProducts()
     return new Auth_Context(base, modules, config)
+  }
+
+  /** Its pages upload pictures to where they are, and show them. */
+  protected override csp() {
+    return filesPolicy(this.config.files, this.config.publicUrl)
   }
 
   /**

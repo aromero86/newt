@@ -46,6 +46,7 @@ flowchart LR
 | `newt/module-boundaries` | files under `**/modules/*/`, and, with `contexts`, a context's files outside its modules | A module reaches another only through its module, schema, events, errors and value objects. |
 | `newt/queue-name` | files under `**/modules/*/` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, and its callback calls that use case. |
 | `newt/schema-imports` | `<m>.schema.ts` | A schema takes from newt only `@newt-kit/newt/contract`. |
+| `newt/storage-use-case` | files under `**/modules/*/` | `uploadUrl`, `verifyUpload` and `signedUrl` are called by the use cases named `uploadStart`, `uploadConfirm` and `downloadUrl`, which call them. |
 | `newt/use-case` | every `*.module.ts` | Every public method of a `Module` is a `@UseCase`. |
 | `newt/route-body` | every `*.routes.ts` | A route passes the body as it came, never asserting its type. |
 | `newt/context-boundaries` | files of a context, with `contexts` | A context imports only the contexts its `uses` lists. |
@@ -200,6 +201,22 @@ A value object the schema imports is not checked. If it imports `@newt-kit/newt/
 bundler warns `Module "node:async_hooks" has been externalized …` instead
 ([E](./e-problems#the-browser-warns-about-node-async-hooks)).
 :::
+
+## `newt/storage-use-case`
+
+**Says:** what a module does with its files is done by the use cases named after it, so every
+module reads the same ([Files](./34-files)). `uploadUrl` is called by `uploadStart`, `verifyUpload`
+by `uploadConfirm` and `signedUrl` by `downloadUrl`: by that method of the module itself, not by a
+helper, a service or a route. And it goes both ways: a use case named so must make its call, so an
+upload is never confirmed unverified. A prefix tells apart several kinds of file of one module
+(`avatarUploadStart`). Tests are left out.
+
+It reads names, not types: anything with a member called `signedUrl` counts.
+
+Its messages: `'uploadUrl' is called by 'start': it belongs in the use case 'uploadStart' (or
+'<kind>UploadStart'), so every module reads the same.`, `'signedUrl' is called outside a module's
+method: it belongs in the use case 'downloadUrl' of the module.` and `'uploadConfirm' never calls
+'verifyUpload': a use case named so does it itself, or an upload could be confirmed unverified.`
 
 ## `newt/use-case`
 

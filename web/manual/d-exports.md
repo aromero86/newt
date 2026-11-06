@@ -19,6 +19,7 @@ flowchart TD
   http --> ratelimit["@newt-kit/newt/port-rate-limit"]
   runtime --> core
   runtime --> portstore["@newt-kit/newt/port-store"]
+  runtime --> portstorage["@newt-kit/newt/port-storage"]
   repository["@newt-kit/newt/repository"] --> portstore
   repository --> core
   adapters["newt/adapter-*"] --> sql["@newt-kit/newt/sql"]
@@ -59,6 +60,10 @@ A few things to know before the tables:
 | [`@newt-kit/newt/adapter-mysql`](#newt-adapter-mysql) | The MySQL store. | |
 | [`@newt-kit/newt/adapter-files`](#newt-adapter-files) | A store of JSON files. | |
 | [`@newt-kit/newt/adapter-redis`](#newt-adapter-redis) | Rate limits on Redis. | |
+| [`@newt-kit/newt/port-storage`](#newt-port-storage) | The port of where files are kept, and what a module holds of them. | |
+| [`@newt-kit/newt/port-storage/contract`](#newt-port-storage-contract) | The suite that checks a storage adapter. | |
+| [`@newt-kit/newt/adapter-storage-s3`](#newt-adapter-storage-s3) | Files on S3, R2 or MinIO. | |
+| [`@newt-kit/newt/adapter-storage-disk`](#newt-adapter-storage-disk) | Files in a folder of the server. | |
 | [`@newt-kit/newt/adapter-duckdb`](#newt-adapter-duckdb) | Analytics on DuckDB. | `@duckdb/node-api` |
 | [`@newt-kit/newt/kysely`](#newt-kysely) | Kysely on a store's connection. | `kysely` |
 | [`@newt-kit/newt/http`](#newt-http) | A context's HTTP entry, on `Bun.serve`. | |
@@ -424,6 +429,45 @@ What every SQL store shares, for an adapter to build on.
 |---|---|---|---|
 | `RedisRateLimitStore` | class | Rate limits on Redis, for several instances: one key per count, expiring on its own. | [Rate limits](./28-rate-limits) |
 | `RedisRateLimitStoreOptions` | type | Its options. | [Rate limits](./28-rate-limits) |
+
+## `@newt-kit/newt/port-storage`
+
+Where a context's files are kept, and what its modules hold of them.
+
+| Export | Kind | What it is | Chapter |
+|---|---|---|---|
+| `StorageAdapter`, `PublicStorageAdapter` | type | The port: `put`, `open`, `head`, `stat`, `delete`, `uploadUrl`, `signedUrl`; a public one adds `url`. | [Files](./34-files) |
+| `Files`, `PrivateFiles`, `PublicFiles` | class | What a module holds: `in`, `verifyUpload`, and the port's, under its prefix. | [Files](./34-files) |
+| `StorageOptions`, `ContextStorage` | type | `BaseOptions.storage`, and `base.storage`. | [Files](./34-files) |
+| `StoredFile`, `OpenFile`, `PutOptions`, `UploadUrlOptions`, `UploadAddressOptions`, `DownloadUrlOptions` | type | What goes in and comes out of the port. | [Files](./34-files) |
+| `DEFAULT_MAX_UPLOAD_BYTES` | const | How long an uploaded file may be unless told: 1 MB. | [Files](./34-files) |
+| `UploadTooLarge` | class | 413 `upload_too_large`: no address for a file past `maxBytes`. | [Files](./34-files) |
+| `UploadRule`, `UploadRefusal` | type | What `verifyUpload` takes, and why it refuses: `missing`, `too_large`, `wrong_type`. | [Files](./34-files) |
+| `MemoryStorage`, `MemoryPublicStorage` | class | Files in memory, for tests; `send` answers their addresses. | [Files](./34-files) |
+| `assertStorageKey` | function | Throws for a key that could leave its place. | [Files](./34-files) |
+| `contentDisposition`, `mayShowInline` | function | How a file is served: `inline` only for what a browser cannot run. | [Files](./34-files) |
+| `matchesType`, `SNIFF_BYTES` | function, const | Whether a file's first bytes may be of a type. | [Files](./34-files) |
+
+## `@newt-kit/newt/port-storage/contract`
+
+| Export | Kind | What it is | Chapter |
+|---|---|---|---|
+| `describeStorageContract` | function | The suite every storage adapter runs. | [Files](./34-files) |
+| `StorageFixture` | type | How the suite opens an adapter and reaches its addresses. | [Files](./34-files) |
+
+## `@newt-kit/newt/adapter-storage-s3`
+
+| Export | Kind | What it is | Chapter |
+|---|---|---|---|
+| `S3Storage`, `S3PublicStorage` | class | Files in a bucket, with Bun's own client. | [Files](./34-files) |
+| `S3StorageOptions`, `S3PublicStorageOptions` | type | Their options. | [Files](./34-files) |
+
+## `@newt-kit/newt/adapter-storage-disk`
+
+| Export | Kind | What it is | Chapter |
+|---|---|---|---|
+| `DiskStorage`, `DiskPublicStorage` | class | Files in a folder; `handler` serves their signed addresses. | [Files](./34-files) |
+| `DiskStorageOptions` | type | Their options. | [Files](./34-files) |
 
 ## `@newt-kit/newt/adapter-duckdb`
 

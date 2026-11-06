@@ -33,6 +33,7 @@ const DEEPER: Page[] = [
   ['26-stores', 'Stores and migrations'],
   ['27-security', 'HTTP security'],
   ['28-rate-limits', 'Rate limits'],
+  ['34-files', 'Files'],
   ['29-auth', 'Auth, OAuth and web sessions'],
   ['30-frontends', 'Frontends'],
   ['31-mcp', 'An MCP server'],

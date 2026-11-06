@@ -1,5 +1,5 @@
 import { BoundedContext } from '@newt-kit/newt/runtime'
-import type { ServeOptions } from '@newt-kit/newt/http'
+import type { ContentSecurityPolicy, ServeOptions } from '@newt-kit/newt/http'
 import type { CooperBase } from './cooper-base'
 
 export type ServedContextConfig = {
@@ -28,9 +28,14 @@ export abstract class ServedContext extends BoundedContext<CooperBase> {
     return {}
   }
 
+  /** What its pages may reach besides newt's policy: where its files are, for one. */
+  protected csp(): ContentSecurityPolicy | undefined {
+    return undefined
+  }
+
   /** How it is served (`runContexts`, `serve`): its modules' API, what it adds, its health, and its frontend for any other address. */
   serving(): ServeOptions {
     const hsts = new URL(this.served.publicUrl).protocol === 'https:'
-    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, health: true, hsts }
+    return { port: this.served.port, router: this.base.http, routes: this.routes(), frontend: this.served.frontendFolder, csp: this.csp(), health: true, hsts }
   }
 }

@@ -21,6 +21,31 @@ describe('cooper\'s settings', () => {
       .toThrow(/COOPER_SESSION_DAYS[\s\S]*COOPER_BOARDS_PORT[\s\S]*COOPER_DRAIN_MS/)
   })
 
+  test('in production, files on disk need a secret of their own, which files on S3 do not', () => {
+    const secrets = {
+      NODE_ENV: 'production',
+      COOPER_BOARDS_CLIENT_SECRET: 'a boards secret of thirty-two characters',
+      COOPER_BACKOFFICE_CLIENT_SECRET: 'a backoffice secret of thirty-two characters',
+    }
+    const s3 = {
+      COOPER_S3_ENDPOINT: 'https://s3.eu-west-1.amazonaws.com',
+      COOPER_S3_ACCESS_KEY_ID: 'key',
+      COOPER_S3_SECRET_ACCESS_KEY: 'secret',
+      COOPER_S3_PRIVATE_BUCKET: 'cooper-private',
+      COOPER_S3_PUBLIC_BUCKET: 'cooper-public',
+      COOPER_S3_PUBLIC_URL: 'https://files.cooper.test',
+    }
+
+    expect(() => readConfig(secrets)).toThrow(/COOPER_FILES_SECRET/)
+    expect(() => readConfig({ ...secrets, COOPER_FILES_SECRET: 'too short' })).toThrow(/COOPER_FILES_SECRET/)
+    expect(readConfig({ ...secrets, ...s3 }).boards.files.s3?.privateBucket).toBe('cooper-private')
+  })
+
+  test('S3 says all of what it needs, or nothing starts', () => {
+    expect(() => readConfig({ COOPER_S3_ENDPOINT: 'https://s3.example.com' }))
+      .toThrow(/COOPER_S3_ACCESS_KEY_ID[\s\S]*COOPER_S3_PUBLIC_URL/)
+  })
+
   test('in production, require both OAuth client secrets, and refuse development\'s', () => {
     expect(() => readConfig({ NODE_ENV: 'production' }))
       .toThrow(/COOPER_BOARDS_CLIENT_SECRET[\s\S]*COOPER_BACKOFFICE_CLIENT_SECRET/)
@@ -39,6 +64,7 @@ describe('cooper\'s settings', () => {
       NODE_ENV: 'production',
       COOPER_BOARDS_CLIENT_SECRET: 'a boards secret of thirty-two characters',
       COOPER_BACKOFFICE_CLIENT_SECRET: 'a backoffice secret of thirty-two characters',
+      COOPER_FILES_SECRET: 'a secret for files of thirty-two characters',
     })
     expect(config.auth.clientSecrets).toEqual({
       cooper: 'a boards secret of thirty-two characters',

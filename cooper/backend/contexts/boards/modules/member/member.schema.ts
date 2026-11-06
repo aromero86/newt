@@ -7,6 +7,8 @@ export const MemberSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: Email.schema,
+  /** Where their picture is read from, if they have one. */
+  avatarUrl: z.string().nullable(),
 })
 
 export type MemberDTO = z.infer<typeof MemberSchema>

@@ -57,6 +57,7 @@ long it took, how it ended, and a few attributes about itself. Never a value it 
 | `query` | `card.find` | A read or write of a table: its **shape** (`{workspaceId, boardId} order position limit 50`), and the rows it read. |
 | `transaction` | `transaction` | The store's transaction, and how long its commit took. |
 | `event` | `card.moved` | An event told: an instant, with its id. |
+| `storage` | `storage.put` | A trip to where the context's files are: what it did, never the key. Signing an address goes nowhere, so it is no step. |
 | `rate-limit` | `session.signIn` | A take from a rate limit: its limit, window, what it counts by, and what remains; refused, an error. |
 
 The trace itself also says who ran it (its **actor**), in which **scopes** (the workspace),
@@ -227,7 +228,7 @@ Open one.
 `card.not_found`, **Failed:** `TypeError`.
 
 **Steps** is a waterfall. Each span is a row at its time, indented under the one it ran in,
-coloured by kind and outcome: queries and transactions muted, use cases and events in the
+coloured by kind and outcome: queries, transactions and trips to the files muted, use cases and events in the
 brand colour, errors amber, failures red. Queries say their shape and rows, transactions their
 commit time, use cases how many times they ran, rate limits how much was left. Log lines are
 dots on the line of the step that wrote them.

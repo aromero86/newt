@@ -17,6 +17,7 @@ import { WorkspaceService } from '../../../workspace/workspace.service'
 import { BoardService } from '../board.service'
 import { CARD_NOBODY } from '../board-card-form'
 import { BoardCardDialogActivity } from './board-card-dialog-activity/board-card-dialog-activity'
+import { BoardCardDialogAttachments } from './board-card-dialog-attachments/board-card-dialog-attachments'
 import { BoardCardDialogService } from './board-card-dialog.service'
 
 type BoardCardDialogProps = {
@@ -92,6 +93,7 @@ function BoardCardDialogWrapped({ card, onClose }: BoardCardDialogProps) {
               </Inline>
             </Stack>
           </form>
+          <BoardCardDialogAttachments card={card} />
           <BoardCardDialogActivity card={card} />
         </Stack>
       </Dialog>

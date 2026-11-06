@@ -59,7 +59,7 @@ export class Workspace_Module extends Module {
     const users = new Map((await this.deps.auth.user.getMany(accesses.map(access => access.userId))).map(user => [user.id, user]))
     return accesses.flatMap(access => {
       const user = users.get(access.userId)
-      return user ? [{ id: user.id, name: user.name, email: user.email, isAdmin: access.role === 'admin' }] : []
+      return user ? [{ id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl, isAdmin: access.role === 'admin' }] : []
     })
   }
 

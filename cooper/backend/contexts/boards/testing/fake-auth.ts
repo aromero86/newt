@@ -79,7 +79,7 @@ export class FakeAuth {
 
   /** Someone joins a workspace: `<userId>@cooper.test`, named after their id. */
   join(workspaceId: string, userId: string): MemberDTO {
-    const member = { id: userId, name: userId, email: Email.from(`${userId}@cooper.test`) }
+    const member = { id: userId, name: userId, email: Email.from(`${userId}@cooper.test`), avatarUrl: null }
     const members = this.members.get(workspaceId) ?? new Map<string, MemberDTO>()
     members.set(userId, member)
     this.members.set(workspaceId, members)

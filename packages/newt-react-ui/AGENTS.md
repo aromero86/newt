@@ -89,6 +89,7 @@ its folder: `import { Button } from '@newt-kit/react-ui/button'`.
 | `Badge` | A short state: `tone` `ok`, `warn`, `bad`, `info`, `muted`, `brand`; with `href`, a link to where it is told in full. |
 | `Counter` | How many there are, in a pill: after a box's title or a tab's label. |
 | `Alert` | A message about the page: `info`, `ok`, `warn`, `bad`. |
+| `FileButton` | A button that asks for a file: `accept`, `loading`, `onPick`. What is sent is for the backend to check. |
 | `EmptyState` | What a list or a page with nothing shows, and what to do. |
 | `Spinner`, `Skeleton` | Loading: a spinner, or the shape of what is coming. |
 | `Avatar` | A person's initial. |

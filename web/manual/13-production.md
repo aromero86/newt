@@ -66,6 +66,7 @@ const EnvSchema = z.object({
   COOPER_TRUST_PROXY: variable(z.coerce.number().int().min(0).default(0)),
   COOPER_OTLP_URL: variable(z.string().optional()),
   COOPER_MONITOR_KEY: variable(z.string().optional()),
+  COOPER_FILES_SECRET: variable(z.string().optional()),
   // … one line per variable
 })
 ```
@@ -297,6 +298,9 @@ Before the first deploy, and after every change of shape:
       one was edited.
 - [ ] With several instances: rate limits, metrics, traces and the monitor's nonces are shared
       (the store's table, or Redis).
+- [ ] Files live on a persistent volume, or in buckets someone created, with their CORS and each
+      page's `csp` letting it reach them; files on disk have a secret of their own, and several
+      instances a volume they share ([Files](./34-files)).
 - [ ] The monitor's port is private, and its key 32 characters or more.
 - [ ] Dead jobs are looked at: in the backoffice, newt-monitor, or both.
 - [ ] `bun check`, `bun test` and the lint pass, with no rule silenced.

@@ -23,6 +23,8 @@ const positive = (fallback: number) => variable(z.coerce.number().int().positive
 const MIN_SECRET_LENGTH = 32
 
 /** The client secrets development has by default: they are in the repository, so production refuses them. */
+const DEV_FILES_SECRET = 'cooper-dev-files-secret-of-32-characters'
+
 const devClientSecrets = {
   COOPER_BOARDS_CLIENT_SECRET: 'cooper-dev-boards-client-secret',
   COOPER_BACKOFFICE_CLIENT_SECRET: 'cooper-dev-backoffice-client-secret',
@@ -44,6 +46,15 @@ const EnvSchema = z.object({
   COOPER_AUTH_DATABASE: variable(z.string().default('data/cooper-auth.db')),
   COOPER_BOARDS_DATABASE: variable(z.string().default('data/cooper-boards.db')),
   COOPER_BACKOFFICE_DATABASE: variable(z.string().default('data/cooper-backoffice.db')),
+  COOPER_FILES_FOLDER: variable(z.string().default('data/files')),
+  COOPER_FILES_SECRET: variable(z.string().optional()),
+  COOPER_S3_ENDPOINT: variable(z.url().optional()),
+  COOPER_S3_REGION: variable(z.string().optional()),
+  COOPER_S3_ACCESS_KEY_ID: variable(z.string().optional()),
+  COOPER_S3_SECRET_ACCESS_KEY: variable(z.string().optional()),
+  COOPER_S3_PRIVATE_BUCKET: variable(z.string().optional()),
+  COOPER_S3_PUBLIC_BUCKET: variable(z.string().optional()),
+  COOPER_S3_PUBLIC_URL: variable(z.url().optional()),
   COOPER_INVITATION_DAYS: positive(7),
   COOPER_OAUTH_ACCESS_MINUTES: positive(60),
   COOPER_OAUTH_REFRESH_DAYS: positive(30),
@@ -61,7 +72,16 @@ const EnvSchema = z.object({
   COOPER_MONITOR_HOSTNAME: variable(z.string().default('127.0.0.1')),
   COOPER_DISKS: variable(z.string().optional()),
 }).superRefine((env, context) => {
+  if (env.COOPER_S3_ENDPOINT) {
+    for (const name of ['COOPER_S3_ACCESS_KEY_ID', 'COOPER_S3_SECRET_ACCESS_KEY', 'COOPER_S3_PRIVATE_BUCKET', 'COOPER_S3_PUBLIC_BUCKET', 'COOPER_S3_PUBLIC_URL'] as const) {
+      if (!env[name]) context.addIssue({ code: 'custom', path: [name], message: 'required with COOPER_S3_ENDPOINT' })
+    }
+  }
   if (env.NODE_ENV !== 'production') return
+  // Files on disk are read through addresses signed with it: a known secret would open them all.
+  if (!env.COOPER_S3_ENDPOINT && (env.COOPER_FILES_SECRET === undefined || env.COOPER_FILES_SECRET === DEV_FILES_SECRET || env.COOPER_FILES_SECRET.length < MIN_SECRET_LENGTH)) {
+    context.addIssue({ code: 'custom', path: ['COOPER_FILES_SECRET'], message: `${MIN_SECRET_LENGTH} characters or more in production, unless files are on S3` })
+  }
   for (const name of ['COOPER_BOARDS_CLIENT_SECRET', 'COOPER_BACKOFFICE_CLIENT_SECRET'] as const) {
     const secret = env[name]
     const problem = secret === undefined
@@ -121,6 +141,30 @@ export function readConfig(variables: Record<string, string | undefined>) {
     backoffice: env.COOPER_BACKOFFICE_CLIENT_SECRET ?? devClientSecrets.COOPER_BACKOFFICE_CLIENT_SECRET,
   }
 
+  /**
+   * Where the contexts keep files: in a folder of the server unless `COOPER_S3_ENDPOINT` says
+   * which S3 (AWS's is `https://s3.<region>.amazonaws.com`), with a bucket for private files
+   * and one for public ones. Buckets are created by whoever runs cooper: it never does.
+   */
+  const files = {
+    /** `COOPER_FILES_FOLDER`: under it, one folder per context and kind. A persistent volume. */
+    folder: fromRoot(env.COOPER_FILES_FOLDER),
+    /** `COOPER_FILES_SECRET`: what the addresses of files on disk are signed with. */
+    secret: env.COOPER_FILES_SECRET ?? DEV_FILES_SECRET,
+    s3: env.COOPER_S3_ENDPOINT
+      ? {
+          endpoint: env.COOPER_S3_ENDPOINT,
+          region: env.COOPER_S3_REGION,
+          accessKeyId: env.COOPER_S3_ACCESS_KEY_ID!,
+          secretAccessKey: env.COOPER_S3_SECRET_ACCESS_KEY!,
+          privateBucket: env.COOPER_S3_PRIVATE_BUCKET!,
+          publicBucket: env.COOPER_S3_PUBLIC_BUCKET!,
+          /** `COOPER_S3_PUBLIC_URL`: where public files are read from: their bucket's address, or a CDN's. */
+          publicUrl: env.COOPER_S3_PUBLIC_URL!,
+        }
+      : null,
+  }
+
   return {
     /** `COOPER_MAIL_FROM`: who the emails come from, whichever context sends them. */
     mail: {
@@ -147,6 +191,8 @@ export function readConfig(variables: Record<string, string | undefined>) {
         /** `COOPER_OAUTH_REFRESH_DAYS`: how long a refresh token lasts unused. */
         refreshDays: env.COOPER_OAUTH_REFRESH_DAYS,
       },
+      /** Where it keeps people's pictures, public. */
+      files,
       /** `COOPER_AUTH_FRONTEND`: its built frontend (`bun run cooper:build`). */
       frontendFolder: fromRoot(env.COOPER_AUTH_FRONTEND),
     },
@@ -162,6 +208,8 @@ export function readConfig(variables: Record<string, string | undefined>) {
       /** Its OAuth client's secret: boards is the product `cooper` in auth. */
       clientSecret: clientSecrets.cooper,
       sessionDays,
+      /** Where it keeps the cards' attachments, private. */
+      files,
       /** `COOPER_BOARDS_FRONTEND`: its built frontend. */
       frontendFolder: fromRoot(env.COOPER_BOARDS_FRONTEND),
     },

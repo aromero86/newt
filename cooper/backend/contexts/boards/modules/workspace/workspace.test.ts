@@ -121,7 +121,7 @@ describe('workspace', () => {
     await t.auth.deleteWorkspace('acme')
     await t.settled()
     // Each deletion is heard twice: the workspace's purge, and its activity's.
-    expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'done'])
+    expect((await t.auth.jobs()).map(job => job.status)).toEqual(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done'])
     expect((await t.modules.board.listOf('globex', { size: 10 })).total).toBe(1)
   })
 
