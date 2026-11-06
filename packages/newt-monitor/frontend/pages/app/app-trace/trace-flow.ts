@@ -86,7 +86,7 @@ function detailOf(span: Span): string | undefined {
 function toneOf(span: Span): WaterfallTone {
   if (span.outcome?.kind === 'failure') return 'bad'
   if (span.outcome?.kind === 'error') return 'warn'
-  if (span.kind === 'query' || span.kind === 'transaction' || span.kind === 'rate-limit') return 'muted'
+  if (span.kind === 'query' || span.kind === 'transaction' || span.kind === 'rate-limit' || span.kind === 'storage') return 'muted'
   if (span.kind === 'use-case' || span.kind === 'attempt' || span.kind === 'event') return 'brand'
   return 'ok'
 }

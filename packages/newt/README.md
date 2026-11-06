@@ -45,12 +45,16 @@ or none and why.
 | `@newt-kit/newt/port-outbox` | The port of the jobs of `handler` subscriptions: `Outbox`, `Job`. |
 | `@newt-kit/newt/port-analytics` | The port of an analytical database: `Analytics`. |
 | `@newt-kit/newt/port-analytics/contract` | `describeAnalyticsContract`, and `MemoryAnalytics`: one in memory, for tests. |
+| `@newt-kit/newt/port-storage` | The port of where files are kept: `StorageAdapter`, what a module holds of them (`PrivateFiles`, `PublicFiles`), and `MemoryStorage`, for tests. |
+| `@newt-kit/newt/port-storage/contract` | `describeStorageContract`: the suite that checks a storage adapter keeps every promise. |
 | `@newt-kit/newt/runtime` | A context at runtime: `Base`, `BoundedContext`, the worker of its jobs, and its schedules. |
 | `@newt-kit/newt/sql` | What every SQL store shares: its table, and the whole store on a database server. |
 | `@newt-kit/newt/adapter-sqlite` | `SqliteStore`: SQLite on `bun:sqlite`, with SQL migrations. |
 | `@newt-kit/newt/adapter-postgres` | `PostgresStore`: Postgres on `Bun.SQL`, transactions side by side. |
 | `@newt-kit/newt/adapter-mysql` | `MySqlStore`: MySQL on `Bun.SQL`, transactions side by side. |
 | `@newt-kit/newt/adapter-files` | `FileStore`: one JSON file per record, transactions through a journal, migrations in TypeScript. |
+| `@newt-kit/newt/adapter-storage-s3` | `S3Storage`, `S3PublicStorage`: files on S3, R2 or MinIO, uploaded by the client directly, with Bun's own client. |
+| `@newt-kit/newt/adapter-storage-disk` | `DiskStorage`, `DiskPublicStorage`: files in a folder of the server, with the same signed addresses, served by the application. |
 | `@newt-kit/newt/application` | `runContexts`: an application's contexts in one process, served, their workers started, stopped in order on a signal. |
 | `@newt-kit/newt/otel` | `OtlpTracer`: the tracer that sends spans to an OpenTelemetry collector (OTLP/HTTP, JSON), with no SDK. Optional. |
 | `@newt-kit/newt/testing` | For a test of an HTTP entry: `freePort`, and `browser`, a `fetch` that keeps its cookies and never follows a redirect. |
@@ -102,14 +106,17 @@ core/              what a module is made of, and the criteria it is found by; kn
 contract/          core's files a browser may load, re-exported: nothing in it keeps a scope
 port-outbox/       the port of the jobs; knows nothing else
 port-analytics/    the port of analytics; knows nothing else (its contract/ knows it)
+port-storage/      the port of where files are kept; knows nothing else (its contract/ knows it)
 port-store/        the port of a store; knows core, port-outbox (its contract/ knows repository and runtime)
 repository/        where a module reads and writes its entities; knows core, port-store
-runtime/           a context running: Base, the event bus, the job worker, the schedules; knows core, port-store, port-outbox
+runtime/           a context running: Base, the event bus, the job worker, the schedules; knows core, port-store, port-outbox, port-storage
 sql/               what SQL stores share; knows core, port-store, port-outbox
 adapter-sqlite/    an adapter; knows sql and what it builds on
 adapter-postgres/  an adapter; knows sql
 adapter-mysql/     an adapter; knows sql
 adapter-files/     an adapter; knows core, port-store, port-outbox
+adapter-storage-s3/    a storage adapter; knows port-storage
+adapter-storage-disk/  a storage adapter; knows core, port-storage
 kysely/            Kysely on the SQL stores; knows them
 http/              the HTTP entry; knows core, and port-store's Table (idempotency keys)
 application/       an application's contexts, run; knows core, runtime and http

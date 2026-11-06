@@ -8,6 +8,7 @@ import { rateOf } from '../../core/traces/trace-sampling'
 import { signTraceHeader } from '../../monitor/trace-header'
 import type { Trace } from '../../core/traces/trace'
 import { HttpRouter } from '../../http'
+import { MemoryStorage } from '../../port-storage'
 import type { StoredRow } from '../../port-store'
 import { Base } from '../base'
 import { MemoryTraces } from './memory-traces'
@@ -91,6 +92,24 @@ describe('traces', () => {
     expect(find).toMatchObject({ kind: 'query', context: 'boards', attributes: { query: '{boardId, title ne} order title desc limit 50', rows: 0 } })
     expect(JSON.stringify(trace)).not.toContain('secret title')
     expect(JSON.stringify(trace)).not.toContain('board-of-ana')
+  })
+
+  test('a trip to where the files are is a step, that never says the key', async () => {
+    const base = new Base({ name: 'boards', store: await SqliteStore.open({ path: ':memory:' }), storage: { private: new MemoryStorage() } })
+    const files = base.storage.private.in('attachment')
+    const router = new HttpRouter()
+    router.post('/files', async () => {
+      await files.put('key-of-ana', 'hello', { contentType: 'text/plain' })
+      await files.uploadUrl('key-of-ana', { expiresIn: 60, contentType: 'text/plain', maxBytes: 10 })
+      return new Response(null, { status: 201 })
+    }, { public: true })
+
+    await routed(router, '/files')
+
+    const steps = kept[0]!.spans.filter(span => span.kind === 'storage')
+    expect(steps.map(step => [step.name, step.context])).toEqual([['storage.put', 'boards']])
+    expect(JSON.stringify(kept[0])).not.toContain('key-of-ana')
+    await base.close()
   })
 
   test('a call that ran again after a conflict keeps each run, and says so, kept whatever the share', async () => {

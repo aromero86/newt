@@ -180,6 +180,41 @@ export function registerOrderRoutes(base: ShopBase, orders: Order_Module, deps: 
 - Never catch: a thrown domain error becomes `{ error, code }` with its base class's status; zod's a 400 `validation`.
 - Every route needs a session unless `{ public: true }`. Other origins only with `cors`, never cookies. `idempotency` for a POST that creates (client sends `Idempotency-Key`). `onError` for a wire format of its own; a router at the root is `new HttpRouter({ prefix: '' })`.
 
+## Files
+
+```ts
+this.files = base.storage.private.in('attachment')   // in the module's constructor; BaseOptions.storage gives the adapter
+
+@UseCase()
+async uploadStart(cardId: string, input: unknown) {
+  const parsed = AttachmentStartSchema.parse(input)                                  // the types allowed: z.enum, in the schema
+  const attachment = Attachment.start({ cardId, ...parsed })                         // pending
+  await this.repo.persist(attachment)
+  const uploadUrl = await this.files.uploadUrl(attachment.id, { expiresIn: 300, contentType: parsed.contentType, maxBytes: MAX })
+  return { attachment: attachment.toDTO(), uploadUrl }                               // the client PUTs the file there
+}
+@UseCase()
+async uploadConfirm(id: string) {
+  const attachment = await this.pending(id)
+  const refused = await this.files.verifyUpload(attachment.id, { contentType: attachment.contentType, maxBytes: MAX })
+  if (refused) { /* attachment.refuse(refused), persist, throw: a worker deletes the bytes */ }
+  attachment.markReady()
+  await this.repo.persist(attachment)
+  return attachment.toDTO()
+}
+@UseCase()
+async downloadUrl(id: string) {
+  const attachment = await this.ready(id)                                            // may they, every time
+  return this.files.signedUrl(attachment.id, { expiresIn: 60, contentType: attachment.contentType, filename: attachment.filename })
+}
+```
+
+- `base.storage.private` / `.public` (`PublicFiles.url(key)`); take your part with `.in('<module>')`, in the module, never in the repository: a trip to a bucket has no place in a transaction.
+- Those three use cases carry those names, `<kind>UploadStart` with several kinds of file, and call those methods themselves (`newt/storage-use-case`).
+- Nothing the client says of a file counts until `verifyUpload`: S3 holds an upload to neither its type nor its length.
+- Keys are the entity's id, never a name the client gave. Bytes are written first and deleted last: deleting them is a worker on the event. A schedule sweeps what stayed pending.
+- The bucket is infrastructure: newt never creates one. Tests use `MemoryStorage` (`send` answers its addresses). Details: the manual's `34-files.md`.
+
 ## Scopes and tenants
 
 ```ts
@@ -229,6 +264,7 @@ export class OrderNotFound extends NotFoundError {
 | `newt/queue-name` | A handler's queue is `<module>.<use case>.on.<module>.<event>`, its callback calls that use case. |
 | `newt/schema-imports` | A `<m>.schema.ts` takes from newt only `@newt-kit/newt/contract`. |
 | `newt/context-boundaries` | A context imports only the contexts its `uses` lists. |
+| `newt/storage-use-case` | `uploadUrl` is called by `uploadStart`, `verifyUpload` by `uploadConfirm`, `signedUrl` by `downloadUrl`, and those use cases call them. |
 | `newt/use-case` | Every public method of a `Module` is `@UseCase`; others are `private`. |
 | `newt/route-body` | No `await request.json() as X` in a `*.routes.ts`: the use case parses `unknown`. |
 | `no-restricted-syntax` | No `transaction` in a module: write through `save`/`saveRows`. |

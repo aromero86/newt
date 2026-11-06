@@ -7,6 +7,7 @@ import { moduleBoundaries } from './rules/module-boundaries.js'
 import { queueName } from './rules/queue-name.js'
 import { routeBody } from './rules/route-body.js'
 import { schemaImports } from './rules/schema-imports.js'
+import { storageUseCase } from './rules/storage-use-case.js'
 import { useCase } from './rules/use-case.js'
 
 /** The rules of newt that no other plugin has. */
@@ -19,6 +20,7 @@ export const plugin = {
     'queue-name': queueName,
     'route-body': routeBody,
     'schema-imports': schemaImports,
+    'storage-use-case': storageUseCase,
     'use-case': useCase,
   },
 }
@@ -44,6 +46,8 @@ const MODULES = '**/modules/*/**/*.ts'
  * - a module writes through its repository's `save` or `saveRows`, never in a
  *   transaction of its own, and a handler's queue names who reacts with what to
  *   which event;
+ * - what a module does with its files is done by the use cases named after it:
+ *   `uploadStart`, `uploadConfirm`, `downloadUrl` (`newt/storage-use-case`);
  * - every public method of a class extending `Module` in a `*.module.ts` is a use
  *   case, marked `@UseCase` (`newt/use-case`), wherever the module is;
  * - a route passes a body to a use case as it came, never asserting its type
@@ -112,6 +116,7 @@ export function newt({ files = ['**/*.ts'], contexts, root } = {}) {
         'newt/module-boundaries': 'error',
         'newt/queue-name': 'error',
         'newt/schema-imports': 'error',
+        'newt/storage-use-case': 'error',
         'no-restricted-syntax': ['error', {
           // Called, read or destructured: `store.transaction(…)`, `store['transaction']`, ``store[`transaction`]``, `const { transaction } = store`.
           selector: "MemberExpression[property.name='transaction'], MemberExpression[property.value='transaction'], MemberExpression[property.type='TemplateLiteral'][property.expressions.length=0][property.quasis.0.value.cooked='transaction'], ObjectPattern > Property[key.name='transaction'], ObjectPattern > Property[key.value='transaction']",

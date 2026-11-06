@@ -2,7 +2,7 @@ import type { LogFields, LogLevel } from '../logs/log-line'
 import type { Outcome } from '../metrics/outcome'
 
 /** What a span is: a request or a job (a trace's root), a use case's call, one of its runs, a read or write of a table, a transaction, an event told (an instant). */
-export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction' | 'event' | 'rate-limit'
+export type SpanKind = 'http' | 'job' | 'use-case' | 'attempt' | 'query' | 'transaction' | 'event' | 'rate-limit' | 'storage'
 
 /** What a span says of itself: a query's shape, the rows it read, the runs of a call. Never a value it was given. */
 export type SpanAttributeValue = string | number | boolean

@@ -7,7 +7,7 @@ function fromNewt(source) {
 }
 
 /** The names newt's `exported` goes by in a file: itself, and `Base` for `import { Module as Base }`. */
-function importedAs(program, exported) {
+export function importedAs(program, exported) {
   const names = new Set([exported])
   for (const statement of program.body) {
     if (statement.type !== 'ImportDeclaration' || !fromNewt(statement.source.value)) continue
@@ -20,7 +20,7 @@ function importedAs(program, exported) {
 }
 
 /** `Module`, `core.Module`, or the name `Module` is imported under: the class a module extends. */
-function extendsModule(node, modules) {
+export function extendsModule(node, modules) {
   const parent = node.superClass
   return parent?.type === 'Identifier' ? modules.has(parent.name)
     : parent?.type === 'MemberExpression' && !parent.computed && parent.property.name === 'Module'

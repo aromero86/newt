@@ -11,6 +11,7 @@ import { moduleBoundaries } from './module-boundaries.js'
 import { queueName } from './queue-name.js'
 import { routeBody } from './route-body.js'
 import { schemaImports } from './schema-imports.js'
+import { storageUseCase } from './storage-use-case.js'
 import { useCase } from './use-case.js'
 
 RuleTester.describe = describe
@@ -281,5 +282,42 @@ tester.run('route-body', routeBody, {
     { code: 'async (request: Request) => orders.place(await (request.json() as Promise<OrderPlaceDTO>))', filename: ORDER_ROUTES, errors: [{ messageId: 'body' }] },
     // Routes outside modules/ (a shared module's) too.
     { code: 'async (request: Request) => sessions.open(await request.json() as SessionDTO)', filename: '/repo/src/shared/web-session/web-session.routes.ts', errors: [{ messageId: 'body' }] },
+  ],
+})
+
+const inModule = (body) => `
+  import { Module, UseCase } from '@newt-kit/newt/core'
+  export class Attachment_Module extends Module {
+    ${body}
+  }`
+const MODULE_FILE = `${MODULE}/price-change.module.ts`
+
+tester.run('storage-use-case', storageUseCase, {
+  valid: [
+    { code: inModule('@UseCase() async uploadStart() { return this.files.uploadUrl(key, options) }'), filename: MODULE_FILE },
+    { code: inModule('@UseCase() async uploadConfirm() { return this.files.verifyUpload(key, rule) }'), filename: MODULE_FILE },
+    { code: inModule('@UseCase() async downloadUrl() { return this.files.signedUrl(key, options) }'), filename: MODULE_FILE },
+    { code: inModule('@UseCase() async avatarUploadStart() { return this.files.uploadUrl(key, options) }'), filename: MODULE_FILE },
+    // Inside what the use case runs: it is still the use case's.
+    { code: inModule('@UseCase() async uploadStart() { return retry(() => this.files.uploadUrl(key, options)) }'), filename: MODULE_FILE },
+    // Reading the rest of a file's life needs no name of its own.
+    { code: inModule('@UseCase() async remove() { await this.files.delete(key) }'), filename: MODULE_FILE },
+    // A class that is no module, named as it likes, and a test.
+    { code: 'class Other { async uploadStart() {} }', filename: MODULE_FILE },
+    { code: 'await files.verifyUpload(key, rule)', filename: `${MODULE}/price-change.test.ts` },
+  ],
+  invalid: [
+    { code: inModule('@UseCase() async start() { return this.files.uploadUrl(key, options) }'), filename: MODULE_FILE, errors: [{ messageId: 'wrongName' }] },
+    { code: inModule('@UseCase() async confirm() { return this.files.verifyUpload(key, rule) }'), filename: MODULE_FILE, errors: [{ messageId: 'wrongName' }] },
+    { code: inModule('@UseCase() async link() { return this.files.signedUrl(key, options) }'), filename: MODULE_FILE, errors: [{ messageId: 'wrongName' }] },
+    // A helper does not hide it, whichever way it is reached.
+    { code: inModule("private sign() { return this.files['uploadUrl'](key, options) }"), filename: MODULE_FILE, errors: [{ messageId: 'wrongName' }] },
+    { code: inModule('private sign() { const { uploadUrl } = this.files; return uploadUrl(key, options) }'), filename: MODULE_FILE, errors: [{ messageId: 'wrongName' }] },
+    // Named so, it must do it: an upload confirmed unverified is the hole this closes.
+    { code: inModule('@UseCase() async uploadConfirm() { await this.repo.persist(attachment) }'), filename: MODULE_FILE, errors: [{ messageId: 'missing' }] },
+    { code: inModule('@UseCase() async avatarUploadStart() { return null }'), filename: MODULE_FILE, errors: [{ messageId: 'missing' }] },
+    // Nor outside the module: its routes, a service.
+    { code: 'export const sign = files => files.signedUrl(key, options)', filename: `${MODULE}/services/sign.ts`, errors: [{ messageId: 'outside' }] },
+    { code: 'export const routes = files => files.uploadUrl(key, options)', filename: `${MODULE}/price-change.routes.ts`, errors: [{ messageId: 'outside' }] },
   ],
 })
