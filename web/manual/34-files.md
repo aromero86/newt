@@ -123,6 +123,14 @@ to signs only the host, so a client can send another type, or any length. `verif
 what came: how long it really is, and its first bytes. A file that is not what it says is refused:
 `missing`, `too_large` or `wrong_type`.
 
+So a bucket takes whatever length comes, until `uploadConfirm` or the sweep deletes it, and you pay
+for it meanwhile. Whoever may start an upload could send something huge. Give `uploadStart` a rate
+limit of its own, and the bucket a lifecycle rule that expires what is left. On disk, `handler` stops
+an upload at its `maxBytes` as it comes.
+
+A first-bytes check says what a file starts as, not that all of it is sound: a file starting with
+`%PDF-` and followed by rubbish passes. To know more, a worker opens it with a library of its own.
+
 A type with no signature (text, CSV, SVG) cannot be told by its bytes. It passes unless they are
 those of something known, a program say. So never trust such a file to be harmless.
 
@@ -195,6 +203,12 @@ need a `COOPER_FILES_SECRET` of their own.
 
 The folder must outlive the application (a persistent volume), and several instances need one they
 share. For a small application with one server, it is all it needs.
+
+## What it does not do
+
+Each file goes up in one `PUT`, so 5 GB at most on S3: uploading in parts from the browser is outside
+the port. Nor does it transform anything: a thumbnail is a worker's, which reads with `open` and writes
+with `put`, like any other file.
 
 ## Testing
 

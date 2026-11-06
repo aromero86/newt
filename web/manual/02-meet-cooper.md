@@ -120,7 +120,8 @@ after the modules it uses. These are the lists, from
 | Module | What it owns |
 |---|---|
 | `product` | The apps that sign people in, declared in code (no table) |
-| `user` | Accounts: email, name, password hash |
+| `user` | Accounts: email, name, password hash, where their picture is read from |
+| `avatar` | People's pictures, public: each one verified, and the older ones deleted |
 | `session` | Who is signed in to auth itself |
 | `access` | Who may enter each product, and in which tenant |
 | `tenant` | The workspaces |
@@ -139,6 +140,7 @@ after the modules it uses. These are the lists, from
 | `board` | The boards of each workspace |
 | `column` | The columns of each board |
 | `card` | The cards, their numbers, positions and assignees |
+| `attachment` | The files of each card, private to its workspace |
 | `workspace` | A workspace as boards sees it: its welcome board, and cleaning up when it goes |
 | `activity` | What happened to each card, and who did it: a log that only grows |
 | `outbox` | Its dead jobs |
@@ -179,6 +181,8 @@ flowchart LR
   board --> member
   activity --> card
   activity --> member
+  attachment --> card
+  attachment --> member
   workspace --> card
   workspace --> column
   workspace --> board
