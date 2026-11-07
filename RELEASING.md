@@ -15,17 +15,32 @@ is each `package.json`'s `files`: no tests, no fixtures, no `tsconfig.json`.
 
 ## A release
 
+A GitHub Release is what publishes. A tag alone publishes nothing, and every release has its
+section in [`CHANGELOG.md`](CHANGELOG.md), which is also the text of the Release.
+
 ```sh
 bun run release:version 0.2.0        # every package to 0.2.0
+# write the section ## 0.2.0 (YYYY-MM-DD) in CHANGELOG.md
 git commit -am "Release 0.2.0"
-git tag v0.2.0
-git push --follow-tags
+git push                             # on main
+
+bun scripts/release-notes.ts 0.2.0 |
+  gh release create v0.2.0 --target main --title v0.2.0 --notes-file -
 ```
 
-The tag runs `.github/workflows/release.yml`: it checks that the tag is the packages' version,
-type checks, tests, lints, builds the monitor's frontend and stages each package, the ones
-others depend on first: `bun pm pack` turns `workspace:*` into the version it packs, and
-`npm stage publish` leaves the tarball waiting on npm.
+Publishing the Release creates the tag `v0.2.0` and runs `.github/workflows/release.yml`: it
+checks that the tag is the packages' version and that the changelog has its section, type
+checks, tests, lints, builds the monitor's frontend and stages each package, the ones others
+depend on first: `bun pm pack` turns `workspace:*` into the version it packs, and
+`npm stage publish` leaves the tarball waiting on npm. A draft Release runs nothing until it
+is published.
+
+## The changelog
+
+`CHANGELOG.md` is written for someone who uses the packages, newest version first: what they
+can do now, what changed and what they must do to upgrade. Each section is written by hand
+when the release is made, from `git log v<previous>..HEAD`, and is not a list of commits.
+Changes to the site, the docs or cooper alone stay out.
 
 It needs one repository secret, `NPM_TOKEN`: an npm granular access token with read and
 write on the `@newt-kit` packages. The `npm-token` workflow, run by hand, says whether it still

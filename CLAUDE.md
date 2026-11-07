@@ -10,6 +10,10 @@ Default to using Bun instead of Node.js.
 - Use `bunx <package> <command>` instead of `npx <package> <command>`
 - Bun automatically loads .env, so don't use dotenv.
 
+## Releases
+
+A GitHub Release publishes the packages, never a tag alone, and each one has its section in `CHANGELOG.md`. Follow `RELEASING.md`.
+
 ## APIs
 
 - `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
