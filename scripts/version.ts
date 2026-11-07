@@ -20,4 +20,4 @@ for (const dir of PACKAGES) {
   await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
   console.log(`${manifest.name} ${version}`)
 }
-console.log(`\nNext: commit, then git tag v${version} && git push --follow-tags`)
+console.log(`\nNext: write its section in CHANGELOG.md, commit and push, then publish its GitHub Release: see RELEASING.md`)

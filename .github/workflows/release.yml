@@ -1,11 +1,12 @@
-# A tag v<x.y.z> publishes every package at that version to npm, once the repository
-# type checks, passes its tests and its lint. NPM_TOKEN is a repository secret: an npm
-# granular token that may publish the @newt-kit packages.
+# A GitHub Release v<x.y.z>, once published, stages every package at that version on npm, if
+# CHANGELOG.md tells of it and the repository type checks, passes its tests and its lint. A tag
+# alone does nothing. NPM_TOKEN is a repository secret: an npm granular token that may stage
+# the @newt-kit packages. See RELEASING.md.
 name: release
 
 on:
-  push:
-    tags: ['v*']
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -29,6 +30,9 @@ jobs:
               exit 1
             fi
           done
+
+      - name: The changelog tells of this version
+        run: bun scripts/release-notes.ts "${GITHUB_REF_NAME#v}"
 
       - run: bun run typecheck
       - run: bun run test
